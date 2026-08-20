@@ -25,18 +25,18 @@ import requests
 # CONFIG (stessa logica di main.py)
 # ---------------------------------------------------------------------------
 
+# Nota: MATICUSD, MKRUSD, FTMUSD rimosse -> Kraken le rifiuta come "Invalid asset pair"
 WATCHLIST = [
     "XBTUSD", "ETHUSD", "SOLUSD", "XRPUSD", "ADAUSD",
-    "DOGEUSD", "AVAXUSD", "DOTUSD", "LINKUSD", "MATICUSD",
+    "DOGEUSD", "AVAXUSD", "DOTUSD", "LINKUSD",
     "LTCUSD", "BCHUSD", "ATOMUSD", "UNIUSD", "ARBUSD",
     "TRXUSD", "NEARUSD", "APTUSD", "FILUSD", "ICPUSD",
     "OPUSD", "SUIUSD", "INJUSD", "RENDERUSD", "TIAUSD",
-    "SEIUSD", "AAVEUSD", "MKRUSD", "SNXUSD", "GRTUSD",
-    "SANDUSD", "MANAUSD", "AXSUSD", "FTMUSD", "ALGOUSD",
+    "SEIUSD", "AAVEUSD", "SNXUSD", "GRTUSD",
+    "SANDUSD", "MANAUSD", "AXSUSD", "ALGOUSD",
     "EGLDUSD", "FLOWUSD", "CHZUSD", "KSMUSD", "XLMUSD",
 ]
 
-SCORE_MINIMO = 65
 KRAKEN_OHLC_URL = "https://api.kraken.com/0/public/OHLC"
 
 # Kraken restituisce al massimo ~720 candele per chiamata.
@@ -139,11 +139,13 @@ def genera_segnali_storici(pair: str, df_1h: pd.DataFrame, df_4h: pd.DataFrame) 
 
     trade_generati = []
 
+    # Serve storia sufficiente per EMA200 su 4h e RSI/MACD su 1h
     inizio = max(210, 60)
 
     for i in range(inizio, len(df_1h) - 1):
         candela_time = df_1h["time"].iloc[i]
 
+        # Trova la candela 4h corrispondente (l'ultima chiusa prima di questo momento)
         riga_4h = df_4h[df_4h["time"] <= candela_time]
         if len(riga_4h) < 200:
             continue
@@ -176,8 +178,9 @@ def genera_segnali_storici(pair: str, df_1h: pd.DataFrame, df_4h: pd.DataFrame) 
         if pd.notna(ultimo["volume_media"]) and ultimo["volume"] > ultimo["volume_media"] * 1.3:
             score += 20
 
-        if score < SCORE_MINIMO:
-            continue
+        # NOTA: qui non filtriamo per soglia - registriamo OGNI candela con score >= 30
+        # (score minimo possibile, dato dal solo trend). Il filtro per soglia si applica
+        # dopo, nel report, cosi' possiamo confrontare piu' soglie sugli stessi dati.
 
         entry = ultimo["close"]
         atr_val = ultimo["atr"]
@@ -199,6 +202,7 @@ def genera_segnali_storici(pair: str, df_1h: pd.DataFrame, df_4h: pd.DataFrame) 
             score=score,
         )
 
+        # Simula l'esito guardando le candele successive fino a SL o TP
         for j in range(i + 1, min(i + 200, len(df_1h))):
             futura = df_1h.iloc[j]
             if bias == Direzione.LONG:
@@ -225,10 +229,14 @@ def genera_segnali_storici(pair: str, df_1h: pd.DataFrame, df_4h: pd.DataFrame) 
 # MAIN
 # ---------------------------------------------------------------------------
 
+SOGLIE_DA_TESTARE = [65, 70, 75, 80]
+
+
 def main():
     tutti_i_trade = []
 
-    print(f"Backtest su {len(WATCHLIST)} coppie, ultimi ~30 giorni (720 candele 1h)...\n")
+    print(f"Backtest su {len(WATCHLIST)} coppie, ultimi ~30 giorni (720 candele 1h)...")
+    print(f"Registro TUTTI i setup (score >= 30) per poter confrontare piu' soglie: {SOGLIE_DA_TESTARE}\n")
 
     for pair in WATCHLIST:
         try:
@@ -244,37 +252,36 @@ def main():
 
         trades = genera_segnali_storici(pair, df_1h, df_4h)
         tutti_i_trade.extend(trades)
-        print(f"  {pair}: {len(trades)} segnali generati nel periodo")
+        print(f"  {pair}: {len(trades)} setup registrati nel periodo")
 
-        time.sleep(1)
+        time.sleep(1)  # rispetto rate limit Kraken
 
-    chiusi = [t for t in tutti_i_trade if t.esito in ("WIN", "LOSS")]
-    aperti = [t for t in tutti_i_trade if t.esito == "APERTO"]
-    vinti = [t for t in chiusi if t.esito == "WIN"]
-    persi = [t for t in chiusi if t.esito == "LOSS"]
+    # --- Report per ciascuna soglia ---
+    print("\n" + "=" * 60)
+    print("CONFRONTO SOGLIE")
+    print("=" * 60)
 
-    print("\n" + "=" * 50)
-    print("REPORT BACKTEST")
-    print("=" * 50)
-    print(f"Segnali totali generati:     {len(tutti_i_trade)}")
-    print(f"Trade chiusi (SL o TP colpito): {len(chiusi)}")
-    print(f"Trade ancora aperti a fine periodo: {len(aperti)}")
-    print(f"  - Vinti (TP colpito):  {len(vinti)}")
-    print(f"  - Persi (SL colpito):  {len(persi)}")
+    for soglia in SOGLIE_DA_TESTARE:
+        trade_soglia = [t for t in tutti_i_trade if t.score >= soglia]
+        chiusi = [t for t in trade_soglia if t.esito in ("WIN", "LOSS")]
+        vinti = [t for t in chiusi if t.esito == "WIN"]
+        persi = [t for t in chiusi if t.esito == "LOSS"]
 
-    if chiusi:
-        win_rate = len(vinti) / len(chiusi) * 100
-        print(f"\nWIN RATE: {win_rate:.1f}%")
+        print(f"\n--- Soglia {soglia}/100 ---")
+        print(f"Segnali totali: {len(trade_soglia)}  |  Chiusi: {len(chiusi)}  |  Aperti: {len(trade_soglia) - len(chiusi)}")
 
-        risultato_netto = len(vinti) * 2 - len(persi) * 1
-        print(f"Risultato netto (in unità di rischio, R:R 1:2): {risultato_netto:+.1f}R")
-        print("(Se rischi l'1% di capitale per trade, questo equivale a circa "
-              f"{risultato_netto:+.1f}% di variazione del capitale nel periodo, "
-              "escludendo commissioni/slippage)")
-    else:
-        print("\nNessun trade chiuso nel periodo analizzato.")
+        if chiusi:
+            win_rate = len(vinti) / len(chiusi) * 100
+            risultato_netto = len(vinti) * 2 - len(persi) * 1
+            ev_per_trade = risultato_netto / len(chiusi)
+            print(f"Win rate: {win_rate:.1f}%  |  Vinti: {len(vinti)}  |  Persi: {len(persi)}")
+            print(f"Risultato netto: {risultato_netto:+.1f}R  |  EV per trade: {ev_per_trade:+.3f}R")
+            # Segnali/giorno stimati (periodo ~30 giorni)
+            print(f"Segnali/giorno stimati: ~{len(trade_soglia) / 30:.1f}")
+        else:
+            print("Nessun trade chiuso a questa soglia.")
 
-    print("=" * 50)
+    print("\n" + "=" * 60)
 
 
 if __name__ == "__main__":
