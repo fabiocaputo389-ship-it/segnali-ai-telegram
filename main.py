@@ -18,7 +18,6 @@ Dipendenze (vedi requirements.txt):
 import asyncio
 import logging
 import os
-import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
@@ -37,18 +36,116 @@ from telegram.error import TelegramError
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "")
 
-# Watchlist: le coppie Kraken piu' scambiate (puoi ampliarla)
+# Watchlist: le coppie Kraken piu' scambiate (ampliata per piu' opportunita' di segnale)
+# Nota: MATICUSD, MKRUSD, FTMUSD rimosse -> Kraken le rifiuta come "Invalid asset pair"
+# (probabile rebranding ticker, es. MATIC -> POL). Rivedere se serve reintrodurle con nome corretto.
 WATCHLIST = [
+    # Top cap
     "XBTUSD", "ETHUSD", "SOLUSD", "XRPUSD", "ADAUSD",
-    "DOGEUSD", "AVAXUSD", "DOTUSD", "LINKUSD", "MATICUSD",
+    "DOGEUSD", "AVAXUSD", "DOTUSD", "LINKUSD",
     "LTCUSD", "BCHUSD", "ATOMUSD", "UNIUSD", "ARBUSD",
+    # Aggiunte: altre coppie liquide su Kraken
+    "TRXUSD", "NEARUSD", "APTUSD", "FILUSD", "ICPUSD",
+    "OPUSD", "SUIUSD", "INJUSD", "RENDERUSD", "TIAUSD",
+    "SEIUSD", "AAVEUSD", "SNXUSD", "GRTUSD",
+    "SANDUSD", "MANAUSD", "AXSUSD", "ALGOUSD",
+    "EGLDUSD", "FLOWUSD", "CHZUSD", "KSMUSD", "XLMUSD",
 ]
 
 SCAN_INTERVAL_SECONDS = 600       # ogni 10 minuti
-SCORE_MINIMO_PUBBLICAZIONE = 65   # su 100
+SCORE_MINIMO_PUBBLICAZIONE = 80   # su 100 (alzato da 65 dopo backtest: win rate troppo basso a 65)
 COOLDOWN_ORE = 4                  # non ripetere segnale stesso asset entro N ore
 
+# --- Parametri per il calcolo della leva suggerita ---
+# La leva NON è un moltiplicatore di guadagno: serve solo a mantenere costante
+# la % di capitale a rischio, dato quanto è "stretto" o "largo" lo Stop Loss.
+RISCHIO_PER_TRADE_PERCENTO = 1.5   # % di capitale che si è disposti a perdere se lo SL viene colpito
+LEVA_MASSIMA = 10                  # tetto di sicurezza, mai superato indipendentemente dal calcolo
+LEVA_MINIMA = 1
+
 KRAKEN_OHLC_URL = "https://api.kraken.com/0/public/OHLC"
+
+# Numero di decimali accettati da Kraken per il PREZZO di ciascuna coppia.
+# Valori approssimati sui tick-size reali di Kraken (agosto 2026).
+# Se una coppia non è in questa lista, si usa un default calcolato dal prezzo stesso.
+DECIMALI_PREZZO = {
+    "XBTUSD": 1,
+    "ETHUSD": 2,
+    "SOLUSD": 2,
+    "XRPUSD": 4,
+    "ADAUSD": 4,
+    "DOGEUSD": 5,
+    "AVAXUSD": 3,
+    "DOTUSD": 3,
+    "LINKUSD": 3,
+    "MATICUSD": 4,
+    "LTCUSD": 2,
+    "BCHUSD": 1,
+    "ATOMUSD": 3,
+    "UNIUSD": 3,
+    "ARBUSD": 4,
+    "TRXUSD": 5,
+    "NEARUSD": 3,
+    "APTUSD": 3,
+    "FILUSD": 3,
+    "ICPUSD": 3,
+    "OPUSD": 4,
+    "SUIUSD": 4,
+    "INJUSD": 3,
+    "RENDERUSD": 3,
+    "TIAUSD": 3,
+    "SEIUSD": 4,
+    "AAVEUSD": 2,
+    "MKRUSD": 1,
+    "SNXUSD": 4,
+    "GRTUSD": 5,
+    "SANDUSD": 4,
+    "MANAUSD": 4,
+    "AXSUSD": 3,
+    "FTMUSD": 5,
+    "ALGOUSD": 4,
+    "EGLDUSD": 2,
+    "FLOWUSD": 4,
+    "CHZUSD": 5,
+    "KSMUSD": 2,
+    "XLMUSD": 5,
+}
+
+
+def decimali_per_coppia(pair: str, prezzo: float) -> int:
+    """Restituisce i decimali corretti per una coppia; se sconosciuta, li stima dal prezzo."""
+    if pair in DECIMALI_PREZZO:
+        return DECIMALI_PREZZO[pair]
+    # Stima ragionevole se la coppia non è mappata esplicitamente
+    if prezzo >= 1000:
+        return 1
+    if prezzo >= 100:
+        return 2
+    if prezzo >= 1:
+        return 3
+    if prezzo >= 0.1:
+        return 4
+    return 6
+
+
+def arrotonda_prezzo(pair: str, prezzo: float) -> float:
+    decimali = decimali_per_coppia(pair, prezzo)
+    return round(prezzo, decimali)
+
+
+def calcola_leva(entry: float, stop_loss: float) -> int:
+    """
+    Leva suggerita = quanta leva puoi usare mantenendo costante il rischio
+    (RISCHIO_PER_TRADE_PERCENTO) rispetto al capitale, dato quanto è distante lo SL.
+    Non è un moltiplicatore "a caso": più lo SL è stretto, più leva è
+    matematicamente coerente con lo stesso rischio in euro/dollari.
+    """
+    distanza_percento = abs(entry - stop_loss) / entry * 100
+    if distanza_percento <= 0:
+        return LEVA_MINIMA
+    leva = RISCHIO_PER_TRADE_PERCENTO / distanza_percento
+    leva_arrotondata = round(leva)
+    return max(LEVA_MINIMA, min(LEVA_MASSIMA, leva_arrotondata))
 
 logging.basicConfig(
     level=logging.INFO,
@@ -72,6 +169,7 @@ class Segnale:
     timeframe: str
     score: int
     motivazione: str
+    leva_suggerita: int = 1
 
     @property
     def risk_reward(self) -> float:
@@ -221,15 +319,21 @@ def analizza_coppia(pair: str) -> Segnale | None:
         stop_loss = entry + (1.5 * atr_val)
         take_profit = entry - (3 * atr_val)
 
+    entry_r = arrotonda_prezzo(pair, entry)
+    stop_loss_r = arrotonda_prezzo(pair, stop_loss)
+    take_profit_r = arrotonda_prezzo(pair, take_profit)
+    leva = calcola_leva(entry_r, stop_loss_r)
+
     return Segnale(
         coppia=pair,
         direzione=bias,
-        entry=round(entry, 6),
-        stop_loss=round(stop_loss, 6),
-        take_profit=round(take_profit, 6),
+        entry=entry_r,
+        stop_loss=stop_loss_r,
+        take_profit=take_profit_r,
         timeframe="1h (trend 4h)",
         score=score,
         motivazione="; ".join(motivi),
+        leva_suggerita=leva,
     )
 
 
@@ -251,7 +355,8 @@ def formatta_messaggio(s: Segnale) -> str:
         f"*Entry:* `{s.entry}`\n"
         f"*Stop Loss:* `{s.stop_loss}`\n"
         f"*Take Profit:* `{s.take_profit}`\n"
-        f"*Risk/Reward:* 1:{s.risk_reward}\n\n"
+        f"*Risk/Reward:* 1:{s.risk_reward}\n"
+        f"*Leva suggerita:* {s.leva_suggerita}x _(rischio ~{RISCHIO_PER_TRADE_PERCENTO}% capitale su SL)_\n\n"
         f"*Confidenza:* {barra} {s.score}/100\n\n"
         f"_{s.motivazione}_\n"
         f"━━━━━━━━━━━━━━━\n"
@@ -292,7 +397,7 @@ async def ciclo_scansione(bot: Bot, ultimo_segnale: dict):
             if inviato:
                 ultimo_segnale[pair] = ora
 
-        time.sleep(1)  # rispetto rate limit Kraken
+        await asyncio.sleep(1)  # rispetto rate limit Kraken (non bloccante)
 
 
 async def main():
