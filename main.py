@@ -246,16 +246,18 @@ def atr(df: pd.DataFrame, periodo: int = 14) -> pd.Series:
 # LOGICA DI GENERAZIONE SEGNALE
 # ---------------------------------------------------------------------------
 
-def analizza_coppia(pair: str) -> Segnale | None:
+def analizza_coppia(pair: str) -> tuple[Segnale | None, int, str]:
+    """Restituisce (segnale o None, score calcolato, direzione) per poter sempre tracciare lo score,
+    anche quando il segnale non supera la soglia minima."""
     try:
         df_4h = get_ohlc(pair, interval=240, count=250)
         df_1h = get_ohlc(pair, interval=60, count=250)
     except Exception as e:
         logger.warning(f"Dati non disponibili per {pair}: {e}")
-        return None
+        return None, -1, ""
 
     if len(df_4h) < 200 or len(df_1h) < 50:
-        return None
+        return None, -1, ""
 
     # --- Trend su 4h ---
     df_4h["ema50"] = ema(df_4h["close"], 50)
@@ -275,6 +277,9 @@ def analizza_coppia(pair: str) -> Segnale | None:
 
     ultimo = df_1h.iloc[-1]
     precedente = df_1h.iloc[-2]
+
+    if pd.isna(ultimo["rsi"]) or pd.isna(precedente["rsi"]) or pd.isna(ultimo["atr"]):
+        return None, -1, ""
 
     score = 0
     motivi = []
@@ -307,7 +312,10 @@ def analizza_coppia(pair: str) -> Segnale | None:
         motivi.append("Volume sopra media (spike)")
 
     if score < SCORE_MINIMO_PUBBLICAZIONE:
-        return None
+        logger.info(f"{pair}: score {score}/100 ({bias.value}) - sotto soglia, scartato")
+        return None, score, bias.value
+
+    logger.info(f"{pair}: score {score}/100 ({bias.value}) - SEGNALE VALIDO")
 
     entry = ultimo["close"]
     atr_val = ultimo["atr"] if pd.notna(ultimo["atr"]) else entry * 0.01
@@ -324,7 +332,7 @@ def analizza_coppia(pair: str) -> Segnale | None:
     take_profit_r = arrotonda_prezzo(pair, take_profit)
     leva = calcola_leva(entry_r, stop_loss_r)
 
-    return Segnale(
+    segnale = Segnale(
         coppia=pair,
         direzione=bias,
         entry=entry_r,
@@ -335,6 +343,7 @@ def analizza_coppia(pair: str) -> Segnale | None:
         motivazione="; ".join(motivi),
         leva_suggerita=leva,
     )
+    return segnale, score, bias.value
 
 
 # ---------------------------------------------------------------------------
@@ -385,19 +394,60 @@ async def invia_segnale(bot: Bot, segnale: Segnale) -> bool:
 
 async def ciclo_scansione(bot: Bot, ultimo_segnale: dict):
     ora = datetime.now()
+    logger.info(f"--- Inizio scansione: {len(WATCHLIST)} coppie ---")
+
+    risultati = []  # (pair, score, direzione) per il riepilogo
+    almeno_un_segnale = False
 
     for pair in WATCHLIST:
         ultima_pubblicazione = ultimo_segnale.get(pair)
         if ultima_pubblicazione and (ora - ultima_pubblicazione) < timedelta(hours=COOLDOWN_ORE):
+            logger.info(f"{pair}: in cooldown, salto")
             continue
 
-        segnale = analizza_coppia(pair)
+        segnale, score, direzione = analizza_coppia(pair)
+        if score >= 0:
+            risultati.append((pair, score, direzione))
+
         if segnale:
             inviato = await invia_segnale(bot, segnale)
             if inviato:
                 ultimo_segnale[pair] = ora
+                almeno_un_segnale = True
 
         await asyncio.sleep(1)  # rispetto rate limit Kraken (non bloccante)
+
+    logger.info("--- Fine scansione ---")
+    if not almeno_un_segnale:
+        await invia_riepilogo(bot, risultati)
+
+
+async def invia_riepilogo(bot: Bot, risultati: list):
+    """Manda su Telegram le 5 coppie con lo score piu' alto della scansione,
+    anche se nessuna ha superato la soglia. Serve per monitorare che il bot
+    stia lavorando e quanto siamo vicini a un segnale."""
+    if not risultati:
+        return
+
+    risultati_ordinati = sorted(risultati, key=lambda r: r[1], reverse=True)[:5]
+
+    righe = []
+    for pair, score, direzione in risultati_ordinati:
+        piene = round(score / 10)
+        barra = "█" * piene + "░" * (10 - piene)
+        righe.append(f"`{pair}` {direzione}: {barra} {score}/100")
+
+    testo = (
+        f"🔍 *Riepilogo scansione*\n"
+        f"Nessun segnale ha superato la soglia ({SCORE_MINIMO_PUBBLICAZIONE}/100).\n"
+        f"Top 5 pi\u00f9 vicine:\n\n" + "\n".join(righe) +
+        f"\n\n🕒 {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+    )
+
+    try:
+        await bot.send_message(chat_id=CHANNEL_ID, text=testo, parse_mode=ParseMode.MARKDOWN)
+    except TelegramError as e:
+        logger.error(f"Errore invio riepilogo: {e}")
 
 
 async def main():
