@@ -1,11 +1,11 @@
+
 import os
 import time
 import requests
 
-# Configurazioni lette dalle variabili d'ambiente di Railway per sicurezza
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHANNEL_ID = os.getenv("TELEGRAM_CHANNEL_ID")  # es. @TuoCanaleSegnali
-
+# Leggiamo i nomi esatti impostati nel tuo pannello Railway
+TELEGRAM_BOT_TOKEN = os.getenv("BOT_TOKEN")
+TELEGRAM_CHANNEL_ID = os.getenv("CHANNEL_ID")
 def send_telegram_message(text):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
