@@ -88,7 +88,7 @@ def calculate_atr(highs, lows, closes, period=14):
     return atr
 
 def scan_market(is_report_cycle=False):
-    print("💎 [ELITE SCAN] Analisi Dual-Mode (Long/Short) in corso...")
+    print("💎 [ELITE SCAN] Analisi Dual-Mode con Template Completo in corso...")
     url = "https://api.binance.com/api/v3/ticker/24hr"
     try:
         response = requests.get(url)
@@ -100,6 +100,7 @@ def scan_market(is_report_cycle=False):
         for coin in active_coins[:30]:
             symbol = coin['symbol']
             price = float(coin['lastPrice'])
+            price_change = float(coin['priceChangePercent'])
             closes, highs, lows = get_binance_klines(symbol, interval="1h", limit=50)
             if not closes: continue
             
@@ -112,17 +113,57 @@ def scan_market(is_report_cycle=False):
             # --- LOGICA LONG ---
             if rsi < 35 and price > ema50:
                 entry = price
-                tp1_val = entry + (atr * 1.5)
-                sl_val  = entry - (atr * 1.2)
-                message = f"🏆 **ELITE VIP LONG** 🏆\n\n🪙 {symbol}\n📈 Direzione: LONG\n📍 Entry: `{entry:.4f}`\n🎯 TP1: `{tp1_val:.4f}`\n🛑 SL: `{sl_val:.4f}`"
+                tp1 = entry + (atr * 1.0)
+                tp2 = entry + (atr * 2.0)
+                tp3 = entry + (atr * 3.0)
+                sl  = entry - (atr * 1.2)
+                
+                p_tp1 = ((tp1 - entry) / entry) * 100
+                p_tp2 = ((tp2 - entry) / entry) * 100
+                p_tp3 = ((tp3 - entry) / entry) * 100
+                p_sl  = ((entry - sl) / entry) * 100
+                
+                message = (
+                    f"🚀 **PREMIUM VIP CRYPTO SIGNAL** 🚀\n\n"
+                    f"🪙 **Asset:** `{symbol}`\n"
+                    f"📈 **Direzione:** `LONG (Buy)`\n"
+                    f"⚡ **Leva Consigliata:** `10x - 15x`\n\n"
+                    f"📍 **Entry Zone:** `{entry:.4f}`\n\n"
+                    f"🎯 **TP 1:** `{tp1:.4f}` `(+{p_tp1:.1f}%)`\n"
+                    f"🎯 **TP 2:** `{tp2:.4f}` `(+{p_tp2:.1f}%)`\n"
+                    f"🎯 **TP 3:** `{tp3:.4f}` `(+{p_tp3:.1f}%)`\n"
+                    f"🛑 **Stop Loss:** `{sl:.4f}` `(-{p_sl:.1f}%)`\n\n"
+                    f"📊 **Dati di Analisi:** `RSI(14) a {rsi:.1f} | Variazione 24h: {price_change:.3f}%`\n"
+                    f"💡 *Setup ad alta probabilità di rimbalzo tecnico.*"
+                )
                 send_telegram_message(message)
 
             # --- LOGICA SHORT ---
             elif rsi > 70 and price < ema50:
                 entry = price
-                tp1_val = entry - (atr * 1.5)
-                sl_val  = entry + (atr * 1.2)
-                message = f"🔻 **ELITE VIP SHORT** 🔻\n\n🪙 {symbol}\n📉 Direzione: SHORT\n📍 Entry: `{entry:.4f}`\n🎯 TP1: `{tp1_val:.4f}`\n🛑 SL: `{sl_val:.4f}`"
+                tp1 = entry - (atr * 1.0)
+                tp2 = entry - (atr * 2.0)
+                tp3 = entry - (atr * 3.0)
+                sl  = entry + (atr * 1.2)
+                
+                p_tp1 = ((entry - tp1) / entry) * 100
+                p_tp2 = ((entry - tp2) / entry) * 100
+                p_tp3 = ((entry - tp3) / entry) * 100
+                p_sl  = ((sl - entry) / entry) * 100
+                
+                message = (
+                    f"🚀 **PREMIUM VIP CRYPTO SIGNAL** 🚀\n\n"
+                    f"🪙 **Asset:** `{symbol}`\n"
+                    f"📉 **Direzione:** `SHORT (Sell)`\n"
+                    f"⚡ **Leva Consigliata:** `10x - 15x`\n\n"
+                    f"📍 **Entry Zone:** `{entry:.4f}`\n\n"
+                    f"🎯 **TP 1:** `{tp1:.4f}` `(+{p_tp1:.1f}%)`\n"
+                    f"🎯 **TP 2:** `{tp2:.4f}` `(+{p_tp2:.1f}%)`\n"
+                    f"🎯 **TP 3:** `{tp3:.4f}` `(+{p_tp3:.1f}%)`\n"
+                    f"🛑 **Stop Loss:** `{sl:.4f}` `(-{p_sl:.1f}%)`\n\n"
+                    f"📊 **Dati di Analisi:** `RSI(14) a {rsi:.1f} | Variazione 24h: {price_change:.3f}%`\n"
+                    f"💡 *Setup short da ipercomprato con trend ribassista.*"
+                )
                 send_telegram_message(message)
 
         if is_report_cycle:
@@ -150,7 +191,7 @@ def scan_market(is_report_cycle=False):
         print(f"Errore durante l'analisi: {e}")
 
 if __name__ == "__main__":
-    print("🤖 Bot Sala Segnali con Pre-Allerte e Monitoraggio avviato H24...")
+    print("🤖 Bot Sala Segnali con Template Completo avviato H24...")
     counter = 0
     while True:
         counter += 1
