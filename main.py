@@ -2,8 +2,8 @@ import os
 import time
 import requests
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+TELEGRAM_TOKEN = os.getenv("BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("CHANNEL_ID")
 
 def send_telegram_message(message):
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
@@ -172,8 +172,8 @@ def scan_market(is_report_cycle=False):
                 top_watchlist = "\n".join([f"• `{item['symbol']}` - RSI: {item['rsi']:.1f}" for item in watchlist_summary[:6]])
                 report_msg = (
                     f"📊 **MARKET UPDATE & WATCHLIST** 📊\n\n"
-                    f"Il bot sta monitorando gli asset H24.\n"
-                    f"Asset più vicini alle zone di accumulo/vendita:\n\n"
+                    f"Il bot ora monitora Long e Short H24.\n"
+                    f"Asset più vicini alle zone chiave:\n\n"
                     f"{top_watchlist}\n\n"
                     f"⏳ *In attesa di setup ideali.*"
                 )
@@ -191,7 +191,7 @@ def scan_market(is_report_cycle=False):
         print(f"Errore durante l'analisi: {e}")
 
 if __name__ == "__main__":
-    print("🤖 Bot Sala Segnali con Template Completo avviato H24...")
+    print("🤖 Bot Sala Segnali con Connessione Corretta avviato H24...")
     counter = 0
     while True:
         counter += 1
