@@ -21,16 +21,17 @@ def send_telegram_message(text):
     except Exception as e:
         print(f"Errore nell'invio a Telegram: {e}")
 
-def get_binance_klines(symbol, interval="1h", limit=30):
+def get_binance_klines(symbol, interval="1h", limit=50):
     url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}"
     try:
         response = requests.get(url)
         data = response.json()
         closes = [float(candle[4]) for candle in data]
-        volumes = [float(candle[5]) for candle in data]
-        return closes, volumes
+        highs = [float(candle[2]) for candle in data]
+        lows = [float(candle[3]) for candle in data]
+        return closes, highs, lows
     except Exception as e:
-        return [], []
+        return [], [], []
 
 def calculate_rsi(closes, period=14):
     if len(closes) < period + 1:
@@ -48,79 +49,100 @@ def calculate_rsi(closes, period=14):
     if avg_loss == 0:
         return 100
     rs = avg_gain / avg_loss
-    rsi = 100 - (100 / (1 + rs))
-    return rsi
+    return 100 - (100 / (1 + rs))
+
+def calculate_ema(closes, period=50):
+    if len(closes) < period:
+        return closes[-1]
+    multiplier = 2 / (period + 1)
+    ema = sum(closes[:period]) / period
+    for price in closes[period:]:
+        ema = (price - ema) * multiplier + ema
+    return ema
+
+def calculate_atr(highs, lows, closes, period=14):
+    if len(closes) < period + 1:
+        return (highs[-1] - lows[-1])
+    tr_list = []
+    for i in range(1, len(closes)):
+        hl = highs[i] - lows[i]
+        hc = abs(highs[i] - closes[i-1])
+        lc = abs(lows[i] - closes[i-1])
+        tr_list.append(max(hl, hc, lc))
+    return sum(tr_list[-period:]) / period
 
 def scan_market():
-    print("🔎 [MONITORAGGIO H24] Scansione di tutte le crypto in corso...")
+    print("💎 [ELITE SCAN] Analisi di precisione quantitativa in corso...")
     url = "https://api.binance.com/api/v3/ticker/24hr"
     try:
         response = requests.get(url)
         tickers = response.json()
         
-        # Selezioniamo solo le crypto con volumi importanti per evitare manipolazioni (scam coins)
         active_coins = [
             item for item in tickers 
-            if item['symbol'].endswith('USDT') and float(item['quoteVolume']) > 20000000
+            if item['symbol'].endswith('USDT') and float(item['quoteVolume']) > 25000000
         ]
         
-        print(f"📊 Monitoraggio attivo su {len(active_coins)} asset principali.")
-
         for coin in active_coins:
             symbol = coin['symbol']
             price = float(coin['lastPrice'])
             price_change_24h = float(coin['priceChangePercent'])
             
-            # Scarichiamo le candele per RSI e volumi
-            closes, volumes = get_binance_klines(symbol, interval="1h", limit=30)
-            if not closes or not volumes:
+            closes, highs, lows = get_binance_klines(symbol, interval="1h", limit=50)
+            if not closes:
                 continue
             
             rsi = calculate_rsi(closes)
+            ema50 = calculate_ema(closes, 50)
+            atr = calculate_atr(highs, lows, closes, 14)
             
-            # Mostra nei log lo stato di monitoraggio per capire chi sta per scattare
+            # Watchlist avanzata nei log
             if rsi < 35 or rsi > 65:
-                print(f"👀 [In Watchlist] {symbol} -> RSI: {rsi:.1f} | 24h: {price_change_24h}%")
+                print(f"👁️‍🗨️ [Watchlist] {symbol} | RSI: {rsi:.1f} | Prezzo vs EMA50: {'Sopra' if price > ema50 else 'Sotto'}")
 
-            # CONDIZIONE LONG PERFETTA: RSI in forte ipervenduto (< 30) + Trend o spinta in corso
-            if rsi < 30:
+            # ECCELLENZA LONG: RSI ipervenduto (< 32) + Trend di fondo rialzista (Prezzo > EMA 50)
+            if rsi < 32 and price > ema50:
                 entry = price
                 
-                # Calcolo percentuali millimetriche
-                tp1_val = entry * 1.020  # +2.0%
-                tp2_val = entry * 1.040  # +4.0%
-                tp3_val = entry * 1.070  # +7.0%
-                sl_val  = entry * 0.985  # -1.5% (Stop loss stretto per proteggere il capitale)
+                # Targets basati sulla volatilità ATR per la massima precisione statistica
+                tp1_val = entry + (atr * 1.5)
+                tp2_val = entry + (atr * 3.0)
+                tp3_val = entry + (atr * 4.5)
+                sl_val  = entry - (atr * 1.2)
                 
-                leverage = "10x - 15x"
+                # Percentuali stimate per visualizzazione pulita
+                p_tp1 = ((tp1_val - entry) / entry) * 100
+                p_tp2 = ((tp2_val - entry) / entry) * 100
+                p_tp3 = ((tp3_val - entry) / entry) * 100
+                p_sl  = ((entry - sl_val) / entry) * 100
+                
+                leverage = "10x - 20x"
                 
                 message = (
-                    f"🚀 **PREMIUM VIP CRYPTO SIGNAL** 🚀\n\n"
+                    f"🏆 **ELITE VIP CRYPTO SIGNAL** 🏆\n\n"
                     f"🪙 **Asset:** `{symbol}`\n"
-                    f"📈 **Direzione:** `LONG (Buy)`\n"
+                    f"📈 **Direzione:** `LONG (Buy Setup)`\n"
                     f"⚡ **Leva Consigliata:** `{leverage}`\n\n"
-                    f"📍 **Entry Zone:** `{entry}`\n\n"
-                    f"🎯 **TP 1:** `{tp1_val:.4f}` `(+2.0%)`\n"
-                    f"🎯 **TP 2:** `{tp2_val:.4f}` `(+4.0%)`\n"
-                    f"🎯 **TP 3:** `{tp3_val:.4f}` `(+7.0%)`\n"
-                    f"🛑 **Stop Loss:** `{sl_val:.4f}` `(-1.5%)`\n\n"
-                    f"📊 *Dati di Analisi:* RSI(14) a `{rsi:.1f}` | Variazione 24h: `{price_change_24h}%`\n"
-                    f"💡 *Setup ad alta probabilità di rimbalzo tecnico.*"
+                    f"📍 **Entry Zone:** `{entry:.4f}`\n\n"
+                    f"🎯 **TP 1:** `{tp1_val:.4f}` `(+{p_tp1:.2f}%)`\n"
+                    f"🎯 **TP 2:** `{tp2_val:.4f}` `(+{p_tp2:.2f}%)`\n"
+                    f"🎯 **TP 3:** `{tp3_val:.4f}` `(+{p_tp3:.2f}%)`\n"
+                    f"🛑 **Stop Loss:** `{sl_val:.4f}` `(-{p_sl:.2f}%)`\n\n"
+                    f"📊 *Metriche Quant:* RSI(14): `{rsi:.1f}` | Trend EMA50: `Confermato`\n"
+                    f"💡 *Setup filtrato per massimizzare il Risk/Reward.*"
                 )
                 
                 send_telegram_message(message)
-                print(f"✅ SEGNALE PERFETTO INVIATO PER {symbol} (RSI: {rsi:.1f})!")
+                print(f"🚀 SEGNALE D'ÉLITE INVIATO PER {symbol}!")
                 
-                # Pausa strategica per non saturare il canale
                 time.sleep(1200)
                 
     except Exception as e:
-        print(f"Errore durante la scansione di mercato: {e}")
+        print(f"Errore durante l'analisi d'eccellenza: {e}")
 
 if __name__ == "__main__":
-    print("🤖 Bot Sala Segnali di Precisione avviato H24...")
+    print("🤖 Bot Sala Segnali di Livello Superiore avviato H24...")
     while True:
         scan_market()
-        # Ciclo di controllo ogni 10 minuti
         time.sleep(600)
         
