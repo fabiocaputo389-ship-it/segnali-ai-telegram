@@ -169,11 +169,15 @@ if __name__ == "__main__":
     print("🤖 Bot Sala Segnali con Pre-Allerte e Monitoraggio avviato H24...")
     counter = 0
     while True:
-        is_report = (counter >= 6)
+        # Incrementiamo il contatore ad ogni ciclo
+        counter += 1
+        
+        # Se il contatore arriva a 3, forziamo il report e resettiamo
+        is_report = (counter >= 3)
+        
+        scan_market(is_report_cycle=is_report)
+        
         if is_report:
             counter = 0
             
-        scan_market(is_report_cycle=is_report)
-        counter += 1
-        time.sleep(600)
-                    
+        time.sleep(600) # Pausa di 10 minuti
