@@ -40,7 +40,7 @@ def calculate_rsi(closes, period=14):
     if len(closes) < period + 1:
         return 50.0
     gains = []
-losses = []
+    losses = []
     for i in range(1, len(closes)):
         change = closes[i] - closes[i-1]
         if change > 0:
@@ -159,4 +159,4 @@ if __name__ == "__main__":
         if is_report:
             counter = 0
         time.sleep(600)
-                
+        
