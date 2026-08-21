@@ -53,7 +53,9 @@ WATCHLIST = [
 ]
 
 SCAN_INTERVAL_SECONDS = 600       # ogni 10 minuti
-SCORE_MINIMO_PUBBLICAZIONE = 80   # su 100 (alzato da 65 dopo backtest: win rate troppo basso a 65)
+SCORE_MINIMO_PUBBLICAZIONE = 65   # su 100 - confermato dal backtest: EV +0.043R/trade, ~15 segnali/giorno
+# NOTA: lo score è discreto (30/50/55/75/80/100 - somma di blocchi), quindi 65/70/75
+# producono risultati identici. 80 è stato testato e dà EV negativo: NON alzare oltre 75.
 COOLDOWN_ORE = 4                  # non ripetere segnale stesso asset entro N ore
 
 # --- Parametri per il calcolo della leva suggerita ---
@@ -176,6 +178,14 @@ class Segnale:
         rischio = abs(self.entry - self.stop_loss)
         rendimento = abs(self.take_profit - self.entry)
         return round(rendimento / rischio, 2) if rischio else 0.0
+
+    @property
+    def sl_percento(self) -> float:
+        return round(abs(self.entry - self.stop_loss) / self.entry * 100, 2)
+
+    @property
+    def tp_percento(self) -> float:
+        return round(abs(self.take_profit - self.entry) / self.entry * 100, 2)
 
 
 # ---------------------------------------------------------------------------
@@ -322,10 +332,10 @@ def analizza_coppia(pair: str) -> tuple[Segnale | None, int, str]:
 
     if bias == Direzione.LONG:
         stop_loss = entry - (1.5 * atr_val)
-        take_profit = entry + (3 * atr_val)
+        take_profit = entry + (4.5 * atr_val)   # R:R 1:3 (era 3*atr = 1:2)
     else:
         stop_loss = entry + (1.5 * atr_val)
-        take_profit = entry - (3 * atr_val)
+        take_profit = entry - (4.5 * atr_val)
 
     entry_r = arrotonda_prezzo(pair, entry)
     stop_loss_r = arrotonda_prezzo(pair, stop_loss)
@@ -362,8 +372,8 @@ def formatta_messaggio(s: Segnale) -> str:
         f"*Coppia:* `{s.coppia}`\n"
         f"*Timeframe:* {s.timeframe}\n\n"
         f"*Entry:* `{s.entry}`\n"
-        f"*Stop Loss:* `{s.stop_loss}`\n"
-        f"*Take Profit:* `{s.take_profit}`\n"
+        f"*Stop Loss:* `{s.stop_loss}` _(-{s.sl_percento}%)_\n"
+        f"*Take Profit:* `{s.take_profit}` _(+{s.tp_percento}%)_\n"
         f"*Risk/Reward:* 1:{s.risk_reward}\n"
         f"*Leva suggerita:* {s.leva_suggerita}x _(rischio ~{RISCHIO_PER_TRADE_PERCENTO}% capitale su SL)_\n\n"
         f"*Confidenza:* {barra} {s.score}/100\n\n"
