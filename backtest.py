@@ -187,10 +187,10 @@ def genera_segnali_storici(pair: str, df_1h: pd.DataFrame, df_4h: pd.DataFrame) 
 
         if bias == Direzione.LONG:
             stop_loss = entry - (1.5 * atr_val)
-            take_profit = entry + (3 * atr_val)
+            take_profit = entry + (4.5 * atr_val)   # R:R 1:3
         else:
             stop_loss = entry + (1.5 * atr_val)
-            take_profit = entry - (3 * atr_val)
+            take_profit = entry - (4.5 * atr_val)
 
         trade = TradeSimulato(
             coppia=pair,
@@ -272,7 +272,7 @@ def main():
 
         if chiusi:
             win_rate = len(vinti) / len(chiusi) * 100
-            risultato_netto = len(vinti) * 2 - len(persi) * 1
+            risultato_netto = len(vinti) * 3 - len(persi) * 1   # R:R 1:3
             ev_per_trade = risultato_netto / len(chiusi)
             print(f"Win rate: {win_rate:.1f}%  |  Vinti: {len(vinti)}  |  Persi: {len(persi)}")
             print(f"Risultato netto: {risultato_netto:+.1f}R  |  EV per trade: {ev_per_trade:+.3f}R")
