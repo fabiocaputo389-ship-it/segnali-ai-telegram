@@ -88,7 +88,7 @@ def calculate_atr(highs, lows, closes, period=14):
     return atr
 
 def scan_market(is_report_cycle=False):
-    print("💎 [ELITE SCAN] Analisi Dual-Mode con Template Completo in corso...")
+    print("💎 [ELITE SCAN] Analisi con Diagnosi di Mercato in corso...")
     url = "https://api.binance.com/api/v3/ticker/24hr"
     try:
         response = requests.get(url)
@@ -96,6 +96,7 @@ def scan_market(is_report_cycle=False):
         active_coins = [item for item in tickers if item['symbol'].endswith('USDT') and float(item['quoteVolume']) > 25000000]
         
         watchlist_summary = []
+        signals_found = 0
 
         for coin in active_coins[:30]:
             symbol = coin['symbol']
@@ -112,6 +113,7 @@ def scan_market(is_report_cycle=False):
 
             # --- LOGICA LONG ---
             if rsi < 35 and price > ema50:
+                signals_found += 1
                 entry = price
                 tp1 = entry + (atr * 1.0)
                 tp2 = entry + (atr * 2.0)
@@ -140,6 +142,7 @@ def scan_market(is_report_cycle=False):
 
             # --- LOGICA SHORT ---
             elif rsi > 70 and price < ema50:
+                signals_found += 1
                 entry = price
                 tp1 = entry - (atr * 1.0)
                 tp2 = entry - (atr * 2.0)
@@ -168,34 +171,44 @@ def scan_market(is_report_cycle=False):
 
         if is_report_cycle:
             if watchlist_summary:
+                # Calcoliamo la media dell'RSI sul campione per dare una panoramica dello stato del mercato
+                avg_rsi = sum([item['rsi'] for item in watchlist_summary]) / len(watchlist_summary)
+                market_status = "In equilibrio (Laterale)"
+                if avg_rsi < 45:
+                    market_status = "Inclinato verso l'Ipervenduto (Possibili aree di accumulo)"
+                elif avg_rsi > 55:
+                    market_status = "Inclinato verso l'Ipercomprato (Cautela sui Long)"
+
                 watchlist_summary = sorted(watchlist_summary, key=lambda k: k['rsi'])
-                top_watchlist = "\n".join([f"• `{item['symbol']}` - RSI: {item['rsi']:.1f}" for item in watchlist_summary[:6]])
+                top_watchlist = "\n".join([f"• `{item['symbol']}` - RSI: {item['rsi']:.1f}" for item in watchlist_summary[:5]])
+                
                 report_msg = (
-                    f"📊 **MARKET UPDATE & WATCHLIST** 📊\n\n"
-                    f"Il bot ora monitora Long e Short H24.\n"
-                    f"Asset più vicini alle zone chiave:\n\n"
+                    f"📊 **DIAGNOSI & PANORAMICA MERCATO** 📊\n\n"
+                    f"🔍 **Asset scansionati:** 30 principali\n"
+                    f"🌡️ **Stato medio mercato:** `{market_status}` (RSI medio: `{avg_rsi:.1f}`)\n"
+                    f"🎯 **Segnali aperti ora:** `{signals_found}`\n\n"
+                    f"📉 **Asset più vicini alle soglie (Watchlist):**\n"
                     f"{top_watchlist}\n\n"
-                    f"⏳ *In attesa di setup ideali.*"
+                    f"💡 *Perché non apre posizioni?* \n"
+                    f"Il bot non apre trade se il prezzo non rompe le soglie estreme (RSI < 35 per i Long o > 70 per gli Short) confermate dal trend della EMA 50. Il mercato è attualmente in attesa di forti impulsi."
                 )
             else:
                 report_msg = (
-                    f"📊 **MARKET UPDATE** 📊\n\n"
-                    f"Il bot ha scansionato il mercato.\n"
-                    f"Status: *Mercato in fase di transizione.* \n"
-                    f"Monitoraggio H24 attivo. 🔍"
+                    f"📊 **DIAGNOSI MERCATO** 📊\n\n"
+                    f"Status: *Nessun dato di prezzo disponibile al momento.* Monitoraggio H24 attivo. 🔍"
                 )
             send_telegram_message(report_msg)
-            print("📢 Report di mercato inviato su Telegram.")
+            print("📢 Diagnosi di mercato inviata su Telegram.")
 
     except Exception as e:
         print(f"Errore durante l'analisi: {e}")
 
 if __name__ == "__main__":
-    print("🤖 Bot Sala Segnali con Connessione Corretta avviato H24...")
+    print("🤖 Bot con Diagnosi di Mercato avviato H24...")
     counter = 0
     while True:
         counter += 1
-        is_report = (counter >= 3)
+        is_report = (counter >= 2) # Report anticipato ogni 2 cicli (20 minuti)
         scan_market(is_report_cycle=is_report)
         if is_report:
             counter = 0
