@@ -71,7 +71,10 @@ def calculate_atr(highs, lows, closes, period=14):
         tr_list.append(max(hl, hc, lc))
     return sum(tr_list[-period:]) / period
 
-def scan_market():
+# Memoria per evitare di inviare troppi avvisi ripetuti sulla stessa coin
+alerted_coins = {}
+
+def scan_market(is_report_cycle=False):
     print("💎 [ELITE SCAN] Analisi di precisione quantitativa in corso...")
     url = "https://api.binance.com/api/v3/ticker/24hr"
     try:
@@ -83,10 +86,12 @@ def scan_market():
             if item['symbol'].endswith('USDT') and float(item['quoteVolume']) > 25000000
         ]
         
+        watchlist_summary = []
+        current_time = time.time()
+
         for coin in active_coins:
             symbol = coin['symbol']
             price = float(coin['lastPrice'])
-            price_change_24h = float(coin['priceChangePercent'])
             
             closes, highs, lows = get_binance_klines(symbol, interval="1h", limit=50)
             if not closes:
@@ -96,53 +101,79 @@ def scan_market():
             ema50 = calculate_ema(closes, 50)
             atr = calculate_atr(highs, lows, closes, 14)
             
-            # Watchlist avanzata nei log
-            if rsi < 35 or rsi > 65:
-                print(f"👁️‍🗨️ [Watchlist] {symbol} | RSI: {rsi:.1f} | Prezzo vs EMA50: {'Sopra' if price > ema50 else 'Sotto'}")
+            # 1. PRE-ALLERTA: Se l'RSI scende sotto 35 (ma è sopra 32), la moneta sta per scattare!
+            if 32 <= rsi < 35 and price > ema50:
+                # Controlliamo se non abbiamo già mandato un avviso per questa coin nelle ultime 3 ore
+                if symbol not in alerted_coins or (current_time - alerted_coins[symbol]) > 10800:
+                    alert_msg = (
+                        f"⚡ **PRE-ALERT WATCHLIST** ⚡\n\n"
+                        f"🪙 **Asset:** `{symbol}`\n"
+                        f"👀 *Stato:* L'asset si sta avvicinando a un'area di forte ipervenduto.\n"
+                        f"📊 **RSI(14):** `{rsi:.1f}` (In discesa verso il target di acquisto)\n"
+                        f"💡 *Preparate i fondi, il bot sta monitorando il trigger di ingresso!*"
+                    )
+                    send_telegram_message(alert_msg)
+                    alerted_coins[symbol] = current_time
+                    print(f"⚠️ Pre-allerta inviata per {symbol} (RSI: {rsi:.1f})")
 
-            # ECCELLENZA LONG: RSI ipervenduto (< 32) + Trend di fondo rialzista (Prezzo > EMA 50)
+            if rsi < 40:
+                watchlist_summary.append(f"• `{symbol}`: RSI `{rsi:.1f}`")
+
+            # 2. SEGNALE OPERATIVO DI ECCELLENZA: RSI < 32 + Prezzo > EMA 50
             if rsi < 32 and price > ema50:
                 entry = price
-                
-                # Targets basati sulla volatilità ATR per la massima precisione statistica
                 tp1_val = entry + (atr * 1.5)
                 tp2_val = entry + (atr * 3.0)
                 tp3_val = entry + (atr * 4.5)
                 sl_val  = entry - (atr * 1.2)
                 
-                # Percentuali stimate per visualizzazione pulita
                 p_tp1 = ((tp1_val - entry) / entry) * 100
                 p_tp2 = ((tp2_val - entry) / entry) * 100
                 p_tp3 = ((tp3_val - entry) / entry) * 100
                 p_sl  = ((entry - sl_val) / entry) * 100
                 
-                leverage = "10x - 20x"
-                
                 message = (
                     f"🏆 **ELITE VIP CRYPTO SIGNAL** 🏆\n\n"
                     f"🪙 **Asset:** `{symbol}`\n"
                     f"📈 **Direzione:** `LONG (Buy Setup)`\n"
-                    f"⚡ **Leva Consigliata:** `{leverage}`\n\n"
+                    f"⚡ **Leva Consigliata:** `10x - 20x`\n\n"
                     f"📍 **Entry Zone:** `{entry:.4f}`\n\n"
                     f"🎯 **TP 1:** `{tp1_val:.4f}` `(+{p_tp1:.2f}%)`\n"
                     f"🎯 **TP 2:** `{tp2_val:.4f}` `(+{p_tp2:.2f}%)`\n"
                     f"🎯 **TP 3:** `{tp3_val:.4f}` `(+{p_tp3:.2f}%)`\n"
                     f"🛑 **Stop Loss:** `{sl_val:.4f}` `(-{p_sl:.2f}%)`\n\n"
-                    f"📊 *Metriche Quant:* RSI(14): `{rsi:.1f}` | Trend EMA50: `Confermato`\n"
-                    f"💡 *Setup filtrato per massimizzare il Risk/Reward.*"
+                    f"📊 *Metriche Quant:* RSI(14): `{rsi:.1f}` | Trend EMA50: `Confermato`"
                 )
                 
                 send_telegram_message(message)
                 print(f"🚀 SEGNALE D'ÉLITE INVIATO PER {symbol}!")
-                
                 time.sleep(1200)
-                
+
+        # Report periodico orario
+        if is_report_cycle and watchlist_summary:
+            top_watchlist = "\n".join(watchlist_summary[:6])
+            report_msg = (
+                f"📊 **MARKET UPDATE & WATCHLIST** 📊\n\n"
+                f"Il bot sta monitorando oltre {len(active_coins)} asset H24.\n"
+                f"Asset vicini alle zone di accumulo:\n\n"
+                f"{top_watchlist}\n\n"
+                f"⏳ *In attesa dei prossimi trigger operativi.*"
+            )
+            send_telegram_message(report_msg)
+            print("📢 Report di mercato inviato su Telegram.")
+
     except Exception as e:
-        print(f"Errore durante l'analisi d'eccellenza: {e}")
+        print(f"Errore durante l'analisi: {e}")
 
 if __name__ == "__main__":
-    print("🤖 Bot Sala Segnali di Livello Superiore avviato H24...")
+    print("🤖 Bot Sala Segnali con Pre-Allerte e Monitoraggio avviato H24...")
+    counter = 0
     while True:
-        scan_market()
+        is_report = (counter >= 6)
+        if is_report:
+            counter = 0
+            
+        scan_market(is_report_cycle=is_report)
+        counter += 1
         time.sleep(600)
-        
+                    
