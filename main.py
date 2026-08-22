@@ -16,19 +16,23 @@ Dipendenze (vedi requirements.txt):
 """
 
 import asyncio
+import io
+import json
 import logging
 import os
 import traceback
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 
 import numpy as np
 import pandas as pd
 import requests
+from PIL import Image, ImageDraw, ImageFont
 from telegram import Bot
 from telegram.constants import ParseMode
 from telegram.error import TelegramError
+from telegram.ext import Application, CommandHandler, ContextTypes
 
 # ---------------------------------------------------------------------------
 # CONFIG
@@ -36,6 +40,17 @@ from telegram.error import TelegramError
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "")
+ADMIN_CHAT_ID = os.environ.get("ADMIN_CHAT_ID", "")  # chat privata Telegram di Fabio, per le notifiche di errore
+
+# Cartella per salvare statistiche/posizioni su disco, cosi' sopravvivono ai redeploy.
+# Su Railway va collegata a un Volume (disco persistente) montato su questo path -
+# senza Volume, la variabile non esiste e si usa la cartella corrente (si azzera comunque
+# ai redeploy, ma il bot funziona lo stesso).
+DATA_DIR = os.environ.get("RAILWAY_VOLUME_MOUNT_PATH", ".")
+STATO_FILE = os.path.join(DATA_DIR, "stato_bot.json")
+# Logo e font per le card grafiche: stessa cartella di main.py, cosi' basta un solo
+# "Upload files" su GitHub senza dover creare sottocartelle.
+ASSETS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Watchlist: le coppie Kraken piu' scambiate (ampliata per piu' opportunita' di segnale)
 # Nota: MATICUSD, MKRUSD, FTMUSD rimosse -> Kraken le rifiuta come "Invalid asset pair"
@@ -69,6 +84,10 @@ SCORE_MINIMO_PUBBLICAZIONE = 65   # su 100 - confermato dal backtest: EV +0.043R
 # producono risultati identici. 80 è stato testato e dà EV negativo: NON alzare oltre 75.
 COOLDOWN_ORE = 4                  # non ripetere segnale stesso asset entro N ore
 STATISTICHE_INTERVALLO_ORE = 24    # ogni quanto pubblicare le statistiche reali sul canale
+MAX_POSIZIONI_STESSA_DIREZIONE = 5 # evita di accumulare troppo rischio correlato (tutte crypto si muovono insieme)
+MAX_PERDITE_CONSECUTIVE = 5        # dopo N stop loss di fila, pausa automatica (circuit breaker)
+PAUSA_ORE = 12                     # durata della pausa prima di riprendere da soli
+REPORT_SETTIMANALE_INTERVALLO_GIORNI = 7
 
 # --- Parametri per il calcolo della leva suggerita ---
 # La leva NON è un moltiplicatore di guadagno: serve solo a mantenere costante
@@ -210,6 +229,95 @@ class Segnale:
 
 
 # ---------------------------------------------------------------------------
+# PERSISTENZA STATO (statistiche e posizioni aperte sopravvivono ai redeploy)
+# ---------------------------------------------------------------------------
+
+def _segnale_to_dict(s: Segnale) -> dict:
+    d = asdict(s)
+    d["direzione"] = s.direzione.value
+    return d
+
+
+def _segnale_from_dict(d: dict) -> Segnale:
+    d = dict(d)
+    d["direzione"] = Direzione(d["direzione"])
+    return Segnale(**d)
+
+
+def salva_stato(ultimo_segnale: dict, posizioni_aperte: dict, statistiche: dict,
+                 ultimo_invio_statistiche: datetime, ultimo_invio_report: datetime):
+    try:
+        dati = {
+            "ultimo_segnale": {pair: ts.isoformat() for pair, ts in ultimo_segnale.items()},
+            "posizioni_aperte": {
+                pair: {
+                    "segnale": _segnale_to_dict(p["segnale"]),
+                    "tp1_raggiunto": p["tp1_raggiunto"],
+                    "tp2_raggiunto": p["tp2_raggiunto"],
+                    "aperto_il": p["aperto_il"].isoformat(),
+                }
+                for pair, p in posizioni_aperte.items()
+            },
+            "statistiche": statistiche,
+            "ultimo_invio_statistiche": ultimo_invio_statistiche.isoformat(),
+            "ultimo_invio_report": ultimo_invio_report.isoformat(),
+        }
+        with open(STATO_FILE, "w") as f:
+            json.dump(dati, f)
+    except Exception as e:
+        logger.warning(f"Impossibile salvare lo stato su disco: {e}")
+
+
+def carica_stato():
+    """Ritorna (ultimo_segnale, posizioni_aperte, statistiche, ultimo_invio_statistiche,
+    ultimo_invio_report). Se il file non esiste (primo avvio, o nessun Volume collegato
+    su Railway), parte da zero."""
+    statistiche_default = {
+        "vinti": 0, "persi": 0, "totali": 0,
+        "perdite_consecutive": 0, "pausa_fino": None, "per_coppia": {},
+    }
+    default = ({}, {}, statistiche_default, datetime.now(), datetime.now())
+    if not os.path.exists(STATO_FILE):
+        logger.info("Nessuno stato salvato trovato, parto da zero.")
+        return default
+
+    try:
+        with open(STATO_FILE) as f:
+            dati = json.load(f)
+
+        ultimo_segnale = {pair: datetime.fromisoformat(ts) for pair, ts in dati.get("ultimo_segnale", {}).items()}
+        posizioni_aperte = {
+            pair: {
+                "segnale": _segnale_from_dict(p["segnale"]),
+                "tp1_raggiunto": p["tp1_raggiunto"],
+                "tp2_raggiunto": p["tp2_raggiunto"],
+                "aperto_il": datetime.fromisoformat(p["aperto_il"]),
+            }
+            for pair, p in dati.get("posizioni_aperte", {}).items()
+        }
+        statistiche = dati.get("statistiche", statistiche_default)
+        # Retrocompatibilita': se il file e' stato salvato prima di aggiungere questi campi.
+        statistiche.setdefault("perdite_consecutive", 0)
+        statistiche.setdefault("pausa_fino", None)
+        statistiche.setdefault("per_coppia", {})
+
+        ultimo_invio_statistiche = datetime.fromisoformat(
+            dati.get("ultimo_invio_statistiche", datetime.now().isoformat())
+        )
+        ultimo_invio_report = datetime.fromisoformat(
+            dati.get("ultimo_invio_report", datetime.now().isoformat())
+        )
+        logger.info(
+            f"Stato ricaricato da disco: {len(posizioni_aperte)} posizioni aperte, "
+            f"statistiche {statistiche['totali']} chiuse finora."
+        )
+        return ultimo_segnale, posizioni_aperte, statistiche, ultimo_invio_statistiche, ultimo_invio_report
+    except Exception as e:
+        logger.warning(f"Impossibile leggere lo stato salvato ({e}), parto da zero.")
+        return default
+
+
+# ---------------------------------------------------------------------------
 # DATI DI MERCATO (Kraken API pubblica)
 # ---------------------------------------------------------------------------
 
@@ -244,6 +352,49 @@ def get_ultimo_prezzo(pair: str) -> float:
     per controllare se una posizione aperta ha toccato SL/TP, non per generare segnali."""
     df = get_ohlc(pair, interval=1, count=1)
     return float(df.iloc[-1]["close"])
+
+
+# Mappa i casi in cui il ticker Kraken non coincide con quello Bitget (es. XBT vs BTC).
+MAPPA_TICKER_BITGET = {"XBT": "BTC"}
+
+
+def pair_kraken_a_bitget(pair: str) -> str:
+    """Converte una coppia Kraken (es. XBTUSD) nel simbolo perpetuo Bitget (es. BTCUSDT)."""
+    base = pair[:-3] if pair.endswith("USD") else pair
+    base = MAPPA_TICKER_BITGET.get(base, base)
+    return f"{base}USDT"
+
+
+def get_prezzo_bitget(pair: str) -> float:
+    """Prezzo corrente del perpetuo Bitget corrispondente (API pubblica, nessuna key richiesta).
+    Usato per allineare i controlli SL/TP all'exchange su cui operi davvero. Se Bitget non
+    risponde o il simbolo non esiste li', il chiamante deve gestire l'eccezione e ripiegare
+    su Kraken (fail-open: non deve mai bloccare il monitoraggio)."""
+    simbolo = pair_kraken_a_bitget(pair)
+    resp = requests.get(
+        "https://api.bitget.com/api/v2/mix/market/ticker",
+        params={"symbol": simbolo, "productType": "USDT-FUTURES"},
+        timeout=10,
+    )
+    resp.raise_for_status()
+    dati = resp.json()
+    if dati.get("code") != "00000" or not dati.get("data"):
+        raise ValueError(f"Risposta Bitget inattesa per {simbolo}: {dati}")
+    riga = dati["data"][0] if isinstance(dati["data"], list) else dati["data"]
+    prezzo = riga.get("lastPr") or riga.get("last") or riga.get("close")
+    if prezzo is None:
+        raise ValueError(f"Prezzo non trovato nella risposta Bitget per {simbolo}: {riga}")
+    return float(prezzo)
+
+
+def get_prezzo_per_monitoraggio(pair: str) -> float:
+    """Prezzo da usare per controllare SL/TP: prova prima Bitget (l'exchange usato per
+    operare davvero), e se non risponde ripiega su Kraken. Non blocca mai il monitoraggio."""
+    try:
+        return get_prezzo_bitget(pair)
+    except Exception as e:
+        logger.info(f"{pair}: prezzo Bitget non disponibile ({e}), uso Kraken come riferimento.")
+        return get_ultimo_prezzo(pair)
 
 
 # ---------------------------------------------------------------------------
@@ -355,6 +506,32 @@ def analizza_coppia(pair: str) -> tuple[Segnale | None, int, str]:
 
     logger.info(f"{pair}: score {score}/100 ({bias.value}) - SEGNALE VALIDO")
 
+    # --- Conferma multi-timeframe su 15m ---
+    # Il 4h da' il trend, l'1h da' il trigger: qui controlliamo che anche il momentum
+    # a brevissimo termine (15m) sia allineato, per scartare segnali dove il prezzo
+    # si sta gia' muovendo contro nell'immediato (riduce falsi segnali).
+    try:
+        df_15m = get_ohlc(pair, interval=15, count=50)
+        df_15m["ema9"] = ema(df_15m["close"], 9)
+        df_15m["ema21"] = ema(df_15m["close"], 21)
+        ultimo_15m = df_15m.iloc[-1]
+        if pd.isna(ultimo_15m["ema9"]) or pd.isna(ultimo_15m["ema21"]):
+            conferma_15m = True  # dati insufficienti, non blocchiamo per questo
+        else:
+            conferma_15m = (
+                (bias == Direzione.LONG and ultimo_15m["ema9"] > ultimo_15m["ema21"]) or
+                (bias == Direzione.SHORT and ultimo_15m["ema9"] < ultimo_15m["ema21"])
+            )
+    except Exception as e:
+        logger.warning(f"{pair}: impossibile leggere 15m per conferma multi-timeframe ({e}) - procedo comunque")
+        conferma_15m = True  # fail-open: un problema di rete sul 15m non deve bloccare il segnale
+
+    if not conferma_15m:
+        logger.info(f"{pair}: score {score}/100 ma momentum 15m non allineato - segnale scartato")
+        return None, score, bias.value
+
+    motivi.append("Momentum 15m allineato (EMA9/EMA21)")
+
     entry = ultimo["close"]
     atr_val = ultimo["atr"] if pd.notna(ultimo["atr"]) else entry * 0.01
 
@@ -445,6 +622,76 @@ async def invia_segnale(bot: Bot, segnale: Segnale) -> bool:
         return False
 
 
+def _font(nome: str, size: int) -> ImageFont.FreeTypeFont:
+    return ImageFont.truetype(os.path.join(ASSETS_DIR, nome), size)
+
+
+def genera_card_risultato(s: Segnale, esito_positivo: bool, percentuale: float, prezzo_chiusura: float) -> io.BytesIO:
+    """Card grafica brandizzata (logo Sala Segnali VIP) per un segnale chiuso in
+    vittoria (TP3) o perdita (SL). Ritorna un buffer PNG pronto da inviare su Telegram."""
+    W, H = 1100, 750
+    img = Image.new("RGB", (W, H), (7, 12, 24))
+    draw = ImageDraw.Draw(img)
+    for y in range(H):
+        t = y / H
+        draw.line([(0, y), (W, y)], fill=(int(7 + 7 * t), int(12 + 8 * t), int(24 + 16 * t)))
+
+    try:
+        logo = Image.open(os.path.join(ASSETS_DIR, "logo.png")).convert("RGBA")
+        logo_h = 130
+        logo_w = int(logo.width * (logo_h / logo.height))
+        logo = logo.resize((logo_w, logo_h))
+        img.paste(logo, (50, 40), logo)
+        titolo_x = 50 + logo_w + 25
+    except Exception as e:
+        logger.warning(f"Impossibile caricare il logo per la card ({e}), procedo senza.")
+        titolo_x = 50
+
+    draw.text((titolo_x, 60), "SALA SEGNALI VIP", font=_font("font_bold.ttf", 44), fill=(230, 190, 90))
+    draw.text((titolo_x, 115), datetime.now().strftime("%d/%m/%Y %H:%M"),
+               font=_font("font_regular.ttf", 26), fill=(140, 150, 170))
+
+    y = 220
+    colore_dir = (60, 210, 130) if s.direzione == Direzione.LONG else (230, 80, 90)
+    draw.text((50, y), s.coppia, font=_font("font_bold.ttf", 56), fill=(255, 255, 255))
+    draw.text((50, y + 70), f"Kraken Perpetuo   |   {s.direzione.value}   |   {s.leva_suggerita}x",
+               font=_font("font_regular.ttf", 30), fill=colore_dir)
+
+    colore_pct = (60, 210, 130) if esito_positivo else (230, 80, 90)
+    segno = "+" if esito_positivo else "-"
+    draw.text((50, y + 150), f"{segno}{abs(percentuale)}%", font=_font("font_bold_big.ttf", 130), fill=colore_pct)
+
+    y2 = y + 340
+    draw.text((50, y2), "Prezzo d'ingresso", font=_font("font_regular.ttf", 26), fill=(140, 150, 170))
+    draw.text((50, y2 + 40), f"{s.entry}", font=_font("font_bold.ttf", 38), fill=(255, 255, 255))
+    draw.text((420, y2), "Prezzo di chiusura", font=_font("font_regular.ttf", 26), fill=(140, 150, 170))
+    draw.text((420, y2 + 40), f"{prezzo_chiusura}", font=_font("font_bold.ttf", 38), fill=(255, 255, 255))
+
+    draw.line([(50, H - 90), (W - 50, H - 90)], fill=(40, 48, 65), width=2)
+    draw.text(
+        (50, H - 65),
+        "Segnale generato da analisi tecnica automatica — non è consulenza finanziaria. DYOR.",
+        font=_font("font_regular.ttf", 20), fill=(110, 120, 140),
+    )
+
+    buffer = io.BytesIO()
+    buffer.name = "risultato.png"
+    img.save(buffer, format="PNG")
+    buffer.seek(0)
+    return buffer
+
+
+async def invia_card_risultato(bot: Bot, s: Segnale, esito_positivo: bool, percentuale: float, prezzo_chiusura: float):
+    """Manda la card grafica sul canale. Se la generazione o l'invio falliscono per
+    qualunque motivo, non deve MAI bloccare il resto (il messaggio di testo che segue
+    resta comunque la fonte di verita')."""
+    try:
+        buffer = genera_card_risultato(s, esito_positivo, percentuale, prezzo_chiusura)
+        await bot.send_photo(chat_id=CHANNEL_ID, photo=buffer)
+    except Exception as e:
+        logger.warning(f"Impossibile generare/inviare la card grafica per {s.coppia}: {e}")
+
+
 def formatta_messaggio_aggiornamento(s: Segnale, titolo: str, corpo: str) -> str:
     emoji_direzione = "🟢" if s.direzione == Direzione.LONG else "🔴"
     return (
@@ -477,7 +724,7 @@ async def controlla_posizioni_aperte(bot: Bot, posizioni_aperte: dict, statistic
     for pair, pos in list(posizioni_aperte.items()):
         s: Segnale = pos["segnale"]
         try:
-            prezzo = get_ultimo_prezzo(pair)
+            prezzo = get_prezzo_per_monitoraggio(pair)
         except Exception as e:
             logger.warning(f"Impossibile leggere prezzo corrente per {pair}: {e}")
             continue
@@ -487,25 +734,60 @@ async def controlla_posizioni_aperte(bot: Bot, posizioni_aperte: dict, statistic
         # --- Stop Loss: chiude la posizione, conta come persa ---
         sl_colpito = (prezzo <= s.stop_loss) if long else (prezzo >= s.stop_loss)
         if sl_colpito:
+            await invia_card_risultato(bot, s, esito_positivo=False, percentuale=s.sl_percento, prezzo_chiusura=prezzo)
             await invia_aggiornamento(
                 bot, s, "🛑 *STOP LOSS COLPITO*",
                 f"Stop Loss raggiunto su `{pair}`. Perdita: -{s.sl_percento}% dall'entry. Posizione chiusa."
             )
             statistiche["persi"] += 1
             statistiche["totali"] += 1
+            statistiche["perdite_consecutive"] = statistiche.get("perdite_consecutive", 0) + 1
+            per_coppia = statistiche.setdefault("per_coppia", {})
+            per_coppia.setdefault(pair, {"vinti": 0, "persi": 0})["persi"] += 1
             chiuse.append(pair)
+
+            # --- Circuit breaker: troppe perdite di fila -> pausa automatica ---
+            if statistiche["perdite_consecutive"] >= MAX_PERDITE_CONSECUTIVE and not statistiche.get("pausa_fino"):
+                pausa_fino = datetime.now() + timedelta(hours=PAUSA_ORE)
+                statistiche["pausa_fino"] = pausa_fino.isoformat()
+                try:
+                    await bot.send_message(
+                        chat_id=CHANNEL_ID,
+                        text=(
+                            f"⏸ *Pausa automatica attivata*\n"
+                            f"{MAX_PERDITE_CONSECUTIVE} Stop Loss consecutivi raggiunti. "
+                            f"Pubblicazione nuovi segnali sospesa fino alle "
+                            f"{pausa_fino.strftime('%d/%m %H:%M')} per proteggere il capitale.\n"
+                            f"Le posizioni gia' aperte restano monitorate normalmente."
+                        ),
+                        parse_mode=ParseMode.MARKDOWN,
+                    )
+                except TelegramError as e:
+                    logger.error(f"Errore invio messaggio di pausa: {e}")
+                await notifica_admin(
+                    bot,
+                    f"⏸ *Pausa automatica attivata*\n{MAX_PERDITE_CONSECUTIVE} SL consecutivi. "
+                    f"Ripresa prevista: {pausa_fino.strftime('%d/%m %H:%M')}"
+                )
+
             await asyncio.sleep(1)
             continue
 
         # --- TP3: target finale, chiude la posizione, conta come vinta ---
         tp3_colpito = (prezzo >= s.take_profit) if long else (prezzo <= s.take_profit)
         if tp3_colpito:
+            await invia_card_risultato(
+                bot, s, esito_positivo=True, percentuale=s.tp_percento(s.take_profit), prezzo_chiusura=prezzo
+            )
             await invia_aggiornamento(
                 bot, s, "✅ *TARGET FINALE RAGGIUNTO (TP3)*",
                 f"Target finale centrato su `{pair}`. Guadagno: +{s.tp_percento(s.take_profit)}% dall'entry. Posizione chiusa."
             )
             statistiche["vinti"] += 1
             statistiche["totali"] += 1
+            statistiche["perdite_consecutive"] = 0
+            per_coppia = statistiche.setdefault("per_coppia", {})
+            per_coppia.setdefault(pair, {"vinti": 0, "persi": 0})["vinti"] += 1
             chiuse.append(pair)
             await asyncio.sleep(1)
             continue
@@ -539,8 +821,9 @@ async def controlla_posizioni_aperte(bot: Bot, posizioni_aperte: dict, statistic
 
 
 async def invia_statistiche(bot: Bot, statistiche: dict):
-    """Pubblica sul canale le statistiche reali (non teoriche) raccolte dal bot
-    dall'ultimo riavvio: quante posizioni chiuse, vinte, perse, win rate."""
+    """Pubblica sul canale le statistiche reali (non teoriche) raccolte dal bot,
+    quante posizioni chiuse, vinte, perse, win rate. Persistono tra i redeploy se e'
+    configurato il Volume su Railway (altrimenti si azzerano ad ogni riavvio)."""
     totali = statistiche["totali"]
 
     if totali == 0:
@@ -559,9 +842,8 @@ async def invia_statistiche(bot: Bot, statistiche: dict):
             f"Posizioni chiuse: {totali}\n"
             f"Vinte (TP3 raggiunto): {vinti}  |  Perse (SL colpito): {persi}\n"
             f"Win rate: {win_rate}%\n\n"
-            "_Dati reali raccolti dall'ultimo riavvio del bot (non è uno storico permanente). "
-            "\"Vinta\" = target finale TP3 raggiunto; \"Persa\" = Stop Loss colpito. "
-            "Non è consulenza finanziaria._\n"
+            "_Dati reali raccolti dal bot. \"Vinta\" = target finale TP3 raggiunto; "
+            "\"Persa\" = Stop Loss colpito. Non è consulenza finanziaria._\n"
             f"🕒 {datetime.now().strftime('%d/%m/%Y %H:%M')}"
         )
 
@@ -570,6 +852,72 @@ async def invia_statistiche(bot: Bot, statistiche: dict):
         logger.info("Statistiche pubblicate sul canale")
     except TelegramError as e:
         logger.error(f"Errore invio statistiche: {e}")
+
+
+def _testo_statistiche(statistiche: dict) -> str:
+    """Testo condiviso tra il messaggio periodico sul canale e il comando /stats privato."""
+    totali = statistiche.get("totali", 0)
+    if totali == 0:
+        return "Nessuna posizione ancora chiusa (SL o TP3) da quando il bot è attivo."
+    vinti = statistiche.get("vinti", 0)
+    persi = statistiche.get("persi", 0)
+    win_rate = round(vinti / totali * 100, 1)
+    testo = (
+        f"Posizioni chiuse: {totali}\n"
+        f"Vinte (TP3): {vinti}  |  Perse (SL): {persi}\n"
+        f"Win rate: {win_rate}%"
+    )
+    pausa_fino = statistiche.get("pausa_fino")
+    if pausa_fino:
+        try:
+            pf = datetime.fromisoformat(pausa_fino)
+            if datetime.now() < pf:
+                testo += f"\n\n⏸ Pausa automatica attiva fino alle {pf.strftime('%d/%m %H:%M')}"
+        except ValueError:
+            pass
+    return testo
+
+
+async def invia_report_settimanale(bot: Bot, statistiche: dict):
+    """Report settimanale con le coppie migliori/peggiori, in aggiunta alle
+    statistiche generali gia' pubblicate ogni 24h."""
+    per_coppia = statistiche.get("per_coppia", {})
+    if not per_coppia:
+        testo = (
+            "📅 *Report settimanale*\n"
+            "Ancora nessun dato sufficiente per un report per coppia.\n"
+            f"🕒 {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+        )
+    else:
+        classifica = []
+        for pair, esiti in per_coppia.items():
+            v, p = esiti.get("vinti", 0), esiti.get("persi", 0)
+            tot = v + p
+            if tot == 0:
+                continue
+            classifica.append((pair, v, p, tot, v - p))
+
+        classifica_migliori = sorted(classifica, key=lambda x: x[4], reverse=True)[:3]
+        classifica_peggiori = sorted(classifica, key=lambda x: x[4])[:3]
+
+        righe_migliori = "\n".join(f"  `{p}` — {v}V/{pe}P" for p, v, pe, t, n in classifica_migliori) or "  (dati insufficienti)"
+        righe_peggiori = "\n".join(f"  `{p}` — {v}V/{pe}P" for p, v, pe, t, n in classifica_peggiori) or "  (dati insufficienti)"
+
+        testo = (
+            "📅 *Report settimanale*\n"
+            "━━━━━━━━━━━━━━━\n"
+            f"{_testo_statistiche(statistiche)}\n\n"
+            f"🏆 *Coppie migliori (vinti-persi):*\n{righe_migliori}\n\n"
+            f"⚠️ *Coppie peggiori:*\n{righe_peggiori}\n\n"
+            "_Dati cumulativi reali raccolti dal bot._\n"
+            f"🕒 {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+        )
+
+    try:
+        await bot.send_message(chat_id=CHANNEL_ID, text=testo, parse_mode=ParseMode.MARKDOWN)
+        logger.info("Report settimanale pubblicato sul canale")
+    except TelegramError as e:
+        logger.error(f"Errore invio report settimanale: {e}")
 
 
 MESSAGGIO_BENVENUTO = (
@@ -606,8 +954,35 @@ async def invia_e_fissa_benvenuto(bot: Bot):
 # LOOP PRINCIPALE
 # ---------------------------------------------------------------------------
 
-async def ciclo_scansione(bot: Bot, ultimo_segnale: dict, posizioni_aperte: dict):
+async def ciclo_scansione(bot: Bot, ultimo_segnale: dict, posizioni_aperte: dict, statistiche: dict):
     ora = datetime.now()
+
+    # --- Circuit breaker: se siamo in pausa, non pubblichiamo nuovi segnali ---
+    pausa_fino_str = statistiche.get("pausa_fino")
+    if pausa_fino_str:
+        try:
+            pausa_fino = datetime.fromisoformat(pausa_fino_str)
+        except ValueError:
+            pausa_fino = None
+        if pausa_fino and ora < pausa_fino:
+            logger.info(
+                f"Pausa automatica attiva fino a {pausa_fino.strftime('%d/%m %H:%M')} - "
+                f"scansione saltata (nessun nuovo segnale pubblicato)."
+            )
+            return
+        else:
+            statistiche["pausa_fino"] = None
+            statistiche["perdite_consecutive"] = 0
+            try:
+                await bot.send_message(
+                    chat_id=CHANNEL_ID,
+                    text="▶️ *Pausa terminata* — riprendiamo la pubblicazione dei segnali.",
+                    parse_mode=ParseMode.MARKDOWN,
+                )
+            except TelegramError as e:
+                logger.error(f"Errore invio messaggio di ripresa: {e}")
+            logger.info("Pausa automatica terminata, riprendo la pubblicazione dei segnali.")
+
     logger.info(f"--- Inizio scansione: {len(WATCHLIST)} coppie ---")
 
     risultati = []  # (pair, score, direzione) - solo per log interni, non più pubblicati
@@ -624,16 +999,26 @@ async def ciclo_scansione(bot: Bot, ultimo_segnale: dict, posizioni_aperte: dict
             risultati.append((pair, score, direzione))
 
         if segnale:
-            inviato = await invia_segnale(bot, segnale)
-            if inviato:
-                ultimo_segnale[pair] = ora
-                posizioni_aperte[pair] = {
-                    "segnale": segnale,
-                    "tp1_raggiunto": False,
-                    "tp2_raggiunto": False,
-                    "aperto_il": ora,
-                }
-                almeno_un_segnale = True
+            aperte_stessa_direzione = sum(
+                1 for p in posizioni_aperte.values() if p["segnale"].direzione == segnale.direzione
+            )
+            if aperte_stessa_direzione >= MAX_POSIZIONI_STESSA_DIREZIONE:
+                logger.info(
+                    f"{pair}: segnale valido (score {score}) ma gia' {aperte_stessa_direzione} posizioni "
+                    f"{segnale.direzione.value} aperte (max {MAX_POSIZIONI_STESSA_DIREZIONE}) - scartato "
+                    f"per anti-correlazione"
+                )
+            else:
+                inviato = await invia_segnale(bot, segnale)
+                if inviato:
+                    ultimo_segnale[pair] = ora
+                    posizioni_aperte[pair] = {
+                        "segnale": segnale,
+                        "tp1_raggiunto": False,
+                        "tp2_raggiunto": False,
+                        "aperto_il": ora,
+                    }
+                    almeno_un_segnale = True
 
         await asyncio.sleep(1)  # rispetto rate limit Kraken (non bloccante)
 
@@ -643,26 +1028,86 @@ async def ciclo_scansione(bot: Bot, ultimo_segnale: dict, posizioni_aperte: dict
 
 
 async def invia_riepilogo(bot: Bot):
-    """Messaggio generico di attività quando nessun segnale supera la soglia.
-    Niente punteggi grezzi in un canale pubblico: comunica selettività, non debolezza."""
-    testo = (
-        "🔍 *Riepilogo scansione*\n"
-        "Nessun setup ha raggiunto la soglia di confidenza minima in questo ciclo. "
-        "Continuiamo a monitorare il mercato — pubblichiamo solo segnali di qualità, mai per riempire.\n\n"
-        f"🕒 {datetime.now().strftime('%d/%m/%Y %H:%M')}"
-    )
+    """Nessun setup ha superato la soglia in questo ciclo. Non pubblichiamo piu' nulla
+    sul canale per questo (una sala segnali VIP resta silenziosa finche' non ha un
+    segnale vero da dare) - restiamo solo nei log Railway per il monitoraggio interno."""
+    logger.info("Nessun segnale sopra soglia in questo ciclo - nessun messaggio inviato al canale.")
+
+
+async def notifica_admin(bot: Bot, testo: str):
+    """Manda un avviso privato a Fabio (non al canale pubblico) quando succede
+    qualcosa che merita attenzione, es. un errore nel ciclo di scansione.
+    Se ADMIN_CHAT_ID non e' configurato, si limita a loggare un avviso una tantum."""
+    if not ADMIN_CHAT_ID:
+        return
     try:
-        await bot.send_message(chat_id=CHANNEL_ID, text=testo, parse_mode=ParseMode.MARKDOWN)
-    except TelegramError as e:
-        logger.error(f"Errore invio riepilogo: {e}")
+        await bot.send_message(chat_id=ADMIN_CHAT_ID, text=testo, parse_mode=ParseMode.MARKDOWN)
+    except Exception as e:
+        # Non deve MAI poter interrompere il bot: se anche la notifica fallisce, solo un log.
+        logger.warning(f"Impossibile inviare la notifica privata all'admin: {e}")
+
+
+# ---------------------------------------------------------------------------
+# COMANDI BOT (funzionano solo in chat privata con il bot, non nel canale)
+# ---------------------------------------------------------------------------
+
+async def cmd_start(update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "🏛 Ciao! Sono il bot della Sala Segnali VIP.\n\n"
+        "Comandi disponibili:\n"
+        "/stats — statistiche reali aggiornate\n"
+        "/regole — come funziona la sala segnali\n"
+        "/help — questo messaggio"
+    )
+
+
+async def cmd_help(update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "Comandi disponibili:\n"
+        "/stats — statistiche reali aggiornate (vinti/persi/win rate)\n"
+        "/regole — come funziona la sala segnali e i suoi limiti\n"
+        "/help — questo messaggio"
+    )
+
+
+async def cmd_regole(update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(MESSAGGIO_BENVENUTO, parse_mode=ParseMode.MARKDOWN)
+
+
+async def cmd_stats(update, context: ContextTypes.DEFAULT_TYPE):
+    statistiche = context.bot_data.get("statistiche", {"vinti": 0, "persi": 0, "totali": 0})
+    testo = "📊 *Statistiche Sala Segnali*\n━━━━━━━━━━━━━━━\n" + _testo_statistiche(statistiche)
+    await update.message.reply_text(testo, parse_mode=ParseMode.MARKDOWN)
 
 
 async def main():
     if not BOT_TOKEN or not CHANNEL_ID:
         logger.error("BOT_TOKEN o CHANNEL_ID mancanti. Impostali come variabili d'ambiente.")
         return
+    if not ADMIN_CHAT_ID:
+        logger.warning(
+            "ADMIN_CHAT_ID non impostato: le notifiche private di errore sono disattivate. "
+            "Imposta questa variabile con il tuo chat_id Telegram personale per riceverle."
+        )
 
-    bot = Bot(token=BOT_TOKEN)
+    # Application invece del semplice Bot: serve per ricevere ed elaborare i comandi
+    # /start /help /regole /stats che gli iscritti possono mandare in chat privata al bot.
+    application = Application.builder().token(BOT_TOKEN).build()
+    application.add_handler(CommandHandler("start", cmd_start))
+    application.add_handler(CommandHandler("help", cmd_help))
+    application.add_handler(CommandHandler("regole", cmd_regole))
+    application.add_handler(CommandHandler("stats", cmd_stats))
+    bot = application.bot  # stesso identico oggetto Bot usato finora per inviare messaggi
+
+    ultimo_segnale, posizioni_aperte, statistiche, ultimo_invio_statistiche, ultimo_invio_report = carica_stato()
+    # bot_data e' condiviso con i comandi (es. /stats) - passiamo lo STESSO dict, non una copia,
+    # cosi' ogni aggiornamento fatto nel ciclo di scansione e' visibile subito anche ai comandi.
+    application.bot_data["statistiche"] = statistiche
+
+    await application.initialize()
+    await application.start()
+    await application.updater.start_polling(drop_pending_updates=True)
+    logger.info("Comandi bot (/start /help /regole /stats) attivi in chat privata.")
 
     # Il messaggio di benvenuto/pin non deve MAI poter bloccare l'avvio del bot:
     # se fallisce per un motivo imprevisto, logghiamo l'errore completo e andiamo avanti comunque.
@@ -672,25 +1117,33 @@ async def main():
         logger.error("Errore critico durante l'invio del messaggio di benvenuto (il bot continua comunque):")
         logger.error(traceback.format_exc())
 
-    ultimo_segnale: dict = {}
-    posizioni_aperte: dict = {}
-    statistiche = {"vinti": 0, "persi": 0, "totali": 0}
-    ultimo_invio_statistiche = datetime.now()
-
     logger.info("Bot avviato. Scansione ogni %d secondi.", SCAN_INTERVAL_SECONDS)
     while True:
         try:
-            await ciclo_scansione(bot, ultimo_segnale, posizioni_aperte)
+            await ciclo_scansione(bot, ultimo_segnale, posizioni_aperte, statistiche)
             await controlla_posizioni_aperte(bot, posizioni_aperte, statistiche)
 
             if datetime.now() - ultimo_invio_statistiche >= timedelta(hours=STATISTICHE_INTERVALLO_ORE):
                 await invia_statistiche(bot, statistiche)
                 ultimo_invio_statistiche = datetime.now()
+
+            if datetime.now() - ultimo_invio_report >= timedelta(days=REPORT_SETTIMANALE_INTERVALLO_GIORNI):
+                await invia_report_settimanale(bot, statistiche)
+                ultimo_invio_report = datetime.now()
+
+            salva_stato(ultimo_segnale, posizioni_aperte, statistiche, ultimo_invio_statistiche, ultimo_invio_report)
         except Exception:
             # Logghiamo il traceback COMPLETO (non solo il messaggio) cosi', se il bot
             # dovesse mai fermarsi di nuovo, l'errore vero resta scritto nei log Railway.
+            tb = traceback.format_exc()
             logger.error("Errore nel ciclo di scansione:")
-            logger.error(traceback.format_exc())
+            logger.error(tb)
+            ultima_riga_errore = tb.strip().splitlines()[-1] if tb.strip() else "Errore sconosciuto"
+            await notifica_admin(
+                bot,
+                f"⚠️ *Errore nel bot Segnali AI*\n`{ultima_riga_errore}`\n\n"
+                f"Il bot sta continuando a girare, ma controlla i log Railway per i dettagli."
+            )
 
         await asyncio.sleep(SCAN_INTERVAL_SECONDS)
 
