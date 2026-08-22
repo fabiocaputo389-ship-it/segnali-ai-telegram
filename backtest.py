@@ -25,7 +25,10 @@ import requests
 # CONFIG (stessa logica di main.py)
 # ---------------------------------------------------------------------------
 
-# Nota: MATICUSD, MKRUSD, FTMUSD rimosse -> Kraken le rifiuta come "Invalid asset pair"
+# Nota: MATICUSD, MKRUSD, FTMUSD rimosse -> Kraken le rifiuta come "Invalid asset pair".
+# IMPORTANTE: questa lista deve restare identica a WATCHLIST in main.py, altrimenti il
+# backtest testa una configurazione diversa da quella live (successo il 22/08/2026 - il
+# backtest girava ancora sulle vecchie 37 coppie mentre il bot live ne usava 67).
 WATCHLIST = [
     "XBTUSD", "ETHUSD", "SOLUSD", "XRPUSD", "ADAUSD",
     "DOGEUSD", "AVAXUSD", "DOTUSD", "LINKUSD",
@@ -35,6 +38,12 @@ WATCHLIST = [
     "SEIUSD", "AAVEUSD", "SNXUSD", "GRTUSD",
     "SANDUSD", "MANAUSD", "AXSUSD", "ALGOUSD",
     "EGLDUSD", "FLOWUSD", "CHZUSD", "KSMUSD", "XLMUSD",
+    "ETCUSD", "XMRUSD", "ZECUSD", "XTZUSD", "EOSUSD",
+    "THETAUSD", "APEUSD", "GALAUSD", "IMXUSD", "RUNEUSD",
+    "KAVAUSD", "MINAUSD", "OCEANUSD", "ENJUSD", "BATUSD",
+    "COMPUSD", "YFIUSD", "CRVUSD", "SUSHIUSD", "ZRXUSD",
+    "STORJUSD", "ANKRUSD", "LRCUSD", "QNTUSD", "FETUSD",
+    "PEPEUSD", "SHIBUSD", "JUPUSD", "STXUSD", "ONDOUSD",
 ]
 
 KRAKEN_OHLC_URL = "https://api.kraken.com/0/public/OHLC"
@@ -229,7 +238,7 @@ def genera_segnali_storici(pair: str, df_1h: pd.DataFrame, df_4h: pd.DataFrame) 
 # MAIN
 # ---------------------------------------------------------------------------
 
-SOGLIE_DA_TESTARE = [30, 50, 65, 70, 75, 80]
+SOGLIE_DA_TESTARE = [30, 50, 55, 65, 70, 75, 80]
 
 
 def main():
