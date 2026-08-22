@@ -18,6 +18,7 @@ Dipendenze (vedi requirements.txt):
 import asyncio
 import logging
 import os
+import traceback
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
@@ -529,6 +530,4 @@ async def controlla_posizioni_aperte(bot: Bot, posizioni_aperte: dict, statistic
                     bot, s, "🎯 *TP1 RAGGIUNTO*",
                     f"Primo target raggiunto su `{pair}` (+{s.tp_percento(s.tp1)}%). "
                     f"Consigliato chiudere una parte e spostare lo Stop Loss a breakeven."
-                )
-
-    
+      
