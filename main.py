@@ -67,6 +67,7 @@ SCORE_MINIMO_PUBBLICAZIONE = 65   # su 100 - confermato dal backtest: EV +0.043R
 # NOTA: lo score è discreto (30/50/55/75/80/100 - somma di blocchi), quindi 65/70/75
 # producono risultati identici. 80 è stato testato e dà EV negativo: NON alzare oltre 75.
 COOLDOWN_ORE = 4                  # non ripetere segnale stesso asset entro N ore
+STATISTICHE_INTERVALLO_ORE = 24    # ogni quanto pubblicare le statistiche reali sul canale
 
 # --- Parametri per il calcolo della leva suggerita ---
 # La leva NON è un moltiplicatore di guadagno: serve solo a mantenere costante
@@ -235,6 +236,13 @@ def get_ohlc(pair: str, interval: int, count: int = 250) -> pd.DataFrame:
         df[col] = df[col].astype(float)
     df["time"] = pd.to_datetime(df["time"], unit="s")
     return df.tail(count).reset_index(drop=True)
+
+
+def get_ultimo_prezzo(pair: str) -> float:
+    """Prezzo corrente approssimato con l'ultima candela a 1 minuto. Usato solo
+    per controllare se una posizione aperta ha toccato SL/TP, non per generare segnali."""
+    df = get_ohlc(pair, interval=1, count=1)
+    return float(df.iloc[-1]["close"])
 
 
 # ---------------------------------------------------------------------------
@@ -436,92 +444,91 @@ async def invia_segnale(bot: Bot, segnale: Segnale) -> bool:
         return False
 
 
-# ---------------------------------------------------------------------------
-# LOOP PRINCIPALE
-# ---------------------------------------------------------------------------
+def formatta_messaggio_aggiornamento(s: Segnale, titolo: str, corpo: str) -> str:
+    emoji_direzione = "🟢" if s.direzione == Direzione.LONG else "🔴"
+    return (
+        f"{titolo}\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"{emoji_direzione} *Asset:* `{s.coppia}` ({s.direzione.value})\n"
+        f"{corpo}\n"
+        f"🕒 {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+    )
 
-async def ciclo_scansione(bot: Bot, ultimo_segnale: dict):
-    ora = datetime.now()
-    logger.info(f"--- Inizio scansione: {len(WATCHLIST)} coppie ---")
 
-    risultati = []  # (pair, score, direzione) per il riepilogo
-    almeno_un_segnale = False
+async def invia_aggiornamento(bot: Bot, s: Segnale, titolo: str, corpo: str):
+    try:
+        await bot.send_message(
+            chat_id=CHANNEL_ID,
+            text=formatta_messaggio_aggiornamento(s, titolo, corpo),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        logger.info(f"Aggiornamento inviato: {s.coppia} - {titolo}")
+    except TelegramError as e:
+        logger.error(f"Errore invio aggiornamento: {e}")
 
-    for pair in WATCHLIST:
-        ultima_pubblicazione = ultimo_segnale.get(pair)
-        if ultima_pubblicazione and (ora - ultima_pubblicazione) < timedelta(hours=COOLDOWN_ORE):
-            logger.info(f"{pair}: in cooldown, salto")
+
+async def controlla_posizioni_aperte(bot: Bot, posizioni_aperte: dict, statistiche: dict):
+    """Controlla ogni posizione aperta rispetto al prezzo corrente e manda un
+    aggiornamento reale su Telegram quando SL o un TP viene toccato.
+    Aggiorna anche il conteggio vinti/persi per le statistiche del canale."""
+    chiuse = []
+
+    for pair, pos in list(posizioni_aperte.items()):
+        s: Segnale = pos["segnale"]
+        try:
+            prezzo = get_ultimo_prezzo(pair)
+        except Exception as e:
+            logger.warning(f"Impossibile leggere prezzo corrente per {pair}: {e}")
             continue
 
-        segnale, score, direzione = analizza_coppia(pair)
-        if score >= 0:
-            risultati.append((pair, score, direzione))
+        long = s.direzione == Direzione.LONG
 
-        if segnale:
-            inviato = await invia_segnale(bot, segnale)
-            if inviato:
-                ultimo_segnale[pair] = ora
-                almeno_un_segnale = True
+        # --- Stop Loss: chiude la posizione, conta come persa ---
+        sl_colpito = (prezzo <= s.stop_loss) if long else (prezzo >= s.stop_loss)
+        if sl_colpito:
+            await invia_aggiornamento(
+                bot, s, "🛑 *STOP LOSS COLPITO*",
+                f"Stop Loss raggiunto su `{pair}`. Perdita: -{s.sl_percento}% dall'entry. Posizione chiusa."
+            )
+            statistiche["persi"] += 1
+            statistiche["totali"] += 1
+            chiuse.append(pair)
+            await asyncio.sleep(1)
+            continue
 
-        await asyncio.sleep(1)  # rispetto rate limit Kraken (non bloccante)
+        # --- TP3: target finale, chiude la posizione, conta come vinta ---
+        tp3_colpito = (prezzo >= s.take_profit) if long else (prezzo <= s.take_profit)
+        if tp3_colpito:
+            await invia_aggiornamento(
+                bot, s, "✅ *TARGET FINALE RAGGIUNTO (TP3)*",
+                f"Target finale centrato su `{pair}`. Guadagno: +{s.tp_percento(s.take_profit)}% dall'entry. Posizione chiusa."
+            )
+            statistiche["vinti"] += 1
+            statistiche["totali"] += 1
+            chiuse.append(pair)
+            await asyncio.sleep(1)
+            continue
 
-    logger.info("--- Fine scansione ---")
-    if not almeno_un_segnale:
-        await invia_riepilogo(bot, risultati)
+        # --- TP2: uscita parziale, non chiude ancora la posizione ---
+        if not pos["tp2_raggiunto"]:
+            tp2_colpito = (prezzo >= s.tp2) if long else (prezzo <= s.tp2)
+            if tp2_colpito:
+                pos["tp2_raggiunto"] = True
+                await invia_aggiornamento(
+                    bot, s, "🎯 *TP2 RAGGIUNTO*",
+                    f"Secondo target raggiunto su `{pair}` (+{s.tp_percento(s.tp2)}%). "
+                    f"Consigliato chiudere un'altra parte della posizione."
+                )
 
+        # --- TP1: prima uscita parziale ---
+        if not pos["tp1_raggiunto"]:
+            tp1_colpito = (prezzo >= s.tp1) if long else (prezzo <= s.tp1)
+            if tp1_colpito:
+                pos["tp1_raggiunto"] = True
+                await invia_aggiornamento(
+                    bot, s, "🎯 *TP1 RAGGIUNTO*",
+                    f"Primo target raggiunto su `{pair}` (+{s.tp_percento(s.tp1)}%). "
+                    f"Consigliato chiudere una parte e spostare lo Stop Loss a breakeven."
+                )
 
-async def invia_riepilogo(bot: Bot, risultati: list):
-    """Manda su Telegram le 5 coppie con lo score piu' alto della scansione,
-    anche se nessuna ha superato la soglia. Serve per monitorare che il bot
-    stia lavorando e quanto siamo vicini a un segnale."""
-    if not risultati:
-        return
-
-    risultati_ordinati = sorted(risultati, key=lambda r: r[1], reverse=True)[:5]
-
-    righe = []
-    for pair, score, direzione in risultati_ordinati:
-        piene = round(score / 10)
-        barra = "█" * piene + "░" * (10 - piene)
-        righe.append(f"`{pair}` {direzione}: {barra} {score}/100")
-
-    testo = (
-        f"🔍 *Riepilogo scansione*\n"
-        f"Nessun segnale ha superato la soglia ({SCORE_MINIMO_PUBBLICAZIONE}/100).\n"
-        f"Top 5 pi\u00f9 vicine:\n\n" + "\n".join(righe) +
-        f"\n\n🕒 {datetime.now().strftime('%d/%m/%Y %H:%M')}"
-    )
-
-    try:
-        await bot.send_message(chat_id=CHANNEL_ID, text=testo, parse_mode=ParseMode.MARKDOWN)
-    except TelegramError as e:
-        logger.error(f"Errore invio riepilogo: {e}")
-
-
-async def main():
-    if not BOT_TOKEN or not CHANNEL_ID:
-        logger.error("BOT_TOKEN o CHANNEL_ID mancanti. Impostali come variabili d'ambiente.")
-        return
-
-    bot = Bot(token=BOT_TOKEN)
-
-    await bot.send_message(
-        chat_id=CHANNEL_ID,
-        text="✅ Segnali AI avviato. Scansione mercato in corso...",
-    )
-
-    ultimo_segnale: dict = {}
-
-    logger.info("Bot avviato. Scansione ogni %d secondi.", SCAN_INTERVAL_SECONDS)
-    while True:
-        try:
-            await ciclo_scansione(bot, ultimo_segnale)
-        except Exception as e:
-            logger.error(f"Errore nel ciclo di scansione: {e}")
-
-        await asyncio.sleep(SCAN_INTERVAL_SECONDS)
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
     
