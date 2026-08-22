@@ -229,7 +229,7 @@ def genera_segnali_storici(pair: str, df_1h: pd.DataFrame, df_4h: pd.DataFrame) 
 # MAIN
 # ---------------------------------------------------------------------------
 
-SOGLIE_DA_TESTARE = [65, 70, 75, 80]
+SOGLIE_DA_TESTARE = [30, 50, 65, 70, 75, 80]
 
 
 def main():
@@ -286,4 +286,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-            
