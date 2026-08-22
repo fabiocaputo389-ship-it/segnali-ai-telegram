@@ -530,4 +530,176 @@ async def controlla_posizioni_aperte(bot: Bot, posizioni_aperte: dict, statistic
                     bot, s, "🎯 *TP1 RAGGIUNTO*",
                     f"Primo target raggiunto su `{pair}` (+{s.tp_percento(s.tp1)}%). "
                     f"Consigliato chiudere una parte e spostare lo Stop Loss a breakeven."
+                    )
+
+        await asyncio.sleep(1)
+
+    for pair in chiuse:
+        posizioni_aperte.pop(pair, None)
+
+
+async def invia_statistiche(bot: Bot, statistiche: dict):
+    """Pubblica sul canale le statistiche reali (non teoriche) raccolte dal bot
+    dall'ultimo riavvio: quante posizioni chiuse, vinte, perse, win rate."""
+    totali = statistiche["totali"]
+
+    if totali == 0:
+        testo = (
+            "📊 *Statistiche Sala Segnali*\n"
+            "Nessuna posizione ancora chiusa (SL o TP3) da quando il bot è attivo.\n"
+            f"🕒 {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+        )
+    else:
+        vinti = statistiche["vinti"]
+        persi = statistiche["persi"]
+        win_rate = round(vinti / totali * 100, 1)
+        testo = (
+            "📊 *Statistiche Sala Segnali*\n"
+            "━━━━━━━━━━━━━━━\n"
+            f"Posizioni chiuse: {totali}\n"
+            f"Vinte (TP3 raggiunto): {vinti}  |  Perse (SL colpito): {persi}\n"
+            f"Win rate: {win_rate}%\n\n"
+            "_Dati reali raccolti dall'ultimo riavvio del bot (non è uno storico permanente). "
+            "\"Vinta\" = target finale TP3 raggiunto; \"Persa\" = Stop Loss colpito. "
+            "Non è consulenza finanziaria._\n"
+            f"🕒 {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+        )
+
+    try:
+        await bot.send_message(chat_id=CHANNEL_ID, text=testo, parse_mode=ParseMode.MARKDOWN)
+        logger.info("Statistiche pubblicate sul canale")
+    except TelegramError as e:
+        logger.error(f"Errore invio statistiche: {e}")
+
+
+MESSAGGIO_BENVENUTO = (
+    "🏛 *SEGNALI AI KRAKEN — Sala Segnali*\n"
+    "━━━━━━━━━━━━━━━\n"
+    f"Bot automatico che analizza {len(WATCHLIST)} coppie su Kraken (EMA, RSI, MACD, ATR, Volume) "
+    f"e pubblica solo i setup con punteggio di confidenza ≥{SCORE_MINIMO_PUBBLICAZIONE}/100.\n\n"
+    "📍 Ogni segnale include Entry, Stop Loss, 3 Take Profit scalari e leva calcolata "
+    "sul rischio reale — mai un numero fisso.\n"
+    "🎯 Aggiornamenti automatici quando SL o un TP viene raggiunto.\n"
+    "📊 Statistiche reali pubblicate periodicamente (non promesse, dati veri).\n\n"
+    "⚠️ *Importante:* nessun segnale è garantito. Questo è un sistema di analisi tecnica "
+    "automatica, non consulenza finanziaria. Fai sempre le tue verifiche (DYOR) e non "
+    "rischiare mai più di quanto puoi permetterti di perdere."
+)
+
+
+async def invia_e_fissa_benvenuto(bot: Bot):
+    try:
+        msg = await bot.send_message(chat_id=CHANNEL_ID, text=MESSAGGIO_BENVENUTO, parse_mode=ParseMode.MARKDOWN)
+        try:
+            await bot.pin_chat_message(chat_id=CHANNEL_ID, message_id=msg.message_id, disable_notification=True)
+            logger.info("Messaggio di benvenuto pubblicato e fissato in cima al canale")
+        except TelegramError as e:
+            logger.warning(
+                f"Messaggio pubblicato ma non fissato (il bot deve essere admin con permesso "
+                f"'Pin messages' sul canale): {e}"
+            )
+    except TelegramError as e:
+        logger.error(f"Errore invio messaggio di benvenuto: {e}")
+
+
+# ---------------------------------------------------------------------------
+# LOOP PRINCIPALE
+# ---------------------------------------------------------------------------
+
+async def ciclo_scansione(bot: Bot, ultimo_segnale: dict, posizioni_aperte: dict):
+    ora = datetime.now()
+    logger.info(f"--- Inizio scansione: {len(WATCHLIST)} coppie ---")
+
+    risultati = []  # (pair, score, direzione) - solo per log interni, non più pubblicati
+    almeno_un_segnale = False
+
+    for pair in WATCHLIST:
+        ultima_pubblicazione = ultimo_segnale.get(pair)
+        if ultima_pubblicazione and (ora - ultima_pubblicazione) < timedelta(hours=COOLDOWN_ORE):
+            logger.info(f"{pair}: in cooldown, salto")
+            continue
+
+        segnale, score, direzione = analizza_coppia(pair)
+        if score >= 0:
+            risultati.append((pair, score, direzione))
+
+        if segnale:
+            inviato = await invia_segnale(bot, segnale)
+            if inviato:
+                ultimo_segnale[pair] = ora
+                posizioni_aperte[pair] = {
+                    "segnale": segnale,
+                    "tp1_raggiunto": False,
+                    "tp2_raggiunto": False,
+                    "aperto_il": ora,
+                }
+                almeno_un_segnale = True
+
+        await asyncio.sleep(1)  # rispetto rate limit Kraken (non bloccante)
+
+    logger.info("--- Fine scansione ---")
+    if not almeno_un_segnale:
+        await invia_riepilogo(bot)
+
+
+async def invia_riepilogo(bot: Bot):
+    """Messaggio generico di attività quando nessun segnale supera la soglia.
+    Niente punteggi grezzi in un canale pubblico: comunica selettività, non debolezza."""
+    testo = (
+        "🔍 *Riepilogo scansione*\n"
+        "Nessun setup ha raggiunto la soglia di confidenza minima in questo ciclo. "
+        "Continuiamo a monitorare il mercato — pubblichiamo solo segnali di qualità, mai per riempire.\n\n"
+        f"🕒 {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+    )
+    try:
+        await bot.send_message(chat_id=CHANNEL_ID, text=testo, parse_mode=ParseMode.MARKDOWN)
+    except TelegramError as e:
+        logger.error(f"Errore invio riepilogo: {e}")
+
+
+async def main():
+    if not BOT_TOKEN or not CHANNEL_ID:
+        logger.error("BOT_TOKEN o CHANNEL_ID mancanti. Impostali come variabili d'ambiente.")
+        return
+
+    bot = Bot(token=BOT_TOKEN)
+
+    # Il messaggio di benvenuto/pin non deve MAI poter bloccare l'avvio del bot:
+    # se fallisce per un motivo imprevisto, logghiamo l'errore completo e andiamo avanti comunque.
+    try:
+        await invia_e_fissa_benvenuto(bot)
+    except Exception:
+        logger.error("Errore critico durante l'invio del messaggio di benvenuto (il bot continua comunque):")
+        logger.error(traceback.format_exc())
+
+    ultimo_segnale: dict = {}
+    posizioni_aperte: dict = {}
+    statistiche = {"vinti": 0, "persi": 0, "totali": 0}
+    ultimo_invio_statistiche = datetime.now()
+
+    logger.info("Bot avviato. Scansione ogni %d secondi.", SCAN_INTERVAL_SECONDS)
+    while True:
+        try:
+            await ciclo_scansione(bot, ultimo_segnale, posizioni_aperte)
+            await controlla_posizioni_aperte(bot, posizioni_aperte, statistiche)
+
+            if datetime.now() - ultimo_invio_statistiche >= timedelta(hours=STATISTICHE_INTERVALLO_ORE):
+                await invia_statistiche(bot, statistiche)
+                ultimo_invio_statistiche = datetime.now()
+        except Exception:
+            # Logghiamo il traceback COMPLETO (non solo il messaggio) cosi', se il bot
+            # dovesse mai fermarsi di nuovo, l'errore vero resta scritto nei log Railway.
+            logger.error("Errore nel ciclo di scansione:")
+            logger.error(traceback.format_exc())
+
+        await asyncio.sleep(SCAN_INTERVAL_SECONDS)
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except Exception:
+        logger.error("Errore FATALE non gestito, il processo sta per terminare:")
+        logger.error(traceback.format_exc())
+        raise
       
