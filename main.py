@@ -61,7 +61,9 @@ COOLDOWN_ORE = 4                  # non ripetere segnale stesso asset entro N or
 # --- Parametri per il calcolo della leva suggerita ---
 # La leva NON è un moltiplicatore di guadagno: serve solo a mantenere costante
 # la % di capitale a rischio, dato quanto è "stretto" o "largo" lo Stop Loss.
-RISCHIO_PER_TRADE_PERCENTO = 1.5   # % di capitale che si è disposti a perdere se lo SL viene colpito
+RISCHIO_PER_TRADE_PERCENTO = 3.0   # % di capitale che si è disposti a perdere se lo SL viene colpito
+# (alzato da 1.5 a 3.0 su richiesta: con SL tipici 2-7%, a 1.5% la leva risultava
+# quasi sempre 1x. A 3.0% varia di più mantenendo comunque il calcolo reale sul prezzo.)
 LEVA_MASSIMA = 10                  # tetto di sicurezza, mai superato indipendentemente dal calcolo
 LEVA_MINIMA = 1
 
@@ -167,7 +169,9 @@ class Segnale:
     direzione: Direzione
     entry: float
     stop_loss: float
-    take_profit: float
+    take_profit: float      # TP3, il finale (4.5x ATR) - mantenuto per compatibilità risk_reward
+    tp1: float               # 1.5x ATR (1:1)
+    tp2: float                # 3x ATR (1:2)
     timeframe: str
     score: int
     motivazione: str
@@ -183,9 +187,8 @@ class Segnale:
     def sl_percento(self) -> float:
         return round(abs(self.entry - self.stop_loss) / self.entry * 100, 2)
 
-    @property
-    def tp_percento(self) -> float:
-        return round(abs(self.take_profit - self.entry) / self.entry * 100, 2)
+    def tp_percento(self, tp_value: float) -> float:
+        return round(abs(tp_value - self.entry) / self.entry * 100, 2)
 
 
 # ---------------------------------------------------------------------------
@@ -330,16 +333,26 @@ def analizza_coppia(pair: str) -> tuple[Segnale | None, int, str]:
     entry = ultimo["close"]
     atr_val = ultimo["atr"] if pd.notna(ultimo["atr"]) else entry * 0.01
 
+    # Tre livelli di Take Profit scalati sull'ATR, per uscita parziale della posizione:
+    # TP1 = 1.5x ATR (1:1)  -> chiudi una parte, sposta SL a breakeven
+    # TP2 = 3x ATR   (1:2)  -> chiudi un'altra parte
+    # TP3 = 4.5x ATR (1:3)  -> target finale, resto della posizione
     if bias == Direzione.LONG:
         stop_loss = entry - (1.5 * atr_val)
-        take_profit = entry + (4.5 * atr_val)   # R:R 1:3 (era 3*atr = 1:2)
+        tp1 = entry + (1.5 * atr_val)
+        tp2 = entry + (3.0 * atr_val)
+        tp3 = entry + (4.5 * atr_val)
     else:
         stop_loss = entry + (1.5 * atr_val)
-        take_profit = entry - (4.5 * atr_val)
+        tp1 = entry - (1.5 * atr_val)
+        tp2 = entry - (3.0 * atr_val)
+        tp3 = entry - (4.5 * atr_val)
 
     entry_r = arrotonda_prezzo(pair, entry)
     stop_loss_r = arrotonda_prezzo(pair, stop_loss)
-    take_profit_r = arrotonda_prezzo(pair, take_profit)
+    tp1_r = arrotonda_prezzo(pair, tp1)
+    tp2_r = arrotonda_prezzo(pair, tp2)
+    tp3_r = arrotonda_prezzo(pair, tp3)
     leva = calcola_leva(entry_r, stop_loss_r)
 
     segnale = Segnale(
@@ -347,7 +360,9 @@ def analizza_coppia(pair: str) -> tuple[Segnale | None, int, str]:
         direzione=bias,
         entry=entry_r,
         stop_loss=stop_loss_r,
-        take_profit=take_profit_r,
+        take_profit=tp3_r,
+        tp1=tp1_r,
+        tp2=tp2_r,
         timeframe="1h (trend 4h)",
         score=score,
         motivazione="; ".join(motivi),
@@ -361,26 +376,33 @@ def analizza_coppia(pair: str) -> tuple[Segnale | None, int, str]:
 # ---------------------------------------------------------------------------
 
 def formatta_messaggio(s: Segnale) -> str:
+    emoji_testata = "🚀" if s.score >= 80 else "📡"
     emoji_direzione = "🟢" if s.direzione == Direzione.LONG else "🔴"
-    freccia = "📈" if s.direzione == Direzione.LONG else "📉"
+    label_direzione = "LONG (Buy)" if s.direzione == Direzione.LONG else "SHORT (Sell)"
     piene = round(s.score / 10)
     barra = "█" * piene + "░" * (10 - piene)
+    segno_sl = "-" if s.direzione == Direzione.LONG else "+"
+    segno_tp = "+" if s.direzione == Direzione.LONG else "-"
 
     return (
-        f"{emoji_direzione} *SEGNALE {s.direzione.value}* {freccia}\n"
+        f"{emoji_testata} *SEGNALI AI KRAKEN* {emoji_testata}\n"
         f"━━━━━━━━━━━━━━━\n"
-        f"*Coppia:* `{s.coppia}`\n"
-        f"*Timeframe:* {s.timeframe}\n\n"
-        f"*Entry:* `{s.entry}`\n"
-        f"*Stop Loss:* `{s.stop_loss}` _(-{s.sl_percento}%)_\n"
-        f"*Take Profit:* `{s.take_profit}` _(+{s.tp_percento}%)_\n"
-        f"*Risk/Reward:* 1:{s.risk_reward}\n"
-        f"*Leva suggerita:* {s.leva_suggerita}x _(rischio ~{RISCHIO_PER_TRADE_PERCENTO}% capitale su SL)_\n\n"
+        f"{emoji_direzione} *Asset:* `{s.coppia}`\n"
+        f"*Direzione:* {label_direzione}\n"
+        f"*Timeframe:* {s.timeframe}\n"
+        f"*Leva suggerita:* {s.leva_suggerita}x _(calcolata: rischio {RISCHIO_PER_TRADE_PERCENTO}% ÷ distanza SL {s.sl_percento}%)_\n\n"
+        f"📍 *Entry Zone:* `{s.entry}`\n\n"
+        f"🎯 *TP 1:* `{s.tp1}` ({segno_tp}{s.tp_percento(s.tp1)}%)\n"
+        f"🎯 *TP 2:* `{s.tp2}` ({segno_tp}{s.tp_percento(s.tp2)}%)\n"
+        f"🎯 *TP 3:* `{s.take_profit}` ({segno_tp}{s.tp_percento(s.take_profit)}%)\n"
+        f"🛑 *Stop Loss:* `{s.stop_loss}` ({segno_sl}{s.sl_percento}%)\n\n"
+        f"*Risk/Reward:* 1:{s.risk_reward} _(su TP3)_\n"
         f"*Confidenza:* {barra} {s.score}/100\n\n"
-        f"_{s.motivazione}_\n"
+        f"📊 *Analisi:* _{s.motivazione}_\n"
         f"━━━━━━━━━━━━━━━\n"
         f"🕒 {datetime.now().strftime('%d/%m/%Y %H:%M')}\n\n"
-        f"⚠️ _Segnale generato automaticamente da indicatori tecnici. Non è consulenza finanziaria. DYOR._"
+        f"⚠️ _Segnale generato automaticamente da indicatori tecnici reali (Kraken). "
+        f"Tutti i valori sopra sono calcolati sul prezzo, non fissi. Non è consulenza finanziaria. DYOR._"
     )
 
 
@@ -486,3 +508,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+    
