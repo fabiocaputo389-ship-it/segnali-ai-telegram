@@ -50,6 +50,16 @@ WATCHLIST = [
     "SEIUSD", "AAVEUSD", "SNXUSD", "GRTUSD",
     "SANDUSD", "MANAUSD", "AXSUSD", "ALGOUSD",
     "EGLDUSD", "FLOWUSD", "CHZUSD", "KSMUSD", "XLMUSD",
+    # Seconda ondata (2026-08-22): watchlist ampliata su richiesta di Fabio.
+    # NOTA: alcuni ticker potrebbero dare "Invalid asset pair" su Kraken (come
+    # successo con MATIC/MKR/FTM) - controllare i log dopo il redeploy e
+    # rimuovere quelli falliti.
+    "ETCUSD", "XMRUSD", "ZECUSD", "XTZUSD", "EOSUSD",
+    "THETAUSD", "APEUSD", "GALAUSD", "IMXUSD", "RUNEUSD",
+    "KAVAUSD", "MINAUSD", "OCEANUSD", "ENJUSD", "BATUSD",
+    "COMPUSD", "YFIUSD", "CRVUSD", "SUSHIUSD", "ZRXUSD",
+    "STORJUSD", "ANKRUSD", "LRCUSD", "QNTUSD", "FETUSD",
+    "PEPEUSD", "SHIBUSD", "JUPUSD", "STXUSD", "ONDOUSD",
 ]
 
 SCAN_INTERVAL_SECONDS = 600       # ogni 10 minuti
