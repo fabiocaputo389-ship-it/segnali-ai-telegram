@@ -410,7 +410,7 @@ def formatta_messaggio(s: Segnale) -> str:
     segno_tp = "+" if s.direzione == Direzione.LONG else "-"
 
     return (
-        f"{emoji_testata} *SEGNALI AI KRAKEN* {emoji_testata}\n"
+        f"{emoji_testata} *SALA SEGNALI VIP* {emoji_testata}\n"
         f"━━━━━━━━━━━━━━━\n"
         f"{emoji_direzione} *Asset:* `{s.coppia}`\n"
         f"*Direzione:* {label_direzione}\n"
@@ -530,7 +530,7 @@ async def controlla_posizioni_aperte(bot: Bot, posizioni_aperte: dict, statistic
                     bot, s, "🎯 *TP1 RAGGIUNTO*",
                     f"Primo target raggiunto su `{pair}` (+{s.tp_percento(s.tp1)}%). "
                     f"Consigliato chiudere una parte e spostare lo Stop Loss a breakeven."
-                    )
+                )
 
         await asyncio.sleep(1)
 
@@ -573,7 +573,7 @@ async def invia_statistiche(bot: Bot, statistiche: dict):
 
 
 MESSAGGIO_BENVENUTO = (
-    "🏛 *SEGNALI AI KRAKEN — Sala Segnali*\n"
+    "🏛 *SALA SEGNALI VIP*\n"
     "━━━━━━━━━━━━━━━\n"
     f"Bot automatico che analizza {len(WATCHLIST)} coppie su Kraken (EMA, RSI, MACD, ATR, Volume) "
     f"e pubblica solo i setup con punteggio di confidenza ≥{SCORE_MINIMO_PUBBLICAZIONE}/100.\n\n"
@@ -702,4 +702,3 @@ if __name__ == "__main__":
         logger.error("Errore FATALE non gestito, il processo sta per terminare:")
         logger.error(traceback.format_exc())
         raise
-      
