@@ -157,6 +157,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger("segnali_ai")
 
+# La libreria httpx (usata internamente da python-telegram-bot per le chiamate HTTP)
+# logga di default l'URL completo di ogni richiesta, token del bot incluso.
+# Alziamo il suo livello a WARNING cosi' non finisce piu' nei log di Railway.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+
 
 class Direzione(Enum):
     LONG = "LONG"
