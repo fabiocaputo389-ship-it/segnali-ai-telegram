@@ -1,10 +1,10 @@
 """
-Segnali AI - Kraken -> Telegram
+Segnali AI - Bitget -> Telegram
 ---------------------------------
-Bot che legge i prezzi pubblici da Kraken, calcola indicatori tecnici
-e pubblica automaticamente segnali BUY/SELL su un canale Telegram privato.
+Bot che legge i prezzi pubblici da Bitget (perpetui USDT-FUTURES), calcola indicatori
+tecnici e pubblica automaticamente segnali BUY/SELL su un canale Telegram privato.
 
-Nessuna API key di Kraken necessaria: usiamo solo endpoint pubblici (lettura prezzi).
+Nessuna API key di Bitget necessaria: usiamo solo endpoint pubblici (lettura prezzi).
 Nessun trade viene eseguito: e' un bot di sola segnalazione.
 
 VARIABILI D'AMBIENTE RICHIESTE (da impostare su Railway, mai nel codice):
@@ -52,22 +52,24 @@ STATO_FILE = os.path.join(DATA_DIR, "stato_bot.json")
 # "Upload files" su GitHub senza dover creare sottocartelle.
 ASSETS_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Watchlist: le coppie Kraken piu' scambiate (ampliata per piu' opportunita' di segnale)
-# Nota: MATICUSD, MKRUSD, FTMUSD rimosse -> Kraken le rifiuta come "Invalid asset pair"
+# Watchlist: nomi in stile Kraken usati come chiave interna (es. XBTUSD), tradotti
+# automaticamente nel simbolo perpetuo Bitget corrispondente (es. BTCUSDT) da
+# pair_kraken_a_bitget() sia per l'analisi che per il monitoraggio SL/TP.
+# Nota: MATICUSD, MKRUSD, FTMUSD rimosse -> non esiste un perpetuo Bitget corrispondente
 # (probabile rebranding ticker, es. MATIC -> POL). Rivedere se serve reintrodurle con nome corretto.
 WATCHLIST = [
     # Top cap
     "XBTUSD", "ETHUSD", "SOLUSD", "XRPUSD", "ADAUSD",
     "DOGEUSD", "AVAXUSD", "DOTUSD", "LINKUSD",
     "LTCUSD", "BCHUSD", "ATOMUSD", "UNIUSD", "ARBUSD",
-    # Aggiunte: altre coppie liquide su Kraken
+    # Aggiunte: altre coppie liquide
     "TRXUSD", "NEARUSD", "APTUSD", "FILUSD", "ICPUSD",
     "OPUSD", "SUIUSD", "INJUSD", "RENDERUSD", "TIAUSD",
     "SEIUSD", "AAVEUSD", "SNXUSD", "GRTUSD",
     "SANDUSD", "MANAUSD", "AXSUSD", "ALGOUSD",
     "EGLDUSD", "FLOWUSD", "CHZUSD", "KSMUSD", "XLMUSD",
     # Seconda ondata (2026-08-22): watchlist ampliata su richiesta di Fabio.
-    # NOTA: alcuni ticker potrebbero dare "Invalid asset pair" su Kraken (come
+    # NOTA: alcuni ticker potrebbero non avere un perpetuo Bitget corrispondente (come
     # successo con MATIC/MKR/FTM) - controllare i log dopo il redeploy e
     # rimuovere quelli falliti.
     "ETCUSD", "XMRUSD", "ZECUSD", "XTZUSD", "EOSUSD",
@@ -98,10 +100,9 @@ RISCHIO_PER_TRADE_PERCENTO = 3.0   # % di capitale che si è disposti a perdere 
 LEVA_MASSIMA = 10                  # tetto di sicurezza, mai superato indipendentemente dal calcolo
 LEVA_MINIMA = 1
 
-KRAKEN_OHLC_URL = "https://api.kraken.com/0/public/OHLC"
-
-# Numero di decimali accettati da Kraken per il PREZZO di ciascuna coppia.
-# Valori approssimati sui tick-size reali di Kraken (agosto 2026).
+# Numero di decimali di riserva se Bitget non risponde alla richiesta di precisione live
+# (vedi get_decimali_bitget). Valori approssimati sui vecchi tick-size Kraken (agosto 2026),
+# tenuti come seconda rete di sicurezza prima della stima generica dal prezzo.
 # Se una coppia non è in questa lista, si usa un default calcolato dal prezzo stesso.
 DECIMALI_PREZZO = {
     "XBTUSD": 1,
@@ -148,10 +149,16 @@ DECIMALI_PREZZO = {
 
 
 def decimali_per_coppia(pair: str, prezzo: float) -> int:
-    """Restituisce i decimali corretti per una coppia; se sconosciuta, li stima dal prezzo."""
+    """Decimali da usare per SL/TP. Priorita': precisione reale di Bitget (dove si opera
+    davvero) -> tabella Kraken calibrata a mano -> stima prudente dal prezzo."""
+    decimali_bitget = get_decimali_bitget(pair)
+    if decimali_bitget is not None:
+        return decimali_bitget
     if pair in DECIMALI_PREZZO:
         return DECIMALI_PREZZO[pair]
-    # Stima ragionevole se la coppia non è mappata esplicitamente
+    # Stima prudente se la coppia non e' mappata e Bitget non ha risposto: meglio pochi
+    # decimali in piu' (valore ancora valido su qualunque exchange) che troppi (rischio
+    # che l'exchange rifiuti il prezzo per eccesso di precisione).
     if prezzo >= 1000:
         return 1
     if prezzo >= 100:
@@ -160,6 +167,8 @@ def decimali_per_coppia(pair: str, prezzo: float) -> int:
         return 3
     if prezzo >= 0.1:
         return 4
+    if prezzo >= 0.01:
+        return 5
     return 6
 
 
@@ -318,32 +327,54 @@ def carica_stato():
 
 
 # ---------------------------------------------------------------------------
-# DATI DI MERCATO (Kraken API pubblica)
+# DATI DI MERCATO (Bitget API pubblica)
 # ---------------------------------------------------------------------------
+
+GRANULARITA_BITGET = {1: "1m", 15: "15m", 60: "1H", 240: "4H"}
+
 
 def get_ohlc(pair: str, interval: int, count: int = 250) -> pd.DataFrame:
     """
-    Scarica candele OHLC da Kraken.
-    interval in minuti: 60 = 1h, 240 = 4h
+    Scarica candele OHLC dal perpetuo Bitget corrispondente alla coppia (stesso exchange
+    su cui si opera davvero, dall'analisi tecnica al monitoraggio SL/TP).
+    interval in minuti: 1, 15, 60 = 1h, 240 = 4h
     """
-    params = {"pair": pair, "interval": interval}
-    resp = requests.get(KRAKEN_OHLC_URL, params=params, timeout=10)
-    resp.raise_for_status()
-    data = resp.json()
+    simbolo = pair_kraken_a_bitget(pair)
+    granularita = GRANULARITA_BITGET.get(interval)
+    if granularita is None:
+        raise ValueError(f"Intervallo {interval} non mappato su una granularita' Bitget")
 
-    if data.get("error"):
-        raise ValueError(f"Errore Kraken per {pair}: {data['error']}")
-
-    result_key = [k for k in data["result"].keys() if k != "last"][0]
-    raw = data["result"][result_key]
-
-    df = pd.DataFrame(
-        raw,
-        columns=["time", "open", "high", "low", "close", "vwap", "volume", "count"],
+    resp = requests.get(
+        "https://api.bitget.com/api/v2/mix/market/candles",
+        params={
+            "symbol": simbolo,
+            "productType": "USDT-FUTURES",
+            "granularity": granularita,
+            "limit": min(count, 1000),
+        },
+        timeout=10,
     )
-    for col in ["open", "high", "low", "close", "vwap", "volume"]:
+    resp.raise_for_status()
+    dati = resp.json()
+    if dati.get("code") != "00000":
+        raise ValueError(f"Errore Bitget per {simbolo}: {dati}")
+
+    righe = dati.get("data") or []
+    if not righe:
+        raise ValueError(f"Nessuna candela restituita da Bitget per {simbolo}")
+
+    # Le prime 6 colonne sono sempre timestamp/open/high/low/close/volume base;
+    # eventuali colonne extra (es. volume in quote currency) vengono ignorate.
+    df = pd.DataFrame(righe).iloc[:, :6]
+    df.columns = ["time", "open", "high", "low", "close", "volume"]
+    for col in ["open", "high", "low", "close", "volume"]:
         df[col] = df[col].astype(float)
-    df["time"] = pd.to_datetime(df["time"], unit="s")
+    df["time"] = pd.to_datetime(df["time"].astype("int64"), unit="ms")
+    df["vwap"] = df["close"]  # Bitget non fornisce il vwap per candela, approssimato col close
+    df["count"] = 0  # non fornito da Bitget, non usato nella logica di scoring
+
+    # Bitget non garantisce sempre l'ordine cronologico crescente: lo forziamo noi.
+    df = df.sort_values("time").reset_index(drop=True)
     return df.tail(count).reset_index(drop=True)
 
 
@@ -388,13 +419,45 @@ def get_prezzo_bitget(pair: str) -> float:
 
 
 def get_prezzo_per_monitoraggio(pair: str) -> float:
-    """Prezzo da usare per controllare SL/TP: prova prima Bitget (l'exchange usato per
-    operare davvero), e se non risponde ripiega su Kraken. Non blocca mai il monitoraggio."""
+    """Prezzo da usare per controllare SL/TP: prova prima il ticker Bitget in tempo reale,
+    e se non risponde ripiega sull'ultima candela 1m (comunque dati Bitget). Non blocca mai il monitoraggio."""
     try:
         return get_prezzo_bitget(pair)
     except Exception as e:
-        logger.info(f"{pair}: prezzo Bitget non disponibile ({e}), uso Kraken come riferimento.")
+        logger.info(f"{pair}: ticker Bitget non disponibile ({e}), uso l'ultima candela 1m come riferimento.")
         return get_ultimo_prezzo(pair)
+
+
+_cache_decimali_bitget = {}  # simbolo Bitget -> numero di decimali accettati (evita richieste ripetute)
+
+
+def get_decimali_bitget(pair: str) -> int:
+    """Interroga l'API pubblica Bitget per sapere quanti decimali accetta DAVVERO
+    per quella coppia (campo 'pricePlace' del contratto perpetuo), cosi' gli SL/TP
+    che pubblichiamo sono sempre inseribili su Bitget senza errori di precisione.
+    Ritorna None se Bitget non risponde o il simbolo non esiste li' - in quel caso
+    il chiamante deve ripiegare sulla stima basata sul prezzo."""
+    simbolo = pair_kraken_a_bitget(pair)
+    if simbolo in _cache_decimali_bitget:
+        return _cache_decimali_bitget[simbolo]
+    try:
+        resp = requests.get(
+            "https://api.bitget.com/api/v2/mix/market/contracts",
+            params={"productType": "USDT-FUTURES", "symbol": simbolo},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        dati = resp.json()
+        righe = dati.get("data") or []
+        if not righe:
+            raise ValueError("nessun contratto trovato")
+        riga = righe[0]
+        decimali = int(riga.get("pricePlace", riga.get("priceScale")))
+        _cache_decimali_bitget[simbolo] = decimali
+        return decimali
+    except Exception as e:
+        logger.info(f"{pair}: precisione prezzo Bitget non disponibile ({e}), uso una stima.")
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -603,7 +666,7 @@ def formatta_messaggio(s: Segnale) -> str:
         f"📊 *Analisi:* _{s.motivazione}_\n"
         f"━━━━━━━━━━━━━━━\n"
         f"🕒 {datetime.now().strftime('%d/%m/%Y %H:%M')}\n\n"
-        f"⚠️ _Segnale generato automaticamente da indicatori tecnici reali (Kraken). "
+        f"⚠️ _Segnale generato automaticamente da indicatori tecnici reali (Bitget). "
         f"Tutti i valori sopra sono calcolati sul prezzo, non fissi. Non è consulenza finanziaria. DYOR._"
     )
 
@@ -654,7 +717,7 @@ def genera_card_risultato(s: Segnale, esito_positivo: bool, percentuale: float, 
     y = 220
     colore_dir = (60, 210, 130) if s.direzione == Direzione.LONG else (230, 80, 90)
     draw.text((50, y), s.coppia, font=_font("font_bold.ttf", 56), fill=(255, 255, 255))
-    draw.text((50, y + 70), f"Kraken Perpetuo   |   {s.direzione.value}   |   {s.leva_suggerita}x",
+    draw.text((50, y + 70), f"Bitget Perpetuo   |   {s.direzione.value}   |   {s.leva_suggerita}x",
                font=_font("font_regular.ttf", 30), fill=colore_dir)
 
     colore_pct = (60, 210, 130) if esito_positivo else (230, 80, 90)
@@ -923,11 +986,11 @@ async def invia_report_settimanale(bot: Bot, statistiche: dict):
 MESSAGGIO_BENVENUTO = (
     "🏛 *SALA SEGNALI VIP*\n"
     "━━━━━━━━━━━━━━━\n"
-    f"Bot automatico che analizza {len(WATCHLIST)} coppie su Kraken (EMA, RSI, MACD, ATR, Volume) "
+    f"Bot automatico che analizza {len(WATCHLIST)} coppie (dati Bitget: EMA, RSI, MACD, ATR, Volume) "
     f"e pubblica solo i setup con punteggio di confidenza ≥{SCORE_MINIMO_PUBBLICAZIONE}/100.\n\n"
     "📍 Ogni segnale include Entry, Stop Loss, 3 Take Profit scalari e leva calcolata "
     "sul rischio reale — mai un numero fisso.\n"
-    "🎯 Aggiornamenti automatici quando SL o un TP viene raggiunto.\n"
+    "🎯 Analisi e monitoraggio SL/TP interamente su dati Bitget, lo stesso exchange su cui si opera.\n"
     "📊 Statistiche reali pubblicate periodicamente (non promesse, dati veri).\n\n"
     "⚠️ *Importante:* nessun segnale è garantito. Questo è un sistema di analisi tecnica "
     "automatica, non consulenza finanziaria. Fai sempre le tue verifiche (DYOR) e non "
@@ -1020,7 +1083,7 @@ async def ciclo_scansione(bot: Bot, ultimo_segnale: dict, posizioni_aperte: dict
                     }
                     almeno_un_segnale = True
 
-        await asyncio.sleep(1)  # rispetto rate limit Kraken (non bloccante)
+        await asyncio.sleep(1)  # rispetto rate limit Bitget (non bloccante)
 
     logger.info("--- Fine scansione ---")
     if not almeno_un_segnale:
