@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Sala Segnali VIP</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0d16;
+    --bg-elevated:#131829;
+    --bg-elevated-2:#171d33;
+    --border:rgba(212,175,106,0.16);
+    --border-bright:rgba(212,175,106,0.4);
+    --gold:#d4af6a;
+    --gold-bright:#f0c869;
+    --gold-dim:#8a7449;
+    --text:#eef0f5;
+    --text-dim:#8b93a7;
+    --text-faint:#565f78;
+    --long:#34d399;
+    --long-dim:#1c4f42;
+    --short:#f87171;
+    --short-dim:#5a2c30;
+    --radius:16px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(ellipse 900px 500px at 50% -10%, rgba(212,175,106,0.09), transparent 60%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+    padding:18px 16px 40px;
+  }
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  .display{font-family:'Fraunces',serif;}
+
+  /* ---------- Header ---------- */
+  header{display:flex; align-items:center; justify-content:space-between; margin-bottom:22px;}
+  .brand{display:flex; align-items:center; gap:10px;}
+  .brand-icon{
+    width:38px; height:38px; border-radius:10px;
+    background:linear-gradient(155deg, var(--gold-bright), var(--gold-dim));
+    display:flex; align-items:center; justify-content:center;
+    font-size:19px;
+    box-shadow:0 4px 14px rgba(212,175,106,0.25);
+  }
+  .brand-text .title{font-family:'Fraunces',serif; font-weight:600; font-size:18px; letter-spacing:0.2px; color:var(--gold-bright);}
+  .brand-text .subtitle{font-size:11px; color:var(--text-faint); letter-spacing:0.5px; text-transform:uppercase; margin-top:1px;}
+
+  .scan-badge{
+    display:flex; align-items:center; gap:7px;
+    background:var(--bg-elevated); border:1px solid var(--border);
+    border-radius:999px; padding:6px 12px 6px 9px;
+    font-size:11px; color:var(--text-dim); white-space:nowrap;
+  }
+  .scan-dot{
+    position:relative; width:8px; height:8px; border-radius:50%;
+    background:var(--long); flex-shrink:0;
+  }
+  .scan-dot::after{
+    content:''; position:absolute; inset:-6px; border-radius:50%;
+    border:1.5px solid var(--long); opacity:0;
+    animation:sonar 2.2s ease-out infinite;
+  }
+  .scan-dot.paused{background:var(--text-faint);}
+  .scan-dot.paused::after{display:none;}
+  @keyframes sonar{
+    0%{opacity:0.7; transform:scale(0.4);}
+    100%{opacity:0; transform:scale(2.4);}
+  }
+  @media (prefers-reduced-motion: reduce){ .scan-dot::after{animation:none;} }
+
+  /* ---------- Cards generiche ---------- */
+  .card{
+    background:linear-gradient(180deg, var(--bg-elevated), var(--bg-elevated-2));
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:16px;
+  }
+  .section-label{
+    font-size:11px; letter-spacing:1.2px; text-transform:uppercase;
+    color:var(--gold-dim); font-weight:600; margin:26px 0 10px 2px;
+  }
+  .section-label:first-of-type{margin-top:0;}
+
+  /* ---------- Statistiche ---------- */
+  .stats-row{display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;}
+  .stat-card{
+    background:var(--bg-elevated); border:1px solid var(--border);
+    border-radius:14px; padding:14px 10px; text-align:center;
+  }
+  .stat-value{font-family:'IBM Plex Mono',monospace; font-size:22px; font-weight:600;}
+  .stat-value.vinti{color:var(--long);}
+  .stat-value.pareggi{color:var(--gold);}
+  .stat-value.persi{color:var(--short);}
+  .stat-label{font-size:10px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.6px; margin-top:4px;}
+
+  .winrate-wrap{
+    display:flex; align-items:center; gap:18px; margin-top:12px;
+    background:var(--bg-elevated); border:1px solid var(--border); border-radius:14px; padding:14px 16px;
+  }
+  .winrate-ring{
+    width:64px; height:64px; border-radius:50%; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    background:conic-gradient(var(--gold) calc(var(--wr,0)*1%), rgba(255,255,255,0.06) 0);
+  }
+  .winrate-ring::before{
+    content:''; position:absolute; width:48px; height:48px; border-radius:50%; background:var(--bg-elevated);
+  }
+  .winrate-ring span{position:relative; font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:600;}
+  .winrate-text .big{font-family:'Fraunces',serif; font-size:15px; color:var(--text);}
+  .winrate-text .small{font-size:11px; color:var(--text-faint); margin-top:2px;}
+
+  .pnl-card{
+    display:flex; align-items:center; justify-content:space-between;
+    background:var(--bg-elevated); border:1px solid var(--border); border-radius:14px;
+    padding:16px; margin-top:10px;
+  }
+  .pnl-label{font-size:12px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.6px;}
+  .pnl-value{font-family:'IBM Plex Mono',monospace; font-size:22px; font-weight:600;}
+  .pnl-value.pos{color:var(--long);} .pnl-value.neg{color:var(--short);} .pnl-value.zero{color:var(--text-dim);}
+
+  /* ---------- Posizioni ---------- */
+  .empty{
+    text-align:center; padding:26px 10px; color:var(--text-faint); font-size:13px;
+    border:1px dashed var(--border); border-radius:14px;
+  }
+  .position-card{
+    border:1px solid var(--border); border-left:3px solid var(--gold);
+    border-radius:12px; padding:13px 14px; margin-bottom:10px;
+    background:var(--bg-elevated);
+  }
+  .position-card.long{border-left-color:var(--long);}
+  .position-card.short{border-left-color:var(--short);}
+  .position-top{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;}
+  .position-symbol{font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:14px;}
+  .side-pill{
+    font-size:10px; font-weight:600; padding:3px 8px; border-radius:999px; letter-spacing:0.4px;
+  }
+  .side-pill.long{background:var(--long-dim); color:var(--long);}
+  .side-pill.short{background:var(--short-dim); color:var(--short);}
+  .position-meta{display:flex; gap:14px; font-size:11px; color:var(--text-dim); font-family:'IBM Plex Mono',monospace;}
+  .position-meta b{color:var(--text); font-weight:500;}
+  .pnl{font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:13px;}
+  .pnl.pos{color:var(--long);} .pnl.neg{color:var(--short);}
+  .tp-track{display:flex; gap:4px; margin-top:9px;}
+  .tp-seg{flex:1; height:4px; border-radius:2px; background:rgba(255,255,255,0.08);}
+  .tp-seg.done{background:var(--gold);}
+
+  /* ---------- Controlli ---------- */
+  .control-card{margin-bottom:12px;}
+  .toggle-row{display:flex; align-items:center; justify-content:space-between;}
+  .toggle-row .label{font-size:14px; font-weight:500;}
+  .toggle-row .desc{font-size:11px; color:var(--text-faint); margin-top:2px;}
+  .switch{
+    position:relative; width:48px; height:28px; border-radius:999px;
+    background:var(--bg-elevated-2); border:1px solid var(--border);
+    cursor:pointer; flex-shrink:0; transition:background 0.2s;
+  }
+  .switch.on{background:linear-gradient(155deg, var(--gold-bright), var(--gold-dim)); border-color:var(--border-bright);}
+  .switch.danger.on{background:linear-gradient(155deg, #f87171, #7f1d1d); border-color:rgba(248,113,113,0.5);}
+  .switch .knob{
+    position:absolute; top:2px; left:2px; width:22px; height:22px; border-radius:50%;
+    background:#fff; transition:transform 0.2s ease; box-shadow:0 2px 4px rgba(0,0,0,0.3);
+  }
+  .switch.on .knob{transform:translateX(20px);}
+
+  /* Gauge del rischio - quadrante a semicerchio */
+  .gauge-wrap{display:flex; flex-direction:column; align-items:center; padding-top:6px;}
+  .gauge-svg{width:220px; max-width:80%; height:auto;}
+  .gauge-value{
+    font-family:'Fraunces',serif; font-size:30px; font-weight:600; color:var(--gold-bright);
+    margin-top:-38px;
+  }
+  .gauge-caption{font-size:11px; color:var(--text-faint); margin-top:2px; margin-bottom:14px;}
+  .gauge-slider{
+    -webkit-appearance:none; appearance:none; width:100%; height:34px;
+    background:transparent; margin-top:6px;
+  }
+  .gauge-slider::-webkit-slider-runnable-track{
+    height:6px; border-radius:3px;
+    background:linear-gradient(90deg, var(--gold-dim), var(--gold-bright));
+  }
+  .gauge-slider::-webkit-slider-thumb{
+    -webkit-appearance:none; margin-top:-11px;
+    width:28px; height:28px; border-radius:50%;
+    background:#fff; border:3px solid var(--gold);
+    box-shadow:0 2px 8px rgba(0,0,0,0.4);
+  }
+  .gauge-ticks{display:flex; justify-content:space-between; font-size:9px; color:var(--text-faint); font-family:'IBM Plex Mono',monospace; margin-top:2px;}
+  .apply-btn{
+    width:100%; margin-top:14px; padding:11px; border:none; border-radius:10px;
+    background:linear-gradient(155deg, var(--gold-bright), var(--gold-dim));
+    color:#1a1305; font-weight:600; font-size:13px; letter-spacing:0.3px;
+    cursor:pointer; opacity:0.5; pointer-events:none; transition:opacity 0.2s;
+  }
+  .apply-btn.active{opacity:1; pointer-events:auto;}
+  .apply-btn:active{transform:scale(0.98);}
+
+  /* ---------- Storico segnali ---------- */
+  .signal-row{
+    display:flex; align-items:center; gap:10px;
+    padding:10px 4px; border-bottom:1px solid var(--border);
+  }
+  .signal-row:last-child{border-bottom:none;}
+  .signal-dir{
+    width:6px; height:30px; border-radius:3px; flex-shrink:0;
+  }
+  .signal-dir.long{background:var(--long);} .signal-dir.short{background:var(--short);}
+  .signal-main{flex:1; min-width:0;}
+  .signal-pair{font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:600;}
+  .signal-time{font-size:10px; color:var(--text-faint); margin-top:1px;}
+  .signal-score{
+    font-family:'IBM Plex Mono',monospace; font-size:12px; text-align:right; flex-shrink:0;
+  }
+  .signal-exec{font-size:9px; margin-top:2px; text-align:right;}
+  .signal-exec.yes{color:var(--long);}
+  .signal-exec.no{color:var(--text-faint);}
+
+  .footer-note{
+    text-align:center; font-size:10px; color:var(--text-faint); margin-top:28px; line-height:1.6;
+  }
+
+  #toast{
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:var(--bg-elevated-2); border:1px solid var(--border-bright);
+    color:var(--text); padding:10px 18px; border-radius:10px; font-size:12px;
+    opacity:0; transition:all 0.25s; pointer-events:none; z-index:100;
+  }
+  #toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-icon">🏛</div>
+    <div class="brand-text">
+      <div class="title">Sala Segnali VIP</div>
+      <div class="subtitle" id="env-label">—</div>
+    </div>
+  </div>
+  <div class="scan-badge">
+    <div class="scan-dot" id="scan-dot"></div>
+    <span id="scan-label">carico…</span>
+  </div>
+</header>
+
+<div class="section-label">Statistiche</div>
+<div class="stats-row">
+  <div class="stat-card"><div class="stat-value vinti" id="v-vinti">–</div><div class="stat-label">Vinte</div></div>
+  <div class="stat-card"><div class="stat-value pareggi" id="v-pareggi">–</div><div class="stat-label">Pareggi</div></div>
+  <div class="stat-card"><div class="stat-value persi" id="v-persi">–</div><div class="stat-label">Perse</div></div>
+</div>
+<div class="winrate-wrap">
+  <div class="winrate-ring" id="wr-ring" style="--wr:0"><span id="wr-text">–%</span></div>
+  <div class="winrate-text">
+    <div class="big" id="wr-totali">0 posizioni chiuse</div>
+    <div class="small">win rate reale sul totale</div>
+  </div>
+</div>
+<div class="pnl-card" id="pnl-card">
+  <div class="pnl-label">Risultato totale</div>
+  <div class="pnl-value" id="pnl-totale">$0.00</div>
+</div>
+
+<div class="section-label">Posizioni aperte</div>
+<div id="positions-container"><div class="empty">carico posizioni…</div></div>
+
+<div class="section-label">Controlli</div>
+<div class="card control-card">
+  <div class="toggle-row">
+    <div>
+      <div class="label" id="mode-label">Demo Trading</div>
+      <div class="desc" id="mode-desc">Soldi virtuali — nessun rischio reale</div>
+    </div>
+    <div class="switch" id="mode-switch"><div class="knob"></div></div>
+  </div>
+</div>
+<div class="card control-card">
+  <div class="toggle-row">
+    <div>
+      <div class="label" id="pause-label">Bot attivo</div>
+      <div class="desc">Mette in pausa apertura di nuovi trade (le posizioni aperte restano monitorate)</div>
+    </div>
+    <div class="switch" id="pause-switch"><div class="knob"></div></div>
+  </div>
+</div>
+<div class="card control-card">
+  <div class="gauge-wrap">
+    <svg class="gauge-svg" viewBox="0 0 220 130" id="gauge-svg">
+      <path d="M 14 116 A 96 96 0 0 1 206 116" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="14" stroke-linecap="round"/>
+      <path id="gauge-arc" d="M 14 116 A 96 96 0 0 1 206 116" fill="none" stroke="url(#goldGrad)" stroke-width="14" stroke-linecap="round" stroke-dasharray="302" stroke-dashoffset="302"/>
+      <defs>
+        <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#8a7449"/>
+          <stop offset="100%" stop-color="#f0c869"/>
+        </linearGradient>
+      </defs>
+    </svg>
+    <div class="gauge-value" id="gauge-value">3.0%</div>
+    <div class="gauge-caption">rischio reale per trade sul saldo</div>
+    <input type="range" min="0.5" max="10" step="0.5" value="3" class="gauge-slider" id="risk-slider">
+    <div class="gauge-ticks"><span>0.5%</span><span>5%</span><span>10%</span></div>
+    <button class="apply-btn" id="apply-risk">Applica</button>
+  </div>
+</div>
+
+<div class="section-label">Ultimi segnali</div>
+<div class="card" id="signals-container"><div class="empty">carico storico…</div></div>
+
+<div class="footer-note">Dati letti in diretta da Bitget e dal bot · aggiornamento ogni 15s<br>Non è consulenza finanziaria. DYOR.</div>
+
+<div id="toast"></div>
+
+<script>
+const tg = window.Telegram?.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+const initData = tg?.initData || '';
+
+let statoCorrente = null;
+let risultatoInvio = false;
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+function fmt(n, dec=2){
+  if (n === null || n === undefined || n === '') return '–';
+  const v = parseFloat(n);
+  if (isNaN(v)) return '–';
+  return v.toFixed(dec);
+}
+
+async function caricaDati(){
+  try{
+    const res = await fetch('/api/data?initData=' + encodeURIComponent(initData));
+    if (!res.ok) throw new Error('auth');
+    const dati = await res.json();
+    statoCorrente = dati;
+    render(dati);
+  }catch(e){
+    document.getElementById('scan-label').textContent = 'errore connessione';
+    document.getElementById('scan-dot').classList.add('paused');
+  }
+}
+
+function render(d){
+  const s = d.status;
+  document.getElementById('env-label').textContent =
+    (s.trading_abilitato ? (s.demo ? 'DEMO TRADING' : 'LIVE — SOLDI REALI') : 'SOLO SEGNALAZIONE');
+
+  const dot = document.getElementById('scan-dot');
+  const scanLabel = document.getElementById('scan-label');
+  const inPausa = s.pausa_manuale || (s.pausa_automatica_fino && new Date(s.pausa_automatica_fino) > new Date());
+  if (inPausa){
+    dot.classList.add('paused');
+    scanLabel.textContent = s.pausa_manuale ? 'in pausa (manuale)' : 'in pausa (circuit breaker)';
+  } else {
+    dot.classList.remove('paused');
+    scanLabel.textContent = 'scansione attiva';
+  }
+
+  const stt = d.statistiche;
+  document.getElementById('v-vinti').textContent = stt.vinti;
+  document.getElementById('v-pareggi').textContent = stt.pareggi;
+  document.getElementById('v-persi').textContent = stt.persi;
+  const wr = stt.totali > 0 ? Math.round((stt.vinti/stt.totali)*100) : 0;
+  document.getElementById('wr-ring').style.setProperty('--wr', wr);
+  document.getElementById('wr-text').textContent = wr + '%';
+  document.getElementById('wr-totali').textContent = stt.totali + ' posizioni chiuse';
+  const pnl = stt.pnl_totale_usd || 0;
+  const pnlEl = document.getElementById('pnl-totale');
+  pnlEl.textContent = (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(2);
+  pnlEl.className = 'pnl-value ' + (pnl > 0 ? 'pos' : (pnl < 0 ? 'neg' : 'zero'));
+
+  renderPosizioni(d.posizioni_reali, d.posizioni_tracciate, d.avviso_posizioni_reali);
+  renderSegnali(d.storia_segnali);
+
+  // switch pausa (solo se l'utente non lo sta trascinando in questo istante)
+  if (!risultatoInvio){
+    document.getElementById('pause-switch').classList.toggle('on', !s.pausa_manuale);
+    document.getElementById('pause-label').textContent = s.pausa_manuale ? 'Bot in pausa' : 'Bot attivo';
+  }
+
+  if (!modalitaInvio){
+    const isLive = s.modalita === 'live';
+    const modeSwitch = document.getElementById('mode-switch');
+    modeSwitch.classList.toggle('on', isLive);
+    modeSwitch.classList.toggle('danger', isLive);
+    document.getElementById('mode-label').textContent = isLive ? 'LIVE — soldi reali' : 'Demo Trading';
+    document.getElementById('mode-desc').textContent = isLive
+      ? 'Attenzione: ogni trade muove denaro reale'
+      : (s.live_configurato ? 'Soldi virtuali — nessun rischio reale' : 'Soldi virtuali · credenziali live non configurate');
+  }
+
+  if (!sliderTrascinato){
+    document.getElementById('risk-slider').value = s.rischio_percento;
+    aggiornaGauge(s.rischio_percento);
+  }
+}
+
+function renderPosizioni(reali, tracciate, avviso){
+  const cont = document.getElementById('positions-container');
+  if (avviso){
+    cont.innerHTML = `<div class="empty" style="color:var(--gold-dim); border-color:var(--border-bright);">⚠️ ${avviso}</div>`;
+    return;
+  }
+  if (!reali || reali.length === 0){
+    cont.innerHTML = '<div class="empty">Nessuna posizione aperta al momento</div>';
+    return;
+  }
+  cont.innerHTML = reali.map(p=>{
+    const long = (p.lato||'').toLowerCase().includes('long');
+    const traccia = (tracciate||[]).find(t => t.coppia && p.symbol && p.symbol.startsWith(t.coppia.replace('USD','')));
+    const pnl = parseFloat(p.pnl);
+    const pnlClasse = isNaN(pnl) ? '' : (pnl>=0 ? 'pos':'neg');
+    const pnlSegno = isNaN(pnl) ? '' : (pnl>=0?'+':'');
+    let tpHtml = '';
+    if (traccia){
+      tpHtml = `<div class="tp-track">
+        <div class="tp-seg done"></div>
+        <div class="tp-seg ${traccia.tp1_raggiunto?'done':''}"></div>
+        <div class="tp-seg ${traccia.tp2_raggiunto?'done':''}"></div>
+      </div>`;
+    }
+    return `<div class="position-card ${long?'long':'short'}">
+      <div class="position-top">
+        <span class="position-symbol">${p.symbol||'?'}</span>
+        <span class="side-pill ${long?'long':'short'}">${long?'LONG':'SHORT'}</span>
+      </div>
+      <div class="position-meta">
+        <span>size <b>${fmt(p.size,4)}</b></span>
+        <span>entry <b>${fmt(p.entry,4)}</b></span>
+        <span>leva <b>${p.leva||'–'}x</b></span>
+      </div>
+      <div style="margin-top:8px; display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-size:10px; color:var(--text-faint);">PnL non realizzato</span>
+        <span class="pnl ${pnlClasse}">${pnlSegno}${fmt(p.pnl)} USDT</span>
+      </div>
+      ${tpHtml}
+    </div>`;
+  }).join('');
+}
+
+function renderSegnali(storia){
+  const cont = document.getElementById('signals-container');
+  if (!storia || storia.length === 0){
+    cont.innerHTML = '<div class="empty">Nessun segnale ancora pubblicato</div>';
+    return;
+  }
+  cont.innerHTML = storia.map(s=>{
+    const long = s.direzione === 'LONG';
+    const data = new Date(s.timestamp);
+    const ora = data.toLocaleString('it-IT', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
+
+    let dettaglioDestra;
+    if (s.chiuso){
+      const pnl = s.pnl_usd || 0;
+      const etichette = {vinto:'✅ Vinto', vinto_parziale:'✅ Vinto', pareggio:'➖ Pareggio', perso:'🛑 Perso'};
+      const classi = {vinto:'yes', vinto_parziale:'yes', pareggio:'', perso:'no'};
+      dettaglioDestra = `
+        <div class="signal-score" style="color:${pnl>=0?'var(--long)':'var(--short)'};">${pnl>=0?'+':''}$${pnl.toFixed(2)}</div>
+        <div class="signal-exec ${classi[s.esito]||''}">${etichette[s.esito]||s.esito}</div>`;
+    } else {
+      dettaglioDestra = `
+        <div class="signal-score">${s.score}/100</div>
+        <div class="signal-exec ${s.eseguito?'yes':'no'}">${s.eseguito?'✓ eseguito':'non eseguito'}</div>`;
+    }
+
+    return `<div class="signal-row">
+      <div class="signal-dir ${long?'long':'short'}"></div>
+      <div class="signal-main">
+        <div class="signal-pair">${s.coppia} <span style="color:var(--text-faint); font-weight:400;">${s.direzione}</span></div>
+        <div class="signal-time">${ora}</div>
+      </div>
+      <div>${dettaglioDestra}</div>
+    </div>`;
+  }).join('');
+}
+
+function aggiornaGauge(valore){
+  const pct = (valore - 0.5) / (10 - 0.5);
+  const lunghezza = 302;
+  const arco = document.getElementById('gauge-arc');
+  arco.style.strokeDashoffset = lunghezza - (pct * lunghezza);
+  document.getElementById('gauge-value').textContent = parseFloat(valore).toFixed(1) + '%';
+}
+
+let sliderTrascinato = false;
+const slider = document.getElementById('risk-slider');
+const applyBtn = document.getElementById('apply-risk');
+slider.addEventListener('input', ()=>{
+  sliderTrascinato = true;
+  aggiornaGauge(slider.value);
+  applyBtn.classList.add('active');
+  tg?.HapticFeedback?.impactOccurred('light');
+});
+
+applyBtn.addEventListener('click', async ()=>{
+  if (!applyBtn.classList.contains('active')) return;
+  try{
+    const res = await fetch('/api/action', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({azione:'rischio', valore: parseFloat(slider.value), initData})
+    });
+    const dati = await res.json();
+    if (!res.ok) throw new Error(dati.errore || 'errore');
+    toast('Rischio per trade aggiornato a ' + slider.value + '%');
+    tg?.HapticFeedback?.notificationOccurred('success');
+    applyBtn.classList.remove('active');
+    sliderTrascinato = false;
+  }catch(e){
+    toast('Errore: ' + e.message);
+    tg?.HapticFeedback?.notificationOccurred('error');
+  }
+});
+
+document.getElementById('pause-switch').addEventListener('click', async ()=>{
+  const attualmenteAttivo = document.getElementById('pause-switch').classList.contains('on');
+  const azione = attualmenteAttivo ? 'pausa' : 'riprendi';
+  risultatoInvio = true;
+  document.getElementById('pause-switch').classList.toggle('on');
+  document.getElementById('pause-label').textContent = attualmenteAttivo ? 'Bot in pausa' : 'Bot attivo';
+  try{
+    const res = await fetch('/api/action', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({azione, initData})
+    });
+    if (!res.ok) throw new Error();
+    toast(azione === 'pausa' ? 'Bot messo in pausa' : 'Bot riattivato');
+    tg?.HapticFeedback?.notificationOccurred('success');
+  }catch(e){
+    toast('Errore nel cambiare stato');
+    tg?.HapticFeedback?.notificationOccurred('error');
+  }
+  setTimeout(()=>{ risultatoInvio = false; }, 1500);
+});
+
+let modalitaInvio = false;
+
+async function invioModalita(nuova){
+  modalitaInvio = true;
+  try{
+    const res = await fetch('/api/action', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({azione:'modalita', valore: nuova, initData})
+    });
+    const dati = await res.json();
+    if (!res.ok) throw new Error(dati.errore || 'errore');
+    toast(nuova === 'live' ? '⚠️ Modalità LIVE attivata' : 'Modalità Demo Trading attivata');
+    tg?.HapticFeedback?.notificationOccurred(nuova === 'live' ? 'warning' : 'success');
+    await caricaDati();
+  }catch(e){
+    toast('Errore: ' + e.message);
+    tg?.HapticFeedback?.notificationOccurred('error');
+  }
+  modalitaInvio = false;
+}
+
+document.getElementById('mode-switch').addEventListener('click', ()=>{
+  if (!statoCorrente) return;
+  const modalitaAttuale = statoCorrente.status.modalita;
+  const vaiInLive = modalitaAttuale !== 'live';
+
+  if (vaiInLive){
+    if (!statoCorrente.status.live_configurato){
+      toast('Credenziali live non configurate su Railway');
+      return;
+    }
+    const messaggio = 'Stai per attivare il trading LIVE: i prossimi trade useranno denaro reale, non più virtuale. Continuare?';
+    if (tg?.showConfirm){
+      tg.showConfirm(messaggio, (confermato)=>{ if (confermato) invioModalita('live'); });
+    } else if (window.confirm(messaggio)){
+      invioModalita('live');
+    }
+  } else {
+    invioModalita('demo');
+  }
+});
+
+caricaDati();
+setInterval(caricaDati, 15000);
+</script>
+</body>
+</html>
