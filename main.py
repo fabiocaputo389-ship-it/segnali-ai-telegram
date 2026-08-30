@@ -672,11 +672,17 @@ def get_saldo_disponibile_usdt() -> float:
     raise ValueError("Conto USDT non trovato tra gli account futures")
 
 
-def imposta_leva(pair: str, leva: int):
+def imposta_leva(pair: str, leva: int, direzione: "Direzione"):
+    """Imposta la leva per il simbolo. IMPORTANTE: Bitget tiene la leva separata per
+    lato long e short dello stesso simbolo (campi longLeverage/shortLeverage nella
+    risposta) - senza specificare holdSide, la chiamata puo' aggiornare il lato
+    sbagliato lasciando quello che stiamo per usare al valore precedente (es. un 10x
+    impostato manualmente durante i test). Specifichiamo sempre il lato corretto."""
     symbol = pair_kraken_a_bitget(pair)
+    hold_side = "long" if direzione == Direzione.LONG else "short"
     bitget_request("POST", "/api/v2/mix/account/set-leverage", body={
         "symbol": symbol, "productType": "USDT-FUTURES", "marginCoin": "USDT",
-        "leverage": str(leva),
+        "leverage": str(leva), "holdSide": hold_side,
     })
 
 
@@ -924,12 +930,38 @@ async def esegui_apertura_trade(bot: Bot, segnale: Segnale) -> dict | None:
         return None
 
     try:
-        imposta_leva(segnale.coppia, segnale.leva_suggerita)
+        imposta_leva(segnale.coppia, segnale.leva_suggerita, segnale.direzione)
         apri_posizione_bitget(segnale, quantita_totale)
     except Exception as e:
         logger.error(f"{segnale.coppia}: apertura posizione su Bitget fallita: {e}")
         await notifica_admin(bot, f"⚠️ Apertura posizione `{segnale.coppia}` fallita su Bitget:\n`{e}`")
         return None
+
+    # Verifica di sicurezza: rileggiamo la leva REALMENTE applicata sulla posizione appena
+    # aperta e avvisiamo se non corrisponde a quella richiesta - una discrepanza qui
+    # significa rischio reale diverso da quello mostrato nel segnale.
+    try:
+        symbol_verifica = pair_kraken_a_bitget(segnale.coppia)
+        dati_posizione = bitget_request("GET", "/api/v2/mix/position/single-position", params={
+            "symbol": symbol_verifica, "productType": "USDT-FUTURES", "marginCoin": "USDT",
+        })
+        riga_posizione = (dati_posizione[0] if isinstance(dati_posizione, list) else dati_posizione) if dati_posizione else {}
+        leva_reale = riga_posizione.get("leverage")
+        if leva_reale is not None and int(float(leva_reale)) != segnale.leva_suggerita:
+            logger.warning(
+                f"{segnale.coppia}: leva richiesta {segnale.leva_suggerita}x ma su Bitget "
+                f"risulta {leva_reale}x - il rischio reale su questo trade e' diverso da "
+                f"quello comunicato nel segnale."
+            )
+            await notifica_admin(
+                bot,
+                f"🚨 *Leva non corrispondente* su `{segnale.coppia}` — richiesta "
+                f"{segnale.leva_suggerita}x, su Bitget risulta {leva_reale}x. Il rischio "
+                f"reale su questo trade e' diverso da quello comunicato. Controllare "
+                f"manualmente su Bitget."
+            )
+    except Exception as e:
+        logger.info(f"{segnale.coppia}: impossibile verificare la leva reale dopo l'apertura: {e}")
 
     # Frazionamento della size sui 3 Take Profit (il resto va sull'ultimo per evitare
     # dust da arrotondamento). Lo Stop Loss parte sempre sulla size intera.
@@ -1698,7 +1730,7 @@ def _messaggio_benvenuto() -> str:
     )
 
 
-async def invia_e_fissa_benvenuto(bot: Bot):
+async def invia_e_fissa_benvenuto(bot: Bot) -> int | None:
     try:
         msg = await bot.send_message(chat_id=CHANNEL_ID, text=_messaggio_benvenuto(), parse_mode=ParseMode.MARKDOWN)
         try:
@@ -1709,8 +1741,25 @@ async def invia_e_fissa_benvenuto(bot: Bot):
                 f"Messaggio pubblicato ma non fissato (il bot deve essere admin con permesso "
                 f"'Pin messages' sul canale): {e}"
             )
+        return msg.message_id
     except TelegramError as e:
         logger.error(f"Errore invio messaggio di benvenuto: {e}")
+        return None
+
+
+async def aggiorna_messaggio_benvenuto(bot, message_id: int | None):
+    """Riscrive il messaggio fissato con il testo aggiornato (es. dopo un cambio
+    demo/live dalla Mini App), cosi' non resta congelato a quello che diceva all'avvio."""
+    if not bot or not message_id:
+        return
+    try:
+        await bot.edit_message_text(
+            chat_id=CHANNEL_ID, message_id=message_id,
+            text=_messaggio_benvenuto(), parse_mode=ParseMode.MARKDOWN,
+        )
+        logger.info("Messaggio fissato aggiornato dopo un cambio di configurazione.")
+    except TelegramError as e:
+        logger.warning(f"Impossibile aggiornare il messaggio fissato: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -1995,6 +2044,8 @@ async def handle_api_action(request):
             }, status=400)
         CONFIG["modalita"] = nuova
         logger.info(f"Modalita' cambiata a '{nuova}' dalla Mini App.")
+        stato = request.app["stato_condiviso"]
+        await aggiorna_messaggio_benvenuto(stato.get("bot"), stato.get("id_benvenuto"))
     else:
         return web.json_response({"errore": "Azione sconosciuta"}, status=400)
 
@@ -2143,7 +2194,10 @@ async def main():
         )
         CONFIG["modalita"] = "demo"
 
-    stato_condiviso = {"posizioni_aperte": posizioni_aperte, "statistiche": statistiche, "storia_segnali": storia_segnali}
+    stato_condiviso = {
+        "posizioni_aperte": posizioni_aperte, "statistiche": statistiche, "storia_segnali": storia_segnali,
+        "bot": bot, "id_benvenuto": None,
+    }
     asyncio.create_task(avvia_web_server(stato_condiviso))
 
     await application.initialize()
@@ -2152,7 +2206,7 @@ async def main():
     logger.info("Comandi bot (/start /help /regole /stats /posizioni /dashboard) attivi in chat privata.")
 
     try:
-        await invia_e_fissa_benvenuto(bot)
+        stato_condiviso["id_benvenuto"] = await invia_e_fissa_benvenuto(bot)
     except Exception:
         logger.error("Errore critico durante l'invio del messaggio di benvenuto (il bot continua comunque):")
         logger.error(traceback.format_exc())
