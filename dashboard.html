@@ -239,6 +239,26 @@
   .apply-btn.active{opacity:1; pointer-events:auto;}
   .apply-btn:active{transform:scale(0.98);}
 
+  /* ---------- Monitoraggio coppie ---------- */
+  .monitor-row{
+    padding:11px 4px; border-bottom:1px solid var(--border);
+  }
+  .monitor-row:last-child{border-bottom:none;}
+  .monitor-top{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px;}
+  .monitor-pair{font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:13px;}
+  .monitor-pair .dir{color:var(--text-faint); font-weight:400; font-size:11px; margin-left:5px;}
+  .monitor-score{font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--text-dim); font-variant-numeric:tabular-nums;}
+  .monitor-score b{color:var(--white-bright);}
+  .monitor-bar-track{height:5px; border-radius:3px; background:rgba(255,255,255,0.08); overflow:hidden; margin-bottom:7px;}
+  .monitor-bar-fill{height:100%; border-radius:3px; background:linear-gradient(90deg, var(--white-dim), var(--white-bright)); transition:width 0.8s cubic-bezier(.19,1,.22,1);}
+  .monitor-bar-fill.valido{background:linear-gradient(90deg, #1c4f42, var(--long));}
+  .monitor-bottom{display:flex; justify-content:space-between; align-items:center; font-size:10px; color:var(--text-faint);}
+  .monitor-flags{display:flex; gap:8px; font-family:'IBM Plex Mono',monospace;}
+  .monitor-flags span.ok{color:var(--long);}
+  .monitor-flags span.no{color:var(--text-faint);}
+  .monitor-esito{font-size:10px; padding:2px 7px; border-radius:999px; background:var(--bg-elevated-2); color:var(--text-dim);}
+  .monitor-esito.valido{background:var(--long-dim); color:var(--long);}
+
   /* ---------- Storico segnali ---------- */
   .signal-row{
     display:flex; align-items:center; gap:10px;
@@ -372,10 +392,13 @@
   </div>
 </div>
 
-<div class="section-label enter" style="animation-delay:0.4s">Ultimi segnali</div>
-<div class="card enter" id="signals-container" style="animation-delay:0.42s"><div class="empty">carico storico…</div></div>
+<div class="section-label enter" style="animation-delay:0.4s">Monitoraggio coppie</div>
+<div class="card enter" id="monitor-container" style="animation-delay:0.42s"><div class="empty">carico monitoraggio…</div></div>
 
-<div class="footer-note enter" style="animation-delay:0.46s">Dati letti in diretta da Bitget e dal bot · aggiornamento ogni 15s<br>Non è consulenza finanziaria. DYOR.</div>
+<div class="section-label enter" style="animation-delay:0.44s">Ultimi segnali</div>
+<div class="card enter" id="signals-container" style="animation-delay:0.46s"><div class="empty">carico storico…</div></div>
+
+<div class="footer-note enter" style="animation-delay:0.5s">Dati letti in diretta da Bitget e dal bot · aggiornamento ogni 15s<br>Non è consulenza finanziaria. DYOR.</div>
 
 <div id="toast"></div>
 
@@ -464,6 +487,7 @@ function render(d){
   pnlEl.className = 'pnl-value ' + (pnl > 0 ? 'pos' : (pnl < 0 ? 'neg' : 'zero'));
 
   renderPosizioni(d.posizioni_reali, d.posizioni_tracciate, d.avviso_posizioni_reali);
+  renderMonitoraggio(d.monitoraggio);
   renderSegnali(d.storia_segnali);
   renderEquity(d.storia_segnali);
 
@@ -530,6 +554,49 @@ function renderPosizioni(reali, tracciate, avviso){
         <span class="pnl ${pnlClasse}">${pnlSegno}${fmt(p.pnl)} USDT</span>
       </div>
       ${tpHtml}
+    </div>`;
+  }).join('');
+}
+
+const ESITO_LABEL = {
+  valido: 'segnale valido',
+  sotto_soglia: 'sotto soglia',
+  mercato_piatto: 'mercato piatto',
+  momentum_15m: 'momentum 15m non allineato',
+  errore_dati: 'dati non disponibili',
+};
+
+function renderMonitoraggio(lista){
+  const cont = document.getElementById('monitor-container');
+  if (!lista || lista.length === 0){
+    cont.innerHTML = '<div class="empty">In attesa della prima scansione…</div>';
+    return;
+  }
+  cont.innerHTML = lista.map(m=>{
+    if (m.score < 0){
+      return `<div class="monitor-row">
+        <div class="monitor-top"><span class="monitor-pair">${m.pair}</span><span class="monitor-esito">dati non disponibili</span></div>
+      </div>`;
+    }
+    const soglia = m.soglia_attuale || 65;
+    const pct = Math.min(100, Math.round((m.score / 100) * 100));
+    const valido = m.esito === 'valido';
+    const atrTxt = (m.atr_percento !== null && m.atr_percento !== undefined) ? m.atr_percento + '%' : 'n/d';
+    return `<div class="monitor-row">
+      <div class="monitor-top">
+        <span class="monitor-pair">${m.pair}<span class="dir">${m.direzione||''}</span></span>
+        <span class="monitor-score"><b>${m.score}</b>/${soglia}</span>
+      </div>
+      <div class="monitor-bar-track"><div class="monitor-bar-fill ${valido?'valido':''}" style="width:${pct}%"></div></div>
+      <div class="monitor-bottom">
+        <div class="monitor-flags">
+          <span class="${m.rsi_ok?'ok':'no'}">RSI</span>
+          <span class="${m.macd_ok?'ok':'no'}">MACD</span>
+          <span class="${m.volume_ok?'ok':'no'}">VOL</span>
+          <span>ATR ${atrTxt}</span>
+        </div>
+        <span class="monitor-esito ${valido?'valido':''}">${ESITO_LABEL[m.esito]||m.esito}</span>
+      </div>
     </div>`;
   }).join('');
 }
