@@ -1,296 +1,298 @@
 """
-Backtest - Segnali AI
----------------------------------
-Simula la stessa identica logica di main.py su dati storici Kraken,
-per calcolare il win rate reale della strategia prima di fidarsi "alla cieca".
+Backtest per Segnali AI - stima realistica di win rate/EV usando la STESSA logica di
+score, categorie, soglie e moltiplicatori ATR usate DAVVERO da main.py in questo
+momento (non una versione semplificata scritta a parte, per evitare che backtest e
+bot live divergano senza accorgersene).
 
-NON invia nulla su Telegram. Stampa solo un report a schermo.
+LIMITI ONESTI - leggili prima di fidarti dei numeri:
+- Usa solo prezzi storici Bitget (max ~1000 candele per chiamata: circa 41 giorni su
+  1h, 166 giorni su 4h). Finestra corta = risultati piu' rumorosi, presta attenzione
+  al numero di trade simulati prima di trarre conclusioni.
+- NON include notizie storiche: non simula ne' il controllo IA leggero (Demo) ne'
+  l'analisi approfondita LIVE ne' lo studio generale di mercato per categoria - quei
+  filtri esistono solo nel bot live e qui non possono essere replicati (le notizie
+  del passato non sono "ricercabili" allo stesso modo).
+- NON applica il filtro orario di Wall Street per azioni/ETF - i risultati storici su
+  quelle due categorie vanno quindi presi con piu' cautela rispetto alle crypto.
+- NON simula slippage ne' il fallimento di un ordine sotto il minimo Bitget - assume
+  esecuzione perfetta esattamente ai prezzi di SL/TP calcolati.
+- Le commissioni sono stimate con un valore fisso approssimativo (COMMISSIONE_PERCENTO
+  sotto) - sostituiscilo con la tua commissione reale se la conosci.
+- Un buon risultato storico NON garantisce risultati futuri - il mercato cambia, e
+  questo resta uno strumento per confrontare parametri fra loro, non una previsione.
 
-Uso:
+USO: carica questo file nella STESSA cartella di main.py su GitHub (Upload files),
+poi aprilo da Railway -> Console del servizio e lancia:
     python3 backtest.py
-
-Richiede connessione internet (va eseguito dalla Console di Railway,
-non dal sandbox locale se questo non ha accesso alla rete).
+Non servono BOT_TOKEN ne' credenziali Bitget: usa solo l'API pubblica dei prezzi.
+Impiega qualche minuto (scarica dati storici per ogni coppia attiva).
 """
-
+import sys
 import time
-from dataclasses import dataclass
-from enum import Enum
+from datetime import timedelta
 
 import numpy as np
 import pandas as pd
-import requests
 
-# ---------------------------------------------------------------------------
-# CONFIG (stessa logica di main.py)
-# ---------------------------------------------------------------------------
+sys.path.insert(0, ".")
+from main import (  # noqa: E402
+    CATEGORIE_WATCHLIST, CONFIG, Direzione, categoria_di, ema, rsi, macd, atr,
+    get_ohlc, soglie_di, DURATA_MASSIMA_POSIZIONE_ORE, COOLDOWN_ORE,
+)
 
-# Nota: MATICUSD, MKRUSD, FTMUSD rimosse -> Kraken le rifiuta come "Invalid asset pair".
-# IMPORTANTE: questa lista deve restare identica a WATCHLIST in main.py, altrimenti il
-# backtest testa una configurazione diversa da quella live (successo il 22/08/2026 - il
-# backtest girava ancora sulle vecchie 37 coppie mentre il bot live ne usava 67).
-WATCHLIST = [
-    "XBTUSD", "ETHUSD", "SOLUSD", "XRPUSD", "ADAUSD",
-    "DOGEUSD", "AVAXUSD", "DOTUSD", "LINKUSD",
-    "LTCUSD", "BCHUSD", "ATOMUSD", "UNIUSD", "ARBUSD",
-    "TRXUSD", "NEARUSD", "APTUSD", "FILUSD", "ICPUSD",
-    "OPUSD", "SUIUSD", "INJUSD", "RENDERUSD", "TIAUSD",
-    "SEIUSD", "AAVEUSD", "SNXUSD", "GRTUSD",
-    "SANDUSD", "MANAUSD", "AXSUSD", "ALGOUSD",
-    "EGLDUSD", "FLOWUSD", "CHZUSD", "KSMUSD", "XLMUSD",
-    "ETCUSD", "XMRUSD", "ZECUSD", "XTZUSD", "EOSUSD",
-    "THETAUSD", "APEUSD", "GALAUSD", "IMXUSD", "RUNEUSD",
-    "KAVAUSD", "MINAUSD", "OCEANUSD", "ENJUSD", "BATUSD",
-    "COMPUSD", "YFIUSD", "CRVUSD", "SUSHIUSD", "ZRXUSD",
-    "STORJUSD", "ANKRUSD", "LRCUSD", "QNTUSD", "FETUSD",
-    "PEPEUSD", "SHIBUSD", "JUPUSD", "STXUSD", "ONDOUSD",
-]
-
-KRAKEN_OHLC_URL = "https://api.kraken.com/0/public/OHLC"
-
-# Kraken restituisce al massimo ~720 candele per chiamata.
-# Con interval=60 (1h) -> coprono circa 30 giorni.
-CANDELE_DA_SCARICARE = 720
+# --- Parametri del backtest, separati da CONFIG cosi' puoi cambiarli senza toccare main.py ---
+SOGLIE_DA_TESTARE = [55, 60, 65, 70, 75, 80]
+CANDELE_1H = 1000
+CANDELE_4H = 1000
+COMMISSIONE_PERCENTO = 0.06  # taker+taker stimato - sostituisci con la tua commissione reale se la conosci
+FINESTRA_RSI_CANDELE = CONFIG.get("finestra_rsi_candele", 3)
+FINESTRA_MACD_CANDELE = CONFIG.get("finestra_macd_candele", 2)
+MULT_SL = CONFIG.get("atr_moltiplicatore_sl", 1.8)
+MULT_TP1 = CONFIG.get("atr_moltiplicatore_tp1", 1.5)
+MULT_TP2 = CONFIG.get("atr_moltiplicatore_tp2", 3.0)
+MULT_TP3 = CONFIG.get("atr_moltiplicatore_tp3", 5.0)
 
 
-# ---------------------------------------------------------------------------
-# DATI STORICI
-# ---------------------------------------------------------------------------
-
-def get_ohlc_storico(pair: str, interval: int) -> pd.DataFrame:
-    params = {"pair": pair, "interval": interval}
-    resp = requests.get(KRAKEN_OHLC_URL, params=params, timeout=15)
-    resp.raise_for_status()
-    data = resp.json()
-
-    if data.get("error"):
-        raise ValueError(f"Errore Kraken per {pair}: {data['error']}")
-
-    result_key = [k for k in data["result"].keys() if k != "last"][0]
-    raw = data["result"][result_key]
-
-    df = pd.DataFrame(
-        raw,
-        columns=["time", "open", "high", "low", "close", "vwap", "volume", "count"],
-    )
-    for col in ["open", "high", "low", "close", "vwap", "volume"]:
-        df[col] = df[col].astype(float)
-    df["time"] = pd.to_datetime(df["time"], unit="s")
-    return df.reset_index(drop=True)
+def coppie_da_testare() -> list:
+    """Tutte le coppie di tutte le categorie definite in main.py - stesso universo che
+    il bot analizzerebbe se tutte le categorie fossero attive."""
+    viste, elenco = set(), []
+    for categoria in CATEGORIE_WATCHLIST.values():
+        for pair in categoria["simboli"]:
+            if pair not in viste:
+                viste.add(pair)
+                elenco.append(pair)
+    return elenco
 
 
-# ---------------------------------------------------------------------------
-# INDICATORI (identici a main.py)
-# ---------------------------------------------------------------------------
+def prepara_serie(pair: str):
+    """Scarica e prepara le serie 4h/1h con tutti gli indicatori pre-calcolati.
+    Ritorna None se i dati non sono disponibili o insufficienti (coppia non listata,
+    troppo giovane per avere 200 candele 4h di storico, ecc.)."""
+    try:
+        df_4h = get_ohlc(pair, interval=240, count=CANDELE_4H)
+        df_1h = get_ohlc(pair, interval=60, count=CANDELE_1H)
+    except Exception as e:
+        print(f"  [salto] {pair}: dati non disponibili ({e})")
+        return None
+    if len(df_4h) < 200 or len(df_1h) < 60:
+        print(f"  [salto] {pair}: storico insufficiente (4h={len(df_4h)}, 1h={len(df_1h)})")
+        return None
 
-def ema(series, periodo):
-    return series.ewm(span=periodo, adjust=False).mean()
-
-
-def rsi(series, periodo=14):
-    delta = series.diff()
-    guadagno = delta.clip(lower=0)
-    perdita = -delta.clip(upper=0)
-    media_guadagno = guadagno.rolling(periodo).mean()
-    media_perdita = perdita.rolling(periodo).mean()
-    rs = media_guadagno / media_perdita.replace(0, np.nan)
-    return 100 - (100 / (1 + rs))
-
-
-def macd(series):
-    ema12 = ema(series, 12)
-    ema26 = ema(series, 26)
-    linea_macd = ema12 - ema26
-    linea_segnale = ema(linea_macd, 9)
-    return linea_macd, linea_segnale
-
-
-def atr(df, periodo=14):
-    high_low = df["high"] - df["low"]
-    high_close = (df["high"] - df["close"].shift()).abs()
-    low_close = (df["low"] - df["close"].shift()).abs()
-    tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
-    return tr.rolling(periodo).mean()
-
-
-class Direzione(Enum):
-    LONG = "LONG"
-    SHORT = "SHORT"
-
-
-@dataclass
-class TradeSimulato:
-    coppia: str
-    direzione: Direzione
-    entry_time: pd.Timestamp
-    entry: float
-    stop_loss: float
-    take_profit: float
-    score: int
-    esito: str = "APERTO"   # WIN / LOSS / APERTO (mai chiuso nel periodo)
-
-
-# ---------------------------------------------------------------------------
-# BACKTEST: cammina candela per candela, come farebbe il bot in tempo reale
-# ---------------------------------------------------------------------------
-
-def genera_segnali_storici(pair: str, df_1h: pd.DataFrame, df_4h: pd.DataFrame) -> list[TradeSimulato]:
     df_4h = df_4h.copy()
-    df_1h = df_1h.copy()
-
     df_4h["ema50"] = ema(df_4h["close"], 50)
     df_4h["ema200"] = ema(df_4h["close"], 200)
 
+    df_1h = df_1h.copy()
     df_1h["rsi"] = rsi(df_1h["close"])
     df_1h["macd"], df_1h["macd_signal"] = macd(df_1h["close"])
     df_1h["atr"] = atr(df_1h)
     df_1h["volume_media"] = df_1h["volume"].rolling(20).mean()
 
-    trade_generati = []
-
-    # Serve storia sufficiente per EMA200 su 4h e RSI/MACD su 1h
-    inizio = max(210, 60)
-
-    for i in range(inizio, len(df_1h) - 1):
-        candela_time = df_1h["time"].iloc[i]
-
-        # Trova la candela 4h corrispondente (l'ultima chiusa prima di questo momento)
-        riga_4h = df_4h[df_4h["time"] <= candela_time]
-        if len(riga_4h) < 200:
-            continue
-        ultimo_4h = riga_4h.iloc[-1]
-
-        if pd.isna(ultimo_4h["ema50"]) or pd.isna(ultimo_4h["ema200"]):
-            continue
-
-        bias = Direzione.LONG if ultimo_4h["ema50"] > ultimo_4h["ema200"] else Direzione.SHORT
-
-        ultimo = df_1h.iloc[i]
-        precedente = df_1h.iloc[i - 1]
-
-        if pd.isna(ultimo["rsi"]) or pd.isna(precedente["rsi"]) or pd.isna(ultimo["atr"]):
-            continue
-
-        score = 30
-        if bias == Direzione.LONG and precedente["rsi"] < 35 <= ultimo["rsi"]:
-            score += 25
-        elif bias == Direzione.SHORT and precedente["rsi"] > 65 >= ultimo["rsi"]:
-            score += 25
-
-        cross_up = precedente["macd"] < precedente["macd_signal"] and ultimo["macd"] >= ultimo["macd_signal"]
-        cross_down = precedente["macd"] > precedente["macd_signal"] and ultimo["macd"] <= ultimo["macd_signal"]
-        if bias == Direzione.LONG and cross_up:
-            score += 25
-        elif bias == Direzione.SHORT and cross_down:
-            score += 25
-
-        if pd.notna(ultimo["volume_media"]) and ultimo["volume"] > ultimo["volume_media"] * 1.3:
-            score += 20
-
-        # NOTA: qui non filtriamo per soglia - registriamo OGNI candela con score >= 30
-        # (score minimo possibile, dato dal solo trend). Il filtro per soglia si applica
-        # dopo, nel report, cosi' possiamo confrontare piu' soglie sugli stessi dati.
-
-        entry = ultimo["close"]
-        atr_val = ultimo["atr"]
-
-        if bias == Direzione.LONG:
-            stop_loss = entry - (1.5 * atr_val)
-            take_profit = entry + (4.5 * atr_val)   # R:R 1:3
-        else:
-            stop_loss = entry + (1.5 * atr_val)
-            take_profit = entry - (4.5 * atr_val)
-
-        trade = TradeSimulato(
-            coppia=pair,
-            direzione=bias,
-            entry_time=candela_time,
-            entry=entry,
-            stop_loss=stop_loss,
-            take_profit=take_profit,
-            score=score,
-        )
-
-        # Simula l'esito guardando le candele successive fino a SL o TP
-        for j in range(i + 1, min(i + 200, len(df_1h))):
-            futura = df_1h.iloc[j]
-            if bias == Direzione.LONG:
-                if futura["low"] <= stop_loss:
-                    trade.esito = "LOSS"
-                    break
-                if futura["high"] >= take_profit:
-                    trade.esito = "WIN"
-                    break
-            else:
-                if futura["high"] >= stop_loss:
-                    trade.esito = "LOSS"
-                    break
-                if futura["low"] <= take_profit:
-                    trade.esito = "WIN"
-                    break
-
-        trade_generati.append(trade)
-
-    return trade_generati
+    # Per ogni candela 1h, allinea l'ULTIMA candela 4h gia' chiusa a quel momento -
+    # stessa logica del bot live, che ad ogni ciclo usa l'ultimo 4h disponibile.
+    riferimento_4h = df_4h[["time", "close", "ema50", "ema200"]].rename(
+        columns={"close": "close_4h", "ema50": "ema50_4h", "ema200": "ema200_4h"}
+    )
+    df_1h = pd.merge_asof(
+        df_1h.sort_values("time"), riferimento_4h.sort_values("time"),
+        on="time", direction="backward",
+    )
+    return df_1h
 
 
-# ---------------------------------------------------------------------------
-# MAIN
-# ---------------------------------------------------------------------------
+def valuta_candela(df_1h: pd.DataFrame, i: int, pair: str) -> tuple:
+    """Rirpoduce la logica di score di analizza_coppia() per la candela 1h all'indice i.
+    Ritorna (direzione, score) oppure (None, score) se non valido."""
+    riga = df_1h.iloc[i]
+    if pd.isna(riga.get("ema50_4h")) or pd.isna(riga.get("ema200_4h")):
+        return None, -1
+    if riga["ema50_4h"] > riga["ema200_4h"]:
+        bias = Direzione.LONG
+    else:
+        bias = Direzione.SHORT
 
-SOGLIE_DA_TESTARE = [30, 50, 55, 65, 70, 75, 80]
+    prezzo_conferma = (
+        (bias == Direzione.LONG and riga["close_4h"] > riga["ema50_4h"]) or
+        (bias == Direzione.SHORT and riga["close_4h"] < riga["ema50_4h"])
+    )
+    distanza_ema_percento = abs(riga["ema50_4h"] - riga["ema200_4h"]) / riga["ema200_4h"] * 100 if riga["ema200_4h"] else 0
+    soglie = soglie_di(pair)
+    if not prezzo_conferma or distanza_ema_percento < soglie["ema_min"]:
+        return bias, 0
+
+    if pd.isna(riga["rsi"]) or pd.isna(riga["atr"]):
+        return bias, -1
+
+    score = 30  # trend confermato
+
+    finestra_rsi = df_1h["rsi"].iloc[max(0, i - FINESTRA_RSI_CANDELE):i]
+    if bias == Direzione.LONG:
+        rsi_ok = bool((finestra_rsi < 33).any() and 35 <= riga["rsi"] <= 55)
+    else:
+        rsi_ok = bool((finestra_rsi > 67).any() and 45 <= riga["rsi"] <= 65)
+    if rsi_ok:
+        score += 25
+
+    macd_ok = False
+    for k in range(1, FINESTRA_MACD_CANDELE + 1):
+        if i - k - 1 < 0:
+            break
+        prec, cur = df_1h.iloc[i - k - 1], df_1h.iloc[i - k]
+        incrocio_su = prec["macd"] < prec["macd_signal"] and cur["macd"] >= cur["macd_signal"]
+        incrocio_giu = prec["macd"] > prec["macd_signal"] and cur["macd"] <= cur["macd_signal"]
+        if bias == Direzione.LONG and incrocio_su and riga["macd"] >= riga["macd_signal"]:
+            macd_ok = True
+            break
+        if bias == Direzione.SHORT and incrocio_giu and riga["macd"] <= riga["macd_signal"]:
+            macd_ok = True
+            break
+    if macd_ok:
+        score += 25
+
+    volume_ok = pd.notna(riga["volume_media"]) and riga["volume"] > riga["volume_media"] * 1.3
+    if volume_ok:
+        score += 20
+
+    atr_percento = (riga["atr"] / riga["close"]) * 100 if riga["close"] else 0
+    if atr_percento < soglie["atr_min"]:
+        return bias, 0  # mercato piatto, stesso scarto del bot live
+
+    return bias, score
+
+
+def simula_trade(df_1h: pd.DataFrame, i_ingresso: int, bias: Direzione, atr_val: float, entry: float) -> float:
+    """Simula l'esito del trade candela per candela, con TP1/TP2/breakeven come nel bot
+    live. Ritorna il risultato in multipli di R (rischio iniziale = 1R), fee incluse."""
+    segno = 1 if bias == Direzione.LONG else -1
+    stop_loss = entry - segno * MULT_SL * atr_val
+    tp1 = entry + segno * MULT_TP1 * atr_val
+    tp2 = entry + segno * MULT_TP2 * atr_val
+    tp3 = entry + segno * MULT_TP3 * atr_val
+    rischio = abs(entry - stop_loss)
+    if rischio <= 0:
+        return 0.0
+
+    sl_attuale = stop_loss
+    tp1_raggiunto = tp2_raggiunto = False
+    peso_restante = 1.0  # frazione di posizione ancora aperta
+    r_totale = 0.0
+    limite = min(len(df_1h), i_ingresso + 1 + DURATA_MASSIMA_POSIZIONE_ORE)
+
+    for j in range(i_ingresso + 1, limite):
+        low, high = df_1h.iloc[j]["low"], df_1h.iloc[j]["high"]
+
+        tocca_sl = (low <= sl_attuale) if bias == Direzione.LONG else (high >= sl_attuale)
+        if tocca_sl:
+            r_uscita = (sl_attuale - entry) / rischio * segno
+            r_totale += r_uscita * peso_restante
+            return r_totale - COMMISSIONE_PERCENTO / 100 * 2
+
+        if not tp1_raggiunto:
+            tocca_tp1 = (high >= tp1) if bias == Direzione.LONG else (low <= tp1)
+            if tocca_tp1:
+                tp1_raggiunto = True
+                r_totale += ((tp1 - entry) / rischio * segno) * (1 / 3)
+                peso_restante -= 1 / 3
+                sl_attuale = entry  # breakeven, come nel bot live
+                continue
+
+        if tp1_raggiunto and not tp2_raggiunto:
+            tocca_tp2 = (high >= tp2) if bias == Direzione.LONG else (low <= tp2)
+            if tocca_tp2:
+                tp2_raggiunto = True
+                r_totale += ((tp2 - entry) / rischio * segno) * (1 / 3)
+                peso_restante -= 1 / 3
+                sl_attuale = tp1
+                continue
+
+        if tp2_raggiunto:
+            tocca_tp3 = (high >= tp3) if bias == Direzione.LONG else (low <= tp3)
+            if tocca_tp3:
+                r_totale += ((tp3 - entry) / rischio * segno) * peso_restante
+                return r_totale - COMMISSIONE_PERCENTO / 100 * 2
+
+    # Timeout (DURATA_MASSIMA_POSIZIONE_ORE) senza chiusura completa: chiude al prezzo
+    # dell'ultima candela disponibile, come fa il bot live.
+    prezzo_finale = df_1h.iloc[min(limite, len(df_1h)) - 1]["close"]
+    r_totale += ((prezzo_finale - entry) / rischio * segno) * peso_restante
+    return r_totale - COMMISSIONE_PERCENTO / 100 * 2
+
+
+def simula_su_soglia(df_1h: pd.DataFrame, pair: str, soglia_score: int) -> list:
+    """Ritorna la lista degli esiti (in R) di tutti i trade simulati per questa coppia
+    a questa soglia di score, sui dati 1h gia' preparati da prepara_serie()."""
+    esiti = []
+    ultimo_ingresso = None
+    i = 60
+    while i < len(df_1h) - 1:
+        if ultimo_ingresso is not None:
+            ore_da_ultimo = (df_1h.iloc[i]["time"] - df_1h.iloc[ultimo_ingresso]["time"]).total_seconds() / 3600
+            if ore_da_ultimo < COOLDOWN_ORE:
+                i += 1
+                continue
+
+        bias, score = valuta_candela(df_1h, i, pair)
+        if bias is not None and score >= soglia_score:
+            entry = df_1h.iloc[i]["close"]
+            atr_val = df_1h.iloc[i]["atr"]
+            if pd.notna(atr_val) and atr_val > 0:
+                r = simula_trade(df_1h, i, bias, atr_val, entry)
+                esiti.append(r)
+                ultimo_ingresso = i
+        i += 1
+
+    return esiti
 
 
 def main():
-    tutti_i_trade = []
+    coppie = coppie_da_testare()
+    print(f"Backtest su {len(coppie)} coppie, {len(SOGLIE_DA_TESTARE)} soglie di score.")
+    print(f"Parametri usati (presi da CONFIG attuale): SL={MULT_SL}x TP1={MULT_TP1}x "
+          f"TP2={MULT_TP2}x TP3={MULT_TP3}x, finestra RSI={FINESTRA_RSI_CANDELE}, "
+          f"finestra MACD={FINESTRA_MACD_CANDELE}\n")
 
-    print(f"Backtest su {len(WATCHLIST)} coppie, ultimi ~30 giorni (720 candele 1h)...")
-    print(f"Registro TUTTI i setup (score >= 30) per poter confrontare piu' soglie: {SOGLIE_DA_TESTARE}\n")
+    dati_per_coppia = {}
+    for idx, pair in enumerate(coppie, 1):
+        print(f"[{idx}/{len(coppie)}] Scarico {pair}...")
+        df = prepara_serie(pair)
+        dati_per_coppia[pair] = df
+        time.sleep(0.3)  # non martellare l'API pubblica di Bitget
 
-    for pair in WATCHLIST:
-        try:
-            df_1h = get_ohlc_storico(pair, interval=60)
-            df_4h = get_ohlc_storico(pair, interval=240)
-        except Exception as e:
-            print(f"  [SKIP] {pair}: {e}")
-            continue
+    giorni_coperti = None
+    for df in dati_per_coppia.values():
+        if df is not None:
+            giorni_coperti = (df.iloc[-1]["time"] - df.iloc[0]["time"]).total_seconds() / 86400
+            break
 
-        if len(df_1h) < 250 or len(df_4h) < 210:
-            print(f"  [SKIP] {pair}: dati storici insufficienti")
-            continue
-
-        trades = genera_segnali_storici(pair, df_1h, df_4h)
-        tutti_i_trade.extend(trades)
-        print(f"  {pair}: {len(trades)} setup registrati nel periodo")
-
-        time.sleep(1)  # rispetto rate limit Kraken
-
-    # --- Report per ciascuna soglia ---
-    print("\n" + "=" * 60)
-    print("CONFRONTO SOGLIE")
-    print("=" * 60)
-
+    righe_report = []
     for soglia in SOGLIE_DA_TESTARE:
-        trade_soglia = [t for t in tutti_i_trade if t.score >= soglia]
-        chiusi = [t for t in trade_soglia if t.esito in ("WIN", "LOSS")]
-        vinti = [t for t in chiusi if t.esito == "WIN"]
-        persi = [t for t in chiusi if t.esito == "LOSS"]
+        tutti_esiti = []
+        for pair, df in dati_per_coppia.items():
+            if df is None:
+                continue
+            tutti_esiti.extend(simula_su_soglia(df, pair, soglia))
 
-        print(f"\n--- Soglia {soglia}/100 ---")
-        print(f"Segnali totali: {len(trade_soglia)}  |  Chiusi: {len(chiusi)}  |  Aperti: {len(trade_soglia) - len(chiusi)}")
+        n = len(tutti_esiti)
+        if n == 0:
+            righe_report.append((soglia, 0, 0.0, 0.0, 0.0))
+            continue
+        vinti = sum(1 for r in tutti_esiti if r > 0)
+        win_rate = vinti / n * 100
+        ev_medio = float(np.mean(tutti_esiti))
+        segnali_giorno = n / giorni_coperti if giorni_coperti else 0
+        righe_report.append((soglia, n, win_rate, ev_medio, segnali_giorno))
 
-        if chiusi:
-            win_rate = len(vinti) / len(chiusi) * 100
-            risultato_netto = len(vinti) * 3 - len(persi) * 1   # R:R 1:3
-            ev_per_trade = risultato_netto / len(chiusi)
-            print(f"Win rate: {win_rate:.1f}%  |  Vinti: {len(vinti)}  |  Persi: {len(persi)}")
-            print(f"Risultato netto: {risultato_netto:+.1f}R  |  EV per trade: {ev_per_trade:+.3f}R")
-            # Segnali/giorno stimati (periodo ~30 giorni)
-            print(f"Segnali/giorno stimati: ~{len(trade_soglia) / 30:.1f}")
-        else:
-            print("Nessun trade chiuso a questa soglia.")
-
-    print("\n" + "=" * 60)
+    print("\n" + "=" * 70)
+    print(f"RISULTATI ({giorni_coperti:.0f} giorni di storico coperti)" if giorni_coperti else "RISULTATI")
+    print("=" * 70)
+    print(f"{'Soglia':<8}{'Trade':<8}{'Win rate':<12}{'EV/trade (R)':<15}{'Segnali/giorno':<15}")
+    for soglia, n, wr, ev, sg in righe_report:
+        marcatore = " <-- attuale" if soglia == CONFIG.get("score_minimo") else ""
+        print(f"{soglia:<8}{n:<8}{wr:<11.1f}%{ev:<+14.3f} {sg:<14.2f}{marcatore}")
+    print("\nEV/trade (R) = risultato medio per trade, in multipli del rischio iniziale.")
+    print("Positivo = il sistema avrebbe avuto un vantaggio statistico su questo storico.")
+    print("Ricorda i LIMITI elencati in cima a questo file prima di trarre conclusioni definitive.")
 
 
 if __name__ == "__main__":
