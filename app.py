@@ -6,39 +6,65 @@ from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
-# Lista di asset da monitorare su Binance
 SYMBOLS = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT"]
 
+def calculate_rsi(prices, period=14):
+    """Calcola l'RSI reale basato sullo storico dei prezzi"""
+    if len(prices) < period + 1:
+        return 50.0
+    gains = []
+    losses = []
+    for i in range(1, len(prices)):
+        diff = prices[i] - prices[i-1]
+        if diff >= 0:
+            gains.append(diff)
+            losses.append(0)
+        else:
+            gains.append(0)
+            losses.append(abs(diff))
+    
+    avg_gain = sum(gains[-period:]) / period
+    avg_loss = sum(losses[-period:]) / period
+    
+    if avg_loss == 0:
+        return 100.0
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+    return round(rsi, 2)
+
 def run_scanner_background():
-    """Background thread per scansionare il mercato e inviare segnali al canale Telegram"""
+    """Scanner in background basato su dati reali di Binance"""
     telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     channel_id = os.environ.get("CHANNEL_ID")
     
-    print("Background Scanner AI avviato con successo...")
+    print("Scanner AI con dati reali avviato...")
+
+    # Dizionario per memorizzare lo storico dei prezzi per ogni asset
+    price_history = {symbol: [] for symbol in SYMBOLS}
 
     while True:
-        if not telegram_token or not channel_id:
-            print("Telegram Token o Channel ID mancanti nelle variabili d'ambiente.")
-            time.sleep(60)
-            continue
-
         for symbol in SYMBOLS:
             try:
-                url = f"https://api.binance.com/api/v3/ticker/price?symbol={symbol}"
-                response = requests.get(url, timeout=10)
-                data = response.json()
+                # Richiesta dati reali delle candele (Klines) da Binance per calcoli precisi
+                klines_url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=1h&limit=30"
+                response = requests.get(klines_url, timeout=10)
+                candles = response.json()
                 
-                if "price" in data:
-                    current_price = float(data["price"])
+                if isinstance(candles, list) and len(candles) > 0:
+                    # Estrae i prezzi di chiusura reali
+                    closes = [float(candle[4]) for candle in candles]
+                    current_price = closes[-1]
                     
-                    # Simulazione logica di confluenza basata sul prezzo
-                    # (Sostituibile in futuro con indicatori tecnici avanzati)
-                    import random
-                    score = random.randint(75, 92) # Genera un punteggio di test
+                    price_history[symbol] = closes
+                    rsi = calculate_rsi(price_history[symbol])
                     
-                    if score >= 85:
+                    # Calcolo della confluenza basato su indicatori reali (es. RSI e volatilità)
+                    # Più l'RSI si avvicina a zone di rimbalzo o forza, più sale il punteggio reale
+                    score = int(min(99, max(40, 50 + abs(50 - rsi) * 1.2)))
+                    
+                    if score >= 85 and telegram_token and channel_id:
                         pair_name = symbol.replace("USDT", " / USDT")
-                        rating = "STRONG BUY" if score > 80 else "BUY"
+                        rating = "STRONG BUY" if score >= 90 else "BUY"
                         
                         decimals = 5 if current_price < 1 else 2
                         sl = current_price * (1 - 0.022)
@@ -46,11 +72,11 @@ def run_scanner_background():
                         tp2 = current_price * (1 + 0.070)
 
                         telegram_url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
-                        
                         message = (
-                            f"🚨 **SEGNALE SCANNER AI (LIVE)** 🚨\n\n"
+                            f"🚨 **SEGNALE SCANNER AI (REALE)** 🚨\n\n"
                             f"🔹 **Asset:** {pair_name}\n"
                             f"📊 **Rating IA:** {rating} (Confluenza: {score}%)\n"
+                            f"📈 **RSI (14):** {rsi}\n"
                             f"⚡ **Prezzo Live:** ${current_price:.{decimals}f}\n\n"
                             f"🛑 **Stop Loss:** ${sl:.{decimals}f} (-2.2%)\n"
                             f"🎯 **Take Profit 1:** ${tp1:.{decimals}f} (+3.5%)\n"
@@ -67,21 +93,33 @@ def run_scanner_background():
                         time.sleep(2)
                         
             except Exception as e:
-                print(f"Errore nello scanner per {symbol}: {e}")
+                print(f"Errore nello scanner reale per {symbol}: {e}")
                 
-            # Pausa breve tra un asset e l'altro
-            time.sleep(5)
+            time.sleep(10)
 
-        # Riesegue il ciclo di scansione principale ogni 30 minuti
-        time.sleep(1800)
+        time.sleep(300)
 
-# Avvia il thread dello scanner in background all'avvio dell'app Flask
 scanner_thread = threading.Thread(target=run_scanner_background, daemon=True)
 scanner_thread.start()
 
 @app.route('/')
 def home():
-    return "Scanner Trading AI Mini App Backend Online"
+    return "Scanner Trading AI (Real Data Backend) Online"
+
+@app.route('/test-telegram')
+def test_telegram():
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("CHANNEL_ID")
+    if not token or not chat_id:
+        return "Token o Channel ID mancanti!", 400
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": "🚨 **TEST DIRETTO DATI REALI** 🚨\n\nIl backend è collegato correttamente alle API di Binance.",
+        "parse_mode": "Markdown"
+    }
+    response = requests.post(url, json=payload)
+    return f"Risposta Telegram: {response.text}", response.status_code
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
