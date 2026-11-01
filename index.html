@@ -106,10 +106,15 @@
             font-weight: bold;
         }
         .signal-box-value {
-            font-size: 14px;
+            font-size: 13px;
             font-weight: bold;
             color: #38bdf8;
             margin-top: 2px;
+        }
+        .signal-subvalue {
+            font-size: 11px;
+            color: #94a3b8;
+            margin-top: 1px;
         }
         .crypto-grid {
             display: grid;
@@ -187,18 +192,22 @@
             <div class="signal-box">
                 <div class="signal-box-title">LEVA CONSIGLIATA</div>
                 <div id="trade-leverage" class="signal-box-value" style="color: #f59e0b;">15x</div>
+                <div class="signal-subvalue">Cross / Isolated</div>
             </div>
             <div class="signal-box">
                 <div class="signal-box-title">STOP LOSS (SL)</div>
                 <div id="trade-sl" class="signal-box-value" style="color: #ef4444;">-</div>
+                <div id="trade-sl-pct" class="signal-subvalue">-2.2%</div>
             </div>
             <div class="signal-box">
                 <div class="signal-box-title">TAKE PROFIT 1</div>
                 <div id="trade-tp1" class="signal-box-value" style="color: #22c55e;">-</div>
+                <div id="trade-tp1-pct" class="signal-subvalue">+3.5%</div>
             </div>
             <div class="signal-box">
                 <div class="signal-box-title">TAKE PROFIT 2</div>
                 <div id="trade-tp2" class="signal-box-value" style="color: #22c55e;">-</div>
+                <div id="trade-tp2-pct" class="signal-subvalue">+7.0%</div>
             </div>
         </div>
     </div>
@@ -211,7 +220,6 @@
     <button class="btn-ai" onclick="nextMarket()">ANALIZZA CON GEMINI AI</button>
 
     <script>
-        // Database con prezzo numerico reale (raw) per calcolare in automatico TP e SL percentuali precisi
         var marketData = [
             { pair: "BTC / USDT", price: 67420.00, displayPrice: "$67,420.00", rating: "STRONG BUY", score: 92, trend: 88, type: "▲ LONG", color: "#22c55e", lev: "15x" },
             { pair: "ETH / USDT", price: 3510.50, displayPrice: "$3,510.50", rating: "BUY", score: 84, trend: 80, type: "▲ LONG", color: "#22c55e", lev: "10x" },
@@ -246,7 +254,6 @@
 
             document.getElementById("trade-leverage").innerText = item.lev;
 
-            // Calcolo dinamico di precisione basato sul prezzo live (SL -2.2%, TP1 +3.5%, TP2 +7.0%)
             var p = item.price;
             var decimals = p < 1 ? 5 : (p < 10 ? 4 : 2);
 
