@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scanner Trading AI - Mercato Globale</title>
+    <title>Scanner Trading AI - Professional</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         body {
@@ -103,12 +103,39 @@
             transition: width 0.5s ease;
         }
 
-        /* Grid per TUTTE le Crypto con Scroll */
+        /* Sezione Segnali Operativi (TP, SL, Leva) */
+        .trade-signals-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .signal-box {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            padding: 10px;
+            text-align: center;
+        }
+        .signal-box-title {
+            font-size: 10px;
+            color: #94a3b8;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+        .signal-box-value {
+            font-size: 16px;
+            font-weight: bold;
+            color: #38bdf8;
+            margin-top: 4px;
+        }
+
+        /* Grid per TUTTE le Crypto */
         .crypto-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
             gap: 8px;
-            max-height: 220px;
+            max-height: 200px;
             overflow-y: auto;
             margin-top: 8px;
             padding-right: 4px;
@@ -183,60 +210,9 @@
         </div>
     </div>
 
-    <!-- Indicatori Trend Health ed Entry Score -->
+    <!-- Trend Health ed Entry Score -->
     <div class="card">
         <div class="bar-label">TREND HEALTH</div>
         <div class="bar-bg">
-            <div id="trend-bar" class="bar-fill" style="width: 85%; background: #22c55e;"></div>
-        </div>
-
-        <div class="bar-label">ENTRY SCORE (IA SIGNAL)</div>
-        <div class="bar-bg">
-            <div id="entry-bar" class="bar-fill" style="width: 92%; background: #3b82f6;"></div>
-        </div>
-    </div>
-
-    <!-- Elenco completo di tutte le Criptovalute -->
-    <div class="card">
-        <div style="font-size:12px; color:#94a3b8; font-weight:bold; margin-bottom:6px;">MERCATO GLOBALE (TUTTE LE CRIPTO)</div>
-        <div id="grid-container" class="crypto-grid"></div>
-    </div>
-
-    <button class="btn-ai" onclick="nextMarket()">ANALIZZA CON GEMINI AI</button>
-
-    <script>
-        // Lista estesa di tutte le principali Criptovalute del mercato
-        const marketData = [
-            { pair: "BTC / USDT", price: "$67,420.00", rating: "STRONG BUY", score: 92, trend: 88, type: "▲ LONG", color: "#22c55e" },
-            { pair: "ETH / USDT", price: "$3,510.50", rating: "BUY", score: 84, trend: 80, type: "▲ LONG", color: "#22c55e" },
-            { pair: "SOL / USDT", price: "$142.80", rating: "STRONG BUY", score: 96, trend: 94, type: "▲ LONG", color: "#22c55e" },
-            { pair: "XRP / USDT", price: "$0.5420", rating: "NEUTRAL", score: 50, trend: 52, type: "◼ HOLD", color: "#eab308" },
-            { pair: "UNI / USDT", price: "$7.2270", rating: "STRONG BUY", score: 85, trend: 75, type: "▲ LONG", color: "#22c55e" },
-            { pair: "ADA / USDT", price: "$0.4510", rating: "BUY", score: 78, trend: 70, type: "▲ LONG", color: "#22c55e" },
-            { pair: "DOGE / USDT", price: "$0.1245", rating: "STRONG BUY", score: 89, trend: 85, type: "▲ LONG", color: "#22c55e" },
-            { pair: "AVAX / USDT", price: "$28.30", rating: "BUY", score: 81, trend: 76, type: "▲ LONG", color: "#22c55e" },
-            { pair: "LINK / USDT", price: "$13.90", rating: "NEUTRAL", score: 60, trend: 58, type: "◼ HOLD", color: "#eab308" },
-            { pair: "PEPE / USDT", price: "$0.0000098", rating: "STRONG BUY", score: 94, trend: 91, type: "▲ LONG", color: "#22c55e" },
-            { pair: "SHIB / USDT", price: "$0.0000178", rating: "BUY", score: 79, trend: 73, type: "▲ LONG", color: "#22c55e" },
-            { pair: "NEAR / USDT", price: "$4.85", rating: "STRONG BUY", score: 87, trend: 83, type: "▲ LONG", color: "#22c55e" },
-            { pair: "FET / USDT", price: "$1.42", rating: "STRONG BUY", score: 91, trend: 89, type: "▲ LONG", color: "#22c55e" },
-            { pair: "SUI / USDT", price: "$1.95", rating: "STRONG BUY", score: 95, trend: 92, type: "▲ LONG", color: "#22c55e" },
-            { pair: "DOT / USDT", price: "$4.30", rating: "NEUTRAL", score: 55, trend: 50, type: "◼ HOLD", color: "#eab308" },
-            { pair: "MATIC / USDT", price: "$0.5210", rating: "NEUTRAL", score: 48, trend: 45, type: "◼ HOLD", color: "#eab308" },
-            { pair: "LTC / USDT", price: "$65.40", rating: "BUY", score: 72, trend: 68, type: "▲ LONG", color: "#22c55e" },
-            { pair: "BNB / USDT", price: "$585.10", rating: "STRONG BUY", score: 88, trend: 84, type: "▲ LONG", color: "#22c55e" }
-        ];
-
-        let currentIndex = 0;
-
-        function updateGauge(score, ratingColor) {
-            const maxOffset = 251;
-            const offset = maxOffset - (maxOffset * (score / 100));
-            const gaugeArc = document.getElementById("gauge-arc");
-            gaugeArc.style.strokeDashoffset = offset;
-            gaugeArc.style.stroke = ratingColor;
-
-            const angle = Math.PI * (1 - (score / 100));
-            const cx = 100 + 80 * Math.cos(angle);
-            const cy = 100
-            
+            <div id="trend-bar" class="bar-fill" style="width: 85%; background: #22c55
+                
