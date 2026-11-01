@@ -6,7 +6,17 @@ from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
-SYMBOLS = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT"]
+# Lista estesa di tutte le principali crypto presenti nello scanner
+SYMBOLS = [
+    "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", 
+    "ADAUSDT", "AVAXUSDT", "LINKUSDT", "DOTUSDT", "NEARUSDT", 
+    "UNIUSDT", "RENDERUSDT", "SUIUSDT", "ARBUSDT", "OPUSDT", 
+    "IMXUSDT", "ICPUSDT", "APTUSDT", "FILUSDT", "PEPEUSDT", 
+    "DOGEUSDT", "SHIBUSDT", "ATOMUSDT", "XLMUSDT", "ALGOUSDT", 
+    "FETUSDT", "INJUSDT", "LTCUSDT", "BCHUSDT", "ETCUSDT", 
+    "SANDUSDT", "MANAUSDT", "AAVEUSDT", "FTMUSDT", "RUNEUSDT", 
+    "ZECUSDT", "TRXUSDT"
+]
 
 def calculate_rsi(prices, period=14):
     """Calcola l'RSI reale basato sullo storico dei prezzi"""
@@ -33,36 +43,33 @@ def calculate_rsi(prices, period=14):
     return round(rsi, 2)
 
 def run_scanner_background():
-    """Scanner in background basato su dati reali di Binance"""
+    """Scanner in background su tutti gli asset di Binance"""
     telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     channel_id = os.environ.get("CHANNEL_ID")
     
-    print("Scanner AI con dati reali avviato...")
+    print("Scanner multi-asset AI avviato...")
 
-    # Dizionario per memorizzare lo storico dei prezzi per ogni asset
     price_history = {symbol: [] for symbol in SYMBOLS}
 
     while True:
         for symbol in SYMBOLS:
             try:
-                # Richiesta dati reali delle candele (Klines) da Binance per calcoli precisi
                 klines_url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=1h&limit=30"
                 response = requests.get(klines_url, timeout=10)
                 candles = response.json()
                 
                 if isinstance(candles, list) and len(candles) > 0:
-                    # Estrae i prezzi di chiusura reali
                     closes = [float(candle[4]) for candle in candles]
                     current_price = closes[-1]
                     
                     price_history[symbol] = closes
                     rsi = calculate_rsi(price_history[symbol])
                     
-                    # Calcolo della confluenza basato su indicatori reali (es. RSI e volatilità)
-                    # Più l'RSI si avvicina a zone di rimbalzo o forza, più sale il punteggio reale
+                    # Calcolo della confluenza basato su indicatori reali
                     score = int(min(99, max(40, 50 + abs(50 - rsi) * 1.2)))
                     
-                    if score >= 85 and telegram_token and channel_id:
+                    # Soglia attiva a 75 per inviare i segnali migliori sul canale
+                    if score >= 75 and telegram_token and channel_id:
                         pair_name = symbol.replace("USDT", " / USDT")
                         rating = "STRONG BUY" if score >= 90 else "BUY"
                         
@@ -73,7 +80,7 @@ def run_scanner_background():
 
                         telegram_url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
                         message = (
-                            f"🚨 **SEGNALE SCANNER AI (REALE)** 🚨\n\n"
+                            f"🚨 **SEGNALE OCEAN SCANNER (IA)** 🚨\n\n"
                             f"🔹 **Asset:** {pair_name}\n"
                             f"📊 **Rating IA:** {rating} (Confluenza: {score}%)\n"
                             f"📈 **RSI (14):** {rsi}\n"
@@ -90,21 +97,21 @@ def run_scanner_background():
                         }
                         
                         requests.post(telegram_url, json=payload)
-                        time.sleep(2)
+                        time.sleep(1)
                         
             except Exception as e:
-                print(f"Errore nello scanner reale per {symbol}: {e}")
+                print(f"Errore nello scanner per {symbol}: {e}")
                 
-            time.sleep(10)
+            time.sleep(1.5) # Pausa breve tra un asset e l'altro
 
-        time.sleep(300)
+        time.sleep(60) # Ciclo completo ripetuto ogni minuto
 
 scanner_thread = threading.Thread(target=run_scanner_background, daemon=True)
 scanner_thread.start()
 
 @app.route('/')
 def home():
-    return "Scanner Trading AI (Real Data Backend) Online"
+    return "Ocean Future Scanner Backend Online"
 
 @app.route('/test-telegram')
 def test_telegram():
@@ -115,7 +122,7 @@ def test_telegram():
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {
         "chat_id": chat_id,
-        "text": "🚨 **TEST DIRETTO DATI REALI** 🚨\n\nIl backend è collegato correttamente alle API di Binance.",
+        "text": "🚨 **TEST OCEAN SCANNER** 🚨\n\nIl monitoraggio multi-asset è attivo.",
         "parse_mode": "Markdown"
     }
     response = requests.post(url, json=payload)
