@@ -62,23 +62,23 @@ def run_scanner_background():
                     tp1 = current_price * (1 + 0.035)
                     tp2 = current_price * (1 + 0.070)
                     
-                    message = (
-                        f"🚨 **SEGNALE SCANNER AI (LIVE)** 🚨\n\n"
-                        f"🔹 **Asset:** {pair_name}\n"
-                        f"📊 **Rating IA:** {rating} (Confluence: {score}%)\n"
-                        f"⚡ **Prezzo Live:** ${current_price:.{decimals}f}\n\n"
-                        f"🛑 **Stop Loss:** ${sl:.{decimals}f} (-2.2%)\n"
-                        f"🎯 **Take Profit 1:** ${tp1:.{decimals}f} (+3.5%)\n"
-                        f"🎯 **Take Profit 2:** ${tp2:.{decimals}f} (+7.0%)\n\n"
-                        f"👉 *Apri la Mini App nel bot per analizzare i grafici live e i timeframe!*"
-                    )
+                    
                     
                     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
                     payload = {
                         "chat_id": CHANNEL_ID,
                         "text": message,
-                        "parse_mode": "Markdown"
-                    }
+                        "parse_mode": "Markdown. }
+                     message = (
+                        f"🚨 **SEGNALE SCANNER AI (LIVE)** 🚨\n\n"
+                        f"🔹 **Asset:** {pair_name}\n"
+                        f"📊 **Rating IA:** {rating} (Confluenza: {score}%)\n"
+                        f"⚡ **Prezzo Live:** ${current_price:.{decimals}f}\n\n"
+                        f"🛑 **Stop Loss:** ${sl:.{decimals}f} (-2.2%)\n"
+                        f"🎯 **Take Profit 1:** ${tp1:.{decimals}f} (+3.5%)\n"
+                        f"🎯 **Take Profit 2:** ${tp2:.{decimals}f} (+7.0%)"  )
+                    
+                                        )
                     
                     requests.post(url, json=payload)
                     time.sleep(2)
