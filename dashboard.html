@@ -607,34 +607,7 @@ function render(d){
   pnlEl.textContent = (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(2);
   pnlEl.className = pnl > 0 ? 'pos' : (pnl < 0 ? 'neg' : 'zero');
 
-  renderSuggerimento(s);
-  // Aggiungi questa funzione o inseriscila dentro render(d)
-    function renderScannerReale(scannerData) {
-        try {
-            const data = scannerData || {};
-            const elSymbol = document.getElementById('scanner-symbol');
-            const elPrice = document.getElementById('scanner-price');
-            const elTrendText = document.getElementById('trend-health-text');
-            const elTrendBar = document.getElementById('trend-health-bar');
-            const elEntryText = document.getElementById('entry-score-text');
-            const elEntryBar = document.getElementById('entry-score-bar');
-            const elRecTitle = document.getElementById('rec-title');
-            const elRecDesc = document.getElementById('rec-desc');
-
-            if (elSymbol) elSymbol.innerText = data.symbol || "UNI / USDT";
-            if (elPrice) elPrice.innerText = '$' + (data.price || "7.2270");
-            if (elTrendText) elTrendText.innerText = (data.trend_health || 84) + '% - ' + (data.trend_label || "Strong trend");
-            if (elTrendBar) elTrendBar.style.width = (data.trend_health || 84) + '%';
-            if (elEntryText) elEntryText.innerText = (data.entry_score || 88) + '% - ' + (data.entry_label || "Excellent entry");
-            if (elEntryBar) elEntryBar.style.width = (data.entry_score || 88) + '%';
-            if (elRecTitle) elRecTitle.innerText = 'RECOMMENDATION: ' + (data.recommendation || "LONG");
-            if (elRecDesc) elRecDesc.innerText = (data.indicators_summary || "13 out of 15 indicators suggest LONG.");
-        } catch (err) {
-            console.error("Errore non bloccante nello scanner:", err);
-        }
-    }
-
-  renderScannerReale(d.scanner || d);
+  
 
   renderNavigatore(s);
   renderMonitoraggio(d.monitoraggio);
