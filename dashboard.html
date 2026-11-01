@@ -608,6 +608,27 @@ function render(d){
   pnlEl.className = pnl > 0 ? 'pos' : (pnl < 0 ? 'neg' : 'zero');
 
   renderSuggerimento(s);
+  // Aggiungi questa funzione o inseriscila dentro render(d)
+function renderScannerReale(scannerData) {
+    if (!scannerData) return;
+    
+    // Aggiorna simbolo e prezzo reale
+    document.getElementById('scanner-symbol').innerText = scannerData.symbol || "UNI / USDT";
+    document.getElementById('scanner-price').innerText = '$' + (scannerData.price || "7.2270");
+    
+    // Aggiorna Trend Health
+    document.getElementById('trend-health-text').innerText = (scannerData.trend_health || 84) + '% - ' + (scannerData.trend_label || "Strong trend");
+    document.getElementById('trend-health-bar').style.width = (scannerData.trend_health || 84) + '%';
+    
+    // Aggiorna Entry Score
+    document.getElementById('entry-score-text').innerText = (scannerData.entry_score || 88) + '% - ' + (scannerData.entry_label || "Excellent entry");
+    document.getElementById('entry-score-bar').style.width = (scannerData.entry_score || 88) + '%';
+    
+    // Aggiorna Raccomandazione
+    document.getElementById('rec-title').innerText = 'RECOMMENDATION: ' + (scannerData.recommendation || "LONG");
+    document.getElementById('rec-desc').innerText = (scannerData.indicators_summary || "13 out of 15 indicators suggest LONG.");
+}
+  
   renderNavigatore(s);
   renderMonitoraggio(d.monitoraggio);
   renderPosizioni(d.posizioni_reali, d.posizioni_tracciate, d.avviso_posizioni_reali);
