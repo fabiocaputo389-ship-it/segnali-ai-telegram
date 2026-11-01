@@ -1439,3 +1439,126 @@ setInterval(() => { if (chart.pair && chart.offset === 0 && (inTelegram || token
 </script>
 </body>
 </html>
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Market Scanner</title>
+    <style>
+        body {
+            background-color: #0b0e14;
+            color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            padding: 15px;
+        }
+        .card {
+            background-color: #161b22;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        .header-flex {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .asset-title {
+            font-size: 22px;
+            font-weight: bold;
+        }
+        .price {
+            font-size: 24px;
+            color: #0ecb81;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        /* Stile Tachimetro / Gauge */
+        .gauge-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .gauge-text {
+            font-size: 18px;
+            font-weight: bold;
+            color: #0ecb81;
+            margin-top: -10px;
+        }
+        /* Barre di progresso */
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            margin-bottom: 5px;
+            color: #8b949e;
+        }
+        .progress-bar-bg {
+            background-color: #21262d;
+            border-radius: 6px;
+            height: 10px;
+            width: 100%;
+            margin-bottom: 15px;
+            overflow: hidden;
+        }
+        .progress-bar-fill {
+            background-color: #0ecb81;
+            height: 100%;
+            border-radius: 6px;
+        }
+        .recommendation-box {
+            background-color: #0b0e14;
+            border-left: 4px solid #0ecb81;
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <div class="header-flex">
+            <span class="asset-title">UNI / USDT</span>
+            <span style="color: #0ecb81; background: rgba(14,203,129,0.1); padding: 4px 8px; border-radius: 6px; font-size: 12px;">LONG 🟢</span>
+        </div>
+        <div class="price">$7.2270</div>
+
+        <!-- Tachimetro / Indicatore Centrale -->
+        <div class="gauge-container">
+            <svg width="160" height="90" viewBox="0 0 160 90">
+                <path d="M 15 85 A 65 65 0 0 1 145 85" fill="none" stroke="#21262d" stroke-width="12" stroke-linecap="round"/>
+                <path d="M 15 85 A 65 65 0 0 1 145 85" fill="none" stroke="#0ecb81" stroke-width="12" stroke-linecap="round" stroke-dasharray="204" stroke-dashoffset="20"/>
+                <text x="80" y="75" text-anchor="middle" fill="#ffffff" font-size="14" font-weight="bold">Strong Buy</text>
+            </svg>
+        </div>
+
+        <!-- Trend Health -->
+        <div class="progress-label">
+            <span>TREND HEALTH</span>
+            <span>84% - Strong trend</span>
+        </div>
+        <div class="progress-bar-bg">
+            <div class="progress-bar-fill" style="width: 84%;"></div>
+        </div>
+
+        <!-- Entry Score -->
+        <div class="progress-label">
+            <span>ENTRY SCORE</span>
+            <span>88% - Excellent entry</span>
+        </div>
+        <div class="progress-bar-bg">
+            <div class="progress-bar-fill" style="width: 88%;"></div>
+        </div>
+
+        <!-- Raccomandazione Testuale -->
+        <div class="recommendation-box">
+            <strong>RECOMMENDATION: LONG</strong><br>
+            13 out of 15 indicators suggest LONG.
+        </div>
+    </div>
+
+</body>
+</html>
+
