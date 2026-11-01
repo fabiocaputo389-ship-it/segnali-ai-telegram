@@ -103,7 +103,7 @@
     // Funzione per caricare i dati reali dal backend Python (/api/scan)
     async function fetchMarketData() {
         try {
-            const response = await fetch('http://localhost:8000/api/scan');
+            const response = await fetch('https://ai-trading-scanner-okbb.onrender.com/api/scan');
             const result = await response.json();
             
             if (result.success && result.data.length > 0) {
