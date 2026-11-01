@@ -61,8 +61,6 @@
             font-size: 12px;
             color: #94a3b8;
         }
-        
-        /* Tachimetro SVG */
         .gauge-wrapper {
             position: relative;
             width: 220px;
@@ -81,8 +79,6 @@
             color: #22c55e;
             letter-spacing: 1px;
         }
-        
-        /* Progress Bar */
         .bar-label {
             font-size: 11px;
             color: #94a3b8;
@@ -102,8 +98,6 @@
             border-radius: 6px;
             transition: width 0.5s ease;
         }
-
-        /* Sezione Segnali Operativi (TP, SL, Leva) */
         .trade-signals-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -124,18 +118,16 @@
             font-weight: bold;
         }
         .signal-box-value {
-            font-size: 16px;
+            font-size: 15px;
             font-weight: bold;
             color: #38bdf8;
             margin-top: 4px;
         }
-
-        /* Grid per TUTTE le Crypto */
         .crypto-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
             gap: 8px;
-            max-height: 200px;
+            max-height: 180px;
             overflow-y: auto;
             margin-top: 8px;
             padding-right: 4px;
@@ -155,7 +147,6 @@
             border-color: #3b82f6;
             background: #1e3a8a;
         }
-
         .btn-ai {
             background: linear-gradient(135deg, #2563eb, #1d4ed8);
             color: white;
@@ -173,7 +164,6 @@
 </head>
 <body>
 
-    <!-- Prezzo e Coppia -->
     <div class="card">
         <div class="header">
             <span id="pair-name" class="pair">BTC / USDT</span>
@@ -185,7 +175,6 @@
         <div id="price-val" class="price">$67,420.00</div>
     </div>
 
-    <!-- Status Scanner -->
     <div class="card" style="padding: 12px;">
         <div style="display:flex; align-items:center; gap:8px;">
             <span>🔍</span>
@@ -196,149 +185,12 @@
         </div>
     </div>
 
-    <!-- Tachimetro -->
     <div class="card" style="text-align: center;">
         <div style="font-size: 12px; color: #94a3b8; font-weight: bold; margin-bottom: 8px;">TECHNICAL RATING (IA)</div>
-        
         <div class="gauge-wrapper">
             <svg width="200" height="110" viewBox="0 0 200 110">
                 <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#334155" stroke-width="14" stroke-linecap="round"/>
                 <path id="gauge-arc" d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#22c55e" stroke-width="14" stroke-linecap="round" stroke-dasharray="251" stroke-dashoffset="25"/>
                 <circle id="gauge-dot" cx="160" cy="40" r="6" fill="#ffffff" />
             </svg>
-            <div id="ai-rating-text" class="gauge-center-text">STRONG BUY</div>
-        </div>
-    </div>
-
-    <!-- Trend Health ed Entry Score -->
-    <div class="card">
-        <div class="bar-label">TREND HEALTH</div>
-        <div class="bar-bg">
-            <div id="trend-bar" class="bar-fill" style="width: 85%; background: #22c55e;"></div>
-        </div>
-
-        <div class="bar-label">ENTRY SCORE (IA SIGNAL)</div>
-        <div class="bar-bg">
-            <div id="entry-bar" class="bar-fill" style="width: 92%; background: #3b82f6;"></div>
-        </div>
-    </div>
-
-    <!-- Sezione Livelli Operativi: TP, SL e LEVA -->
-    <div class="card">
-        <div style="font-size:12px; color:#94a3b8; font-weight:bold; margin-bottom:4px;">LIVELLI OPERATIVI CONSIGLIATI (IA)</div>
-        <div class="trade-signals-grid">
-            <div class="signal-box">
-                <div class="signal-box-title">LEVA CONSIGLIATA</div>
-                <div id="trade-leverage" class="signal-box-value" style="color: #f59e0b;">10x - 20x</div>
-            </div>
-            <div class="signal-box">
-                <div class="signal-box-title">STOP LOSS (SL)</div>
-                <div id="trade-sl" class="signal-box-value" style="color: #ef4444;">$65,100.00</div>
-            </div>
-            <div class="signal-box">
-                <div class="signal-box-title">TAKE PROFIT 1</div>
-                <div id="trade-tp1" class="signal-box-value" style="color: #22c55e;">$69,500.00</div>
-            </div>
-            <div class="signal-box">
-                <div class="signal-box-title">TAKE PROFIT 2</div>
-                <div id="trade-tp2" class="signal-box-value" style="color: #22c55e;">$71,800.00</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Elenco completo Criptovalute -->
-    <div class="card">
-        <div style="font-size:12px; color:#94a3b8; font-weight:bold; margin-bottom:6px;">MERCATO GLOBALE (TUTTE LE CRIPTO)</div>
-        <div id="grid-container" class="crypto-grid"></div>
-    </div>
-
-    <button class="btn-ai" onclick="nextMarket()">ANALIZZA CON GEMINI AI</button>
-
-    <script>
-        // Database esteso di criptovalute con prezzi, punteggi e livelli di TP/SL/Leva
-        const marketData = [
-            { pair: "BTC / USDT", price: "$67,420.00", rawPrice: 67420, rating: "STRONG BUY", score: 92, trend: 88, type: "▲ LONG", color: "#22c55e", lev: "15x", sl: "$65,100", tp1: "$69,500", tp2: "$71,800" },
-            { pair: "ETH / USDT", price: "$3,510.50", rawPrice: 3510, rating: "BUY", score: 84, trend: 80, type: "▲ LONG", color: "#22c55e", lev: "10x", sl: "$3,380", tp1: "$3,680", tp2: "$3,850" },
-            { pair: "SOL / USDT", price: "$142.80", rawPrice: 142.8, rating: "STRONG BUY", score: 96, trend: 94, type: "▲ LONG", color: "#22c55e", lev: "20x", sl: "$136.5", tp1: "$152.0", tp2: "$165.0" },
-            { pair: "XRP / USDT", price: "$0.5420", rawPrice: 0.542, rating: "NEUTRAL", score: 50, trend: 52, type: "◼ HOLD", color: "#eab308", lev: "5x", sl: "$0.515", tp1: "$0.580", tp2: "$0.610" },
-            { pair: "UNI / USDT", price: "$7.2270", rawPrice: 7.22, rating: "STRONG BUY", score: 85, trend: 75, type: "▲ LONG", color: "#22c55e", lev: "10x", sl: "$6.850", tp1: "$7.800", tp2: "$8.400" },
-            { pair: "ADA / USDT", price: "$0.4510", rawPrice: 0.451, rating: "BUY", score: 78, trend: 70, type: "▲ LONG", color: "#22c55e", lev: "10x", sl: "$0.428", tp1: "$0.490", tp2: "$0.530" },
-            { pair: "DOGE / USDT", price: "$0.1245", rawPrice: 0.124, rating: "STRONG BUY", score: 89, trend: 85, type: "▲ LONG", color: "#22c55e", lev: "20x", sl: "$0.115", tp1: "$0.138", tp2: "$0.155" },
-            { pair: "AVAX / USDT", price: "$28.30", rawPrice: 28.3, rating: "BUY", score: 81, trend: 76, type: "▲ LONG", color: "#22c55e", lev: "10x", sl: "$26.90", tp1: "$31.00", tp2: "$33.50" },
-            { pair: "LINK / USDT", price: "$13.90", rawPrice: 13.9, rating: "NEUTRAL", score: 60, trend: 58, type: "◼ HOLD", color: "#eab308", lev: "5x", sl: "$13.10", tp1: "$14.80", tp2: "$15.60" },
-            { pair: "PEPE / USDT", price: "$0.0000098", rawPrice: 0.0000098, rating: "STRONG BUY", score: 94, trend: 91, type: "▲ LONG", color: "#22c55e", lev: "25x", sl: "$0.0000090", tp1: "$0.0000115", tp2: "$0.0000130" },
-            { pair: "SHIB / USDT", price: "$0.0000178", rawPrice: 0.0000178, rating: "BUY", score: 79, trend: 73, type: "▲ LONG", color: "#22c55e", lev: "15x", sl: "$0.0000165", tp1: "$0.0000200", tp2: "$0.0000225" },
-            { pair: "NEAR / USDT", price: "$4.85", rawPrice: 4.85, rating: "STRONG BUY", score: 87, trend: 83, type: "▲ LONG", color: "#22c55e", lev: "15x", sl: "$4.55", tp1: "$5.35", tp2: "$5.80" },
-            { pair: "FET / USDT", price: "$1.42", rawPrice: 1.42, rating: "STRONG BUY", score: 91, trend: 89, type: "▲ LONG", color: "#22c55e", lev: "20x", sl: "$1.32", tp1: "$1.60", tp2: "$1.80" },
-            { pair: "SUI / USDT", price: "$1.95", rawPrice: 1.95, rating: "STRONG BUY", score: 95, trend: 92, type: "▲ LONG", color: "#22c55e", lev: "20x", sl: "$1.82", tp1: "$2.20", tp2: "$2.45" },
-            { pair: "DOT / USDT", price: "$4.30", rawPrice: 4.30, rating: "NEUTRAL", score: 55, trend: 50, type: "◼ HOLD", color: "#eab308", lev: "5x", sl: "$4.10", tp1: "$4.70", tp2: "$5.00" },
-            { pair: "MATIC / USDT", price: "$0.5210", rawPrice: 0.521, rating: "NEUTRAL", score: 48, trend: 45, type: "◼ HOLD", color: "#eab308", lev: "5x", sl: "$0.495", tp1: "$0.560", tp2: "$0.590" },
-            { pair: "LTC / USDT", price: "$65.40", rawPrice: 65.4, rating: "BUY", score: 72, trend: 68, type: "▲ LONG", color: "#22c55e", lev: "10x", sl: "$62.50", tp1: "$70.00", tp2: "$74.00" },
-            { pair: "BNB / USDT", price: "$585.10", rawPrice: 585.1, rating: "STRONG BUY", score: 88, trend: 84, type: "▲ LONG", color: "#22c55e", lev: "15x", sl: "$565.00", tp1: "$615.00", tp2: "$640.00" }
-        ];
-
-        let currentIndex = 0;
-
-        function updateGauge(score, ratingColor) {
-            const maxOffset = 251;
-            const offset = maxOffset - (maxOffset * (score / 100));
-            const gaugeArc = document.getElementById("gauge-arc");
-            gaugeArc.style.strokeDashoffset = offset;
-            gaugeArc.style.stroke = ratingColor;
-
-            const angle = Math.PI * (1 - (score / 100));
-            const cx = 100 + 80 * Math.cos(angle);
-            const cy = 100 - 80 * Math.sin(angle);
-            const dot = document.getElementById("gauge-dot");
-            dot.setAttribute("cx", cx);
-            dot.setAttribute("cy", cy);
-        }
-
-        function updateDisplay(index) {
-            currentIndex = index;
-            const item = marketData[currentIndex];
-
-            document.getElementById("pair-name").innerText = item.pair;
-            document.getElementById("price-val").innerText = item.price;
-            document.getElementById("signal-badge").innerText = item.type;
-            document.getElementById("confluence-badge").innerText = `Confluence: ${item.score}%`;
             
-            const ratingText = document.getElementById("ai-rating-text");
-            ratingText.innerText = item.rating;
-            ratingText.style.color = item.color;
-
-            document.getElementById("trend-bar").style.width = item.trend + "%";
-            document.getElementById("entry-bar").style.width = item.score + "%";
-
-            // Aggiorna i livelli operativi consigliati
-            document.getElementById("trade-leverage").innerText = item.lev;
-            document.getElementById("trade-sl").innerText = item.sl;
-            document.getElementById("trade-tp1").innerText = item.tp1;
-            document.getElementById("trade-tp2").innerText = item.tp2;
-
-            updateGauge(item.score, item.color);
-            renderGrid();
-        }
-
-        function nextMarket() {
-            currentIndex = (currentIndex + 1) % marketData.length;
-            updateDisplay(currentIndex);
-        }
-
-        function renderGrid() {
-            const grid = document.getElementById("grid-container");
-            grid.innerHTML = "";
-            marketData.forEach((item, idx) => {
-                const div = document.createElement("div");
-                div.className = `crypto-item ${idx === currentIndex ? 'active' : ''}`;
-                div.innerHTML = `<span><b>${item.pair.split('/')[0]}</b></span> <span style="color:${item.color}; font-weight:bold;">${item.score}%</span>`;
-                div.onclick = () => updateDisplay(idx);
-                grid.appendChild(div);
-            });
-        }
-
-        updateDisplay(0);
-        setInterval(nextMarket, 6000);
-    </script>
-</body>
-</html>
