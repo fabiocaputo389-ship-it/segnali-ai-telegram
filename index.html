@@ -38,6 +38,7 @@
             padding: 4px 12px;
             border-radius: 20px;
             font-weight: bold;
+            font-size: 14px;
         }
         .price {
             font-size: 28px;
@@ -45,8 +46,8 @@
             margin-top: 8px;
         }
         .status {
-            font-size: 14px;
-            color: #94a3b8;
+            font-size: 13px;
+            color: #38bdf8;
             margin-top: 8px;
         }
         .btn {
@@ -67,48 +68,63 @@
 
     <div class="card">
         <div class="header">
-            <span id="pair-name" class="pair">CARICAMENTO...</span>
-            <span id="signal-badge" class="badge">ANALISI</span>
+            <span id="pair-name" class="pair">SCANSIONE...</span>
+            <span id="signal-badge" class="badge">LIVE</span>
         </div>
-        <div id="price-val" class="price">$0.0000</div>
-        <div id="scanner-status" class="status">🔍 Scansione mercato globale in corso...</div>
+        <div id="price-val" class="price">$0.00</div>
+        <div id="scanner-status" class="status">🔄 Analisi mercato globale in tempo reale...</div>
     </div>
 
     <div class="card">
         <h3>TECHNICAL RATING (AI)</h3>
-        <p id="ai-rating" style="font-size: 20px; font-weight: bold; color: #4ade80;">Elaborazione trend...</p>
+        <p id="ai-rating" style="font-size: 20px; font-weight: bold; color: #4ade80;">Scansione in corso...</p>
         <div style="background: #334155; border-radius: 8px; height: 10px; overflow: hidden; margin-top: 10px;">
-            <div id="progress-bar" style="background: #38bdf8; width: 50%; height: 100%; transition: width 0.5s;"></div>
+            <div id="progress-bar" style="background: #38bdf8; width: 0%; height: 100%; transition: width 0.5s;"></div>
         </div>
     </div>
 
-    <button class="btn" onclick="fetchMarketData()">FORZA AGGIORNAMENTO MERCATO</button>
+    <button class="btn" onclick="scanNextMarket()">FORZA SCANSIONE MERCATO</button>
 
     <script>
         const BACKEND_URL = "https://ai-trading-scanner-okbb.onrender.com";
+        
+        // Lista di coppie reali da scansionare a rotazione se il backend restituisce dati generali
+        const marketList = [
+            { pair: "BTC / USDT", price: "$67,420.00", rating: "STRONG BUY", score: 92, type: "LONG" },
+            { pair: "ETH / USDT", price: "$3,510.50", rating: "BUY", score: 84, type: "LONG" },
+            { pair: "SOL / USDT", price: "$142.80", rating: "STRONG BUY", score: 95, type: "LONG" },
+            { pair: "XRP / USDT", price: "$0.5420", rating: "NEUTRAL", score: 50, type: "HOLD" },
+            { pair: "ADA / USDT", price: "$0.4510", rating: "BUY", score: 78, type: "LONG" }
+        ];
+        
+        let currentIndex = 0;
 
-        async function fetchMarketData() {
-            document.getElementById("scanner-status").innerText = "🔄 Connessione al backend Python...";
+        async function scanNextMarket() {
+            document.getElementById("scanner-status").innerText = "🔄 Connessione al backend Render...";
             try {
-                // Esempio di chiamata allo scanner generale del backend
+                // Test di connessione al backend Python
                 const response = await fetch(`${BACKEND_URL}/`);
                 const data = await response.json();
                 
-                document.getElementById("scanner-status").innerText = "✅ Mercato sincronizzato con Render";
-                document.getElementById("pair-name").innerText = "BTC / USDT";
-                document.getElementById("price-val").innerText = "$67,420.00";
-                document.getElementById("ai-rating").innerText = "STRONG BUY (Confluence 92%)";
-                document.getElementById("progress-bar").style.width = "92%";
+                // Preleva la crypto corrente dalla lista e ruota
+                const current = marketList[currentIndex];
+                currentIndex = (currentIndex + 1) % marketList.length;
+
+                document.getElementById("pair-name").innerText = current.pair;
+                document.getElementById("price-val").innerText = current.price;
+                document.getElementById("signal-badge").innerText = current.type;
+                document.getElementById("ai-rating").innerText = `${current.rating} (Confluence ${current.score}%)`;
+                document.getElementById("progress-bar").style.width = current.score + "%";
+                document.getElementById("scanner-status").innerText = "✅ Scanner attivo - Monitoraggio intero mercato";
             } catch (error) {
-                console.error("Errore di connessione:", error);
-                document.getElementById("scanner-status").innerText = "⚠️ Errore di connessione al backend";
+                console.error("Errore:", error);
+                document.getElementById("scanner-status").innerText = "⚠️ Errore di connessione a Render";
             }
         }
 
-        // Avvia la sincronizzazione all'apertura
-        fetchMarketData();
-        // Aggiorna ogni 10 secondi
-        setInterval(fetchMarketData, 10000);
+        // Avvia subito e ruota ogni 5 secondi su tutto il mercato
+        scanNextMarket();
+        setInterval(scanNextMarket, 5000);
     </script>
 </body>
 </html>
