@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scanner Trading AI</title>
+    <title>Scanner Trading AI - Mercato Globale</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         body {
@@ -62,7 +62,7 @@
             color: #94a3b8;
         }
         
-        /* Grafica Tachimetro SVG */
+        /* Tachimetro SVG */
         .gauge-wrapper {
             position: relative;
             width: 220px;
@@ -82,7 +82,7 @@
             letter-spacing: 1px;
         }
         
-        /* Bar Progress */
+        /* Progress Bar */
         .bar-label {
             font-size: 11px;
             color: #94a3b8;
@@ -103,20 +103,21 @@
             transition: width 0.5s ease;
         }
 
-        /* Crypto Selector Grid */
+        /* Grid per TUTTE le Crypto con Scroll */
         .crypto-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
             gap: 8px;
-            max-height: 140px;
+            max-height: 220px;
             overflow-y: auto;
             margin-top: 8px;
+            padding-right: 4px;
         }
         .crypto-item {
             background: #0f172a;
-            padding: 8px 12px;
+            padding: 10px 12px;
             border-radius: 8px;
-            font-size: 12px;
+            font-size: 13px;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -145,7 +146,7 @@
 </head>
 <body>
 
-    <!-- Scheda Prezzo -->
+    <!-- Prezzo e Coppia -->
     <div class="card">
         <div class="header">
             <span id="pair-name" class="pair">BTC / USDT</span>
@@ -157,7 +158,7 @@
         <div id="price-val" class="price">$67,420.00</div>
     </div>
 
-    <!-- Scheda Status Connessione -->
+    <!-- Status Scanner -->
     <div class="card" style="padding: 12px;">
         <div style="display:flex; align-items:center; gap:8px;">
             <span>🔍</span>
@@ -168,24 +169,21 @@
         </div>
     </div>
 
-    <!-- Scheda Tachimetro (Gauge) -->
+    <!-- Tachimetro -->
     <div class="card" style="text-align: center;">
         <div style="font-size: 12px; color: #94a3b8; font-weight: bold; margin-bottom: 8px;">TECHNICAL RATING (IA)</div>
         
         <div class="gauge-wrapper">
             <svg width="200" height="110" viewBox="0 0 200 110">
-                <!-- Sfondo Arco Tachimetro -->
                 <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#334155" stroke-width="14" stroke-linecap="round"/>
-                <!-- Valore Arco Dinamico -->
                 <path id="gauge-arc" d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#22c55e" stroke-width="14" stroke-linecap="round" stroke-dasharray="251" stroke-dashoffset="25"/>
-                <!-- Pallino/Indicatore -->
                 <circle id="gauge-dot" cx="160" cy="40" r="6" fill="#ffffff" />
             </svg>
             <div id="ai-rating-text" class="gauge-center-text">STRONG BUY</div>
         </div>
     </div>
 
-    <!-- Scheda Trend Health & Entry Score -->
+    <!-- Indicatori Trend Health ed Entry Score -->
     <div class="card">
         <div class="bar-label">TREND HEALTH</div>
         <div class="bar-bg">
@@ -198,83 +196,47 @@
         </div>
     </div>
 
-    <!-- Selezione Criptovalute -->
+    <!-- Elenco completo di tutte le Criptovalute -->
     <div class="card">
-        <div style="font-size:12px; color:#94a3b8; font-weight:bold; margin-bottom:6px;">MERCATO GLOBALE (SCANSIONE CONTINUA)</div>
+        <div style="font-size:12px; color:#94a3b8; font-weight:bold; margin-bottom:6px;">MERCATO GLOBALE (TUTTE LE CRIPTO)</div>
         <div id="grid-container" class="crypto-grid"></div>
     </div>
 
     <button class="btn-ai" onclick="nextMarket()">ANALIZZA CON GEMINI AI</button>
 
     <script>
+        // Lista estesa di tutte le principali Criptovalute del mercato
         const marketData = [
             { pair: "BTC / USDT", price: "$67,420.00", rating: "STRONG BUY", score: 92, trend: 88, type: "▲ LONG", color: "#22c55e" },
             { pair: "ETH / USDT", price: "$3,510.50", rating: "BUY", score: 84, trend: 80, type: "▲ LONG", color: "#22c55e" },
             { pair: "SOL / USDT", price: "$142.80", rating: "STRONG BUY", score: 96, trend: 94, type: "▲ LONG", color: "#22c55e" },
             { pair: "XRP / USDT", price: "$0.5420", rating: "NEUTRAL", score: 50, trend: 52, type: "◼ HOLD", color: "#eab308" },
             { pair: "UNI / USDT", price: "$7.2270", rating: "STRONG BUY", score: 85, trend: 75, type: "▲ LONG", color: "#22c55e" },
-            { pair: "ADA / USDT", price: "$0.4510", rating: "BUY", score: 78, trend: 70, type: "▲ LONG", color: "#22c55e" }
+            { pair: "ADA / USDT", price: "$0.4510", rating: "BUY", score: 78, trend: 70, type: "▲ LONG", color: "#22c55e" },
+            { pair: "DOGE / USDT", price: "$0.1245", rating: "STRONG BUY", score: 89, trend: 85, type: "▲ LONG", color: "#22c55e" },
+            { pair: "AVAX / USDT", price: "$28.30", rating: "BUY", score: 81, trend: 76, type: "▲ LONG", color: "#22c55e" },
+            { pair: "LINK / USDT", price: "$13.90", rating: "NEUTRAL", score: 60, trend: 58, type: "◼ HOLD", color: "#eab308" },
+            { pair: "PEPE / USDT", price: "$0.0000098", rating: "STRONG BUY", score: 94, trend: 91, type: "▲ LONG", color: "#22c55e" },
+            { pair: "SHIB / USDT", price: "$0.0000178", rating: "BUY", score: 79, trend: 73, type: "▲ LONG", color: "#22c55e" },
+            { pair: "NEAR / USDT", price: "$4.85", rating: "STRONG BUY", score: 87, trend: 83, type: "▲ LONG", color: "#22c55e" },
+            { pair: "FET / USDT", price: "$1.42", rating: "STRONG BUY", score: 91, trend: 89, type: "▲ LONG", color: "#22c55e" },
+            { pair: "SUI / USDT", price: "$1.95", rating: "STRONG BUY", score: 95, trend: 92, type: "▲ LONG", color: "#22c55e" },
+            { pair: "DOT / USDT", price: "$4.30", rating: "NEUTRAL", score: 55, trend: 50, type: "◼ HOLD", color: "#eab308" },
+            { pair: "MATIC / USDT", price: "$0.5210", rating: "NEUTRAL", score: 48, trend: 45, type: "◼ HOLD", color: "#eab308" },
+            { pair: "LTC / USDT", price: "$65.40", rating: "BUY", score: 72, trend: 68, type: "▲ LONG", color: "#22c55e" },
+            { pair: "BNB / USDT", price: "$585.10", rating: "STRONG BUY", score: 88, trend: 84, type: "▲ LONG", color: "#22c55e" }
         ];
 
         let currentIndex = 0;
 
         function updateGauge(score, ratingColor) {
-            // Calcola l'offset per l'arco SVG del tachimetro (0-100 score)
             const maxOffset = 251;
             const offset = maxOffset - (maxOffset * (score / 100));
             const gaugeArc = document.getElementById("gauge-arc");
             gaugeArc.style.strokeDashoffset = offset;
             gaugeArc.style.stroke = ratingColor;
 
-            // Calcolo posizione pallino lungo l'arco
             const angle = Math.PI * (1 - (score / 100));
             const cx = 100 + 80 * Math.cos(angle);
-            const cy = 100 - 80 * Math.sin(angle);
-            const dot = document.getElementById("gauge-dot");
-            dot.setAttribute("cx", cx);
-            dot.setAttribute("cy", cy);
-        }
-
-        function updateDisplay(index) {
-            currentIndex = index;
-            const item = marketData[currentIndex];
-
-            document.getElementById("pair-name").innerText = item.pair;
-            document.getElementById("price-val").innerText = item.price;
-            document.getElementById("signal-badge").innerText = item.type;
-            document.getElementById("confluence-badge").innerText = `Confluence: ${item.score}%`;
+            const cy = 100
             
-            const ratingText = document.getElementById("ai-rating-text");
-            ratingText.innerText = item.rating;
-            ratingText.style.color = item.color;
-
-            document.getElementById("trend-bar").style.width = item.trend + "%";
-            document.getElementById("entry-bar").style.width = item.score + "%";
-
-            updateGauge(item.score, item.color);
-            renderGrid();
-        }
-
-        function nextMarket() {
-            currentIndex = (currentIndex + 1) % marketData.length;
-            updateDisplay(currentIndex);
-        }
-
-        function renderGrid() {
-            const grid = document.getElementById("grid-container");
-            grid.innerHTML = "";
-            marketData.forEach((item, idx) => {
-                const div = document.createElement("div");
-                div.className = `crypto-item ${idx === currentIndex ? 'active' : ''}`;
-                div.innerHTML = `<span>${item.pair.split('/')[0]}</span> <span style="color:${item.color}">${item.score}%</span>`;
-                div.onclick = () => updateDisplay(idx);
-                grid.appendChild(div);
-            });
-        }
-
-        // Avvio automatico con rotazione ogni 5 secondi
-        updateDisplay(0);
-        setInterval(nextMarket, 5000);
-    </script>
-</body>
-</html>
