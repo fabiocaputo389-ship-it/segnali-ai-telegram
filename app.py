@@ -69,16 +69,7 @@ def run_scanner_background():
                         "chat_id": CHANNEL_ID,
                         "text": message,
                         "parse_mode": "Markdown. }
-                     message = (
-                        f"🚨 **SEGNALE SCANNER AI (LIVE)** 🚨\n\n"
-                        f"🔹 **Asset:** {pair_name}\n"
-                        f"📊 **Rating IA:** {rating} (Confluenza: {score}%)\n"
-                        f"⚡ **Prezzo Live:** ${current_price:.{decimals}f}\n\n"
-                        f"🛑 **Stop Loss:** ${sl:.{decimals}f} (-2.2%)\n"
-                        f"🎯 **Take Profit 1:** ${tp1:.{decimals}f} (+3.5%)\n"
-                        f"🎯 **Take Profit 2:** ${tp2:.{decimals}f} (+7.0%)"  )
-                    
-                                        )
+                     
                     
                     requests.post(url, json=payload)
                     time.sleep(2)
@@ -91,6 +82,16 @@ def run_scanner_background():
 # Avvia il thread dello scanner in background all'avvio dell'app Flask
 scanner_thread = threading.Thread(target=run_scanner_background, daemon=True)
 scanner_thread.start()
+                    message = (
+                        f"🚨 **SEGNALE SCANNER AI (LIVE)** 🚨\n\n"
+                        f"🔹 **Asset:** {pair_name}\n"
+                        f"📊 **Rating IA:** {rating} (Confluenza: {score}%)\n"
+                        f"⚡ **Prezzo Live:** ${current_price:.{decimals}f}\n\n"
+                        f"🛑 **Stop Loss:** ${sl:.{decimals}f} (-2.2%)\n"
+                        f"🎯 **Take Profit 1:** ${tp1:.{decimals}f} (+3.5%)\n"
+                        f"🎯 **Take Profit 2:** ${tp2:.{decimals}f} (+7.0%)"
+                    )
+
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
