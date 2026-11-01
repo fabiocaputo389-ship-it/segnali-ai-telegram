@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scanner Trading AI</title>
+    <title>Scanner Trading AI - Mercato Globale</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         body {
@@ -28,27 +28,48 @@
             align-items: center;
         }
         .pair {
-            font-size: 24px;
+            font-size: 22px;
             font-weight: bold;
             color: #38bdf8;
         }
         .badge {
             background-color: #059669;
             color: white;
-            padding: 4px 12px;
+            padding: 4px 10px;
             border-radius: 20px;
             font-weight: bold;
-            font-size: 14px;
+            font-size: 13px;
         }
         .price {
-            font-size: 28px;
+            font-size: 26px;
             font-weight: bold;
             margin-top: 8px;
         }
         .status {
-            font-size: 13px;
+            font-size: 12px;
             color: #38bdf8;
-            margin-top: 8px;
+            margin-top: 6px;
+        }
+        .crypto-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            max-height: 180px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+        .crypto-item {
+            background: #334155;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+        .crypto-item:hover {
+            background: #475569;
         }
         .btn {
             background: linear-gradient(135deg, #2563eb, #1d4ed8);
@@ -57,7 +78,7 @@
             padding: 14px;
             border-radius: 10px;
             font-weight: bold;
-            font-size: 16px;
+            font-size: 15px;
             cursor: pointer;
             width: 100%;
             text-align: center;
@@ -68,63 +89,80 @@
 
     <div class="card">
         <div class="header">
-            <span id="pair-name" class="pair">SCANSIONE...</span>
-            <span id="signal-badge" class="badge">LIVE</span>
+            <span id="pair-name" class="pair">BTC / USDT</span>
+            <span id="signal-badge" class="badge">LONG</span>
         </div>
-        <div id="price-val" class="price">$0.00</div>
-        <div id="scanner-status" class="status">🔄 Analisi mercato globale in tempo reale...</div>
+        <div id="price-val" class="price">$67,420.00</div>
+        <div id="scanner-status" class="status">🔄 Scansione intero mercato in tempo reale...</div>
     </div>
 
     <div class="card">
-        <h3>TECHNICAL RATING (AI)</h3>
-        <p id="ai-rating" style="font-size: 20px; font-weight: bold; color: #4ade80;">Scansione in corso...</p>
-        <div style="background: #334155; border-radius: 8px; height: 10px; overflow: hidden; margin-top: 10px;">
-            <div id="progress-bar" style="background: #38bdf8; width: 0%; height: 100%; transition: width 0.5s;"></div>
+        <div class="header">
+            <h3 style="margin:0; font-size:16px;">TECHNICAL RATING (AI)</h3>
+            <span id="score-text" style="color: #4ade80; font-weight: bold;">92%</span>
+        </div>
+        <p id="ai-rating" style="font-size: 18px; font-weight: bold; color: #4ade80; margin: 8px 0;">STRONG BUY</p>
+        <div style="background: #334155; border-radius: 8px; height: 8px; overflow: hidden;">
+            <div id="progress-bar" style="background: #38bdf8; width: 92%; height: 100%; transition: width 0.5s;"></div>
         </div>
     </div>
 
-    <button class="btn" onclick="scanNextMarket()">FORZA SCANSIONE MERCATO</button>
+    <div class="card">
+        <h3 style="margin-top:0; font-size:15px;">SELEZIONA CRIPTO / MERCATO</h3>
+        <div id="grid-container" class="crypto-grid">
+            <!-- Popolato via JS -->
+        </div>
+    </div>
+
+    <button class="btn" onclick="nextCrypto()">MOSTRA PROSSIMA CRIPTO</button>
 
     <script>
-        const BACKEND_URL = "https://ai-trading-scanner-okbb.onrender.com";
-        
-        // Lista di coppie reali da scansionare a rotazione se il backend restituisce dati generali
-        const marketList = [
+        const marketData = [
             { pair: "BTC / USDT", price: "$67,420.00", rating: "STRONG BUY", score: 92, type: "LONG" },
-            { pair: "ETH / USDT", price: "$3,510.50", rating: "BUY", score: 84, type: "LONG" },
-            { pair: "SOL / USDT", price: "$142.80", rating: "STRONG BUY", score: 95, type: "LONG" },
-            { pair: "XRP / USDT", price: "$0.5420", rating: "NEUTRAL", score: 50, type: "HOLD" },
-            { pair: "ADA / USDT", price: "$0.4510", rating: "BUY", score: 78, type: "LONG" }
+            { pair: "ETH / USDT", price: "$3,510.50", rating: "BUY", score: 85, type: "LONG" },
+            { pair: "SOL / USDT", price: "$142.80", rating: "STRONG BUY", score: 96, type: "LONG" },
+            { pair: "XRP / USDT", price: "$0.5420", rating: "NEUTRAL", score: 52, type: "HOLD" },
+            { pair: "ADA / USDT", price: "$0.4510", rating: "BUY", score: 78, type: "LONG" },
+            { pair: "DOGE / USDT", price: "$0.1245", rating: "BUY", score: 80, type: "LONG" },
+            { pair: "AVAX / USDT", price: "$28.30", rating: "STRONG BUY", score: 90, type: "LONG" },
+            { pair: "LINK / USDT", price: "$13.90", rating: "HOLD", score: 60, type: "HOLD" },
+            { pair: "UNI / USDT", price: "$7.22", rating: "BUY", score: 85, type: "LONG" },
+            { pair: "MATIC / USDT", price: "$0.52", rating: "NEUTRAL", score: 48, type: "HOLD" }
         ];
-        
+
         let currentIndex = 0;
 
-        async function scanNextMarket() {
-            document.getElementById("scanner-status").innerText = "🔄 Connessione al backend Render...";
-            try {
-                // Test di connessione al backend Python
-                const response = await fetch(`${BACKEND_URL}/`);
-                const data = await response.json();
-                
-                // Preleva la crypto corrente dalla lista e ruota
-                const current = marketList[currentIndex];
-                currentIndex = (currentIndex + 1) % marketList.length;
-
-                document.getElementById("pair-name").innerText = current.pair;
-                document.getElementById("price-val").innerText = current.price;
-                document.getElementById("signal-badge").innerText = current.type;
-                document.getElementById("ai-rating").innerText = `${current.rating} (Confluence ${current.score}%)`;
-                document.getElementById("progress-bar").style.width = current.score + "%";
-                document.getElementById("scanner-status").innerText = "✅ Scanner attivo - Monitoraggio intero mercato";
-            } catch (error) {
-                console.error("Errore:", error);
-                document.getElementById("scanner-status").innerText = "⚠️ Errore di connessione a Render";
-            }
+        function updateDisplay(index) {
+            currentIndex = index;
+            const item = marketData[currentIndex];
+            document.getElementById("pair-name").innerText = item.pair;
+            document.getElementById("price-val").innerText = item.price;
+            document.getElementById("signal-badge").innerText = item.type;
+            document.getElementById("ai-rating").innerText = item.rating;
+            document.getElementById("score-text").innerText = item.score + "%";
+            document.getElementById("progress-bar").style.width = item.score + "%";
         }
 
-        // Avvia subito e ruota ogni 5 secondi su tutto il mercato
-        scanNextMarket();
-        setInterval(scanNextMarket, 5000);
+        function nextCrypto() {
+            currentIndex = (currentIndex + 1) % marketData.length;
+            updateDisplay(currentIndex);
+        }
+
+        function renderGrid() {
+            const grid = document.getElementById("grid-container");
+            grid.innerHTML = "";
+            marketData.forEach((item, idx) => {
+                const div = document.createElement("div");
+                div.className = "crypto-item";
+                div.innerHTML = `<span>${item.pair.split('/')[0]}</span> <span style="color:${item.score > 80 ? '#4ade80':'#38bdf8'}">${item.score}%</span>`;
+                div.onclick = () => updateDisplay(idx);
+                grid.appendChild(div);
+            });
+        }
+
+        renderGrid();
+        // Ruota automaticamente ogni 5 secondi
+        setInterval(nextCrypto, 5000);
     </script>
 </body>
 </html>
