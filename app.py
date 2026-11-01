@@ -2,11 +2,11 @@ import os
 import time
 import threading
 import requests
-from flask import Flask, jsonify, request
+from flask import Flask, request, redirect, render_template_string
 
 app = Flask(__name__)
 
-# Lista estesa di tutte le principali crypto presenti nello scanner
+# Lista estesa di tutte le principali crypto monitorate
 SYMBOLS = [
     "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", 
     "ADAUSDT", "AVAXUSDT", "LINKUSDT", "DOTUSDT", "NEARUSDT", 
@@ -17,6 +17,9 @@ SYMBOLS = [
     "SANDUSDT", "MANAUSDT", "AAVEUSDT", "FTMUSDT", "RUNEUSDT", 
     "ZECUSDT", "TRXUSDT"
 ]
+
+# Variabile globale per la soglia (modificabile dalla dashboard)
+current_threshold = 75
 
 def calculate_rsi(prices, period=14):
     """Calcola l'RSI reale basato sullo storico dei prezzi"""
@@ -47,11 +50,12 @@ def run_scanner_background():
     telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     channel_id = os.environ.get("CHANNEL_ID")
     
-    print("Scanner multi-asset AI avviato...")
+    print("Scanner multi-asset AI avviato con soglia dinamica...")
 
     price_history = {symbol: [] for symbol in SYMBOLS}
 
     while True:
+        global current_threshold
         for symbol in SYMBOLS:
             try:
                 klines_url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=1h&limit=30"
@@ -65,11 +69,10 @@ def run_scanner_background():
                     price_history[symbol] = closes
                     rsi = calculate_rsi(price_history[symbol])
                     
-                    # Calcolo della confluenza basato su indicatori reali
                     score = int(min(99, max(40, 50 + abs(50 - rsi) * 1.2)))
                     
-                    # Soglia attiva a 75 per inviare i segnali migliori sul canale
-                    if score >= 75 and telegram_token and channel_id:
+                    # Usa la soglia dinamica impostata dalla dashboard
+                    if score >= current_threshold and telegram_token and channel_id:
                         pair_name = symbol.replace("USDT", " / USDT")
                         rating = "STRONG BUY" if score >= 90 else "BUY"
                         
@@ -102,16 +105,69 @@ def run_scanner_background():
             except Exception as e:
                 print(f"Errore nello scanner per {symbol}: {e}")
                 
-            time.sleep(1.5) # Pausa breve tra un asset e l'altro
+            time.sleep(1.5)
 
-        time.sleep(60) # Ciclo completo ripetuto ogni minuto
+        time.sleep(60)
 
 scanner_thread = threading.Thread(target=run_scanner_background, daemon=True)
 scanner_thread.start()
 
+# Dashboard HTML integrata con stile scuro coerente
+HOME_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ocean's Future Scanner - Dashboard</title>
+    <style>
+        body { background-color: #0d1117; color: #c9d1d9; font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+        .card { background: #161b22; padding: 30px; border-radius: 12px; display: inline-block; box-shadow: 0 4px 15px rgba(0,0,0,0.5); max-width: 400px; width: 100%; }
+        h1 { color: #58a6ff; font-size: 22px; }
+        p { color: #8b949e; }
+        input[type="number"] { padding: 10px; font-size: 18px; width: 80px; text-align: center; background: #0d1117; color: #fff; border: 1px solid #30363d; border-radius: 6px; }
+        button { background: #238636; color: white; border: none; padding: 10px 20px; font-size: 16px; border-radius: 6px; cursor: pointer; margin-top: 10px; }
+        button:hover { background: #2ea043; }
+        .links { margin-top: 20px; }
+        a { color: #58a6ff; text-decoration: none; margin: 0 10px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>🌊 Ocean's Future Scanner</h1>
+        <p>Stato Backend: <strong style="color: #3fb950;">ONLINE</strong></p>
+        <p>Soglia Confluenza Attuale: <strong style="color: #f0883e;">{{ threshold }}%</strong></p>
+        
+        <form action="/set-threshold" method="POST">
+            <label for="threshold">Nuova Soglia (40 - 99):</label><br><br>
+            <input type="number" id="threshold" name="threshold" min="40" max="99" value="{{ threshold }}" required><br>
+            <button type="submit">Aggiorna Soglia</button>
+        </form>
+        
+        <div class="links">
+            <br>
+            <a href="/test-telegram">Test Telegram</a>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
 @app.route('/')
 def home():
-    return "Ocean Future Scanner Backend Online"
+    global current_threshold
+    return render_template_string(HOME_TEMPLATE, threshold=current_threshold)
+
+@app.route('/set-threshold', methods=['POST'])
+def set_threshold():
+    global current_threshold
+    try:
+        new_val = int(request.form.get('threshold'))
+        if 40 <= new_val <= 99:
+            current_threshold = new_val
+    except ValueError:
+        pass
+    return redirect('/')
 
 @app.route('/test-telegram')
 def test_telegram():
@@ -122,7 +178,7 @@ def test_telegram():
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {
         "chat_id": chat_id,
-        "text": "🚨 **TEST OCEAN SCANNER** 🚨\n\nIl monitoraggio multi-asset è attivo.",
+        "text": f"🚨 **TEST OCEAN SCANNER** 🚨\n\nSoglia attuale impostata a: *{current_threshold}%*",
         "parse_mode": "Markdown"
     }
     response = requests.post(url, json=payload)
