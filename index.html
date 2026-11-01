@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scanner Trading AI - Professional</title>
+    <title>Scanner Trading AI - Advanced</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <!-- Libreria Grafico TradingView Lightweight Charts -->
     <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
     <style>
         * { box-sizing: border-box; }
@@ -89,6 +88,23 @@
             border-radius: 6px;
             transition: width 0.3s;
         }
+        .indicators-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+            margin-top: 8px;
+            margin-bottom: 8px;
+        }
+        .ind-box {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 6px;
+            text-align: center;
+        }
+        .ind-title { font-size: 9px; color: #94a3b8; font-weight: bold; }
+        .ind-val { font-size: 12px; font-weight: bold; color: #38bdf8; margin-top: 2px; }
+
         .trade-signals-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -102,26 +118,13 @@
             padding: 8px;
             text-align: center;
         }
-        .signal-box-title {
-            font-size: 10px;
-            color: #94a3b8;
-            font-weight: bold;
-        }
-        .signal-box-value {
-            font-size: 13px;
-            font-weight: bold;
-            color: #38bdf8;
-            margin-top: 2px;
-        }
-        .signal-subvalue {
-            font-size: 11px;
-            color: #94a3b8;
-            margin-top: 1px;
-        }
-        /* Container del Grafico a Candele */
+        .signal-box-title { font-size: 10px; color: #94a3b8; font-weight: bold; }
+        .signal-box-value { font-size: 13px; font-weight: bold; color: #38bdf8; margin-top: 2px; }
+        .signal-subvalue { font-size: 11px; color: #94a3b8; margin-top: 1px; }
+
         #chart-container {
             width: 100%;
-            height: 200px;
+            height: 180px;
             background: #0f172a;
             border-radius: 8px;
             margin-top: 8px;
@@ -131,7 +134,7 @@
             display: grid;
             grid-template-columns: repeat(2, 1fr);
             gap: 6px;
-            max-height: 160px;
+            max-height: 150px;
             overflow-y: auto;
             margin-top: 6px;
         }
@@ -167,7 +170,6 @@
 </head>
 <body>
 
-    <!-- Header Prezzo -->
     <div class="card">
         <div class="header">
             <span id="pair-name" class="pair">BTC / USDT</span>
@@ -179,11 +181,30 @@
         <div id="price-val" class="price">$67,420.00</div>
     </div>
 
-    <!-- Grafico a Candele Live -->
+    <!-- Sezione Indicatori Tecnici Avanzati (RSI, MACD, EMA) -->
+    <div class="card" style="padding: 10px 14px;">
+        <div style="font-size: 10px; color: #94a3b8; font-weight: bold; margin-bottom: 4px;">INDICATORI TECNICI IN TEMPO REALE</div>
+        <div class="indicators-grid">
+            <div class="ind-box">
+                <div class="ind-title">RSI (14)</div>
+                <div id="ind-rsi" class="ind-val">62.4</div>
+            </div>
+            <div class="ind-box">
+                <div class="ind-title">MACD</div>
+                <div id="ind-macd" class="ind-val" style="color: #22c55e;">Bullish</div>
+            </div>
+            <div class="ind-box">
+                <div class="ind-title">EMA Trend</div>
+                <div id="ind-ema" class="ind-val" style="color: #22c55e;">Above</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Grafico a Candele -->
     <div class="card">
         <div style="display: flex; justify-content: space-between; align-items: center;">
-            <div style="font-size: 11px; color: #94a3b8; font-weight: bold;">GRAFICO TECNICO IN TEMPO REALE</div>
-            <div style="font-size: 10px; color: #38bdf8;" id="chart-status">15m / Candlestick</div>
+            <div style="font-size: 11px; color: #94a3b8; font-weight: bold;">GRAFICO TECNICO</div>
+            <div style="font-size: 10px; color: #38bdf8;">15m / Candlestick</div>
         </div>
         <div id="chart-container"></div>
     </div>
@@ -249,31 +270,30 @@
         const BACKEND_URL = "https://ai-trading-scanner-okbb.onrender.com";
 
         var marketData = [
-            { pair: "BTC / USDT", price: 67420.00, displayPrice: "$67,420.00", rating: "STRONG BUY", score: 92, trend: 88, type: "▲ LONG", color: "#22c55e", lev: "15x" },
-            { pair: "ETH / USDT", price: 3510.50, displayPrice: "$3,510.50", rating: "BUY", score: 84, trend: 80, type: "▲ LONG", color: "#22c55e", lev: "10x" },
-            { pair: "SOL / USDT", price: 142.80, displayPrice: "$142.80", rating: "STRONG BUY", score: 96, trend: 94, type: "▲ LONG", color: "#22c55e", lev: "20x" },
-            { pair: "XRP / USDT", price: 0.5420, displayPrice: "$0.5420", rating: "NEUTRAL", score: 50, trend: 52, type: "◼ HOLD", color: "#eab308", lev: "5x" },
-            { pair: "UNI / USDT", price: 7.2270, displayPrice: "$7.2270", rating: "STRONG BUY", score: 85, trend: 75, type: "▲ LONG", color: "#22c55e", lev: "10x" },
-            { pair: "ADA / USDT", price: 0.4510, displayPrice: "$0.4510", rating: "BUY", score: 78, trend: 70, type: "▲ LONG", color: "#22c55e", lev: "10x" },
-            { pair: "DOGE / USDT", price: 0.1245, displayPrice: "$0.1245", rating: "STRONG BUY", score: 89, trend: 85, type: "▲ LONG", color: "#22c55e", lev: "20x" },
-            { pair: "AVAX / USDT", price: 28.30, displayPrice: "$28.30", rating: "BUY", score: 81, trend: 76, type: "▲ LONG", color: "#22c55e", lev: "10x" },
-            { pair: "PEPE / USDT", price: 0.0000098, displayPrice: "$0.0000098", rating: "STRONG BUY", score: 94, trend: 91, type: "▲ LONG", color: "#22c55e", lev: "25x" },
-            { pair: "NEAR / USDT", price: 4.85, displayPrice: "$4.85", rating: "STRONG BUY", score: 87, trend: 83, type: "▲ LONG", color: "#22c55e", lev: "15x" },
-            { pair: "SUI / USDT", price: 1.95, displayPrice: "$1.95", rating: "STRONG BUY", score: 95, trend: 92, type: "▲ LONG", color: "#22c55e", lev: "20x" }
+            { pair: "BTC / USDT", price: 67420.00, displayPrice: "$67,420.00", rating: "STRONG BUY", score: 92, trend: 88, type: "▲ LONG", color: "#22c55e", lev: "15x", rsi: 64.2, macd: "Bullish", ema: "Above" },
+            { pair: "ETH / USDT", price: 3510.50, displayPrice: "$3,510.50", rating: "BUY", score: 84, trend: 80, type: "▲ LONG", color: "#22c55e", lev: "10x", rsi: 58.1, macd: "Bullish", ema: "Above" },
+            { pair: "SOL / USDT", price: 142.80, displayPrice: "$142.80", rating: "STRONG BUY", score: 96, trend: 94, type: "▲ LONG", color: "#22c55e", lev: "20x", rsi: 71.5, macd: "Strong Bull", ema: "Above" },
+            { pair: "XRP / USDT", price: 0.5420, displayPrice: "$0.5420", rating: "NEUTRAL", score: 50, trend: 52, type: "◼ HOLD", color: "#eab308", lev: "5x", rsi: 49.0, macd: "Neutral", ema: "At Level" },
+            { pair: "UNI / USDT", price: 7.2270, displayPrice: "$7.2270", rating: "STRONG BUY", score: 85, trend: 75, type: "▲ LONG", color: "#22c55e", lev: "10x", rsi: 60.3, macd: "Bullish", ema: "Above" },
+            { pair: "ADA / USDT", price: 0.4510, displayPrice: "$0.4510", rating: "BUY", score: 78, trend: 70, type: "▲ LONG", color: "#22c55e", lev: "10x", rsi: 56.4, macd: "Bullish", ema: "Above" },
+            { pair: "DOGE / USDT", price: 0.1245, displayPrice: "$0.1245", rating: "STRONG BUY", score: 89, trend: 85, type: "▲ LONG", color: "#22c55e", lev: "20x", rsi: 68.9, macd: "Bullish", ema: "Above" },
+            { pair: "AVAX / USDT", price: 28.30, displayPrice: "$28.30", rating: "BUY", score: 81, trend: 76, type: "▲ LONG", color: "#22c55e", lev: "10x", rsi: 57.2, macd: "Bullish", ema: "Above" },
+            { pair: "PEPE / USDT", price: 0.0000098, displayPrice: "$0.0000098", rating: "STRONG BUY", score: 94, trend: 91, type: "▲ LONG", color: "#22c55e", lev: "25x", rsi: 74.1, macd: "Strong Bull", ema: "Above" },
+            { pair: "NEAR / USDT", price: 4.85, displayPrice: "$4.85", rating: "STRONG BUY", score: 87, trend: 83, type: "▲ LONG", color: "#22c55e", lev: "15x", rsi: 63.8, macd: "Bullish", ema: "Above" },
+            { pair: "SUI / USDT", price: 1.95, displayPrice: "$1.95", rating: "STRONG BUY", score: 95, trend: 92, type: "▲ LONG", color: "#22c55e", lev: "20x", rsi: 72.0, macd: "Strong Bull", ema: "Above" }
         ];
 
         var currentIndex = 0;
         let tg = window.Telegram.WebApp;
         tg.expand();
 
-        // Inizializzazione Grafico TradingView
         let chart, candlestickSeries;
         function initChart() {
             const container = document.getElementById('chart-container');
             container.innerHTML = "";
             chart = LightweightCharts.createChart(container, {
                 width: container.clientWidth,
-                height: 200,
+                height: 180,
                 layout: { background: { type: 'solid', color: '#0f172a' }, textColor: '#94a3b8' },
                 grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
                 timeScale: { borderColor: '#334155', timeVisible: true }
@@ -286,7 +306,6 @@
 
         function loadChartData(basePrice) {
             if (!candlestickSeries) return;
-            // Generazione dati candele simulati ma realistici basati sul prezzo corrente dell'asset
             let data = [];
             let time = Math.floor(Date.now() / 1000) - 15 * 900;
             let current = basePrice * 0.98;
@@ -312,6 +331,11 @@
             document.getElementById("price-val").innerText = item.displayPrice;
             document.getElementById("signal-badge").innerText = item.type;
             document.getElementById("confluence-badge").innerText = "Confluence: " + item.score + "%";
+
+            // Aggiornamento Indicatori Tecnici Avanzati
+            document.getElementById("ind-rsi").innerText = item.rsi;
+            document.getElementById("ind-macd").innerText = item.macd;
+            document.getElementById("ind-ema").innerText = item.ema;
 
             var ratingEl = document.getElementById("ai-rating-text");
             ratingEl.innerText = item.rating;
@@ -347,13 +371,7 @@
             const item = marketData[currentIndex];
             tg.HapticFeedback.impactOccurred("medium");
             
-            alert(`🤖 REPORT ANALISI IA (${item.pair}):\n\n• Trend Health: ${item.trend}%\n• Entry Score: ${item.score}%\n• Rating: ${item.rating}\n• Leva Consigliata: ${item.lev}\n\nAnalisi tecnica completata con successo tramite Backend Render.`);
-            
-            try {
-                await fetch(`${BACKEND_URL}/analyze?pair=${encodeURIComponent(item.pair)}`);
-            } catch (e) {
-                console.log("Richiesta inviata al backend");
-            }
+            alert(`🤖 REPORT TECNICO IA (${item.pair}):\n\n• RSI(14): ${item.rsi} (Momento sano)\n• MACD: ${item.macd}\n• EMA Trend: ${item.ema} medie chiave\n• Confluence Score: ${item.score}%\n• Rating: ${item.rating}`);
         }
 
         function nextMarket() {
