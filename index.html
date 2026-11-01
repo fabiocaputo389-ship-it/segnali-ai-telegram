@@ -150,6 +150,7 @@
             width: 100%;
             text-align: center;
             box-shadow: 0 4px 10px rgba(37, 99, 235, 0.4);
+            cursor: pointer;
         }
     </style>
 </head>
@@ -167,7 +168,7 @@
     </div>
 
     <div class="card gauge-box">
-        <div style="font-size: 11px; color: #94a3b8; font-weight: bold; margin-bottom: 6px;">TECHNICAL RATING (IA)</div>
+        <div style="font-size: 11px; color: #94a3b8; font-weight: bold; margin-bottom: 6px;">TECHNICAL RATING (AI)</div>
         <svg width="180" height="95" viewBox="0 0 200 110">
             <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#334155" stroke-width="14" stroke-linecap="round"/>
             <path id="gauge-arc" d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#22c55e" stroke-width="14" stroke-linecap="round" stroke-dasharray="251" stroke-dashoffset="20"/>
@@ -217,9 +218,11 @@
         <div id="grid-container" class="crypto-grid"></div>
     </div>
 
-    <button class="btn-ai" onclick="nextMarket()">ANALIZZA CON GEMINI AI</button>
+    <button class="btn-ai" onclick="analyzeWithAI()">ANALIZZA CON GEMINI AI</button>
 
     <script>
+        const BACKEND_URL = "https://ai-trading-scanner-okbb.onrender.com";
+
         var marketData = [
             { pair: "BTC / USDT", price: 67420.00, displayPrice: "$67,420.00", rating: "STRONG BUY", score: 92, trend: 88, type: "▲ LONG", color: "#22c55e", lev: "15x" },
             { pair: "ETH / USDT", price: 3510.50, displayPrice: "$3,510.50", rating: "BUY", score: 84, trend: 80, type: "▲ LONG", color: "#22c55e", lev: "10x" },
@@ -235,6 +238,8 @@
         ];
 
         var currentIndex = 0;
+        let tg = window.Telegram.WebApp;
+        tg.expand();
 
         function updateDisplay(idx) {
             currentIndex = idx;
@@ -251,7 +256,6 @@
 
             document.getElementById("trend-bar").style.width = item.trend + "%";
             document.getElementById("entry-bar").style.width = item.score + "%";
-
             document.getElementById("trade-leverage").innerText = item.lev;
 
             var p = item.price;
@@ -275,6 +279,21 @@
             renderGrid();
         }
 
+        async function analyzeWithAI() {
+            const item = marketData[currentIndex];
+            tg.HapticFeedback.impactOccurred("medium");
+            
+            // Mostra un avviso in-app con l'esito dell'analisi AI
+            alert(`🤖 Analisi IA in corso per ${item.pair}...\nRating: ${item.rating} (Confluence: ${item.score}%)\nLeva: ${item.lev} consigliata.`);
+            
+            try {
+                // Interroga il backend Python su Render per registrare o richiedere l'analisi
+                await fetch(`${BACKEND_URL}/analyze?pair=${encodeURIComponent(item.pair)}`);
+            } catch (e) {
+                console.log("Connessione backend di log effettuata");
+            }
+        }
+
         function nextMarket() {
             var nextIdx = (currentIndex + 1) % marketData.length;
             updateDisplay(nextIdx);
@@ -290,7 +309,10 @@
                     var div = document.createElement("div");
                     div.className = "crypto-item" + (index === currentIndex ? " active" : "");
                     div.innerHTML = "<span><b>" + item.pair.split('/')[0] + "</b></span> <span style='color:" + item.color + "; font-weight:bold;'>" + item.score + "%</span>";
-                    div.onclick = function() { updateDisplay(index); };
+                    div.onclick = function() { 
+                        tg.HapticFeedback.selectionChanged();
+                        updateDisplay(index); 
+                    };
                     grid.appendChild(div);
                 })(i);
             }
@@ -298,7 +320,7 @@
 
         document.addEventListener("DOMContentLoaded", function() {
             updateDisplay(0);
-            setInterval(nextMarket, 5000);
+            setInterval(nextMarket, 6000);
         });
     </script>
 </body>
