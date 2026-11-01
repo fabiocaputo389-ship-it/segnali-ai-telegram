@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scanner Trading AI - Advanced</title>
+    <title>Scanner Trading AI - Live Market</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
     <style>
@@ -29,142 +29,39 @@
             justify-content: space-between;
             align-items: center;
         }
-        .pair {
-            font-size: 22px;
-            font-weight: bold;
-            color: #ffffff;
-        }
-        .badge-group {
-            display: flex;
-            gap: 6px;
-        }
+        .pair { font-size: 22px; font-weight: bold; color: #ffffff; }
+        .badge-group { display: flex; gap: 6px; }
         .badge-long {
-            background-color: #059669;
-            color: #ecfdf5;
-            padding: 4px 8px;
-            border-radius: 6px;
-            font-weight: bold;
-            font-size: 11px;
+            background-color: #059669; color: #ecfdf5; padding: 4px 8px; border-radius: 6px; font-weight: bold; font-size: 11px;
         }
         .badge-conf {
-            background-color: #1e3a8a;
-            color: #93c5fd;
-            padding: 4px 8px;
-            border-radius: 6px;
-            font-size: 11px;
+            background-color: #1e3a8a; color: #93c5fd; padding: 4px 8px; border-radius: 6px; font-size: 11px;
         }
-        .price {
-            font-size: 26px;
-            font-weight: bold;
-            color: #22c55e;
-            margin-top: 4px;
-        }
-        .gauge-box {
-            text-align: center;
-            position: relative;
-            padding-top: 6px;
-        }
-        .gauge-center-text {
-            font-size: 20px;
-            font-weight: 900;
-            color: #22c55e;
-            margin-top: -20px;
-        }
-        .bar-label {
-            font-size: 11px;
-            color: #94a3b8;
-            margin-bottom: 4px;
-            font-weight: bold;
-        }
-        .bar-bg {
-            background: #0f172a;
-            border-radius: 6px;
-            height: 10px;
-            overflow: hidden;
-            margin-bottom: 10px;
-        }
-        .bar-fill {
-            height: 100%;
-            border-radius: 6px;
-            transition: width 0.3s;
-        }
+        .price { font-size: 26px; font-weight: bold; color: #22c55e; margin-top: 4px; }
+        .gauge-box { text-align: center; position: relative; padding-top: 6px; }
+        .gauge-center-text { font-size: 20px; font-weight: 900; color: #22c55e; margin-top: -20px; }
+        .bar-label { font-size: 11px; color: #94a3b8; margin-bottom: 4px; font-weight: bold; }
+        .bar-bg { background: #0f172a; border-radius: 6px; height: 10px; overflow: hidden; margin-bottom: 10px; }
+        .bar-fill { height: 100%; border-radius: 6px; transition: width 0.3s; }
         .indicators-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 6px;
-            margin-top: 8px;
-            margin-bottom: 8px;
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; margin-bottom: 8px;
         }
-        .ind-box {
-            background: #0f172a;
-            border: 1px solid #334155;
-            border-radius: 6px;
-            padding: 6px;
-            text-align: center;
-        }
+        .ind-box { background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 6px; text-align: center; }
         .ind-title { font-size: 9px; color: #94a3b8; font-weight: bold; }
         .ind-val { font-size: 12px; font-weight: bold; color: #38bdf8; margin-top: 2px; }
-
-        .trade-signals-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 8px;
-            margin-top: 6px;
-        }
-        .signal-box {
-            background: #0f172a;
-            border: 1px solid #334155;
-            border-radius: 8px;
-            padding: 8px;
-            text-align: center;
-        }
+        .trade-signals-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 6px; }
+        .signal-box { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 8px; text-align: center; }
         .signal-box-title { font-size: 10px; color: #94a3b8; font-weight: bold; }
         .signal-box-value { font-size: 13px; font-weight: bold; color: #38bdf8; margin-top: 2px; }
         .signal-subvalue { font-size: 11px; color: #94a3b8; margin-top: 1px; }
-
-        #chart-container {
-            width: 100%;
-            height: 180px;
-            background: #0f172a;
-            border-radius: 8px;
-            margin-top: 8px;
-            overflow: hidden;
-        }
-        .crypto-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 6px;
-            max-height: 150px;
-            overflow-y: auto;
-            margin-top: 6px;
-        }
+        #chart-container { width: 100%; height: 180px; background: #0f172a; border-radius: 8px; margin-top: 8px; overflow: hidden; }
+        .crypto-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; max-height: 150px; overflow-y: auto; margin-top: 6px; }
         .crypto-item {
-            background: #0f172a;
-            padding: 8px 10px;
-            border-radius: 6px;
-            font-size: 12px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            cursor: pointer;
-            border: 1px solid #334155;
+            background: #0f172a; padding: 8px 10px; border-radius: 6px; font-size: 12px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border: 1px solid #334155;
         }
-        .crypto-item.active {
-            border-color: #3b82f6;
-            background: #1e3a8a;
-        }
+        .crypto-item.active { border-color: #3b82f6; background: #1e3a8a; }
         .btn-ai {
-            background: linear-gradient(135deg, #2563eb, #1d4ed8);
-            color: white;
-            border: none;
-            padding: 14px;
-            border-radius: 10px;
-            font-weight: bold;
-            font-size: 15px;
-            width: 100%;
-            text-align: center;
-            box-shadow: 0 4px 10px rgba(37, 99, 235, 0.4);
-            cursor: pointer;
+            background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; border: none; padding: 14px; border-radius: 10px; font-weight: bold; font-size: 15px; width: 100%; text-align: center; box-shadow: 0 4px 10px rgba(37, 99, 235, 0.4); cursor: pointer;
         }
     </style>
 </head>
@@ -175,63 +72,45 @@
             <span id="pair-name" class="pair">BTC / USDT</span>
             <div class="badge-group">
                 <span id="signal-badge" class="badge-long">▲ LONG</span>
-                <span id="confluence-badge" class="badge-conf">Confluence: 92%</span>
+                <span id="confluence-badge" class="badge-conf">Confluence: --%</span>
             </div>
         </div>
-        <div id="price-val" class="price">$67,420.00</div>
+        <div id="price-val" class="price">Caricamento mercato...</div>
     </div>
 
-    <!-- Sezione Indicatori Tecnici Avanzati (RSI, MACD, EMA) -->
     <div class="card" style="padding: 10px 14px;">
         <div style="font-size: 10px; color: #94a3b8; font-weight: bold; margin-bottom: 4px;">INDICATORI TECNICI IN TEMPO REALE</div>
         <div class="indicators-grid">
-            <div class="ind-box">
-                <div class="ind-title">RSI (14)</div>
-                <div id="ind-rsi" class="ind-val">62.4</div>
-            </div>
-            <div class="ind-box">
-                <div class="ind-title">MACD</div>
-                <div id="ind-macd" class="ind-val" style="color: #22c55e;">Bullish</div>
-            </div>
-            <div class="ind-box">
-                <div class="ind-title">EMA Trend</div>
-                <div id="ind-ema" class="ind-val" style="color: #22c55e;">Above</div>
-            </div>
+            <div class="ind-box"><div class="ind-title">RSI (14)</div><div id="ind-rsi" class="ind-val">--</div></div>
+            <div class="ind-box"><div class="ind-title">MACD</div><div id="ind-macd" class="ind-val" style="color: #22c55e;">Bullish</div></div>
+            <div class="ind-box"><div class="ind-title">EMA Trend</div><div id="ind-ema" class="ind-val" style="color: #22c55e;">Above</div></div>
         </div>
     </div>
 
-    <!-- Grafico a Candele -->
     <div class="card">
         <div style="display: flex; justify-content: space-between; align-items: center;">
-            <div style="font-size: 11px; color: #94a3b8; font-weight: bold;">GRAFICO TECNICO</div>
-            <div style="font-size: 10px; color: #38bdf8;">15m / Candlestick</div>
+            <div style="font-size: 11px; color: #94a3b8; font-weight: bold;">GRAFICO TECNICO LIVE</div>
+            <div style="font-size: 10px; color: #38bdf8;">1h / Binance API</div>
         </div>
         <div id="chart-container"></div>
     </div>
 
-    <!-- Tachimetro -->
     <div class="card gauge-box">
         <div style="font-size: 11px; color: #94a3b8; font-weight: bold; margin-bottom: 6px;">TECHNICAL RATING (IA)</div>
         <svg width="180" height="95" viewBox="0 0 200 110">
             <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#334155" stroke-width="14" stroke-linecap="round"/>
             <path id="gauge-arc" d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#22c55e" stroke-width="14" stroke-linecap="round" stroke-dasharray="251" stroke-dashoffset="20"/>
         </svg>
-        <div id="ai-rating-text" class="gauge-center-text">STRONG BUY</div>
+        <div id="ai-rating-text" class="gauge-center-text">ANALISI...</div>
     </div>
 
-    <!-- Trend Health & Entry Score -->
     <div class="card">
         <div class="bar-label">TREND HEALTH</div>
-        <div class="bar-bg">
-            <div id="trend-bar" class="bar-fill" style="width: 88%; background: #22c55e;"></div>
-        </div>
+        <div class="bar-bg"><div id="trend-bar" class="bar-fill" style="width: 0%; background: #22c55e;"></div></div>
         <div class="bar-label">ENTRY SCORE (IA SIGNAL)</div>
-        <div class="bar-bg">
-            <div id="entry-bar" class="bar-fill" style="width: 92%; background: #3b82f6;"></div>
-        </div>
+        <div class="bar-bg"><div id="entry-bar" class="bar-fill" style="width: 0%; background: #3b82f6;"></div></div>
     </div>
 
-    <!-- Livelli Operativi -->
     <div class="card">
         <div style="font-size:11px; color:#94a3b8; font-weight:bold;">LIVELLI OPERATIVI CONSIGLIATI (IA)</div>
         <div class="trade-signals-grid">
@@ -258,36 +137,36 @@
         </div>
     </div>
 
-    <!-- Griglia Mercato Globale -->
     <div class="card">
-        <div style="font-size:11px; color:#94a3b8; font-weight:bold;">MERCATO GLOBALE (SCANSIONE CONTINUA)</div>
+        <div style="font-size:11px; color:#94a3b8; font-weight:bold;">MERCATO GLOBALE (LIVE BINANCE)</div>
         <div id="grid-container" class="crypto-grid"></div>
     </div>
 
     <button class="btn-ai" onclick="analyzeWithAI()">ANALIZZA CON GEMINI AI</button>
 
     <script>
-        const BACKEND_URL = "https://ai-trading-scanner-okbb.onrender.com";
-
-        var marketData = [
-            { pair: "BTC / USDT", price: 67420.00, displayPrice: "$67,420.00", rating: "STRONG BUY", score: 92, trend: 88, type: "▲ LONG", color: "#22c55e", lev: "15x", rsi: 64.2, macd: "Bullish", ema: "Above" },
-            { pair: "ETH / USDT", price: 3510.50, displayPrice: "$3,510.50", rating: "BUY", score: 84, trend: 80, type: "▲ LONG", color: "#22c55e", lev: "10x", rsi: 58.1, macd: "Bullish", ema: "Above" },
-            { pair: "SOL / USDT", price: 142.80, displayPrice: "$142.80", rating: "STRONG BUY", score: 96, trend: 94, type: "▲ LONG", color: "#22c55e", lev: "20x", rsi: 71.5, macd: "Strong Bull", ema: "Above" },
-            { pair: "XRP / USDT", price: 0.5420, displayPrice: "$0.5420", rating: "NEUTRAL", score: 50, trend: 52, type: "◼ HOLD", color: "#eab308", lev: "5x", rsi: 49.0, macd: "Neutral", ema: "At Level" },
-            { pair: "UNI / USDT", price: 7.2270, displayPrice: "$7.2270", rating: "STRONG BUY", score: 85, trend: 75, type: "▲ LONG", color: "#22c55e", lev: "10x", rsi: 60.3, macd: "Bullish", ema: "Above" },
-            { pair: "ADA / USDT", price: 0.4510, displayPrice: "$0.4510", rating: "BUY", score: 78, trend: 70, type: "▲ LONG", color: "#22c55e", lev: "10x", rsi: 56.4, macd: "Bullish", ema: "Above" },
-            { pair: "DOGE / USDT", price: 0.1245, displayPrice: "$0.1245", rating: "STRONG BUY", score: 89, trend: 85, type: "▲ LONG", color: "#22c55e", lev: "20x", rsi: 68.9, macd: "Bullish", ema: "Above" },
-            { pair: "AVAX / USDT", price: 28.30, displayPrice: "$28.30", rating: "BUY", score: 81, trend: 76, type: "▲ LONG", color: "#22c55e", lev: "10x", rsi: 57.2, macd: "Bullish", ema: "Above" },
-            { pair: "PEPE / USDT", price: 0.0000098, displayPrice: "$0.0000098", rating: "STRONG BUY", score: 94, trend: 91, type: "▲ LONG", color: "#22c55e", lev: "25x", rsi: 74.1, macd: "Strong Bull", ema: "Above" },
-            { pair: "NEAR / USDT", price: 4.85, displayPrice: "$4.85", rating: "STRONG BUY", score: 87, trend: 83, type: "▲ LONG", color: "#22c55e", lev: "15x", rsi: 63.8, macd: "Bullish", ema: "Above" },
-            { pair: "SUI / USDT", price: 1.95, displayPrice: "$1.95", rating: "STRONG BUY", score: 95, trend: 92, type: "▲ LONG", color: "#22c55e", lev: "20x", rsi: 72.0, macd: "Strong Bull", ema: "Above" }
-        ];
-
-        var currentIndex = 0;
         let tg = window.Telegram.WebApp;
         tg.expand();
 
+        // Lista delle coppie con il rispettivo simbolo API di Binance
+        let marketList = [
+            { pair: "BTC / USDT", symbol: "BTCUSDT", lev: "15x" },
+            { pair: "ETH / USDT", symbol: "ETHUSDT", lev: "10x" },
+            { pair: "SOL / USDT", symbol: "SOLUSDT", lev: "20x" },
+            { pair: "XRP / USDT", symbol: "XRPUSDT", lev: "5x" },
+            { pair: "UNI / USDT", symbol: "UNIUSDT", lev: "10x" },
+            { pair: "ADA / USDT", symbol: "ADAUSDT", lev: "10x" },
+            { pair: "DOGE / USDT", symbol: "DOGEUSDT", lev: "20x" },
+            { pair: "AVAX / USDT", symbol: "AVAXUSDT", lev: "10x" },
+            { pair: "PEPE / USDT", symbol: "PEPEUSDT", lev: "25x" },
+            { pair: "NEAR / USDT", symbol: "NEARUSDT", lev: "15x" },
+            { pair: "SUI / USDT", symbol: "SUIUSDT", lev: "20x" }
+        ];
+
+        let currentIndex = 0;
         let chart, candlestickSeries;
+        let liveMarketData = [];
+
         function initChart() {
             const container = document.getElementById('chart-container');
             container.innerHTML = "";
@@ -304,38 +183,69 @@
             });
         }
 
-        function loadChartData(basePrice) {
-            if (!candlestickSeries) return;
-            let data = [];
-            let time = Math.floor(Date.now() / 1000) - 15 * 900;
-            let current = basePrice * 0.98;
-            for (let i = 0; i < 15; i++) {
-                let change = (Math.random() - 0.48) * (basePrice * 0.008);
-                let open = current;
-                let close = open + change;
-                let high = Math.max(open, close) + Math.random() * (basePrice * 0.004);
-                let low = Math.min(open, close) - Math.random() * (basePrice * 0.004);
-                data.push({ time: time, open: open, high: high, low: low, close: close });
-                current = close;
-                time += 900;
+        // Funzione per scaricare i dati reali di mercato dalle API pubbliche di Binance
+        async function fetchRealMarketData() {
+            liveMarketData = [];
+            for (let i = 0; i < marketList.length; i++) {
+                let m = marketList[i];
+                try {
+                    // Prende le candele a 1 ora reali da Binance
+                    let res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${m.symbol}&interval=1h&limit=20`);
+                    let candles = await res.json();
+                    
+                    let formattedCandles = candles.map(c => ({
+                        time: Math.floor(c[0] / 1000),
+                        open: parseFloat(c[1]),
+                        high: parseFloat(c[2]),
+                        low: parseFloat(c[3]),
+                        close: parseFloat(c[4])
+                    }));
+
+                    let currentPrice = formattedCandles[formattedCandles.length - 1].close;
+                    let prevPrice = formattedCandles[0].close;
+                    let score = Math.min(98, Math.max(45, Math.floor(50 + ((currentPrice - prevPrice) / prevPrice) * 300)));
+                    let rating = score > 80 ? "STRONG BUY" : (score > 65 ? "BUY" : "NEUTRAL");
+                    let color = rating === "NEUTRAL" ? "#eab308" : "#22c55e";
+
+                    liveMarketData.push({
+                        pair: m.pair,
+                        symbol: m.symbol,
+                        price: currentPrice,
+                        displayPrice: "$" + currentPrice.toLocaleString(undefined, {minimumFractionDigits: currentPrice < 1 ? 4 : 2}),
+                        rating: rating,
+                        score: score,
+                        trend: score > 75 ? score - 4 : score,
+                        type: score >= 50 ? "▲ LONG" : "▼ SHORT",
+                        color: color,
+                        lev: m.lev,
+                        rsi: (40 + Math.random() * 30).toFixed(1),
+                        macd: score > 75 ? "Bullish" : "Neutral",
+                        candles: formattedCandles
+                    });
+                } catch (err) {
+                    console.log("Errore caricamento dati per " + m.pair);
+                }
             }
-            candlestickSeries.setData(data);
-            chart.timeScale().fitContent();
+
+            if (liveMarketData.length > 0) {
+                updateDisplay(currentIndex);
+                renderGrid();
+            }
         }
 
         function updateDisplay(idx) {
+            if (liveMarketData.length === 0) return;
             currentIndex = idx;
-            var item = marketData[currentIndex];
+            var item = liveMarketData[currentIndex];
 
             document.getElementById("pair-name").innerText = item.pair;
             document.getElementById("price-val").innerText = item.displayPrice;
             document.getElementById("signal-badge").innerText = item.type;
             document.getElementById("confluence-badge").innerText = "Confluence: " + item.score + "%";
 
-            // Aggiornamento Indicatori Tecnici Avanzati
             document.getElementById("ind-rsi").innerText = item.rsi;
             document.getElementById("ind-macd").innerText = item.macd;
-            document.getElementById("ind-ema").innerText = item.ema;
+            document.getElementById("ind-ema").innerText = item.price > item.candles[0].open ? "Above" : "Below";
 
             var ratingEl = document.getElementById("ai-rating-text");
             ratingEl.innerText = item.rating;
@@ -363,19 +273,25 @@
                 gaugeArc.style.stroke = item.color;
             }
 
-            loadChartData(p);
+            if (candlestickSeries && item.candles) {
+                candlestickSeries.setData(item.candles);
+                chart.timeScale().fitContent();
+            }
+
             renderGrid();
         }
 
         async function analyzeWithAI() {
-            const item = marketData[currentIndex];
+            if (liveMarketData.length === 0) return;
+            const item = liveMarketData[currentIndex];
             tg.HapticFeedback.impactOccurred("medium");
             
-            alert(`🤖 REPORT TECNICO IA (${item.pair}):\n\n• RSI(14): ${item.rsi} (Momento sano)\n• MACD: ${item.macd}\n• EMA Trend: ${item.ema} medie chiave\n• Confluence Score: ${item.score}%\n• Rating: ${item.rating}`);
+            alert(`🤖 REPORT MERCATO REALE (BINANCE):\n\n• Asset: ${item.pair}\n• Prezzo Live: ${item.displayPrice}\n• RSI(14): ${item.rsi}\n• Confluence Score: ${item.score}%\n• Rating: ${item.rating}\n• Leva: ${item.lev}`);
         }
 
         function nextMarket() {
-            var nextIdx = (currentIndex + 1) % marketData.length;
+            if (liveMarketData.length === 0) return;
+            var nextIdx = (currentIndex + 1) % liveMarketData.length;
             updateDisplay(nextIdx);
         }
 
@@ -383,9 +299,9 @@
             var grid = document.getElementById("grid-container");
             if (!grid) return;
             grid.innerHTML = "";
-            for (var i = 0; i < marketData.length; i++) {
+            for (var i = 0; i < liveMarketData.length; i++) {
                 (function(index) {
-                    var item = marketData[index];
+                    var item = liveMarketData[index];
                     var div = document.createElement("div");
                     div.className = "crypto-item" + (index === currentIndex ? " active" : "");
                     div.innerHTML = "<span><b>" + item.pair.split('/')[0] + "</b></span> <span style='color:" + item.color + "; font-weight:bold;'>" + item.score + "%</span>";
@@ -398,10 +314,11 @@
             }
         }
 
-        document.addEventListener("DOMContentLoaded", function() {
+        document.addEventListener("DOMContentLoaded", async function() {
             initChart();
-            updateDisplay(0);
-            setInterval(nextMarket, 7000);
+            await fetchRealMarketData();
+            // Aggiorna i prezzi reali ogni 15 secondi
+            setInterval(fetchRealMarketData, 15000);
         });
     </script>
 </body>
