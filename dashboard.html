@@ -628,7 +628,8 @@ function renderScannerReale(scannerData) {
     document.getElementById('rec-title').innerText = 'RECOMMENDATION: ' + (scannerData.recommendation || "LONG");
     document.getElementById('rec-desc').innerText = (scannerData.indicators_summary || "13 out of 15 indicators suggest LONG.");
 }
-  
+  renderScannerReale(d.scanner || d);
+
   renderNavigatore(s);
   renderMonitoraggio(d.monitoraggio);
   renderPosizioni(d.posizioni_reali, d.posizioni_tracciate, d.avviso_posizioni_reali);
