@@ -178,25 +178,26 @@ def run_scanner_background():
 
                     action, score, rating = "NEUTRAL", 50, "NEUTRAL"
                     
-                    if rsi_1h <= 33 and rsi_4h <= 50:
+                    # NUOVA LOGICA: Trend Following (segue la direzione del movimento)
+                    if rsi_1h >= 55 and rsi_4h >= 52:
                         action = "LONG"
-                        score = min(99, max(60, int(50 + (35 - rsi_1h) * 1.3 + (50 - rsi_4h) * 0.6)))
-                        rating = "STRONG BUY" if rsi_1h <= 23 and rsi_4h <= 40 else "BUY"
-                    elif rsi_1h >= 67 and rsi_4h >= 50:
+                        score = min(99, max(60, int(50 + (rsi_1h - 50) * 1.2 + (rsi_4h - 50) * 0.8)))
+                        rating = "STRONG BUY" if rsi_1h >= 70 and rsi_4h >= 60 else "BUY"
+                    elif rsi_1h <= 45 and rsi_4h <= 48:
                         action = "SHORT"
-                        score = min(99, max(60, int(50 + (rsi_1h - 65) * 1.3 + (rsi_4h - 50) * 0.6)))
-                        rating = "STRONG SELL" if rsi_1h >= 77 and rsi_4h >= 60 else "SELL"
+                        score = min(99, max(60, int(50 + (50 - rsi_1h) * 1.2 + (50 - rsi_4h) * 0.8)))
+                        rating = "STRONG SELL" if rsi_1h <= 30 and rsi_4h <= 40 else "SELL"
 
                     base_step = atr if atr > 0 else current_price * 0.015
                     leverage = 10 if score >= 90 else (5 if score >= 80 else 3)
-                    recommended_tf = "1H / 4H (Confluenza Massima)" if score >= 85 else "1H (Trend di Breve)"
+                    recommended_tf = "1H / 4H (Trend Confermato)" if score >= 85 else "1H (Momentum)"
 
                     if action == "LONG":
-                        sl = current_price - (base_step * 1.2)
+                        sl = current_price - (base_step * 1.5)
                         tp1 = current_price + (base_step * 2.0)
                         tp2 = current_price + (base_step * 3.5)
                     elif action == "SHORT":
-                        sl = current_price + (base_step * 1.2)
+                        sl = current_price + (base_step * 1.5)
                         tp1 = current_price - (base_step * 2.0)
                         tp2 = current_price - (base_step * 3.5)
                     else:
@@ -235,7 +236,7 @@ def run_scanner_background():
                             dir_text = "🟢 LONG (ACQUISTO)" if action == "LONG" else "🔴 SHORT (VENDITA)"
 
                             message = (
-                                f"🔥 **SEGNALE VIP ALTA CERTEZZA ({BRAND_NAME})** 🔥\n\n"
+                                f"🔥 **SEGNALE VIP TREND-FOLLOWING ({BRAND_NAME})** 🔥\n\n"
                                 f"🔹 **Asset:** {pair_name}\n"
                                 f"📊 **Direzione:** {dir_text}\n"
                                 f"⏳ **Timeframe Consigliato:** {recommended_tf}\n"
