@@ -57,20 +57,26 @@ market_data_cache = {
 }
 
 def init_db():
-    conn = sqlite3.connect("trading_bot.db")
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            bingx_api_key TEXT,
-            bingx_secret_key TEXT,
-            auto_trading INTEGER DEFAULT 0
-        )
-    """)
-    conn.commit()
-    conn.close()
+    try:
+        conn = sqlite3.connect("trading_bot.db")
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL
+            )
+        """)
+        # Aggiunge in sicurezza le colonne se non esistono già
+        for col, col_type in [("bingx_api_key", "TEXT"), ("bingx_secret_key", "TEXT"), ("auto_trading", "INTEGER DEFAULT 0")]:
+            try:
+                cursor.execute(f"ALTER TABLE users ADD COLUMN {col} {col_type}")
+            except sqlite3.OperationalError:
+                pass
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Errore DB: {e}")
 
 init_db()
 
@@ -103,6 +109,7 @@ def trigger_auto_trades(symbol, action):
     if owner_api and owner_secret:
         execute_bingx_order(owner_api, owner_secret, symbol, side)
     try:
+        init_db()
         conn = sqlite3.connect("trading_bot.db")
         cursor = conn.cursor()
         cursor.execute("SELECT bingx_api_key, bingx_secret_key FROM users WHERE auto_trading = 1 AND bingx_api_key IS NOT NULL AND bingx_secret_key IS NOT NULL")
@@ -178,7 +185,6 @@ def run_scanner_background():
 
                     action, score, rating = "NEUTRAL", 50, "NEUTRAL"
                     
-                    # NUOVA LOGICA: Trend Following (segue la direzione del movimento)
                     if rsi_1h >= 55 and rsi_4h >= 52:
                         action = "LONG"
                         score = min(99, max(60, int(50 + (rsi_1h - 50) * 1.2 + (rsi_4h - 50) * 0.8)))
@@ -315,102 +321,105 @@ BASE_HTML = """
 
 @app.route("/")
 def home():
-    active_signals = {s: d for s, d in market_data_cache.items() if d["score"] >= current_threshold and d["action"] != "NEUTRAL"}
+    try:
+        active_signals = {s: d for s, d in market_data_cache.items() if d["score"] >= current_threshold and d["action"] != "NEUTRAL"}
 
-    signals_html = ""
-    if active_signals:
-        signals_html += (
-            '<div class="signal-box">'
-            '<h3 style="color: #38bdf8; font-size: 15px; margin-bottom: 10px;">🔥 Segnali ad Alta Confluenza Attivi (Pronti per Auto-Trading)</h3>'
-            '<div style="display: flex; flex-direction: column; gap: 8px;">'
-        )
-        for sym, dat in active_signals.items():
-            dir_color = "#10b981" if dat["action"] == "LONG" else "#ef4444"
-            p_val = f"${dat['price']:.5f}" if dat['price'] < 1 else f"${dat['price']:.2f}"
-            sl_val = f"${dat['sl']:.4f}"
-            tp1_val = f"${dat['tp1']:.4f}"
+        signals_html = ""
+        if active_signals:
             signals_html += (
-                f'<div style="background: #111827; padding: 10px; border-radius: 6px; border-left: 4px solid {dir_color}; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">'
-                f'<div>'
-                f'<strong style="color: #fff; font-size: 14px;">{dat["symbol"]}</strong> - <span style="color: {dir_color}; font-weight: bold;">{dat["action"]}</span> '
-                f'<span style="font-size: 12px; color: #9ca3af;">(Score: {dat["score"]}%)</span>'
-                f'<div style="font-size: 11px; color: #38bdf8; margin-top: 2px;">TF: {dat["recommended_tf"]} | Leva: {dat["leverage"]}x</div>'
-                f'</div>'
-                f'<div style="font-size: 11px; color: #d1d5db; text-align: right;">'
-                f'<div>Prezzo: <strong>{p_val}</strong></div>'
-                f'<div>SL: <span style="color: #ef4444;">{sl_val} ({dat["sl_pct"]}%)</span> | TP1: <span style="color: #10b981;">{tp1_val} (+{dat["tp1_pct"]}%)</span></div>'
-                f'</div>'
-                f'</div>'
+                '<div class="signal-box">'
+                '<h3 style="color: #38bdf8; font-size: 15px; margin-bottom: 10px;">🔥 Segnali ad Alta Confluenza Attivi (Pronti per Auto-Trading)</h3>'
+                '<div style="display: flex; flex-direction: column; gap: 8px;">'
             )
-        signals_html += "</div></div>"
+            for sym, dat in active_signals.items():
+                dir_color = "#10b981" if dat["action"] == "LONG" else "#ef4444"
+                p_val = f"${dat['price']:.5f}" if dat['price'] < 1 else f"${dat['price']:.2f}"
+                sl_val = f"${dat['sl']:.4f}"
+                tp1_val = f"${dat['tp1']:.4f}"
+                signals_html += (
+                    f'<div style="background: #111827; padding: 10px; border-radius: 6px; border-left: 4px solid {dir_color}; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">'
+                    f'<div>'
+                    f'<strong style="color: #fff; font-size: 14px;">{dat["symbol"]}</strong> - <span style="color: {dir_color}; font-weight: bold;">{dat["action"]}</span> '
+                    f'<span style="font-size: 12px; color: #9ca3af;">(Score: {dat["score"]}%)</span>'
+                    f'<div style="font-size: 11px; color: #38bdf8; margin-top: 2px;">TF: {dat["recommended_tf"]} | Leva: {dat["leverage"]}x</div>'
+                    f'</div>'
+                    f'<div style="font-size: 11px; color: #d1d5db; text-align: right;">'
+                    f'<div>Prezzo: <strong>{p_val}</strong></div>'
+                    f'<div>SL: <span style="color: #ef4444;">{sl_val} ({dat["sl_pct"]}%)</span> | TP1: <span style="color: #10b981;">{tp1_val} (+{dat["tp1_pct"]}%)</span></div>'
+                    f'</div>'
+                    f'</div>'
+                )
+            signals_html += "</div></div>"
 
-    is_admin = session.get('username') == ADMIN_USERNAME
-    
-    if is_admin:
-        threshold_control = (
-            f'<form action="/set-threshold" method="POST" style="display: flex; gap: 8px; align-items: center;">'
-            f'<input type="number" name="threshold" min="40" max="99" value="{current_threshold}" style="width: 60px; text-align: center; background: #0b0e14; border: 1px solid #374151; color: #fff; padding: 6px; border-radius: 6px;">'
-            f'<button type="submit" class="btn" style="width: auto; padding: 6px 12px;">Imposta</button>'
-            f'</form>'
-        )
-    else:
-        threshold_control = (
-            f'<span style="background: #0b0e14; border: 1px solid #374151; color: #f97316; padding: 6px 12px; border-radius: 6px; font-weight: bold; font-size: 14px;">{current_threshold}% (Admin)</span>'
-        )
+        is_admin = session.get('username') == ADMIN_USERNAME
+        
+        if is_admin:
+            threshold_control = (
+                f'<form action="/set-threshold" method="POST" style="display: flex; gap: 8px; align-items: center;">'
+                f'<input type="number" name="threshold" min="40" max="99" value="{current_threshold}" style="width: 60px; text-align: center; background: #0b0e14; border: 1px solid #374151; color: #fff; padding: 6px; border-radius: 6px;">'
+                f'<button type="submit" class="btn" style="width: auto; padding: 6px 12px;">Imposta</button>'
+                f'</form>'
+            )
+        else:
+            threshold_control = (
+                f'<span style="background: #0b0e14; border: 1px solid #374151; color: #f97316; padding: 6px 12px; border-radius: 6px; font-weight: bold; font-size: 14px;">{current_threshold}% (Admin)</span>'
+            )
 
-    content = """
-    <div class="panel" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-        <div>
-            <h3 style="color: #fff; font-size: 15px; margin-bottom: 3px;">Dashboard & Scanner IA</h3>
-            <p style="font-size: 12px; color: #9ca3af;">Soglia Minima Segnale (Fissata da Admin): <strong style="color: #f97316;">{threshold}%</strong></p>
+        content = """
+        <div class="panel" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div>
+                <h3 style="color: #fff; font-size: 15px; margin-bottom: 3px;">Dashboard & Scanner IA</h3>
+                <p style="font-size: 12px; color: #9ca3af;">Soglia Minima Segnale (Fissata da Admin): <strong style="color: #f97316;">{threshold}%</strong></p>
+            </div>
+            {threshold_control}
         </div>
-        {threshold_control}
-    </div>
-    
-    {signals_section}
-    
-    <h3 style="margin-bottom: 12px; color: #fff; font-size: 15px;">Monitoraggio Mercato Live & Tachimetri</h3>
-    <div class="grid">
-        {% for symbol, data in market_data.items() %}
-        <div class="card">
-            <div class="gauge-container">
-                <div>
-                    <span style="font-weight: bold; color: #fff; font-size: 14px;">{{ data.symbol }}</span>
-                    <div style="font-size: 11px; color: #38bdf8;">Leva: <strong>{{ data.leverage }}x</strong> | TF: <strong style="color: #f97316;">{{ data.recommended_tf }}</strong></div>
+        
+        {signals_section}
+        
+        <h3 style="margin-bottom: 12px; color: #fff; font-size: 15px;">Monitoraggio Mercato Live & Tachimetri</h3>
+        <div class="grid">
+            {% for symbol, data in market_data.items() %}
+            <div class="card">
+                <div class="gauge-container">
+                    <div>
+                        <span style="font-weight: bold; color: #fff; font-size: 14px;">{{ data.symbol }}</span>
+                        <div style="font-size: 11px; color: #38bdf8;">Leva: <strong>{{ data.leverage }}x</strong> | TF: <strong style="color: #f97316;">{{ data.recommended_tf }}</strong></div>
+                    </div>
+                    <div class="gauge {% if data.action == 'LONG' %}gauge-long{% elif data.action == 'SHORT' %}gauge-short{% else %}gauge-neutral{% endif %}">
+                        {{ data.score }}%
+                    </div>
                 </div>
-                <div class="gauge {% if data.action == 'LONG' %}gauge-long{% elif data.action == 'SHORT' %}gauge-short{% else %}gauge-neutral{% endif %}">
-                    {{ data.score }}%
+                
+                <div style="font-size: 11px; color: #9ca3af; display: flex; flex-direction: column; gap: 4px;">
+                    <div style="display: flex; justify-content: space-between;"><span>Prezzo Live:</span><strong style="color: #fff;">${{ "%.4f"|format(data.price) if data.price < 1 else "%.2f"|format(data.price) }}</strong></div>
+                    <div style="display: flex; justify-content: space-between;"><span>RSI (1H / 4H):</span><span><strong style="color: #38bdf8;">{{ data.rsi_1h }}</strong> / <strong style="color: #f97316;">{{ data.rsi_4h }}</strong></span></div>
+                    <div style="display: flex; justify-content: space-between; border-top: 1px dashed #1f2937; padding-top: 4px; margin-top: 2px;">
+                        <span style="color: #ef4444;">Stop Loss:</span>
+                        <strong style="color: #ef4444;">${{ "%.4f"|format(data.sl) if data.price < 1 else "%.2f"|format(data.sl) }} ({{ data.sl_pct }}%)</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span style="color: #10b981;">Take Profit 1:</span>
+                        <strong style="color: #10b981;">${{ "%.4f"|format(data.tp1) if data.price < 1 else "%.2f"|format(data.tp1) }} (+{{ data.tp1_pct }}%)</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span style="color: #059669;">Take Profit 2:</span>
+                        <strong style="color: #059669;">${{ "%.4f"|format(data.tp2) if data.price < 1 else "%.2f"|format(data.tp2) }} (+{{ data.tp2_pct }}%)</strong>
+                    </div>
                 </div>
             </div>
-            
-            <div style="font-size: 11px; color: #9ca3af; display: flex; flex-direction: column; gap: 4px;">
-                <div style="display: flex; justify-content: space-between;"><span>Prezzo Live:</span><strong style="color: #fff;">${{ "%.4f"|format(data.price) if data.price < 1 else "%.2f"|format(data.price) }}</strong></div>
-                <div style="display: flex; justify-content: space-between;"><span>RSI (1H / 4H):</span><span><strong style="color: #38bdf8;">{{ data.rsi_1h }}</strong> / <strong style="color: #f97316;">{{ data.rsi_4h }}</strong></span></div>
-                <div style="display: flex; justify-content: space-between; border-top: 1px dashed #1f2937; padding-top: 4px; margin-top: 2px;">
-                    <span style="color: #ef4444;">Stop Loss:</span>
-                    <strong style="color: #ef4444;">${{ "%.4f"|format(data.sl) if data.price < 1 else "%.2f"|format(data.sl) }} ({{ data.sl_pct }}%)</strong>
-                </div>
-                <div style="display: flex; justify-content: space-between;">
-                    <span style="color: #10b981;">Take Profit 1:</span>
-                    <strong style="color: #10b981;">${{ "%.4f"|format(data.tp1) if data.price < 1 else "%.2f"|format(data.tp1) }} (+{{ data.tp1_pct }}%)</strong>
-                </div>
-                <div style="display: flex; justify-content: space-between;">
-                    <span style="color: #059669;">Take Profit 2:</span>
-                    <strong style="color: #059669;">${{ "%.4f"|format(data.tp2) if data.price < 1 else "%.2f"|format(data.tp2) }} (+{{ data.tp2_pct }}%)</strong>
-                </div>
-            </div>
+            {% endfor %}
         </div>
-        {% endfor %}
-    </div>
-    """
-    
-    content = content.replace("{threshold}", str(current_threshold))
-    content = content.replace("{threshold_control}", threshold_control)
-    content = content.replace("{signals_section}", signals_html)
+        """
+        
+        content = content.replace("{threshold}", str(current_threshold))
+        content = content.replace("{threshold_control}", threshold_control)
+        content = content.replace("{signals_section}", signals_html)
 
-    refresh_tag = '<meta http-equiv="refresh" content="15">'
-    html = BASE_HTML.replace("{refresh_tag}", refresh_tag).replace("{{ content | safe }}", content)
-    return render_template_string(html, brand_name=BRAND_NAME, market_data=market_data_cache)
+        refresh_tag = '<meta http-equiv="refresh" content="15">'
+        html = BASE_HTML.replace("{refresh_tag}", refresh_tag).replace("{{ content | safe }}", content)
+        return render_template_string(html, brand_name=BRAND_NAME, market_data=market_data_cache)
+    except Exception as e:
+        return f"Errore interno temporaneo: {e}", 500
 
 @app.route("/set-threshold", methods=["POST"])
 def set_threshold():
@@ -459,16 +468,19 @@ def login():
         username = request.form.get("username")
         password = request.form.get("password")
         init_db()
-        conn = sqlite3.connect("trading_bot.db")
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, password FROM users WHERE username = ?", (username,))
-        user = cursor.fetchone()
-        conn.close()
-        if user and check_password_hash(user[1], password):
-            session["user_id"] = user[0]
-            session["username"] = username
-            flash("Login effettuato con successo!")
-            return redirect(url_for("home"))
+        try:
+            conn = sqlite3.connect("trading_bot.db")
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, password FROM users WHERE username = ?", (username,))
+            user = cursor.fetchone()
+            conn.close()
+            if user and check_password_hash(user[1], password):
+                session["user_id"] = user[0]
+                session["username"] = username
+                flash("Login effettuato con successo!")
+                return redirect(url_for("home"))
+        except Exception:
+            pass
         flash("Credenziali non valide.")
     content = """
     <div class="panel" style="max-width: 380px; margin: 30px auto;">
@@ -494,22 +506,26 @@ def settings():
     if "user_id" not in session:
         return redirect(url_for("login"))
     init_db()
-    conn = sqlite3.connect("trading_bot.db")
-    cursor = conn.cursor()
-    if request.method == "POST":
-        api_key = request.form.get("api_key")
-        secret_key = request.form.get("secret_key")
-        auto_trading = int(request.form.get("auto_trading", 0))
-        cursor.execute("UPDATE users SET bingx_api_key = ?, bingx_secret_key = ?, auto_trading = ? WHERE id = ?", (api_key, secret_key, auto_trading, session["user_id"]))
-        conn.commit()
-        flash("Configurazione API salvata!")
-    cursor.execute("SELECT bingx_api_key, bingx_secret_key, auto_trading FROM users WHERE id = ?", (session["user_id"],))
-    u_data = cursor.fetchone()
-    conn.close()
-    
-    u_api = u_data[0] or ''
-    u_sec = u_data[1] or ''
-    u_auto = u_data[2]
+    try:
+        conn = sqlite3.connect("trading_bot.db")
+        cursor = conn.cursor()
+        if request.method == "POST":
+            api_key = request.form.get("api_key")
+            secret_key = request.form.get("secret_key")
+            auto_trading = int(request.form.get("auto_trading", 0))
+            cursor.execute("UPDATE users SET bingx_api_key = ?, bingx_secret_key = ?, auto_trading = ? WHERE id = ?", (api_key, secret_key, auto_trading, session["user_id"]))
+            conn.commit()
+            flash("Configurazione API salvata!")
+        cursor.execute("SELECT bingx_api_key, bingx_secret_key, auto_trading FROM users WHERE id = ?", (session["user_id"],))
+        u_data = cursor.fetchone()
+        conn.close()
+        
+        u_api = u_data[0] if u_data and u_data[0] else ''
+        u_sec = u_data[1] if u_data and u_data[1] else ''
+        u_auto = u_data[2] if u_data and len(u_data) > 2 and u_data[2] is not None else 0
+    except Exception as e:
+        print(f"Errore pagina settings: {e}")
+        u_api, u_sec, u_auto = '', '', 0
     
     content = f"""
     <div class="panel" style="max-width: 450px; margin: 20px auto;">
