@@ -20,7 +20,7 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "chiave_segreta_super_sicura_vip")
 
 BRAND_NAME = "SCANNER TRADING VIP"
-ADMIN_USERNAME = "Fabio"  # <-- Inserisci qui il tuo esatto username con cui fai il login
+ADMIN_USERNAME = "Fabio"
 
 SYMBOLS = [
     "BTC-USDT", "ETH-USDT", "SOL-USDT", "BNB-USDT", "XRP-USDT", 
@@ -325,6 +325,9 @@ def home():
         """
         for sym, dat in active_signals.items():
             dir_color = "#10b981" if dat["action"] == "LONG" else "#ef4444"
+            p_val = f"${dat['price']:.5f}" if dat['price'] < 1 else f"${dat['price']:.2f}"
+            sl_val = f"${dat['sl']:.4f}"
+            tp1_val = f"${dat['tp1']:.4f}"
             signals_html += f"""
                 <div style="background: #111827; padding: 10px; border-radius: 6px; border-left: 4px solid {dir_color}; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
                     <div>
@@ -333,8 +336,8 @@ def home():
                         <div style="font-size: 11px; color: #38bdf8; margin-top: 2px;">TF: {dat['recommended_tf']} | Leva: {dat['leverage']}x</div>
                     </div>
                     <div style="font-size: 11px; color: #d1d5db; text-align: right;">
-                        <div>Prezzo: <strong>${dat['price']:.5f} if dat['price'] < 1 else dat['price']:.2f}</strong></div>
-                        <div>SL: <span style="color: #ef4444;">${dat['sl']:.4f} ({dat['sl_pct']}%)</span> | TP1: <span style="color: #10b981;">${dat['tp1']:.4f} (+{dat['tp1_pct']}%)</span></div>
+                        <div>Prezzo: <strong>{p_val}</strong></div>
+                        <div>SL: <span style="color: #ef4444;">{sl_val} ({dat['sl_pct']}%)</span> | TP1: <span style="color: #10b981;">{tp1_val} (+{dat['tp1_pct']}%)</span></div>
                     </div>
                 </div>
             """
@@ -343,7 +346,6 @@ def home():
         </div>
         """
 
-    # Mostriamo il form di modifica soglia SOLO se l'utente loggato è l'Admin (tu)
     is_admin = session.get('username') == ADMIN_USERNAME
     
     if is_admin:
@@ -410,7 +412,6 @@ def home():
 @app.route("/set-threshold", methods=["POST"])
 def set_threshold():
     global current_threshold
-    # Controllo di sicurezza: solo l'admin può modificare la soglia via POST
     if session.get("username") == ADMIN_USERNAME:
         try:
             val = int(request.form.get("threshold"))
