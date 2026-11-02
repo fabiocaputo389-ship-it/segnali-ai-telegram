@@ -6,6 +6,9 @@ from flask import Flask, request, redirect, render_template_string
 
 app = Flask(__name__)
 
+# 🏷️ MODIFICA QUI IL NOME DEL TUO BRAND/SCANNER
+BRAND_NAME = "SCANNER TRADING VIP"
+
 SYMBOLS = [
     "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", 
     "ADAUSDT", "AVAXUSDT", "LINKUSDT", "DOTUSDT", "NEARUSDT", 
@@ -19,7 +22,6 @@ SYMBOLS = [
 
 current_threshold = 75
 
-# Cache inizializzata con valori di fallback realistici
 market_data_cache = {
     symbol: {
         "symbol": symbol.replace("USDT", ""),
@@ -58,14 +60,13 @@ def run_scanner_background():
     telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     channel_id = os.environ.get("CHANNEL_ID")
     
-    print("Scanner multi-asset avviato con endpoint compatibile...")
+    print(f"Scanner {BRAND_NAME} avviato...")
     price_history = {symbol: [] for symbol in SYMBOLS}
 
     while True:
         global current_threshold, market_data_cache
         for symbol in SYMBOLS:
             try:
-                # Utilizziamo l'endpoint alternativo per evitare blocchi IP su Render
                 klines_url = f"https://api.binance.us/api/v3/klines?symbol={symbol}&interval=1h&limit=30"
                 response = requests.get(klines_url, timeout=5)
                 
@@ -99,7 +100,7 @@ def run_scanner_background():
 
                             telegram_url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
                             message = (
-                                f"🚨 **SEGNALE OCEAN SCANNER (IA)** 🚨\n\n"
+                                f"🚨 **SEGNALE {BRAND_NAME}** 🚨\n\n"
                                 f"🔹 **Asset:** {pair_name}\n"
                                 f"📊 **Rating IA:** {rating} (Confluenza: {score}%)\n"
                                 f"📈 **RSI (14):** {rsi}\n"
@@ -132,7 +133,7 @@ FULL_DASHBOARD_HTML = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OCEAN'S FUTURE SCANNER - AI Trading Dashboard</title>
+    <title>{{ brand_name }} - AI Trading Dashboard</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { background-color: #0b0e14; color: #d1d5db; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; }
@@ -166,7 +167,7 @@ FULL_DASHBOARD_HTML = """
 </head>
 <body>
     <div class="header">
-        <div class="logo">🌊 Ocean Scanner</div>
+        <div class="logo">⚡ {{ brand_name }}</div>
         <div class="status-badge"><div class="status-dot"></div> ONLINE</div>
     </div>
 
@@ -210,8 +211,8 @@ FULL_DASHBOARD_HTML = """
 
 @app.route('/')
 def home():
-    global current_threshold, market_data_cache
-    return render_template_string(FULL_DASHBOARD_HTML, threshold=current_threshold, market_data=market_data_cache)
+    global current_threshold, market_data_cache, BRAND_NAME
+    return render_template_string(FULL_DASHBOARD_HTML, brand_name=BRAND_NAME, threshold=current_threshold, market_data=market_data_cache)
 
 @app.route('/set-threshold', methods=['POST'])
 def set_threshold():
@@ -233,7 +234,7 @@ def test_telegram():
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {
         "chat_id": chat_id,
-        "text": f"🚨 **TEST OCEAN SCANNER** 🚨\n\nSoglia attuale impostata a: *{current_threshold}%*",
+        "text": f"🚨 **TEST {BRAND_NAME}** 🚨\n\nSoglia attuale impostata a: *{current_threshold}%*",
         "parse_mode": "Markdown"
     }
     response = requests.post(url, json=payload)
