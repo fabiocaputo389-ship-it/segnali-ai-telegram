@@ -56,11 +56,24 @@ def calculate_rsi(prices, period=14):
     rsi = 100 - (100 / (1 + rs))
     return round(rsi, 2)
 
+def calculate_atr(candles, period=14):
+    if len(candles) < period + 1:
+        return 0.01
+    trs = []
+    for i in range(1, len(candles)):
+        high = float(candles[i][2])
+        low = float(candles[i][3])
+        prev_close = float(candles[i-1][4])
+        tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
+        trs.append(tr)
+    atr = sum(trs[-period:]) / period
+    return atr
+
 def run_scanner_background():
     telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     channel_id = os.environ.get("CHANNEL_ID")
     
-    print(f"Scanner {BRAND_NAME} avviato con percentuali SL/TP ripristinate...")
+    print(f"Scanner {BRAND_NAME} avviato con logica ATR dinamica avanzata...")
     price_history = {symbol: [] for symbol in SYMBOLS}
     
     last_signal_time = {symbol: 0 for symbol in SYMBOLS}
@@ -83,6 +96,7 @@ def run_scanner_background():
                         
                         price_history[symbol] = closes
                         rsi = calculate_rsi(price_history[symbol])
+                        atr = calculate_atr(candles)
                         
                         if rsi <= 35:
                             score = int(min(99, max(40, 50 + (35 - rsi) * 1.5)))
@@ -114,22 +128,33 @@ def run_scanner_background():
                                 pair_name = symbol.replace("USDT", " / USDT")
                                 decimals = 5 if current_price < 1 else 2
                                 
+                                # Calcolo SL e TP dinamici basati sulla volatilità reale (ATR)
                                 if action == "LONG":
-                                    sl = current_price * (1 - 0.022)
-                                    tp1 = current_price * (1 + 0.035)
-                                    tp2 = current_price * (1 + 0.070)
+                                    sl = current_price - (atr * 1.5)
+                                    tp1 = current_price + (atr * 2.5)
+                                    tp2 = current_price + (atr * 4.5)
+                                    
+                                    sl_pct = ((sl - current_price) / current_price) * 100
+                                    tp1_pct = ((tp1 - current_price) / current_price) * 100
+                                    tp2_pct = ((tp2 - current_price) / current_price) * 100
+                                    
                                     dir_text = "🟢 LONG (ACQUISTO)"
-                                    sl_text = f"${sl:.{decimals}f} (-2.2%)"
-                                    tp1_text = f"${tp1:.{decimals}f} (+3.5%)"
-                                    tp2_text = f"${tp2:.{decimals}f} (+7.0%)"
+                                    sl_text = f"${sl:.{decimals}f} ({sl_pct:.2f}%)"
+                                    tp1_text = f"${tp1:.{decimals}f} (+{tp1_pct:.2f}%)"
+                                    tp2_text = f"${tp2:.{decimals}f} (+{tp2_pct:.2f}%)"
                                 else:
-                                    sl = current_price * (1 + 0.022)
-                                    tp1 = current_price * (1 - 0.035)
-                                    tp2 = current_price * (1 - 0.070)
+                                    sl = current_price + (atr * 1.5)
+                                    tp1 = current_price - (atr * 2.5)
+                                    tp2 = current_price - (atr * 4.5)
+                                    
+                                    sl_pct = ((sl - current_price) / current_price) * 100
+                                    tp1_pct = ((current_price - tp1) / current_price) * 100
+                                    tp2_pct = ((current_price - tp2) / current_price) * 100
+                                    
                                     dir_text = "🔴 SHORT (VENDITA)"
-                                    sl_text = f"${sl:.{decimals}f} (+2.2%)"
-                                    tp1_text = f"${tp1:.{decimals}f} (-3.5%)"
-                                    tp2_text = f"${tp2:.{decimals}f} (-7.0%)"
+                                    sl_text = f"${sl:.{decimals}f} (+{sl_pct:.2f}%)"
+                                    tp1_text = f"${tp1:.{decimals}f} (-{tp1_pct:.2f}%)"
+                                    tp2_text = f"${tp2:.{decimals}f} (-{tp2_pct:.2f}%)"
 
                                 telegram_url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
                                 message = (
