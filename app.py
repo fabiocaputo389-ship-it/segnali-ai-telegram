@@ -318,47 +318,44 @@ def home():
 
     signals_html = ""
     if active_signals:
-        signals_html += """
-        <div class="signal-box">
-            <h3 style="color: #38bdf8; font-size: 15px; margin-bottom: 10px;">🔥 Segnali ad Alta Confluenza Attivi (Pronti per Auto-Trading)</h3>
-            <div style="display: flex; flex-direction: column; gap: 8px;">
-        """
+        signals_html += (
+            '<div class="signal-box">'
+            '<h3 style="color: #38bdf8; font-size: 15px; margin-bottom: 10px;">🔥 Segnali ad Alta Confluenza Attivi (Pronti per Auto-Trading)</h3>'
+            '<div style="display: flex; flex-direction: column; gap: 8px;">'
+        )
         for sym, dat in active_signals.items():
             dir_color = "#10b981" if dat["action"] == "LONG" else "#ef4444"
             p_val = f"${dat['price']:.5f}" if dat['price'] < 1 else f"${dat['price']:.2f}"
             sl_val = f"${dat['sl']:.4f}"
             tp1_val = f"${dat['tp1']:.4f}"
-            signals_html += f"""
-                <div style="background: #111827; padding: 10px; border-radius: 6px; border-left: 4px solid {dir_color}; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-                    <div>
-                        <strong style="color: #fff; font-size: 14px;">{dat['symbol']}</strong> - <span style="color: {dir_color}; font-weight: bold;">{dat['action']}</span> 
-                        <span style="font-size: 12px; color: #9ca3af;">(Score: {dat['score']}%)</span>
-                        <div style="font-size: 11px; color: #38bdf8; margin-top: 2px;">TF: {dat['recommended_tf']} | Leva: {dat['leverage']}x</div>
-                    </div>
-                    <div style="font-size: 11px; color: #d1d5db; text-align: right;">
-                        <div>Prezzo: <strong>{p_val}</strong></div>
-                        <div>SL: <span style="color: #ef4444;">{sl_val} ({dat['sl_pct']}%)</span> | TP1: <span style="color: #10b981;">{tp1_val} (+{dat['tp1_pct']}%)</span></div>
-                    </div>
-                </div>
-            """
-        signals_html += """
-            </div>
-        </div>
-        """
+            signals_html += (
+                f'<div style="background: #111827; padding: 10px; border-radius: 6px; border-left: 4px solid {dir_color}; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">'
+                f'<div>'
+                f'<strong style="color: #fff; font-size: 14px;">{dat["symbol"]}</strong> - <span style="color: {dir_color}; font-weight: bold;">{dat["action"]}</span> '
+                f'<span style="font-size: 12px; color: #9ca3af;">(Score: {dat["score"]}%)</span>'
+                f'<div style="font-size: 11px; color: #38bdf8; margin-top: 2px;">TF: {dat["recommended_tf"]} | Leva: {dat["leverage"]}x</div>'
+                f'</div>'
+                f'<div style="font-size: 11px; color: #d1d5db; text-align: right;">'
+                f'<div>Prezzo: <strong>{p_val}</strong></div>'
+                f'<div>SL: <span style="color: #ef4444;">{sl_val} ({dat["sl_pct"]}%)</span> | TP1: <span style="color: #10b981;">{tp1_val} (+{dat["tp1_pct"]}%)</span></div>'
+                f'</div>'
+                f'</div>'
+            )
+        signals_html += "</div></div>"
 
     is_admin = session.get('username') == ADMIN_USERNAME
     
     if is_admin:
-        threshold_control = f"""
-        <form action="/set-threshold" method="POST" style="display: flex; gap: 8px; align-items: center;">
-            <input type="number" name="threshold" min="40" max="99" value="{current_threshold}" style="width: 60px; text-align: center; background: #0b0e14; border: 1px solid #374151; color: #fff; padding: 6px; border-radius: 6px;">
-            <button type="submit" class="btn" style="width: auto; padding: 6px 12px;">Imposta</button>
-        </form>
-        """
+        threshold_control = (
+            f'<form action="/set-threshold" method="POST" style="display: flex; gap: 8px; align-items: center;">'
+            f'<input type="number" name="threshold" min="40" max="99" value="{current_threshold}" style="width: 60px; text-align: center; background: #0b0e14; border: 1px solid #374151; color: #fff; padding: 6px; border-radius: 6px;">'
+            f'<button type="submit" class="btn" style="width: auto; padding: 6px 12px;">Imposta</button>'
+            f'</form>'
+        )
     else:
-        threshold_control = f"""
-        <span style="background: #0b0e14; border: 1px solid #374151; color: #f97316; padding: 6px 12px; border-radius: 6px; font-weight: bold; font-size: 14px;">{current_threshold}% (Admin)</span>
-        """
+        threshold_control = (
+            f'<span style="background: #0b0e14; border: 1px solid #374151; color: #f97316; padding: 6px 12px; border-radius: 6px; font-weight: bold; font-size: 14px;">{current_threshold}% (Admin)</span>'
+        )
 
     content = f"""
     <div class="panel" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
