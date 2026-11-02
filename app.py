@@ -60,7 +60,7 @@ def run_scanner_background():
     telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     channel_id = os.environ.get("CHANNEL_ID")
     
-    print(f"Scanner {BRAND_NAME} avviato correttamente...")
+    print(f"Scanner {BRAND_NAME} avviato con percentuali SL/TP ripristinate...")
     price_history = {symbol: [] for symbol in SYMBOLS}
     
     last_signal_time = {symbol: 0 for symbol in SYMBOLS}
@@ -119,11 +119,17 @@ def run_scanner_background():
                                     tp1 = current_price * (1 + 0.035)
                                     tp2 = current_price * (1 + 0.070)
                                     dir_text = "🟢 LONG (ACQUISTO)"
+                                    sl_text = f"${sl:.{decimals}f} (-2.2%)"
+                                    tp1_text = f"${tp1:.{decimals}f} (+3.5%)"
+                                    tp2_text = f"${tp2:.{decimals}f} (+7.0%)"
                                 else:
                                     sl = current_price * (1 + 0.022)
                                     tp1 = current_price * (1 - 0.035)
                                     tp2 = current_price * (1 - 0.070)
                                     dir_text = "🔴 SHORT (VENDITA)"
+                                    sl_text = f"${sl:.{decimals}f} (+2.2%)"
+                                    tp1_text = f"${tp1:.{decimals}f} (-3.5%)"
+                                    tp2_text = f"${tp2:.{decimals}f} (-7.0%)"
 
                                 telegram_url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
                                 message = (
@@ -133,9 +139,9 @@ def run_scanner_background():
                                     f"⭐ **Rating IA:** {rating} (Confluenza: {score}%)\n"
                                     f"📈 **RSI (14):** {rsi}\n"
                                     f"⚡ **Prezzo Live:** ${current_price:.{decimals}f}\n\n"
-                                    f"🛑 **Stop Loss:** ${sl:.{decimals}f}\n"
-                                    f"🎯 **Take Profit 1:** ${tp1:.{decimals}f}\n"
-                                    f"🎯 **Take Profit 2:** ${tp2:.{decimals}f}"
+                                    f"🛑 **Stop Loss:** {sl_text}\n"
+                                    f"🎯 **Take Profit 1:** {tp1_text}\n"
+                                    f"🎯 **Take Profit 2:** {tp2_text}"
                                 )
                                 
                                 payload = {
@@ -272,3 +278,4 @@ def test_telegram():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+    
