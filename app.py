@@ -20,6 +20,7 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "chiave_segreta_super_sicura_vip")
 
 BRAND_NAME = "SCANNER TRADING VIP"
+ADMIN_USERNAME = "Fabio"  # <-- Inserisci qui il tuo esatto username con cui fai il login
 
 SYMBOLS = [
     "BTC-USDT", "ETH-USDT", "SOL-USDT", "BNB-USDT", "XRP-USDT", 
@@ -90,7 +91,6 @@ def execute_bingx_order(api_key, secret_key, symbol, side, quantity=10.0):
         headers = {"X-BX-APIKEY": api_key}
         full_url = f"{url}?{query_string}&signature={signature}"
         response = requests.post(full_url, headers=headers, timeout=5)
-        print(f"Risposta esecuzione BingX per {symbol}: {response.text}")
         return response.status_code == 200
     except Exception as e:
         print(f"Errore esecuzione ordine BingX: {e}")
@@ -295,7 +295,7 @@ BASE_HTML = """
         <div class="logo">⚡ {{ brand_name }}</div>
         <div class="nav">
             {% if session.get('user_id') %}
-                <span><strong>{{ session.get('username') }}</strong></span>
+                <span>Utente: <strong>{{ session.get('username') }}</strong></span>
                 <a href="/settings">⚙️ API</a>
                 <a href="/logout" style="color: #ef4444;">Esci</a>
             {% else %}
@@ -314,7 +314,6 @@ BASE_HTML = """
 
 @app.route("/")
 def home():
-    # Filtriamo le monete che hanno raggiunto o superato la soglia per metterle in evidenza nella dashboard
     active_signals = {s: d for s, d in market_data_cache.items() if d["score"] >= current_threshold and d["action"] != "NEUTRAL"}
 
     signals_html = ""
@@ -344,16 +343,28 @@ def home():
         </div>
         """
 
+    # Mostriamo il form di modifica soglia SOLO se l'utente loggato è l'Admin (tu)
+    is_admin = session.get('username') == ADMIN_USERNAME
+    
+    if is_admin:
+        threshold_control = f"""
+        <form action="/set-threshold" method="POST" style="display: flex; gap: 8px; align-items: center;">
+            <input type="number" name="threshold" min="40" max="99" value="{current_threshold}" style="width: 60px; text-align: center; background: #0b0e14; border: 1px solid #374151; color: #fff; padding: 6px; border-radius: 6px;">
+            <button type="submit" class="btn" style="width: auto; padding: 6px 12px;">Imposta</button>
+        </form>
+        """
+    else:
+        threshold_control = f"""
+        <span style="background: #0b0e14; border: 1px solid #374151; color: #f97316; padding: 6px 12px; border-radius: 6px; font-weight: bold; font-size: 14px;">{current_threshold}% (Admin)</span>
+        """
+
     content = f"""
     <div class="panel" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
         <div>
             <h3 style="color: #fff; font-size: 15px; margin-bottom: 3px;">Dashboard & Scanner IA</h3>
-            <p style="font-size: 12px; color: #9ca3af;">Soglia Minima Segnale: <strong style="color: #f97316;">{{ threshold }}%</strong></p>
+            <p style="font-size: 12px; color: #9ca3af;">Soglia Minima Segnale (Fissata da Admin): <strong style="color: #f97316;">{current_threshold}%</strong></p>
         </div>
-        <form action="/set-threshold" method="POST" style="display: flex; gap: 8px; align-items: center;">
-            <input type="number" name="threshold" min="40" max="99" value="{{ threshold }}" style="width: 60px; text-align: center; background: #0b0e14; border: 1px solid #374151; color: #fff; padding: 6px; border-radius: 6px;">
-            <button type="submit" class="btn" style="width: auto; padding: 6px 12px;">Imposta</button>
-        </form>
+        {threshold_control}
     </div>
     
     {signals_html}
@@ -394,17 +405,19 @@ def home():
     """
     refresh_tag = '<meta http-equiv="refresh" content="15">'
     html = BASE_HTML.replace("{refresh_tag}", refresh_tag).replace("{{ content | safe }}", content)
-    return render_template_string(html, brand_name=BRAND_NAME, threshold=current_threshold, market_data=market_data_cache)
+    return render_template_string(html, brand_name=BRAND_NAME, market_data=market_data_cache)
 
 @app.route("/set-threshold", methods=["POST"])
 def set_threshold():
     global current_threshold
-    try:
-        val = int(request.form.get("threshold"))
-        if 40 <= val <= 99:
-            current_threshold = val
-    except ValueError:
-        pass
+    # Controllo di sicurezza: solo l'admin può modificare la soglia via POST
+    if session.get("username") == ADMIN_USERNAME:
+        try:
+            val = int(request.form.get("threshold"))
+            if 40 <= val <= 99:
+                current_threshold = val
+        except ValueError:
+            pass
     return redirect(url_for("home"))
 
 @app.route("/register", methods=["GET", "POST"])
