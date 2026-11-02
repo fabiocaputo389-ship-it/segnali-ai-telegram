@@ -6,7 +6,6 @@ from flask import Flask, request, redirect, render_template_string
 
 app = Flask(__name__)
 
-# 🏷️ MODIFICA QUI IL NOME DEL TUO BRAND/SCANNER
 BRAND_NAME = "SCANNER TRADING VIP"
 
 SYMBOLS = [
@@ -60,11 +59,17 @@ def run_scanner_background():
     telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     channel_id = os.environ.get("CHANNEL_ID")
     
-    print(f"Scanner {BRAND_NAME} avviato...")
+    print(f"Scanner {BRAND_NAME} avviato con cooldown di 1 ora...")
     price_history = {symbol: [] for symbol in SYMBOLS}
+    
+    # ⏱️ Blocco temporale impostato a 1 ora per ciascun asset
+    last_signal_time = {symbol: 0 for symbol in SYMBOLS}
+    COOLDOWN_SECONDS = 1 * 3600  # 1 ora in secondi
 
     while True:
         global current_threshold, market_data_cache
+        current_time = time.time()
+        
         for symbol in SYMBOLS:
             try:
                 klines_url = f"https://api.binance.us/api/v3/klines?symbol={symbol}&interval=1h&limit=30"
@@ -91,32 +96,36 @@ def run_scanner_background():
                             "rating": rating
                         }
                         
+                        # Controlla soglia, token e se è passata almeno 1 ora dall'ultimo segnale per lo stesso asset
                         if score >= current_threshold and telegram_token and channel_id:
-                            pair_name = symbol.replace("USDT", " / USDT")
-                            decimals = 5 if current_price < 1 else 2
-                            sl = current_price * (1 - 0.022)
-                            tp1 = current_price * (1 + 0.035)
-                            tp2 = current_price * (1 + 0.070)
+                            if current_time - last_signal_time[symbol] > COOLDOWN_SECONDS:
+                                last_signal_time[symbol] = current_time  # Aggiorna il timestamp
+                                
+                                pair_name = symbol.replace("USDT", " / USDT")
+                                decimals = 5 if current_price < 1 else 2
+                                sl = current_price * (1 - 0.022)
+                                tp1 = current_price * (1 + 0.035)
+                                tp2 = current_price * (1 + 0.070)
 
-                            telegram_url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
-                            message = (
-                                f"🚨 **SEGNALE {BRAND_NAME}** 🚨\n\n"
-                                f"🔹 **Asset:** {pair_name}\n"
-                                f"📊 **Rating IA:** {rating} (Confluenza: {score}%)\n"
-                                f"📈 **RSI (14):** {rsi}\n"
-                                f"⚡ **Prezzo Live:** ${current_price:.{decimals}f}\n\n"
-                                f"🛑 **Stop Loss:** ${sl:.{decimals}f} (-2.2%)\n"
-                                f"🎯 **Take Profit 1:** ${tp1:.{decimals}f} (+3.5%)\n"
-                                f"🎯 **Take Profit 2:** ${tp2:.{decimals}f} (+7.0%)"
-                            )
-                            
-                            payload = {
-                                "chat_id": channel_id,
-                                "text": message,
-                                "parse_mode": "Markdown"
-                            }
-                            requests.post(telegram_url, json=payload)
-                            time.sleep(1)
+                                telegram_url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
+                                message = (
+                                    f"🚨 **SEGNALE {BRAND_NAME}** 🚨\n\n"
+                                    f"🔹 **Asset:** {pair_name}\n"
+                                    f"📊 **Rating IA:** {rating} (Confluenza: {score}%)\n"
+                                    f"📈 **RSI (14):** {rsi}\n"
+                                    f"⚡ **Prezzo Live:** ${current_price:.{decimals}f}\n\n"
+                                    f"🛑 **Stop Loss:** ${sl:.{decimals}f} (-2.2%)\n"
+                                    f"🎯 **Take Profit 1:** ${tp1:.{decimals}f} (+3.5%)\n"
+                                    f"🎯 **Take Profit 2:** ${tp2:.{decimals}f} (+7.0%)"
+                                )
+                                
+                                payload = {
+                                    "chat_id": channel_id,
+                                    "text": message,
+                                    "parse_mode": "Markdown"
+                                }
+                                requests.post(telegram_url, json=payload)
+                                time.sleep(1)
             except Exception as e:
                 print(f"Errore nello scanner per {symbol}: {e}")
                 
@@ -233,7 +242,7 @@ def test_telegram():
         return "Token o Channel ID mancanti!", 400
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {
-        "chat_id": chat_id,
+        "chat_id": channel_id,
         "text": f"🚨 **TEST {BRAND_NAME}** 🚨\n\nSoglia attuale impostata a: *{current_threshold}%*",
         "parse_mode": "Markdown"
     }
