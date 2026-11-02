@@ -20,7 +20,6 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "chiave_segreta_super_sicura_vip")
 
 BRAND_NAME = "SCANNER TRADING VIP"
-TIMEFRAMES = ["1h", "4h"]
 
 SYMBOLS = [
     "BTC-USDT", "ETH-USDT", "SOL-USDT", "BNB-USDT", "XRP-USDT", 
@@ -44,7 +43,15 @@ market_data_cache = {
         "rsi_4h": 50.0,
         "score": 50,
         "rating": "NEUTRAL",
-        "action": "NEUTRAL"
+        "action": "NEUTRAL",
+        "sl": 0.0,
+        "tp1": 0.0,
+        "tp2": 0.0,
+        "sl_pct": 0.0,
+        "tp1_pct": 0.0,
+        "tp2_pct": 0.0,
+        "leverage": 5,
+        "recommended_tf": "1H / 4H Multi-TF"
     } for symbol in SYMBOLS
 }
 
@@ -170,14 +177,34 @@ def run_scanner_background():
                     atr = calculate_atr(candles_1h)
 
                     action, score, rating = "NEUTRAL", 50, "NEUTRAL"
-                    if rsi_1h <= 35 and rsi_4h <= 55:
+                    
+                    if rsi_1h <= 33 and rsi_4h <= 50:
                         action = "LONG"
-                        score = min(99, max(60, int(50 + (35 - rsi_1h) * 1.2 + (55 - rsi_4h) * 0.5)))
-                        rating = "STRONG BUY" if rsi_1h <= 25 and rsi_4h <= 45 else "BUY"
-                    elif rsi_1h >= 65 and rsi_4h >= 45:
+                        score = min(99, max(60, int(50 + (35 - rsi_1h) * 1.3 + (50 - rsi_4h) * 0.6)))
+                        rating = "STRONG BUY" if rsi_1h <= 23 and rsi_4h <= 40 else "BUY"
+                    elif rsi_1h >= 67 and rsi_4h >= 50:
                         action = "SHORT"
-                        score = min(99, max(60, int(50 + (rsi_1h - 65) * 1.2 + (rsi_4h - 45) * 0.5)))
-                        rating = "STRONG SELL" if rsi_1h >= 75 and rsi_4h >= 55 else "SELL"
+                        score = min(99, max(60, int(50 + (rsi_1h - 65) * 1.3 + (rsi_4h - 50) * 0.6)))
+                        rating = "STRONG SELL" if rsi_1h >= 77 and rsi_4h >= 60 else "SELL"
+
+                    base_step = atr if atr > 0 else current_price * 0.015
+                    leverage = 10 if score >= 90 else (5 if score >= 80 else 3)
+                    recommended_tf = "1H / 4H (Confluenza Massima)" if score >= 85 else "1H (Trend di Breve)"
+
+                    if action == "LONG":
+                        sl = current_price - (base_step * 1.2)
+                        tp1 = current_price + (base_step * 2.0)
+                        tp2 = current_price + (base_step * 3.5)
+                    elif action == "SHORT":
+                        sl = current_price + (base_step * 1.2)
+                        tp1 = current_price - (base_step * 2.0)
+                        tp2 = current_price - (base_step * 3.5)
+                    else:
+                        sl, tp1, tp2 = current_price * 0.98, current_price * 1.02, current_price * 1.04
+
+                    sl_pct = round(((sl - current_price) / current_price) * 100, 2)
+                    tp1_pct = round(((tp1 - current_price) / current_price) * 100, 2)
+                    tp2_pct = round(((tp2 - current_price) / current_price) * 100, 2)
 
                     market_data_cache[symbol] = {
                         "symbol": symbol.replace("-USDT", ""),
@@ -187,7 +214,15 @@ def run_scanner_background():
                         "rsi_4h": rsi_4h,
                         "score": score,
                         "rating": rating,
-                        "action": action
+                        "action": action,
+                        "sl": sl,
+                        "tp1": tp1,
+                        "tp2": tp2,
+                        "sl_pct": sl_pct,
+                        "tp1_pct": tp1_pct,
+                        "tp2_pct": tp2_pct,
+                        "leverage": leverage,
+                        "recommended_tf": recommended_tf
                     }
 
                     if score >= current_threshold and action != "NEUTRAL" and telegram_token and channel_id:
@@ -197,23 +232,21 @@ def run_scanner_background():
                             
                             pair_name = symbol.replace("-USDT", " / USDT")
                             decimals = 5 if current_price < 1 else 2
-                            base_step = atr if atr > 0 else current_price * 0.015
-                            
-                            if action == "LONG":
-                                sl, tp1, tp2 = current_price - (base_step * 1.2), current_price + (base_step * 2.0), current_price + (base_step * 3.5)
-                                dir_text = "🟢 LONG (ACQUISTO)"
-                            else:
-                                sl, tp1, tp2 = current_price + (base_step * 1.2), current_price - (base_step * 2.0), current_price - (base_step * 3.5)
-                                dir_text = "🔴 SHORT (VENDITA)"
+                            dir_text = "🟢 LONG (ACQUISTO)" if action == "LONG" else "🔴 SHORT (VENDITA)"
 
                             message = (
-                                f"🔥 **SEGNALE AUTO-TRADING {BRAND_NAME}** 🔥\n\n"
+                                f"🔥 **SEGNALE VIP ALTA CERTEZZA ({BRAND_NAME})** 🔥\n\n"
                                 f"🔹 **Asset:** {pair_name}\n"
                                 f"📊 **Direzione:** {dir_text}\n"
-                                f"⭐ **Rating IA:** {rating} ({score}%)\n"
+                                f"⏳ **Timeframe Consigliato:** {recommended_tf}\n"
+                                f"⭐ **Confluenza IA:** {score}% ({rating})\n"
+                                f"⚙️ **Leva Consigliata:** {leverage}x\n"
                                 f"📈 **RSI 1H:** {rsi_1h} | **RSI 4H:** {rsi_4h}\n"
-                                f"⚡ **Prezzo Live:** ${current_price:.{decimals}f}\n\n"
-                                f"🛑 **SL:** ${sl:.{decimals}f}\n🎯 **TP1:** ${tp1:.{decimals}f}\n🎯 **TP2:** ${tp2:.{decimals}f}"
+                                f"⚡ **Prezzo Ingresso:** ${current_price:.{decimals}f}\n\n"
+                                f"🛑 **Stop Loss:** ${sl:.{decimals}f} ({sl_pct}%)\n"
+                                f"🎯 **Take Profit 1:** ${tp1:.{decimals}f} ({tp1_pct}%)\n"
+                                f"🎯 **Take Profit 2:** ${tp2:.{decimals}f} ({tp2_pct}%)\n\n"
+                                f"🚀 *Eseguito in automatico sui conti collegati!*"
                             )
                             requests.post(f"https://api.telegram.org/bot{telegram_token}/sendMessage", json={"chat_id": channel_id, "text": message, "parse_mode": "Markdown"})
                             time.sleep(1)
@@ -225,7 +258,6 @@ def run_scanner_background():
 scanner_thread = threading.Thread(target=run_scanner_background, daemon=True)
 scanner_thread.start()
 
-# Template base (NOTA: Senza il tag di refresh automatico globale)
 BASE_HTML = """
 <!DOCTYPE html>
 <html lang="it">
@@ -235,18 +267,26 @@ BASE_HTML = """
     <title>{{ brand_name }}</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background-color: #0b0e14; color: #d1d5db; font-family: sans-serif; padding: 20px; }
-        .header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 20px; border-bottom: 1px solid #1f2937; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;}
-        .logo { font-size: 20px; font-weight: bold; color: #38bdf8; }
-        .nav a { color: #38bdf8; text-decoration: none; margin-left: 15px; background: #111827; padding: 8px 12px; border-radius: 6px; border: 1px solid #374151;}
-        .panel { background: #111827; border: 1px solid #1f2937; border-radius: 10px; padding: 20px; margin-bottom: 25px; }
-        .form-group { margin-bottom: 15px; }
-        .form-group label { display: block; font-size: 13px; color: #9ca3af; margin-bottom: 5px; }
-        .form-group input, .form-group select { width: 100%; background: #0b0e14; border: 1px solid #374151; color: #fff; padding: 10px; border-radius: 6px; }
-        .btn { background: #2563eb; color: #fff; border: none; padding: 10px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; width: 100%; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
-        .card { background: #111827; border: 1px solid #1f2937; border-radius: 8px; padding: 12px; }
-        .flash { background: #1e3a8a; color: #93c5fd; padding: 10px; border-radius: 6px; margin-bottom: 15px; }
+        body { background-color: #0b0e14; color: #d1d5db; font-family: sans-serif; padding: 15px; }
+        .header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 15px; border-bottom: 1px solid #1f2937; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;}
+        .logo { font-size: 18px; font-weight: bold; color: #38bdf8; }
+        .nav a { color: #38bdf8; text-decoration: none; margin-left: 10px; background: #111827; padding: 6px 10px; border-radius: 6px; border: 1px solid #374151; font-size: 13px;}
+        .panel { background: #111827; border: 1px solid #1f2937; border-radius: 10px; padding: 15px; margin-bottom: 20px; }
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; font-size: 12px; color: #9ca3af; margin-bottom: 4px; }
+        .form-group input, .form-group select { width: 100%; background: #0b0e14; border: 1px solid #374151; color: #fff; padding: 8px; border-radius: 6px; font-size: 14px; }
+        .btn { background: #2563eb; color: #fff; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer; width: 100%; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+        .card { background: #111827; border: 1px solid #1f2937; border-radius: 8px; padding: 12px; position: relative; }
+        .flash { background: #1e3a8a; color: #93c5fd; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 13px; }
+        
+        .gauge-container { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid #1f2937; padding-bottom: 8px; }
+        .gauge { width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 11px; border: 3px solid #374151; }
+        .gauge-long { border-color: #10b981; color: #10b981; background: rgba(16,185,129,0.1); }
+        .gauge-short { border-color: #ef4444; color: #ef4444; background: rgba(239,68,68,0.1); }
+        .gauge-neutral { border-color: #6b7280; color: #9ca3af; background: rgba(107,114,128,0.1); }
+        
+        .signal-box { background: rgba(56, 189, 248, 0.05); border: 1px solid #38bdf8; border-radius: 8px; padding: 12px; margin-bottom: 20px; }
     </style>
     {refresh_tag}
 </head>
@@ -255,8 +295,8 @@ BASE_HTML = """
         <div class="logo">⚡ {{ brand_name }}</div>
         <div class="nav">
             {% if session.get('user_id') %}
-                <span>Utente: <strong>{{ session.get('username') }}</strong></span>
-                <a href="/settings">⚙️ Configura API</a>
+                <span><strong>{{ session.get('username') }}</strong></span>
+                <a href="/settings">⚙️ API</a>
                 <a href="/logout" style="color: #ef4444;">Esci</a>
             {% else %}
                 <a href="/login">Accedi</a>
@@ -274,35 +314,84 @@ BASE_HTML = """
 
 @app.route("/")
 def home():
-    content = """
-    <div class="panel" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
-        <div>
-            <h3 style="color: #fff; margin-bottom: 5px;">Pannello di Controllo Scanner</h3>
-            <p style="font-size: 13px; color: #9ca3af;">Soglia Confluenza: <strong style="color: #f97316;">{{ threshold }}%</strong></p>
+    # Filtriamo le monete che hanno raggiunto o superato la soglia per metterle in evidenza nella dashboard
+    active_signals = {s: d for s, d in market_data_cache.items() if d["score"] >= current_threshold and d["action"] != "NEUTRAL"}
+
+    signals_html = ""
+    if active_signals:
+        signals_html += """
+        <div class="signal-box">
+            <h3 style="color: #38bdf8; font-size: 15px; margin-bottom: 10px;">🔥 Segnali ad Alta Confluenza Attivi (Pronti per Auto-Trading)</h3>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+        """
+        for sym, dat in active_signals.items():
+            dir_color = "#10b981" if dat["action"] == "LONG" else "#ef4444"
+            signals_html += f"""
+                <div style="background: #111827; padding: 10px; border-radius: 6px; border-left: 4px solid {dir_color}; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                    <div>
+                        <strong style="color: #fff; font-size: 14px;">{dat['symbol']}</strong> - <span style="color: {dir_color}; font-weight: bold;">{dat['action']}</span> 
+                        <span style="font-size: 12px; color: #9ca3af;">(Score: {dat['score']}%)</span>
+                        <div style="font-size: 11px; color: #38bdf8; margin-top: 2px;">TF: {dat['recommended_tf']} | Leva: {dat['leverage']}x</div>
+                    </div>
+                    <div style="font-size: 11px; color: #d1d5db; text-align: right;">
+                        <div>Prezzo: <strong>${dat['price']:.5f} if dat['price'] < 1 else dat['price']:.2f}</strong></div>
+                        <div>SL: <span style="color: #ef4444;">${dat['sl']:.4f} ({dat['sl_pct']}%)</span> | TP1: <span style="color: #10b981;">${dat['tp1']:.4f} (+{dat['tp1_pct']}%)</span></div>
+                    </div>
+                </div>
+            """
+        signals_html += """
+            </div>
         </div>
-        <form action="/set-threshold" method="POST" style="display: flex; gap: 10px; align-items: center;">
-            <input type="number" name="threshold" min="40" max="99" value="{{ threshold }}" style="width: 70px; text-align: center; background: #0b0e14; border: 1px solid #374151; color: #fff; padding: 8px; border-radius: 6px;">
-            <button type="submit" class="btn" style="width: auto;">Aggiorna</button>
+        """
+
+    content = f"""
+    <div class="panel" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div>
+            <h3 style="color: #fff; font-size: 15px; margin-bottom: 3px;">Dashboard & Scanner IA</h3>
+            <p style="font-size: 12px; color: #9ca3af;">Soglia Minima Segnale: <strong style="color: #f97316;">{{ threshold }}%</strong></p>
+        </div>
+        <form action="/set-threshold" method="POST" style="display: flex; gap: 8px; align-items: center;">
+            <input type="number" name="threshold" min="40" max="99" value="{{ threshold }}" style="width: 60px; text-align: center; background: #0b0e14; border: 1px solid #374151; color: #fff; padding: 6px; border-radius: 6px;">
+            <button type="submit" class="btn" style="width: auto; padding: 6px 12px;">Imposta</button>
         </form>
     </div>
-    <h3 style="margin-bottom: 15px; color: #fff; font-size: 16px;">Crypto Assets Live</h3>
+    
+    {signals_html}
+    
+    <h3 style="margin-bottom: 12px; color: #fff; font-size: 15px;">Monitoraggio Mercato Live & Tachimetri</h3>
     <div class="grid">
         {% for symbol, data in market_data.items() %}
         <div class="card">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                <span style="font-weight: bold; color: #fff;">{{ data.symbol }}</span>
-                <span style="font-size: 11px; font-weight: bold; padding: 3px 6px; border-radius: 4px; {% if data.action == 'LONG' %}background: rgba(16,185,129,0.2); color: #10b981;{% elif data.action == 'SHORT' %}background: rgba(239,68,68,0.2); color: #ef4444;{% else %}background: rgba(107,114,128,0.2); color: #9ca3af;{% endif %}">{{ data.score }}% {{ data.rating }}</span>
+            <div class="gauge-container">
+                <div>
+                    <span style="font-weight: bold; color: #fff; font-size: 14px;">{{ data.symbol }}</span>
+                    <div style="font-size: 11px; color: #38bdf8;">Leva: <strong>{{ data.leverage }}x</strong> | TF: <strong style="color: #f97316;">{{ data.recommended_tf }}</strong></div>
+                </div>
+                <div class="gauge {% if data.action == 'LONG' %}gauge-long{% elif data.action == 'SHORT' %}gauge-short{% else %}gauge-neutral{% endif %}">
+                    {{ data.score }}%
+                </div>
             </div>
-            <div style="font-size: 12px; color: #9ca3af; display: flex; flex-direction: column; gap: 4px;">
-                <div style="display: flex; justify-content: space-between;"><span>Prezzo:</span><strong style="color: #fff;">${{ "%.4f"|format(data.price) if data.price < 1 else "%.2f"|format(data.price) }}</strong></div>
-                <div style="display: flex; justify-content: space-between;"><span>RSI 1H:</span><strong style="color: #38bdf8;">{{ data.rsi_1h }}</strong></div>
-                <div style="display: flex; justify-content: space-between;"><span>RSI 4H:</span><strong style="color: #f97316;">{{ data.rsi_4h }}</strong></div>
+            
+            <div style="font-size: 11px; color: #9ca3af; display: flex; flex-direction: column; gap: 4px;">
+                <div style="display: flex; justify-content: space-between;"><span>Prezzo Live:</span><strong style="color: #fff;">${{ "%.4f"|format(data.price) if data.price < 1 else "%.2f"|format(data.price) }}</strong></div>
+                <div style="display: flex; justify-content: space-between;"><span>RSI (1H / 4H):</span><span><strong style="color: #38bdf8;">{{ data.rsi_1h }}</strong> / <strong style="color: #f97316;">{{ data.rsi_4h }}</strong></span></div>
+                <div style="display: flex; justify-content: space-between; border-top: 1px dashed #1f2937; padding-top: 4px; margin-top: 2px;">
+                    <span style="color: #ef4444;">Stop Loss:</span>
+                    <strong style="color: #ef4444;">${{ "%.4f"|format(data.sl) if data.price < 1 else "%.2f"|format(data.sl) }} ({{ data.sl_pct }}%)</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: #10b981;">Take Profit 1:</span>
+                    <strong style="color: #10b981;">${{ "%.4f"|format(data.tp1) if data.price < 1 else "%.2f"|format(data.tp1) }} (+{{ data.tp1_pct }}%)</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: #059669;">Take Profit 2:</span>
+                    <strong style="color: #059669;">${{ "%.4f"|format(data.tp2) if data.price < 1 else "%.2f"|format(data.tp2) }} (+{{ data.tp2_pct }}%)</strong>
+                </div>
             </div>
         </div>
         {% endfor %}
     </div>
     """
-    # Mettiamo un refresh ogni 15 secondi solo sulla home (così non dà fastidio e si aggiorna con calma)
     refresh_tag = '<meta http-equiv="refresh" content="15">'
     html = BASE_HTML.replace("{refresh_tag}", refresh_tag).replace("{{ content | safe }}", content)
     return render_template_string(html, brand_name=BRAND_NAME, threshold=current_threshold, market_data=market_data_cache)
@@ -334,16 +423,15 @@ def register():
         except Exception:
             flash("Username già esistente.")
     content = """
-    <div class="panel" style="max-width: 400px; margin: 40px auto;">
-        <h3 style="color: #fff; margin-bottom: 20px; text-align: center;">Registrazione</h3>
+    <div class="panel" style="max-width: 380px; margin: 30px auto;">
+        <h3 style="color: #fff; margin-bottom: 15px; text-align: center;">Registrazione VIP</h3>
         <form method="POST">
             <div class="form-group"><label>Username</label><input type="text" name="username" required></div>
             <div class="form-group"><label>Password</label><input type="password" name="password" required></div>
-            <button type="submit" class="btn">Registrati</button>
+            <button type="submit" class="btn" style="margin-top: 10px;">Registrati</button>
         </form>
     </div>
     """
-    # Nessun refresh sulle pagine di autenticazione/impostazioni!
     html = BASE_HTML.replace("{refresh_tag}", "").replace("{{ content | safe }}", content)
     return render_template_string(html, brand_name=BRAND_NAME)
 
@@ -360,16 +448,16 @@ def login():
         if user and check_password_hash(user[1], password):
             session["user_id"] = user[0]
             session["username"] = username
-            flash("Login effettuato!")
+            flash("Login effettuato con successo!")
             return redirect(url_for("home"))
         flash("Credenziali non valide.")
     content = """
-    <div class="panel" style="max-width: 400px; margin: 40px auto;">
-        <h3 style="color: #fff; margin-bottom: 20px; text-align: center;">Login</h3>
+    <div class="panel" style="max-width: 380px; margin: 30px auto;">
+        <h3 style="color: #fff; margin-bottom: 15px; text-align: center;">Accesso Piattaforma</h3>
         <form method="POST">
             <div class="form-group"><label>Username</label><input type="text" name="username" required></div>
             <div class="form-group"><label>Password</label><input type="password" name="password" required></div>
-            <button type="submit" class="btn">Accedi</button>
+            <button type="submit" class="btn" style="margin-top: 10px;">Accedi</button>
         </form>
     </div>
     """
@@ -394,7 +482,7 @@ def settings():
         auto_trading = int(request.form.get("auto_trading", 0))
         cursor.execute("UPDATE users SET bingx_api_key = ?, bingx_secret_key = ?, auto_trading = ? WHERE id = ?", (api_key, secret_key, auto_trading, session["user_id"]))
         conn.commit()
-        flash("Impostazioni salvate con successo!")
+        flash("Configurazione API salvata!")
     cursor.execute("SELECT bingx_api_key, bingx_secret_key, auto_trading FROM users WHERE id = ?", (session["user_id"],))
     u_data = cursor.fetchone()
     conn.close()
@@ -404,19 +492,19 @@ def settings():
     u_auto = u_data[2]
     
     content = f"""
-    <div class="panel" style="max-width: 500px; margin: 20px auto;">
-        <h3 style="color: #fff; margin-bottom: 15px;">Configurazione API BingX & Auto-Trading</h3>
-        <p style="font-size: 13px; color: #9ca3af; margin-bottom: 20px;">Inserisci le tue chiavi API di BingX (attiva solo Futures, no prelievi).</p>
+    <div class="panel" style="max-width: 450px; margin: 20px auto;">
+        <h3 style="color: #fff; margin-bottom: 12px;">Gestione API BingX Personali</h3>
+        <p style="font-size: 12px; color: #9ca3af; margin-bottom: 15px;">Inserisci le chiavi API Futures (senza permessi di prelievo) per l'auto-trading.</p>
         <form method="POST">
             <div class="form-group"><label>API Key</label><input type="text" name="api_key" value="{u_api}"></div>
             <div class="form-group"><label>Secret Key</label><input type="password" name="secret_key" value="{u_sec}"></div>
             <div class="form-group"><label>Stato Auto-Trading</label>
                 <select name="auto_trading">
                     <option value="0" {"selected" if u_auto == 0 else ""}>Disattivato</option>
-                    <option value="1" {"selected" if u_auto == 1 else ""}>Attivato (Automatico)</option>
+                    <option value="1" {"selected" if u_auto == 1 else ""}>Attivato (Esecuzione Automatica)</option>
                 </select>
             </div>
-            <button type="submit" class="btn" style="background: #059669; margin-top: 10px;">Salva Configurazione</button>
+            <button type="submit" class="btn" style="background: #059669; margin-top: 10px;">Salva Chiavi</button>
         </form>
     </div>
     """
