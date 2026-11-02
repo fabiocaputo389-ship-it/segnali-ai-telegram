@@ -6,7 +6,6 @@ from flask import Flask, request, redirect, render_template_string
 
 app = Flask(__name__)
 
-# Lista estesa di tutte le principali crypto monitorate dallo scanner
 SYMBOLS = [
     "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", 
     "ADAUSDT", "AVAXUSDT", "LINKUSDT", "DOTUSDT", "NEARUSDT", 
@@ -18,14 +17,21 @@ SYMBOLS = [
     "ZECUSDT", "TRXUSDT"
 ]
 
-# Variabile globale per la soglia (modificabile live dalla dashboard)
 current_threshold = 75
 
-# Memoria in tempo reale dei dati calcolati per la grafica
-market_data_cache = {}
+# Inizializziamo subito la cache con dati fittizi per evitare schermate vuote all'avvio
+market_data_cache = {
+    symbol: {
+        "symbol": symbol.replace("USDT", ""),
+        "pair": symbol.replace("USDT", "/USDT"),
+        "price": 0.0,
+        "rsi": 50.0,
+        "score": 50,
+        "rating": "LOADING..."
+    } for symbol in SYMBOLS
+}
 
 def calculate_rsi(prices, period=14):
-    """Calcola l'RSI reale basato sullo storico dei prezzi"""
     if len(prices) < period + 1:
         return 50.0
     gains = []
@@ -49,11 +55,10 @@ def calculate_rsi(prices, period=14):
     return round(rsi, 2)
 
 def run_scanner_background():
-    """Scanner in background su tutti gli asset di Binance"""
     telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     channel_id = os.environ.get("CHANNEL_ID")
     
-    print("Scanner multi-asset AI avviato...")
+    print("Scanner multi-asset AI avviato con cache immediata...")
 
     price_history = {symbol: [] for symbol in SYMBOLS}
 
@@ -62,7 +67,7 @@ def run_scanner_background():
         for symbol in SYMBOLS:
             try:
                 klines_url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=1h&limit=30"
-                response = requests.get(klines_url, timeout=10)
+                response = requests.get(klines_url, timeout=5)
                 candles = response.json()
                 
                 if isinstance(candles, list) and len(candles) > 0:
@@ -75,7 +80,6 @@ def run_scanner_background():
                     score = int(min(99, max(40, 50 + abs(50 - rsi) * 1.2)))
                     rating = "STRONG BUY" if score >= 85 else ("BUY" if score >= 65 else "NEUTRAL")
                     
-                    # Salva i dati in cache per aggiornare la dashboard HTML
                     market_data_cache[symbol] = {
                         "symbol": symbol.replace("USDT", ""),
                         "pair": symbol.replace("USDT", "/USDT"),
@@ -85,7 +89,6 @@ def run_scanner_background():
                         "rating": rating
                     }
                     
-                    # Controlla la soglia per l'invio immediato su Telegram
                     if score >= current_threshold and telegram_token and channel_id:
                         pair_name = symbol.replace("USDT", " / USDT")
                         decimals = 5 if current_price < 1 else 2
@@ -117,14 +120,13 @@ def run_scanner_background():
             except Exception as e:
                 print(f"Errore nello scanner per {symbol}: {e}")
                 
-            time.sleep(1.2)
+            time.sleep(0.5)
 
-        time.sleep(30)
+        time.sleep(15)
 
 scanner_thread = threading.Thread(target=run_scanner_background, daemon=True)
 scanner_thread.start()
 
-# Interfaccia Grafica Completa (Ocean's Future Scanner Theme)
 FULL_DASHBOARD_HTML = """
 <!DOCTYPE html>
 <html lang="it">
@@ -136,57 +138,51 @@ FULL_DASHBOARD_HTML = """
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { background-color: #0b0e14; color: #d1d5db; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; }
         .header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 20px; border-bottom: 1px solid #1f2937; margin-bottom: 20px; }
-        .logo { font-size: 22px; font-weight: bold; color: #38bdf8; text-transform: uppercase; letter-spacing: 1px; }
+        .logo { font-size: 20px; font-weight: bold; color: #38bdf8; text-transform: uppercase; letter-spacing: 1px; }
         .status-badge { background: #064e3b; color: #34d399; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
         .status-dot { width: 8px; height: 8px; background: #34d399; border-radius: 50%; }
         
-        /* Box Controllo Soglia */
-        .control-panel { background: #111827; border: 1px solid #1f2937; border-radius: 10px; padding: 15px 25px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
-        .control-title { font-size: 15px; color: #9ca3af; }
-        .control-title strong { color: #f97316; font-size: 18px; }
+        .control-panel { background: #111827; border: 1px solid #1f2937; border-radius: 10px; padding: 15px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
+        .control-title { font-size: 14px; color: #9ca3af; }
+        .control-title strong { color: #f97316; font-size: 16px; }
         .control-form { display: flex; align-items: center; gap: 10px; }
-        .control-form input { background: #0b0e14; border: 1px solid #374151; color: #fff; padding: 8px 12px; border-radius: 6px; width: 80px; text-align: center; font-size: 16px; font-weight: bold; }
-        .control-form button { background: #2563eb; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: 0.2s; }
-        .control-form button:hover { background: #1d4ed8; }
-        .btn-test { background: #374151; color: #38bdf8; text-decoration: none; padding: 8px 14px; border-radius: 6px; font-size: 14px; font-weight: 500; }
+        .control-form input { background: #0b0e14; border: 1px solid #374151; color: #fff; padding: 8px; border-radius: 6px; width: 70px; text-align: center; font-size: 16px; font-weight: bold; }
+        .control-form button { background: #2563eb; color: #fff; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer; }
+        .btn-test { background: #374151; color: #38bdf8; text-decoration: none; padding: 8px 12px; border-radius: 6px; font-size: 13px; font-weight: 500; }
         
-        /* Table Grid Asset */
-        .grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 15px; }
-        .card { background: #111827; border: 1px solid #1f2937; border-radius: 8px; padding: 15px; transition: transform 0.2s; }
-        .card:hover { border-color: #38bdf8; transform: translateY(-2px); }
-        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        .asset-symbol { font-size: 18px; font-weight: bold; color: #fff; }
-        .badge-score { padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; }
+        .grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+        .card { background: #111827; border: 1px solid #1f2937; border-radius: 8px; padding: 12px; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .asset-symbol { font-size: 16px; font-weight: bold; color: #fff; }
+        .badge-score { padding: 3px 6px; border-radius: 4px; font-weight: bold; font-size: 11px; }
         .score-high { background: rgba(16, 185, 129, 0.2); color: #10b981; }
         .score-mid { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
         
-        .card-body { display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: #9ca3af; }
+        .card-body { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #9ca3af; }
         .data-row { display: flex; justify-content: space-between; }
         .price-val { color: #fff; font-weight: 600; }
         .rsi-val { color: #38bdf8; font-weight: 600; }
     </style>
-    <meta http-equiv="refresh" content="10">
+    <meta http-equiv="refresh" content="5">
 </head>
 <body>
     <div class="header">
-        <div class="logo">🌊 Ocean's Future Scanner</div>
-        <div class="status-badge"><div class="status-dot"></div> SCANNER ONLINE</div>
+        <div class="logo">🌊 Ocean Scanner</div>
+        <div class="status-badge"><div class="status-dot"></div> ONLINE</div>
     </div>
 
-    <!-- Pannello Controllo Soglia Telegram -->
     <div class="control-panel">
         <div class="control-title">
-            Soglia Confluenza Telegram Attuale: <strong>{{ threshold }}%</strong>
+            Soglia Telegram: <strong>{{ threshold }}%</strong>
         </div>
         <form class="control-form" action="/set-threshold" method="POST">
             <input type="number" name="threshold" min="40" max="99" value="{{ threshold }}" required>
-            <button type="submit">Imposta Soglia</button>
+            <button type="submit">Aggiorna</button>
         </form>
         <a class="btn-test" href="/test-telegram">🔔 Test Telegram</a>
     </div>
 
-    <!-- Griglia Crypto Assets -->
-    <h3 style="margin-bottom: 15px; color: #fff;">Top Crypto Assets Live (Binance API)</h3>
+    <h3 style="margin-bottom: 15px; color: #fff; font-size: 16px;">Crypto Assets Live</h3>
     <div class="grid-container">
         {% for symbol, data in market_data.items() %}
         <div class="card">
@@ -198,11 +194,11 @@ FULL_DASHBOARD_HTML = """
             </div>
             <div class="card-body">
                 <div class="data-row">
-                    <span>Prezzo Live:</span>
+                    <span>Prezzo:</span>
                     <span class="price-val">${{ "%.4f"|format(data.price) if data.price < 1 else "%.2f"|format(data.price) }}</span>
                 </div>
                 <div class="data-row">
-                    <span>RSI (14):</span>
+                    <span>RSI:</span>
                     <span class="rsi-val">{{ data.rsi }}</span>
                 </div>
             </div>
@@ -238,7 +234,7 @@ def test_telegram():
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {
         "chat_id": chat_id,
-        "text": f"🚨 **TEST OCEAN SCANNER** 🚨\n\nSoglia attuale notifiche impostata a: *{current_threshold}%*",
+        "text": f"🚨 **TEST OCEAN SCANNER** 🚨\n\nSoglia attuale impostata a: *{current_threshold}%*",
         "parse_mode": "Markdown"
     }
     response = requests.post(url, json=payload)
