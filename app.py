@@ -1,4 +1,4 @@
- import os
+import os
 import time
 import threading
 import requests
@@ -60,11 +60,11 @@ def run_scanner_background():
     telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     channel_id = os.environ.get("CHANNEL_ID")
     
-    print(f"Scanner {BRAND_NAME} avviato con logica Long/Short professionale...")
+    print(f"Scanner {BRAND_NAME} avviato correttamente...")
     price_history = {symbol: [] for symbol in SYMBOLS}
     
     last_signal_time = {symbol: 0 for symbol in SYMBOLS}
-    COOLDOWN_SECONDS = 1 * 3600  # 1 ora di cooldown
+    COOLDOWN_SECONDS = 1 * 3600
 
     while True:
         global current_threshold, market_data_cache
@@ -84,7 +84,6 @@ def run_scanner_background():
                         price_history[symbol] = closes
                         rsi = calculate_rsi(price_history[symbol])
                         
-                        # Logica Professionale: Long se RSI basso, Short se RSI alto
                         if rsi <= 35:
                             score = int(min(99, max(40, 50 + (35 - rsi) * 1.5)))
                             rating = "STRONG BUY" if rsi <= 25 else "BUY"
@@ -108,7 +107,6 @@ def run_scanner_background():
                             "action": action
                         }
                         
-                        # Invio Telegram se supera la soglia e il cooldown
                         if score >= current_threshold and action != "NEUTRAL" and telegram_token and channel_id:
                             if current_time - last_signal_time[symbol] > COOLDOWN_SECONDS:
                                 last_signal_time[symbol] = current_time
@@ -116,15 +114,14 @@ def run_scanner_background():
                                 pair_name = symbol.replace("USDT", " / USDT")
                                 decimals = 5 if current_price < 1 else 2
                                 
-                                # Calcolo SL e TP reali in base alla direzione
                                 if action == "LONG":
                                     sl = current_price * (1 - 0.022)
                                     tp1 = current_price * (1 + 0.035)
                                     tp2 = current_price * (1 + 0.070)
                                     dir_text = "🟢 LONG (ACQUISTO)"
-                                else:  # SHORT
-                                    sl = current_price * (1 + 0.022)  # Per lo short lo stop loss è sopra
-                                    tp1 = current_price * (1 - 0.035)  # I take profit sono sotto
+                                else:
+                                    sl = current_price * (1 + 0.022)
+                                    tp1 = current_price * (1 - 0.035)
                                     tp2 = current_price * (1 - 0.070)
                                     dir_text = "🔴 SHORT (VENDITA)"
 
