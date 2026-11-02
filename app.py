@@ -8,23 +8,24 @@ app = Flask(__name__)
 
 BRAND_NAME = "SCANNER TRADING VIP"
 
+# Simboli supportati da BingX (formato standard es. BTC-USDT)
 SYMBOLS = [
-    "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", 
-    "ADAUSDT", "AVAXUSDT", "LINKUSDT", "DOTUSDT", "NEARUSDT", 
-    "UNIUSDT", "RENDERUSDT", "SUIUSDT", "ARBUSDT", "OPUSDT", 
-    "IMXUSDT", "ICPUSDT", "APTUSDT", "FILUSDT", "PEPEUSDT", 
-    "DOGEUSDT", "SHIBUSDT", "ATOMUSDT", "XLMUSDT", "ALGOUSDT", 
-    "FETUSDT", "INJUSDT", "LTCUSDT", "BCHUSDT", "ETCUSDT", 
-    "SANDUSDT", "MANAUSDT", "AAVEUSDT", "FTMUSDT", "RUNEUSDT", 
-    "ZECUSDT", "TRXUSDT"
+    "BTC-USDT", "ETH-USDT", "SOL-USDT", "BNB-USDT", "XRP-USDT", 
+    "ADA-USDT", "AVAX-USDT", "LINK-USDT", "DOT-USDT", "NEAR-USDT", 
+    "UNI-USDT", "RENDER-USDT", "SUI-USDT", "ARB-USDT", "OP-USDT", 
+    "IMX-USDT", "ICP-USDT", "APT-USDT", "FIL-USDT", "PEPE-USDT", 
+    "DOGE-USDT", "SHIB-USDT", "ATOM-USDT", "XLM-USDT", "ALGO-USDT", 
+    "FET-USDT", "INJ-USDT", "LTC-USDT", "BCH-USDT", "ETC-USDT", 
+    "SAND-USDT", "MANA-USDT", "AAVE-USDT", "FTM-USDT", "RUNE-USDT", 
+    "ZEC-USDT", "TRX-USDT"
 ]
 
 current_threshold = 75
 
 market_data_cache = {
     symbol: {
-        "symbol": symbol.replace("USDT", ""),
-        "pair": symbol.replace("USDT", "/USDT"),
+        "symbol": symbol.replace("-USDT", ""),
+        "pair": symbol.replace("-USDT", "/USDT"),
         "price": 100.0,
         "rsi": 50.0,
         "score": 50,
@@ -58,12 +59,12 @@ def calculate_rsi(prices, period=14):
 
 def calculate_atr(candles, period=14):
     if len(candles) < period + 1:
-        return 0.01
+        return 0.0
     trs = []
     for i in range(1, len(candles)):
-        high = float(candles[i][2])
-        low = float(candles[i][3])
-        prev_close = float(candles[i-1][4])
+        high = float(candles[i]['high'])
+        low = float(candles[i]['low'])
+        prev_close = float(candles[i-1]['close'])
         tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
         trs.append(tr)
     atr = sum(trs[-period:]) / period
@@ -73,7 +74,7 @@ def run_scanner_background():
     telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     channel_id = os.environ.get("CHANNEL_ID")
     
-    print(f"Scanner {BRAND_NAME} avviato con logica ATR dinamica avanzata...")
+    print(f"Scanner {BRAND_NAME} collegato alle API live di BingX...")
     price_history = {symbol: [] for symbol in SYMBOLS}
     
     last_signal_time = {symbol: 0 for symbol in SYMBOLS}
@@ -85,13 +86,18 @@ def run_scanner_background():
         
         for symbol in SYMBOLS:
             try:
-                klines_url = f"https://api.binance.us/api/v3/klines?symbol={symbol}&interval=1h&limit=30"
+                # Endpoint API pubblico di BingX per i klines (candele a 1 ora)
+                klines_url = f"https://open-api.bingx.com/openApi/swap/v2/quote/klines?symbol={symbol}&interval=1h&limit=30"
                 response = requests.get(klines_url, timeout=5)
                 
                 if response.status_code == 200:
-                    candles = response.json()
+                    data_json = response.json()
+                    candles = data_json.get("data", [])
                     if isinstance(candles, list) and len(candles) > 0:
-                        closes = [float(candle[4]) for candle in candles]
+                        # BingX restituisce i dati in ordine cronologico inverso o diretto, ordiniamo per timestamp se necessario
+                        candles = sorted(candles, key=lambda x: int(x['time']))
+                        
+                        closes = [float(candle['close']) for candle in candles]
                         current_price = closes[-1]
                         
                         price_history[symbol] = closes
@@ -112,8 +118,8 @@ def run_scanner_background():
                             action = "NEUTRAL"
                         
                         market_data_cache[symbol] = {
-                            "symbol": symbol.replace("USDT", ""),
-                            "pair": symbol.replace("USDT", "/USDT"),
+                            "symbol": symbol.replace("-USDT", ""),
+                            "pair": symbol.replace("-USDT", "/USDT"),
                             "price": current_price,
                             "rsi": rsi,
                             "score": score,
@@ -125,14 +131,18 @@ def run_scanner_background():
                             if current_time - last_signal_time[symbol] > COOLDOWN_SECONDS:
                                 last_signal_time[symbol] = current_time
                                 
-                                pair_name = symbol.replace("USDT", " / USDT")
+                                pair_name = symbol.replace("-USDT", " / USDT")
                                 decimals = 5 if current_price < 1 else 2
                                 
-                                # Calcolo SL e TP dinamici basati sulla volatilità reale (ATR)
+                                if atr <= 0:
+                                    base_step = current_price * 0.015
+                                else:
+                                    base_step = atr
+                                
                                 if action == "LONG":
-                                    sl = current_price - (atr * 1.5)
-                                    tp1 = current_price + (atr * 2.5)
-                                    tp2 = current_price + (atr * 4.5)
+                                    sl = current_price - (base_step * 1.2)
+                                    tp1 = current_price + (base_step * 2.0)
+                                    tp2 = current_price + (base_step * 3.5)
                                     
                                     sl_pct = ((sl - current_price) / current_price) * 100
                                     tp1_pct = ((tp1 - current_price) / current_price) * 100
@@ -143,16 +153,16 @@ def run_scanner_background():
                                     tp1_text = f"${tp1:.{decimals}f} (+{tp1_pct:.2f}%)"
                                     tp2_text = f"${tp2:.{decimals}f} (+{tp2_pct:.2f}%)"
                                 else:
-                                    sl = current_price + (atr * 1.5)
-                                    tp1 = current_price - (atr * 2.5)
-                                    tp2 = current_price - (atr * 4.5)
+                                    sl = current_price + (base_step * 1.2)
+                                    tp1 = current_price - (base_step * 2.0)
+                                    tp2 = current_price - (base_step * 3.5)
                                     
                                     sl_pct = ((sl - current_price) / current_price) * 100
                                     tp1_pct = ((current_price - tp1) / current_price) * 100
                                     tp2_pct = ((current_price - tp2) / current_price) * 100
                                     
                                     dir_text = "🔴 SHORT (VENDITA)"
-                                    sl_text = f"${sl:.{decimals}f} (+{sl_pct:.2f}%)"
+                                    sl_text = f"${sl:.{decimals}f} (+{abs(sl_pct):.2f}%)"
                                     tp1_text = f"${tp1:.{decimals}f} (-{tp1_pct:.2f}%)"
                                     tp2_text = f"${tp2:.{decimals}f} (-{tp2_pct:.2f}%)"
 
@@ -163,7 +173,7 @@ def run_scanner_background():
                                     f"📊 **Direzione:** {dir_text}\n"
                                     f"⭐ **Rating IA:** {rating} (Confluenza: {score}%)\n"
                                     f"📈 **RSI (14):** {rsi}\n"
-                                    f"⚡ **Prezzo Live:** ${current_price:.{decimals}f}\n\n"
+                                    f"⚡ **Prezzo Live (BingX):** ${current_price:.{decimals}f}\n\n"
                                     f"🛑 **Stop Loss:** {sl_text}\n"
                                     f"🎯 **Take Profit 1:** {tp1_text}\n"
                                     f"🎯 **Take Profit 2:** {tp2_text}"
@@ -177,7 +187,7 @@ def run_scanner_background():
                                 requests.post(telegram_url, json=payload)
                                 time.sleep(1)
             except Exception as e:
-                print(f"Errore nello scanner per {symbol}: {e}")
+                print(f"Errore nello scanner BingX per {symbol}: {e}")
                 
             time.sleep(0.3)
 
@@ -227,7 +237,7 @@ FULL_DASHBOARD_HTML = """
 </head>
 <body>
     <div class="header">
-        <div class="logo">⚡ {{ brand_name }}</div>
+        <div class="logo">⚡ {{ brand_name }} (BingX Live)</div>
         <div class="status-badge"><div class="status-dot"></div> ONLINE</div>
     </div>
 
@@ -242,7 +252,7 @@ FULL_DASHBOARD_HTML = """
         <a class="btn-test" href="/test-telegram">🔔 Test Telegram</a>
     </div>
 
-    <h3 style="margin-bottom: 15px; color: #fff; font-size: 16px;">Crypto Assets Live</h3>
+    <h3 style="margin-bottom: 15px; color: #fff; font-size: 16px;">Crypto Assets Live (BingX)</h3>
     <div class="grid-container">
         {% for symbol, data in market_data.items() %}
         <div class="card">
@@ -294,7 +304,7 @@ def test_telegram():
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {
         "chat_id": chat_id,
-        "text": f"🚨 **TEST {BRAND_NAME}** 🚨\n\nSoglia attuale impostata a: *{current_threshold}%*",
+        "text": f"🚨 **TEST {BRAND_NAME} (BingX)** 🚨\n\nSoglia attuale impostata a: *{current_threshold}%*",
         "parse_mode": "Markdown"
     }
     response = requests.post(url, json=payload)
@@ -303,4 +313,3 @@ def test_telegram():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
-    
