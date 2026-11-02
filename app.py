@@ -7,8 +7,8 @@ from flask import Flask, request, redirect, render_template_string
 app = Flask(__name__)
 
 BRAND_NAME = "SCANNER TRADING VIP"
+TIMEFRAMES = ["1h", "4h"]
 
-# Simboli supportati da BingX (formato standard es. BTC-USDT)
 SYMBOLS = [
     "BTC-USDT", "ETH-USDT", "SOL-USDT", "BNB-USDT", "XRP-USDT", 
     "ADA-USDT", "AVAX-USDT", "LINK-USDT", "DOT-USDT", "NEAR-USDT", 
@@ -20,14 +20,15 @@ SYMBOLS = [
     "ZEC-USDT", "TRX-USDT"
 ]
 
-current_threshold = 75
+current_threshold = 80  # Soglia alzata leggermente per sfruttare al massimo la potenza multi-tf
 
 market_data_cache = {
     symbol: {
         "symbol": symbol.replace("-USDT", ""),
         "pair": symbol.replace("-USDT", "/USDT"),
         "price": 100.0,
-        "rsi": 50.0,
+        "rsi_1h": 50.0,
+        "rsi_4h": 50.0,
         "score": 50,
         "rating": "NEUTRAL",
         "action": "NEUTRAL"
@@ -70,13 +71,23 @@ def calculate_atr(candles, period=14):
     atr = sum(trs[-period:]) / period
     return atr
 
+def fetch_bingx_klines(symbol, interval):
+    try:
+        url = f"https://open-api.bingx.com/openApi/swap/v2/quote/klines?symbol={symbol}&interval={interval}&limit=30"
+        res = requests.get(url, timeout=5)
+        if res.status_code == 200:
+            data = res.json().get("data", [])
+            if isinstance(data, list) and len(data) > 0:
+                return sorted(data, key=lambda x: int(x['time']))
+    except Exception as e:
+        print(f"Errore API BingX {symbol} [{interval}]: {e}")
+    return []
+
 def run_scanner_background():
     telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     channel_id = os.environ.get("CHANNEL_ID")
     
-    print(f"Scanner {BRAND_NAME} collegato alle API live di BingX...")
-    price_history = {symbol: [] for symbol in SYMBOLS}
-    
+    print(f"Scanner {BRAND_NAME} avviato con motore Multi-Timeframe (1H + 4H)...")
     last_signal_time = {symbol: 0 for symbol in SYMBOLS}
     COOLDOWN_SECONDS = 1 * 3600
 
@@ -86,108 +97,111 @@ def run_scanner_background():
         
         for symbol in SYMBOLS:
             try:
-                # Endpoint API pubblico di BingX per i klines (candele a 1 ora)
-                klines_url = f"https://open-api.bingx.com/openApi/swap/v2/quote/klines?symbol={symbol}&interval=1h&limit=30"
-                response = requests.get(klines_url, timeout=5)
+                # Scarichiamo i dati per 1H e 4H da BingX
+                candles_1h = fetch_bingx_klines(symbol, "1h")
+                candles_4h = fetch_bingx_klines(symbol, "4h")
                 
-                if response.status_code == 200:
-                    data_json = response.json()
-                    candles = data_json.get("data", [])
-                    if isinstance(candles, list) and len(candles) > 0:
-                        # BingX restituisce i dati in ordine cronologico inverso o diretto, ordiniamo per timestamp se necessario
-                        candles = sorted(candles, key=lambda x: int(x['time']))
-                        
-                        closes = [float(candle['close']) for candle in candles]
-                        current_price = closes[-1]
-                        
-                        price_history[symbol] = closes
-                        rsi = calculate_rsi(price_history[symbol])
-                        atr = calculate_atr(candles)
-                        
-                        if rsi <= 35:
-                            score = int(min(99, max(40, 50 + (35 - rsi) * 1.5)))
-                            rating = "STRONG BUY" if rsi <= 25 else "BUY"
-                            action = "LONG"
-                        elif rsi >= 65:
-                            score = int(min(99, max(40, 50 + (rsi - 65) * 1.5)))
-                            rating = "STRONG SELL" if rsi >= 75 else "SELL"
-                            action = "SHORT"
-                        else:
-                            score = 50
-                            rating = "NEUTRAL"
-                            action = "NEUTRAL"
-                        
-                        market_data_cache[symbol] = {
-                            "symbol": symbol.replace("-USDT", ""),
-                            "pair": symbol.replace("-USDT", "/USDT"),
-                            "price": current_price,
-                            "rsi": rsi,
-                            "score": score,
-                            "rating": rating,
-                            "action": action
-                        }
-                        
-                        if score >= current_threshold and action != "NEUTRAL" and telegram_token and channel_id:
-                            if current_time - last_signal_time[symbol] > COOLDOWN_SECONDS:
-                                last_signal_time[symbol] = current_time
+                if candles_1h and candles_4h:
+                    closes_1h = [float(c['close']) for c in candles_1h]
+                    closes_4h = [float(c['close']) for c in candles_4h]
+                    
+                    current_price = closes_1h[-1]
+                    rsi_1h = calculate_rsi(closes_1h)
+                    rsi_4h = calculate_rsi(closes_4h)
+                    atr = calculate_atr(candles_1h)
+                    
+                    # Logica Multi-Timeframe avanzata di confluenza
+                    action = "NEUTRAL"
+                    score = 50
+                    rating = "NEUTRAL"
+                    
+                    # Condizione LONG: 1H in ipervenduto e 4H favorevole (RSI 4H < 50)
+                    if rsi_1h <= 35 and rsi_4h <= 55:
+                        action = "LONG"
+                        base_score = int(50 + (35 - rsi_1h) * 1.2 + (55 - rsi_4h) * 0.5)
+                        score = min(99, max(60, base_score))
+                        rating = "STRONG BUY" if rsi_1h <= 25 and rsi_4h <= 45 else "BUY"
+                    
+                    # Condizione SHORT: 1H in ipercomprato e 4H favorevole (RSI 4H > 50)
+                    elif rsi_1h >= 65 and rsi_4h >= 45:
+                        action = "SHORT"
+                        base_score = int(50 + (rsi_1h - 65) * 1.2 + (rsi_4h - 45) * 0.5)
+                        score = min(99, max(60, base_score))
+                        rating = "STRONG SELL" if rsi_1h >= 75 and rsi_4h >= 55 else "SELL"
+                    
+                    market_data_cache[symbol] = {
+                        "symbol": symbol.replace("-USDT", ""),
+                        "pair": symbol.replace("-USDT", "/USDT"),
+                        "price": current_price,
+                        "rsi_1h": rsi_1h,
+                        "rsi_4h": rsi_4h,
+                        "score": score,
+                        "rating": rating,
+                        "action": action
+                    }
+                    
+                    if score >= current_threshold and action != "NEUTRAL" and telegram_token and channel_id:
+                        if current_time - last_signal_time[symbol] > COOLDOWN_SECONDS:
+                            last_signal_time[symbol] = current_time
+                            
+                            pair_name = symbol.replace("-USDT", " / USDT")
+                            decimals = 5 if current_price < 1 else 2
+                            
+                            if atr <= 0:
+                                base_step = current_price * 0.015
+                            else:
+                                base_step = atr
+                            
+                            if action == "LONG":
+                                sl = current_price - (base_step * 1.2)
+                                tp1 = current_price + (base_step * 2.0)
+                                tp2 = current_price + (base_step * 3.5)
                                 
-                                pair_name = symbol.replace("-USDT", " / USDT")
-                                decimals = 5 if current_price < 1 else 2
+                                sl_pct = ((sl - current_price) / current_price) * 100
+                                tp1_pct = ((tp1 - current_price) / current_price) * 100
+                                tp2_pct = ((tp2 - current_price) / current_price) * 100
                                 
-                                if atr <= 0:
-                                    base_step = current_price * 0.015
-                                else:
-                                    base_step = atr
+                                dir_text = "🟢 LONG (ACQUISTO)"
+                                sl_text = f"${sl:.{decimals}f} ({sl_pct:.2f}%)"
+                                tp1_text = f"${tp1:.{decimals}f} (+{tp1_pct:.2f}%)"
+                                tp2_text = f"${tp2:.{decimals}f} (+{tp2_pct:.2f}%)"
+                            else:
+                                sl = current_price + (base_step * 1.2)
+                                tp1 = current_price - (base_step * 2.0)
+                                tp2 = current_price - (base_step * 3.5)
                                 
-                                if action == "LONG":
-                                    sl = current_price - (base_step * 1.2)
-                                    tp1 = current_price + (base_step * 2.0)
-                                    tp2 = current_price + (base_step * 3.5)
-                                    
-                                    sl_pct = ((sl - current_price) / current_price) * 100
-                                    tp1_pct = ((tp1 - current_price) / current_price) * 100
-                                    tp2_pct = ((tp2 - current_price) / current_price) * 100
-                                    
-                                    dir_text = "🟢 LONG (ACQUISTO)"
-                                    sl_text = f"${sl:.{decimals}f} ({sl_pct:.2f}%)"
-                                    tp1_text = f"${tp1:.{decimals}f} (+{tp1_pct:.2f}%)"
-                                    tp2_text = f"${tp2:.{decimals}f} (+{tp2_pct:.2f}%)"
-                                else:
-                                    sl = current_price + (base_step * 1.2)
-                                    tp1 = current_price - (base_step * 2.0)
-                                    tp2 = current_price - (base_step * 3.5)
-                                    
-                                    sl_pct = ((sl - current_price) / current_price) * 100
-                                    tp1_pct = ((current_price - tp1) / current_price) * 100
-                                    tp2_pct = ((current_price - tp2) / current_price) * 100
-                                    
-                                    dir_text = "🔴 SHORT (VENDITA)"
-                                    sl_text = f"${sl:.{decimals}f} (+{abs(sl_pct):.2f}%)"
-                                    tp1_text = f"${tp1:.{decimals}f} (-{tp1_pct:.2f}%)"
-                                    tp2_text = f"${tp2:.{decimals}f} (-{tp2_pct:.2f}%)"
+                                sl_pct = ((sl - current_price) / current_price) * 100
+                                tp1_pct = ((tp1 - current_price) / current_price) * 100
+                                tp2_pct = ((tp2 - current_price) / current_price) * 100
+                                
+                                dir_text = "🔴 SHORT (VENDITA)"
+                                sl_text = f"${sl:.{decimals}f} (+{abs(sl_pct):.2f}%)"
+                                tp1_text = f"${tp1:.{decimals}f} (-{abs(tp1_pct):.2f}%)"
+                                tp2_text = f"${tp2:.{decimals}f} (-{abs(tp2_pct):.2f}%)"
 
-                                telegram_url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
-                                message = (
-                                    f"🚨 **SEGNALE {BRAND_NAME}** 🚨\n\n"
-                                    f"🔹 **Asset:** {pair_name}\n"
-                                    f"📊 **Direzione:** {dir_text}\n"
-                                    f"⭐ **Rating IA:** {rating} (Confluenza: {score}%)\n"
-                                    f"📈 **RSI (14):** {rsi}\n"
-                                    f"⚡ **Prezzo Live (BingX):** ${current_price:.{decimals}f}\n\n"
-                                    f"🛑 **Stop Loss:** {sl_text}\n"
-                                    f"🎯 **Take Profit 1:** {tp1_text}\n"
-                                    f"🎯 **Take Profit 2:** {tp2_text}"
-                                )
-                                
-                                payload = {
-                                    "chat_id": channel_id,
-                                    "text": message,
-                                    "parse_mode": "Markdown"
-                                }
-                                requests.post(telegram_url, json=payload)
-                                time.sleep(1)
+                            telegram_url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
+                            message = (
+                                f"🔥 **SEGNALE MULTI-TF {BRAND_NAME}** 🔥\n\n"
+                                f"🔹 **Asset:** {pair_name}\n"
+                                f"⏰ **Timeframe:** 1H + 4H (Confluenza)\n"
+                                f"📊 **Direzione:** {dir_text}\n"
+                                f"⭐ **Rating IA:** {rating} (Confluenza: {score}%)\n"
+                                f"📈 **RSI 1H:** {rsi_1h} | **RSI 4H:** {rsi_4h}\n"
+                                f"⚡ **Prezzo Live (BingX):** ${current_price:.{decimals}f}\n\n"
+                                f"🛑 **Stop Loss:** {sl_text}\n"
+                                f"🎯 **Take Profit 1:** {tp1_text}\n"
+                                f"🎯 **Take Profit 2:** {tp2_text}"
+                            )
+                            
+                            payload = {
+                                "chat_id": channel_id,
+                                "text": message,
+                                "parse_mode": "Markdown"
+                            }
+                            requests.post(telegram_url, json=payload)
+                            time.sleep(1)
             except Exception as e:
-                print(f"Errore nello scanner BingX per {symbol}: {e}")
+                print(f"Errore nel ciclo scanner Multi-TF per {symbol}: {e}")
                 
             time.sleep(0.3)
 
@@ -202,7 +216,7 @@ FULL_DASHBOARD_HTML = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ brand_name }} - AI Trading Dashboard</title>
+    <title>{{ brand_name }} - AI Multi-TF Dashboard</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { background-color: #0b0e14; color: #d1d5db; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; }
@@ -219,7 +233,7 @@ FULL_DASHBOARD_HTML = """
         .control-form button { background: #2563eb; color: #fff; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer; }
         .btn-test { background: #374151; color: #38bdf8; text-decoration: none; padding: 8px 12px; border-radius: 6px; font-size: 13px; font-weight: 500; }
         
-        .grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+        .grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
         .card { background: #111827; border: 1px solid #1f2937; border-radius: 8px; padding: 12px; }
         .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
         .asset-symbol { font-size: 16px; font-weight: bold; color: #fff; }
@@ -237,13 +251,13 @@ FULL_DASHBOARD_HTML = """
 </head>
 <body>
     <div class="header">
-        <div class="logo">⚡ {{ brand_name }} (BingX Live)</div>
+        <div class="logo">⚡ {{ brand_name }} (Multi-TF 1H + 4H)</div>
         <div class="status-badge"><div class="status-dot"></div> ONLINE</div>
     </div>
 
     <div class="control-panel">
         <div class="control-title">
-            Soglia Telegram: <strong>{{ threshold }}%</strong>
+            Soglia Confluenza: <strong>{{ threshold }}%</strong>
         </div>
         <form class="control-form" action="/set-threshold" method="POST">
             <input type="number" name="threshold" min="40" max="99" value="{{ threshold }}" required>
@@ -252,7 +266,7 @@ FULL_DASHBOARD_HTML = """
         <a class="btn-test" href="/test-telegram">🔔 Test Telegram</a>
     </div>
 
-    <h3 style="margin-bottom: 15px; color: #fff; font-size: 16px;">Crypto Assets Live (BingX)</h3>
+    <h3 style="margin-bottom: 15px; color: #fff; font-size: 16px;">Crypto Assets Live (Confluenza Multi-TF BingX)</h3>
     <div class="grid-container">
         {% for symbol, data in market_data.items() %}
         <div class="card">
@@ -268,8 +282,12 @@ FULL_DASHBOARD_HTML = """
                     <span class="price-val">${{ "%.4f"|format(data.price) if data.price < 1 else "%.2f"|format(data.price) }}</span>
                 </div>
                 <div class="data-row">
-                    <span>RSI:</span>
-                    <span class="rsi-val">{{ data.rsi }}</span>
+                    <span>RSI (1H):</span>
+                    <span class="rsi-val">{{ data.rsi_1h }}</span>
+                </div>
+                <div class="data-row">
+                    <span>RSI (4H):</span>
+                    <span class="rsi-val" style="color: #f97316;">{{ data.rsi_4h }}</span>
                 </div>
             </div>
         </div>
@@ -304,7 +322,7 @@ def test_telegram():
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {
         "chat_id": chat_id,
-        "text": f"🚨 **TEST {BRAND_NAME} (BingX)** 🚨\n\nSoglia attuale impostata a: *{current_threshold}%*",
+        "text": f"🚨 **TEST {BRAND_NAME} (Multi-TF 1H+4H)** 🚨\n\nSoglia attuale impostata a: *{current_threshold}%*",
         "parse_mode": "Markdown"
     }
     response = requests.post(url, json=payload)
