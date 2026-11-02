@@ -357,16 +357,17 @@ def home():
             f'<span style="background: #0b0e14; border: 1px solid #374151; color: #f97316; padding: 6px 12px; border-radius: 6px; font-weight: bold; font-size: 14px;">{current_threshold}% (Admin)</span>'
         )
 
-    content = f"""
+    # NOTA: Qui la stringa non è più una f-string (niente 'f' iniziale), così le parentesi graffe di Jinja non danno errori!
+    content = """
     <div class="panel" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
         <div>
             <h3 style="color: #fff; font-size: 15px; margin-bottom: 3px;">Dashboard & Scanner IA</h3>
-            <p style="font-size: 12px; color: #9ca3af;">Soglia Minima Segnale (Fissata da Admin): <strong style="color: #f97316;">{current_threshold}%</strong></p>
+            <p style="font-size: 12px; color: #9ca3af;">Soglia Minima Segnale (Fissata da Admin): <strong style="color: #f97316;">{threshold}%</strong></p>
         </div>
         {threshold_control}
     </div>
     
-    {signals_html}
+    {signals_section}
     
     <h3 style="margin-bottom: 12px; color: #fff; font-size: 15px;">Monitoraggio Mercato Live & Tachimetri</h3>
     <div class="grid">
@@ -402,6 +403,12 @@ def home():
         {% endfor %}
     </div>
     """
+    
+    # Inseriamo i valori dinamici in modo pulito
+    content = content.replace("{threshold}", str(current_threshold))
+    content = content.replace("{threshold_control}", threshold_control)
+    content = content.replace("{signals_section}", signals_html)
+
     refresh_tag = '<meta http-equiv="refresh" content="15">'
     html = BASE_HTML.replace("{refresh_tag}", refresh_tag).replace("{{ content | safe }}", content)
     return render_template_string(html, brand_name=BRAND_NAME, market_data=market_data_cache)
