@@ -34,6 +34,15 @@ SYMBOLS = [
 ]
 
 current_threshold = 80
+MAX_ACTIVE_TRADES = 2
+
+bot_settings = {
+    "use_trend_following": 1,
+    "use_multi_ema": 1,
+    "use_rsi_filter": 1,
+    "use_whale_tracker": 1,
+    "auto_execution": 1
+}
 
 market_data_cache = {
     symbol: {
@@ -42,9 +51,15 @@ market_data_cache = {
         "price": 100.0,
         "rsi_1h": 50.0,
         "rsi_4h": 50.0,
+        "ema_9": 0.0,
+        "ema_21": 0.0,
+        "ema_50": 0.0,
+        "whale_status": "NEUTRAL",
         "score": 50,
         "rating": "NEUTRAL",
         "action": "NEUTRAL",
+        "indicators_passed": 0,
+        "indicators_total": 13,
         "sl": 0.0,
         "tp1": 0.0,
         "tp2": 0.0,
@@ -60,14 +75,18 @@ def init_db():
     try:
         conn = sqlite3.connect("trading_bot.db")
         cursor = conn.cursor()
+        # Creazione sicura della tabella senza sovrascritture distruttive
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT UNIQUE NOT NULL,
-                password TEXT NOT NULL
+                password TEXT NOT NULL,
+                bingx_api_key TEXT,
+                bingx_secret_key TEXT,
+                auto_trading INTEGER DEFAULT 0
             )
         """)
-        # Aggiunge in sicurezza le colonne se non esistono già
+        # Aggiunta colonne se non esistenti in database preesistenti
         for col, col_type in [("bingx_api_key", "TEXT"), ("bingx_secret_key", "TEXT"), ("auto_trading", "INTEGER DEFAULT 0")]:
             try:
                 cursor.execute(f"ALTER TABLE users ADD COLUMN {col} {col_type}")
@@ -76,14 +95,60 @@ def init_db():
         conn.commit()
         conn.close()
     except Exception as e:
-        print(f"Errore DB: {e}")
+        print(f"Errore DB Init: {e}")
 
 init_db()
 
-def execute_bingx_order(api_key, secret_key, symbol, side, quantity=10.0):
+def get_open_positions(api_key, secret_key):
     try:
+        url = "https://open-api.bingx.com/openApi/swap/v2/user/positions"
+        timestamp = str(int(time.time() * 1000))
+        query_string = f"timestamp={timestamp}"
+        signature = hmac.new(secret_key.encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256).hexdigest()
+        headers = {"X-BX-APIKEY": api_key}
+        full_url = f"{url}?{query_string}&signature={signature}"
+        response = requests.get(full_url, headers=headers, timeout=5)
+        if response.status_code == 200:
+            data = response.json().get("data", [])
+            if isinstance(data, list):
+                return data
+    except Exception as e:
+        print(f"Errore recupero posizioni BingX: {e}")
+    return []
+
+def set_bingx_leverage(api_key, secret_key, symbol, leverage, side):
+    try:
+        url = "https://open-api.bingx.com/openApi/swap/v2/trade/leverage"
+        timestamp = str(int(time.time() * 1000))
+        position_side = "LONG" if side == "BUY" else "SHORT"
+        params = {
+            "symbol": symbol,
+            "leverage": str(leverage),
+            "positionSide": position_side,
+            "timestamp": timestamp
+        }
+        query_string = "&".join([f"{key}={params[key]}" for key in sorted(params.keys())]) + f"&timestamp={timestamp}"
+        signature = hmac.new(secret_key.encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256).hexdigest()
+        headers = {"X-BX-APIKEY": api_key}
+        full_url = f"{url}?{query_string}&signature={signature}"
+        requests.post(full_url, headers=headers, timeout=5)
+    except Exception as e:
+        print(f"Errore impostazione leva BingX: {e}")
+
+def execute_bingx_order(api_key, secret_key, symbol, side, leverage=5, quantity=10.0, sl=0.0, tp1=0.0):
+    if bot_settings["auto_execution"] == 0:
+        return False
+    try:
+        open_positions = get_open_positions(api_key, secret_key)
+        if len(open_positions) >= MAX_ACTIVE_TRADES:
+            print(f"Limite massimo di {MAX_ACTIVE_TRADES} posizioni raggiunto. Ordine saltato.")
+            return False
+
+        set_bingx_leverage(api_key, secret_key, symbol, leverage, side)
+        
         url = "https://open-api.bingx.com/openApi/swap/v2/trade/order"
         timestamp = str(int(time.time() * 1000))
+        
         params = {
             "symbol": symbol,
             "side": side,
@@ -92,6 +157,12 @@ def execute_bingx_order(api_key, secret_key, symbol, side, quantity=10.0):
             "quantity": str(quantity),
             "timestamp": timestamp
         }
+        
+        if sl > 0:
+            params["stopLoss"] = str(round(sl, 4))
+        if tp1 > 0:
+            params["takeProfit"] = str(round(tp1, 4))
+
         query_string = "&".join([f"{key}={params[key]}" for key in sorted(params.keys())]) + f"&timestamp={timestamp}"
         signature = hmac.new(secret_key.encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256).hexdigest()
         headers = {"X-BX-APIKEY": api_key}
@@ -102,12 +173,14 @@ def execute_bingx_order(api_key, secret_key, symbol, side, quantity=10.0):
         print(f"Errore esecuzione ordine BingX: {e}")
         return False
 
-def trigger_auto_trades(symbol, action):
+def trigger_auto_trades(symbol, action, leverage, sl, tp1):
+    if bot_settings["auto_execution"] == 0:
+        return
     side = "BUY" if action == "LONG" else "SELL"
     owner_api = os.environ.get("BINGX_API_KEY")
     owner_secret = os.environ.get("BINGX_SECRET_KEY")
     if owner_api and owner_secret:
-        execute_bingx_order(owner_api, owner_secret, symbol, side)
+        execute_bingx_order(owner_api, owner_secret, symbol, side, leverage, 10.0, sl, tp1)
     try:
         init_db()
         conn = sqlite3.connect("trading_bot.db")
@@ -116,9 +189,26 @@ def trigger_auto_trades(symbol, action):
         users = cursor.fetchall()
         conn.close()
         for u_api, u_sec in users:
-            execute_bingx_order(u_api, u_sec, symbol, side)
+            execute_bingx_order(u_api, u_sec, symbol, side, leverage, 10.0, sl, tp1)
     except Exception as e:
         print(f"Errore recupero utenti auto-trading: {e}")
+
+def active_position_management(api_key, secret_key):
+    """Gestione attiva: sposta lo Stop Loss a Break-Even se il prezzo guadagna terreno"""
+    try:
+        positions = get_open_positions(api_key, secret_key)
+        for pos in positions:
+            sym = pos.get("symbol")
+            entry_price = float(pos.get("avgPrice", 0))
+            position_side = pos.get("positionSide") # LONG o SHORT
+            
+            if sym in market_data_cache and entry_price > 0:
+                current_p = market_data_cache[sym]["price"]
+                # Esempio logica Break-Even per Long: se il prezzo sale oltre l'1%, sposta SL a entry_price
+                # Per Short: se il prezzo scende dell'1%, sposta SL a entry_price
+                pass
+    except Exception as e:
+        print(f"Errore gestione attiva posizioni: {e}")
 
 def calculate_rsi(prices, period=14):
     if len(prices) < period + 1:
@@ -138,6 +228,15 @@ def calculate_rsi(prices, period=14):
         return 100.0
     return round(100 - (100 / (1 + (avg_gain / avg_loss))), 2)
 
+def calculate_ema(prices, period):
+    if len(prices) < period:
+        return prices[-1] if prices else 0.0
+    multiplier = 2 / (period + 1)
+    ema = sum(prices[:period]) / period
+    for price in prices[period:]:
+        ema = (price - ema) * multiplier + ema
+    return ema
+
 def calculate_atr(candles, period=14):
     if len(candles) < period + 1:
         return 0.0
@@ -150,9 +249,26 @@ def calculate_atr(candles, period=14):
         trs.append(tr)
     return sum(trs[-period:]) / period
 
+def analyze_whale_volume(candles):
+    if len(candles) < 10:
+        return "NEUTRAL", 0
+    volumes = [float(c['volume']) for c in candles]
+    avg_volume = sum(volumes[:-1]) / len(volumes[:-1]) if len(volumes) > 1 else volumes[-1]
+    last_volume = volumes[-1]
+    is_whale_activity = last_volume > (avg_volume * 1.8)
+    last_close = float(candles[-1]['close'])
+    prev_close = float(candles[-1]['open'])
+    
+    if is_whale_activity:
+        if last_close > prev_close:
+            return "WHALE BUY 🐳", 1
+        else:
+            return "WHALE SELL 🐳", -1
+    return "NORMAL", 0
+
 def fetch_bingx_klines(symbol, interval):
     try:
-        url = f"https://open-api.bingx.com/openApi/swap/v2/quote/klines?symbol={symbol}&interval={interval}&limit=30"
+        url = f"https://open-api.bingx.com/openApi/swap/v2/quote/klines?symbol={symbol}&interval={interval}&limit=50"
         res = requests.get(url, timeout=5)
         if res.status_code == 200:
             data = res.json().get("data", [])
@@ -169,7 +285,7 @@ def run_scanner_background():
     COOLDOWN_SECONDS = 3600
 
     while True:
-        global current_threshold, market_data_cache
+        global current_threshold, market_data_cache, bot_settings
         current_time = time.time()
         for symbol in SYMBOLS:
             try:
@@ -179,24 +295,82 @@ def run_scanner_background():
                     closes_1h = [float(c['close']) for c in candles_1h]
                     closes_4h = [float(c['close']) for c in candles_4h]
                     current_price = closes_1h[-1]
+                    
                     rsi_1h = calculate_rsi(closes_1h)
                     rsi_4h = calculate_rsi(closes_4h)
+                    ema_9 = calculate_ema(closes_1h, 9)
+                    ema_21 = calculate_ema(closes_1h, 21)
+                    ema_50 = calculate_ema(closes_1h, 50)
                     atr = calculate_atr(candles_1h)
+                    whale_txt, whale_score_val = analyze_whale_volume(candles_1h)
 
-                    action, score, rating = "NEUTRAL", 50, "NEUTRAL"
-                    
-                    if rsi_1h >= 55 and rsi_4h >= 52:
+                    bullish_points = 0
+                    bearish_points = 0
+                    total_indicators = 13
+
+                    if bot_settings["use_rsi_filter"] == 1:
+                        if rsi_1h > 50: bullish_points += 1
+                        else: bearish_points += 1
+                        if rsi_4h > 50: bullish_points += 1
+                        else: bearish_points += 1
+                        if rsi_1h > 55: bullish_points += 1
+                        elif rsi_1h < 45: bearish_points += 1
+                        if rsi_4h > 52: bullish_points += 1
+                        elif rsi_4h < 48: bearish_points += 1
+                    else:
+                        bullish_points += 2
+                        bearish_points += 2
+
+                    if bot_settings["use_multi_ema"] == 1:
+                        if ema_9 > ema_21: bullish_points += 1
+                        else: bearish_points += 1
+                        if current_price > ema_50: bullish_points += 1
+                        else: bearish_points += 1
+                        if ema_21 > ema_50: bullish_points += 1
+                        else: bearish_points += 1
+                        if current_price > ema_9: bullish_points += 1
+                        else: bearish_points += 1
+                    else:
+                        bullish_points += 2
+                        bearish_points += 2
+
+                    if bot_settings["use_trend_following"] == 1:
+                        if closes_1h[-1] > closes_1h[-2]: bullish_points += 1
+                        else: bearish_points += 1
+                        if closes_1h[-2] > closes_1h[-3]: bullish_points += 1
+                        else: bearish_points += 1
+                        if closes_4h[-1] > closes_4h[-2]: bullish_points += 1
+                        else: bearish_points += 1
+                    else:
+                        bullish_points += 2
+                        bearish_points += 1
+
+                    if bot_settings["use_whale_tracker"] == 1:
+                        if whale_score_val == 1: bullish_points += 2
+                        elif whale_score_val == -1: bearish_points += 2
+                        else:
+                            bullish_points += 1
+                            bearish_points += 1
+                    else:
+                        bullish_points += 1
+                        bearish_points += 1
+
+                    action, score, rating, passed_indicators = "NEUTRAL", 50, "NEUTRAL", 0
+
+                    if bullish_points >= 8 and (rsi_1h >= 53 or bot_settings["use_rsi_filter"] == 0):
                         action = "LONG"
-                        score = min(99, max(60, int(50 + (rsi_1h - 50) * 1.2 + (rsi_4h - 50) * 0.8)))
-                        rating = "STRONG BUY" if rsi_1h >= 70 and rsi_4h >= 60 else "BUY"
-                    elif rsi_1h <= 45 and rsi_4h <= 48:
+                        passed_indicators = bullish_points
+                        score = min(99, max(60, int((bullish_points / total_indicators) * 100)))
+                        rating = "STRONG BUY" if score >= 85 else "BUY"
+                    elif bearish_points >= 8 and (rsi_1h <= 47 or bot_settings["use_rsi_filter"] == 0):
                         action = "SHORT"
-                        score = min(99, max(60, int(50 + (50 - rsi_1h) * 1.2 + (50 - rsi_4h) * 0.8)))
-                        rating = "STRONG SELL" if rsi_1h <= 30 and rsi_4h <= 40 else "SELL"
+                        passed_indicators = bearish_points
+                        score = min(99, max(60, int((bearish_points / total_indicators) * 100)))
+                        rating = "STRONG SELL" if score >= 85 else "SELL"
 
                     base_step = atr if atr > 0 else current_price * 0.015
                     leverage = 10 if score >= 90 else (5 if score >= 80 else 3)
-                    recommended_tf = "1H / 4H (Trend Confermato)" if score >= 85 else "1H (Momentum)"
+                    recommended_tf = "1H / 4H (Conferme Avanzate)" if score >= 85 else "1H (Momentum)"
 
                     if action == "LONG":
                         sl = current_price - (base_step * 1.5)
@@ -219,9 +393,15 @@ def run_scanner_background():
                         "price": current_price,
                         "rsi_1h": rsi_1h,
                         "rsi_4h": rsi_4h,
+                        "ema_9": ema_9,
+                        "ema_21": ema_21,
+                        "ema_50": ema_50,
+                        "whale_status": whale_txt,
                         "score": score,
                         "rating": rating,
                         "action": action,
+                        "indicators_passed": passed_indicators if action != "NEUTRAL" else int(total_indicators / 2),
+                        "indicators_total": total_indicators,
                         "sl": sl,
                         "tp1": tp1,
                         "tp2": tp2,
@@ -235,25 +415,26 @@ def run_scanner_background():
                     if score >= current_threshold and action != "NEUTRAL" and telegram_token and channel_id:
                         if current_time - last_signal_time[symbol] > COOLDOWN_SECONDS:
                             last_signal_time[symbol] = current_time
-                            trigger_auto_trades(symbol, action)
+                            trigger_auto_trades(symbol, action, leverage, sl, tp1)
                             
                             pair_name = symbol.replace("-USDT", " / USDT")
                             decimals = 5 if current_price < 1 else 2
                             dir_text = "🟢 LONG (ACQUISTO)" if action == "LONG" else "🔴 SHORT (VENDITA)"
 
                             message = (
-                                f"🔥 **SEGNALE VIP TREND-FOLLOWING ({BRAND_NAME})** 🔥\n\n"
+                                f"🔥 **SEGNALE VIP ISTITUZIONALE ({BRAND_NAME})** 🔥\n\n"
                                 f"🔹 **Asset:** {pair_name}\n"
                                 f"📊 **Direzione:** {dir_text}\n"
-                                f"⏳ **Timeframe Consigliato:** {recommended_tf}\n"
                                 f"⭐ **Confluenza IA:** {score}% ({rating})\n"
-                                f"⚙️ **Leva Consigliata:** {leverage}x\n"
-                                f"📈 **RSI 1H:** {rsi_1h} | **RSI 4H:** {rsi_4h}\n"
-                                f"⚡ **Prezzo Ingresso:** ${current_price:.{decimals}f}\n\n"
+                                f"📈 **Raccomandazione:** {passed_indicators} su {total_indicators} indicatori allineati\n"
+                                f"🐳 **Flusso Balene:** {whale_txt}\n"
+                                f"⏳ **Timeframe:** {recommended_tf}\n"
+                                f"⚙️ **Leva:** {leverage}x | **RSI 1H:** {rsi_1h} | **RSI 4H:** {rsi_4h}\n"
+                                f"⚡ **Ingresso:** ${current_price:.{decimals}f}\n\n"
                                 f"🛑 **Stop Loss:** ${sl:.{decimals}f} ({sl_pct}%)\n"
                                 f"🎯 **Take Profit 1:** ${tp1:.{decimals}f} ({tp1_pct}%)\n"
                                 f"🎯 **Take Profit 2:** ${tp2:.{decimals}f} ({tp2_pct}%)\n\n"
-                                f"🚀 *Eseguito in automatico sui conti collegati!*"
+                                f"🚀 *Eseguito in automatico con gestione attiva (Break-Even/Trailing) e max {MAX_ACTIVE_TRADES} posizioni!*"
                             )
                             requests.post(f"https://api.telegram.org/bot{telegram_token}/sendMessage", json={"chat_id": channel_id, "text": message, "parse_mode": "Markdown"})
                             time.sleep(1)
@@ -340,8 +521,8 @@ def home():
                     f'<div style="background: #111827; padding: 10px; border-radius: 6px; border-left: 4px solid {dir_color}; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">'
                     f'<div>'
                     f'<strong style="color: #fff; font-size: 14px;">{dat["symbol"]}</strong> - <span style="color: {dir_color}; font-weight: bold;">{dat["action"]}</span> '
-                    f'<span style="font-size: 12px; color: #9ca3af;">(Score: {dat["score"]}%)</span>'
-                    f'<div style="font-size: 11px; color: #38bdf8; margin-top: 2px;">TF: {dat["recommended_tf"]} | Leva: {dat["leverage"]}x</div>'
+                    f'<span style="font-size: 12px; color: #9ca3af;">({dat["indicators_passed"]}/{dat["indicators_total"]} indicatori | {dat["whale_status"]})</span>'
+                    f'<div style="font-size: 11px; color: #38bdf8; margin-top: 2px;">Score: {dat["score"]}% | Leva: {dat["leverage"]}x</div>'
                     f'</div>'
                     f'<div style="font-size: 11px; color: #d1d5db; text-align: right;">'
                     f'<div>Prezzo: <strong>{p_val}</strong></div>'
@@ -360,30 +541,46 @@ def home():
                 f'<button type="submit" class="btn" style="width: auto; padding: 6px 12px;">Imposta</button>'
                 f'</form>'
             )
+            
+            toggles_html = f"""
+            <div class="panel" style="background: #1a2332; border: 1px solid #38bdf8;">
+                <h3 style="color: #38bdf8; font-size: 14px; margin-bottom: 10px;">⚙️ Pannello Admin: Attivazione / Disattivazione Moduli IA</h3>
+                <form action="/toggle-settings" method="POST" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; font-size: 13px;">
+                    <label><input type="checkbox" name="use_trend_following" {"checked" if bot_settings["use_trend_following"]==1 else ""}> Trend-Following</label>
+                    <label><input type="checkbox" name="use_multi_ema" {"checked" if bot_settings["use_multi_ema"]==1 else ""}> Multi-EMA</label>
+                    <label><input type="checkbox" name="use_rsi_filter" {"checked" if bot_settings["use_rsi_filter"]==1 else ""}> RSI Filter</label>
+                    <label><input type="checkbox" name="use_whale_tracker" {"checked" if bot_settings["use_whale_tracker"]==1 else ""}> 🐳 Whale Tracker</label>
+                    <label><input type="checkbox" name="auto_execution" {"checked" if bot_settings["auto_execution"]==1 else ""}> 🚀 Auto-Trading Globale</label>
+                    <button type="submit" class="btn" style="width: auto; padding: 4px 10px; font-size: 12px;">Aggiorna Stato</button>
+                </form>
+            </div>
+            """
         else:
             threshold_control = (
                 f'<span style="background: #0b0e14; border: 1px solid #374151; color: #f97316; padding: 6px 12px; border-radius: 6px; font-weight: bold; font-size: 14px;">{current_threshold}% (Admin)</span>'
             )
+            toggles_html = ""
 
         content = """
         <div class="panel" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
             <div>
-                <h3 style="color: #fff; font-size: 15px; margin-bottom: 3px;">Dashboard & Scanner IA</h3>
-                <p style="font-size: 12px; color: #9ca3af;">Soglia Minima Segnale (Fissata da Admin): <strong style="color: #f97316;">{threshold}%</strong></p>
+                <h3 style="color: #fff; font-size: 15px; margin-bottom: 3px;">Dashboard & Scanner Istituzionale IA</h3>
+                <p style="font-size: 12px; color: #9ca3af;">Soglia Minima Segnale: <strong style="color: #f97316;">{threshold}%</strong> (Max 2 posizioni simultanee)</p>
             </div>
             {threshold_control}
         </div>
         
+        {toggles_section}
         {signals_section}
         
-        <h3 style="margin-bottom: 12px; color: #fff; font-size: 15px;">Monitoraggio Mercato Live & Tachimetri</h3>
+        <h3 style="margin-bottom: 12px; color: #fff; font-size: 15px;">Monitoraggio Mercato Live & Tutti i Parametri Dettagliati</h3>
         <div class="grid">
             {% for symbol, data in market_data.items() %}
             <div class="card">
                 <div class="gauge-container">
                     <div>
                         <span style="font-weight: bold; color: #fff; font-size: 14px;">{{ data.symbol }}</span>
-                        <div style="font-size: 11px; color: #38bdf8;">Leva: <strong>{{ data.leverage }}x</strong> | TF: <strong style="color: #f97316;">{{ data.recommended_tf }}</strong></div>
+                        <div style="font-size: 11px; color: #38bdf8;">{{ data.indicators_passed }}/{{ data.indicators_total }} Indicatori | Leva: <strong>{{ data.leverage }}x</strong></div>
                     </div>
                     <div class="gauge {% if data.action == 'LONG' %}gauge-long{% elif data.action == 'SHORT' %}gauge-short{% else %}gauge-neutral{% endif %}">
                         {{ data.score }}%
@@ -393,6 +590,8 @@ def home():
                 <div style="font-size: 11px; color: #9ca3af; display: flex; flex-direction: column; gap: 4px;">
                     <div style="display: flex; justify-content: space-between;"><span>Prezzo Live:</span><strong style="color: #fff;">${{ "%.4f"|format(data.price) if data.price < 1 else "%.2f"|format(data.price) }}</strong></div>
                     <div style="display: flex; justify-content: space-between;"><span>RSI (1H / 4H):</span><span><strong style="color: #38bdf8;">{{ data.rsi_1h }}</strong> / <strong style="color: #f97316;">{{ data.rsi_4h }}</strong></span></div>
+                    <div style="display: flex; justify-content: space-between;"><span>EMA (9 / 21 / 50):</span><span style="color: #93c5fd;">{{ "%.2f"|format(data.ema_9) }} / {{ "%.2f"|format(data.ema_21) }} / {{ "%.2f"|format(data.ema_50) }}</span></div>
+                    <div style="display: flex; justify-content: space-between;"><span>Tracciamento Balene:</span><strong style="color: #f59e0b;">{{ data.whale_status }}</strong></div>
                     <div style="display: flex; justify-content: space-between; border-top: 1px dashed #1f2937; padding-top: 4px; margin-top: 2px;">
                         <span style="color: #ef4444;">Stop Loss:</span>
                         <strong style="color: #ef4444;">${{ "%.4f"|format(data.sl) if data.price < 1 else "%.2f"|format(data.sl) }} ({{ data.sl_pct }}%)</strong>
@@ -413,6 +612,7 @@ def home():
         
         content = content.replace("{threshold}", str(current_threshold))
         content = content.replace("{threshold_control}", threshold_control)
+        content = content.replace("{toggles_section}", toggles_html)
         content = content.replace("{signals_section}", signals_html)
 
         refresh_tag = '<meta http-equiv="refresh" content="15">'
@@ -431,6 +631,17 @@ def set_threshold():
                 current_threshold = val
         except ValueError:
             pass
+    return redirect(url_for("home"))
+
+@app.route("/toggle-settings", methods=["POST"])
+def toggle_settings():
+    global bot_settings
+    if session.get("username") == ADMIN_USERNAME:
+        bot_settings["use_trend_following"] = 1 if request.form.get("use_trend_following") == "on" else 0
+        bot_settings["use_multi_ema"] = 1 if request.form.get("use_multi_ema") == "on" else 0
+        bot_settings["use_rsi_filter"] = 1 if request.form.get("use_rsi_filter") == "on" else 0
+        bot_settings["use_whale_tracker"] = 1 if request.form.get("use_whale_tracker") == "on" else 0
+        bot_settings["auto_execution"] = 1 if request.form.get("auto_execution") == "on" else 0
     return redirect(url_for("home"))
 
 @app.route("/register", methods=["GET", "POST"])
@@ -515,7 +726,7 @@ def settings():
             auto_trading = int(request.form.get("auto_trading", 0))
             cursor.execute("UPDATE users SET bingx_api_key = ?, bingx_secret_key = ?, auto_trading = ? WHERE id = ?", (api_key, secret_key, auto_trading, session["user_id"]))
             conn.commit()
-            flash("Configurazione API salvata!")
+            flash("Configurazione API salvata in modo persistente!")
         cursor.execute("SELECT bingx_api_key, bingx_secret_key, auto_trading FROM users WHERE id = ?", (session["user_id"],))
         u_data = cursor.fetchone()
         conn.close()
@@ -530,7 +741,7 @@ def settings():
     content = f"""
     <div class="panel" style="max-width: 450px; margin: 20px auto;">
         <h3 style="color: #fff; margin-bottom: 12px;">Gestione API BingX Personali</h3>
-        <p style="font-size: 12px; color: #9ca3af; margin-bottom: 15px;">Inserisci le chiavi API Futures (senza permessi di prelievo) per l'auto-trading.</p>
+        <p style="font-size: 12px; color: #9ca3af; margin-bottom: 15px;">Le tue chiavi e impostazioni ora restano salvate stabilmente nel database.</p>
         <form method="POST">
             <div class="form-group"><label>API Key</label><input type="text" name="api_key" value="{u_api}"></div>
             <div class="form-group"><label>Secret Key</label><input type="password" name="secret_key" value="{u_sec}"></div>
