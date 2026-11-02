@@ -1,4 +1,4 @@
-import os
+ import os
 import time
 import threading
 import requests
@@ -26,9 +26,10 @@ market_data_cache = {
         "symbol": symbol.replace("USDT", ""),
         "pair": symbol.replace("USDT", "/USDT"),
         "price": 100.0,
-        "rsi": 55.0,
-        "score": 65,
-        "rating": "BUY"
+        "rsi": 50.0,
+        "score": 50,
+        "rating": "NEUTRAL",
+        "action": "NEUTRAL"
     } for symbol in SYMBOLS
 }
 
@@ -59,12 +60,11 @@ def run_scanner_background():
     telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     channel_id = os.environ.get("CHANNEL_ID")
     
-    print(f"Scanner {BRAND_NAME} avviato con cooldown di 1 ora...")
+    print(f"Scanner {BRAND_NAME} avviato con logica Long/Short professionale...")
     price_history = {symbol: [] for symbol in SYMBOLS}
     
-    # ⏱️ Blocco temporale impostato a 1 ora per ciascun asset
     last_signal_time = {symbol: 0 for symbol in SYMBOLS}
-    COOLDOWN_SECONDS = 1 * 3600  # 1 ora in secondi
+    COOLDOWN_SECONDS = 1 * 3600  # 1 ora di cooldown
 
     while True:
         global current_threshold, market_data_cache
@@ -84,8 +84,19 @@ def run_scanner_background():
                         price_history[symbol] = closes
                         rsi = calculate_rsi(price_history[symbol])
                         
-                        score = int(min(99, max(40, 50 + abs(50 - rsi) * 1.2)))
-                        rating = "STRONG BUY" if score >= 85 else ("BUY" if score >= 65 else "NEUTRAL")
+                        # Logica Professionale: Long se RSI basso, Short se RSI alto
+                        if rsi <= 35:
+                            score = int(min(99, max(40, 50 + (35 - rsi) * 1.5)))
+                            rating = "STRONG BUY" if rsi <= 25 else "BUY"
+                            action = "LONG"
+                        elif rsi >= 65:
+                            score = int(min(99, max(40, 50 + (rsi - 65) * 1.5)))
+                            rating = "STRONG SELL" if rsi >= 75 else "SELL"
+                            action = "SHORT"
+                        else:
+                            score = 50
+                            rating = "NEUTRAL"
+                            action = "NEUTRAL"
                         
                         market_data_cache[symbol] = {
                             "symbol": symbol.replace("USDT", ""),
@@ -93,30 +104,41 @@ def run_scanner_background():
                             "price": current_price,
                             "rsi": rsi,
                             "score": score,
-                            "rating": rating
+                            "rating": rating,
+                            "action": action
                         }
                         
-                        # Controlla soglia, token e se è passata almeno 1 ora dall'ultimo segnale per lo stesso asset
-                        if score >= current_threshold and telegram_token and channel_id:
+                        # Invio Telegram se supera la soglia e il cooldown
+                        if score >= current_threshold and action != "NEUTRAL" and telegram_token and channel_id:
                             if current_time - last_signal_time[symbol] > COOLDOWN_SECONDS:
-                                last_signal_time[symbol] = current_time  # Aggiorna il timestamp
+                                last_signal_time[symbol] = current_time
                                 
                                 pair_name = symbol.replace("USDT", " / USDT")
                                 decimals = 5 if current_price < 1 else 2
-                                sl = current_price * (1 - 0.022)
-                                tp1 = current_price * (1 + 0.035)
-                                tp2 = current_price * (1 + 0.070)
+                                
+                                # Calcolo SL e TP reali in base alla direzione
+                                if action == "LONG":
+                                    sl = current_price * (1 - 0.022)
+                                    tp1 = current_price * (1 + 0.035)
+                                    tp2 = current_price * (1 + 0.070)
+                                    dir_text = "🟢 LONG (ACQUISTO)"
+                                else:  # SHORT
+                                    sl = current_price * (1 + 0.022)  # Per lo short lo stop loss è sopra
+                                    tp1 = current_price * (1 - 0.035)  # I take profit sono sotto
+                                    tp2 = current_price * (1 - 0.070)
+                                    dir_text = "🔴 SHORT (VENDITA)"
 
                                 telegram_url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
                                 message = (
                                     f"🚨 **SEGNALE {BRAND_NAME}** 🚨\n\n"
                                     f"🔹 **Asset:** {pair_name}\n"
-                                    f"📊 **Rating IA:** {rating} (Confluenza: {score}%)\n"
+                                    f"📊 **Direzione:** {dir_text}\n"
+                                    f"⭐ **Rating IA:** {rating} (Confluenza: {score}%)\n"
                                     f"📈 **RSI (14):** {rsi}\n"
                                     f"⚡ **Prezzo Live:** ${current_price:.{decimals}f}\n\n"
-                                    f"🛑 **Stop Loss:** ${sl:.{decimals}f} (-2.2%)\n"
-                                    f"🎯 **Take Profit 1:** ${tp1:.{decimals}f} (+3.5%)\n"
-                                    f"🎯 **Take Profit 2:** ${tp2:.{decimals}f} (+7.0%)"
+                                    f"🛑 **Stop Loss:** ${sl:.{decimals}f}\n"
+                                    f"🎯 **Take Profit 1:** ${tp1:.{decimals}f}\n"
+                                    f"🎯 **Take Profit 2:** ${tp2:.{decimals}f}"
                                 )
                                 
                                 payload = {
@@ -164,8 +186,9 @@ FULL_DASHBOARD_HTML = """
         .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
         .asset-symbol { font-size: 16px; font-weight: bold; color: #fff; }
         .badge-score { padding: 3px 6px; border-radius: 4px; font-weight: bold; font-size: 11px; }
-        .score-high { background: rgba(16, 185, 129, 0.2); color: #10b981; }
-        .score-mid { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+        .score-long { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+        .score-short { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+        .score-neutral { background: rgba(107, 114, 128, 0.2); color: #9ca3af; }
         
         .card-body { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #9ca3af; }
         .data-row { display: flex; justify-content: space-between; }
@@ -197,7 +220,7 @@ FULL_DASHBOARD_HTML = """
         <div class="card">
             <div class="card-header">
                 <span class="asset-symbol">{{ data.symbol }}</span>
-                <span class="badge-score {% if data.score >= 75 %}score-high{% else %}score-mid{% endif %}">
+                <span class="badge-score {% if data.action == 'LONG' %}score-long{% elif data.action == 'SHORT' %}score-short{% else %}score-neutral{% endif %}">
                     {{ data.score }}% {{ data.rating }}
                 </span>
             </div>
@@ -242,7 +265,7 @@ def test_telegram():
         return "Token o Channel ID mancanti!", 400
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {
-        "chat_id": channel_id,
+        "chat_id": chat_id,
         "text": f"🚨 **TEST {BRAND_NAME}** 🚨\n\nSoglia attuale impostata a: *{current_threshold}%*",
         "parse_mode": "Markdown"
     }
@@ -252,4 +275,3 @@ def test_telegram():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
-    
