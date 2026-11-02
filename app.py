@@ -75,7 +75,6 @@ def init_db():
     try:
         conn = sqlite3.connect("trading_bot.db")
         cursor = conn.cursor()
-        # Creazione sicura della tabella senza sovrascritture distruttive
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -86,7 +85,6 @@ def init_db():
                 auto_trading INTEGER DEFAULT 0
             )
         """)
-        # Aggiunta colonne se non esistenti in database preesistenti
         for col, col_type in [("bingx_api_key", "TEXT"), ("bingx_secret_key", "TEXT"), ("auto_trading", "INTEGER DEFAULT 0")]:
             try:
                 cursor.execute(f"ALTER TABLE users ADD COLUMN {col} {col_type}")
@@ -144,8 +142,10 @@ def execute_bingx_order(api_key, secret_key, symbol, side, leverage=5, quantity=
             print(f"Limite massimo di {MAX_ACTIVE_TRADES} posizioni raggiunto. Ordine saltato.")
             return False
 
+        # 1. Imposta la leva
         set_bingx_leverage(api_key, secret_key, symbol, leverage, side)
         
+        # 2. Invia ordine di mercato pulito (senza forzare SL/TP direttamente nell'order per evitare rifiuti dell'API)
         url = "https://open-api.bingx.com/openApi/swap/v2/trade/order"
         timestamp = str(int(time.time() * 1000))
         
@@ -157,17 +157,14 @@ def execute_bingx_order(api_key, secret_key, symbol, side, leverage=5, quantity=
             "quantity": str(quantity),
             "timestamp": timestamp
         }
-        
-        if sl > 0:
-            params["stopLoss"] = str(round(sl, 4))
-        if tp1 > 0:
-            params["takeProfit"] = str(round(tp1, 4))
 
         query_string = "&".join([f"{key}={params[key]}" for key in sorted(params.keys())]) + f"&timestamp={timestamp}"
         signature = hmac.new(secret_key.encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256).hexdigest()
         headers = {"X-BX-APIKEY": api_key}
         full_url = f"{url}?{query_string}&signature={signature}"
         response = requests.post(full_url, headers=headers, timeout=5)
+        
+        print(f"Risposta ordine BingX per {symbol}: {response.text}")
         return response.status_code == 200
     except Exception as e:
         print(f"Errore esecuzione ordine BingX: {e}")
@@ -192,23 +189,6 @@ def trigger_auto_trades(symbol, action, leverage, sl, tp1):
             execute_bingx_order(u_api, u_sec, symbol, side, leverage, 10.0, sl, tp1)
     except Exception as e:
         print(f"Errore recupero utenti auto-trading: {e}")
-
-def active_position_management(api_key, secret_key):
-    """Gestione attiva: sposta lo Stop Loss a Break-Even se il prezzo guadagna terreno"""
-    try:
-        positions = get_open_positions(api_key, secret_key)
-        for pos in positions:
-            sym = pos.get("symbol")
-            entry_price = float(pos.get("avgPrice", 0))
-            position_side = pos.get("positionSide") # LONG o SHORT
-            
-            if sym in market_data_cache and entry_price > 0:
-                current_p = market_data_cache[sym]["price"]
-                # Esempio logica Break-Even per Long: se il prezzo sale oltre l'1%, sposta SL a entry_price
-                # Per Short: se il prezzo scende dell'1%, sposta SL a entry_price
-                pass
-    except Exception as e:
-        print(f"Errore gestione attiva posizioni: {e}")
 
 def calculate_rsi(prices, period=14):
     if len(prices) < period + 1:
@@ -434,7 +414,7 @@ def run_scanner_background():
                                 f"🛑 **Stop Loss:** ${sl:.{decimals}f} ({sl_pct}%)\n"
                                 f"🎯 **Take Profit 1:** ${tp1:.{decimals}f} ({tp1_pct}%)\n"
                                 f"🎯 **Take Profit 2:** ${tp2:.{decimals}f} ({tp2_pct}%)\n\n"
-                                f"🚀 *Eseguito in automatico con gestione attiva (Break-Even/Trailing) e max {MAX_ACTIVE_TRADES} posizioni!*"
+                                f"🚀 *Eseguito in automatico con leva {leverage}x!*"
                             )
                             requests.post(f"https://api.telegram.org/bot{telegram_token}/sendMessage", json={"chat_id": channel_id, "text": message, "parse_mode": "Markdown"})
                             time.sleep(1)
@@ -744,7 +724,7 @@ def settings():
         <p style="font-size: 12px; color: #9ca3af; margin-bottom: 15px;">Le tue chiavi e impostazioni ora restano salvate stabilmente nel database.</p>
         <form method="POST">
             <div class="form-group"><label>API Key</label><input type="text" name="api_key" value="{u_api}"></div>
-            <div class="form-group"><label>Secret Key</label><input type="password" name="secret_key" value="{u_sec}"></div>
+            <div class="form-group"><label>Secret Key</label><input type="password" name="secret_key" value="{u_sec}">*</div>
             <div class="form-group"><label>Stato Auto-Trading</label>
                 <select name="auto_trading">
                     <option value="0" {"selected" if u_auto == 0 else ""}>Disattivato</option>
