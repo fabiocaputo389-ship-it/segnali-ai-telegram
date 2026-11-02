@@ -357,7 +357,6 @@ def home():
             f'<span style="background: #0b0e14; border: 1px solid #374151; color: #f97316; padding: 6px 12px; border-radius: 6px; font-weight: bold; font-size: 14px;">{current_threshold}% (Admin)</span>'
         )
 
-    # NOTA: Qui la stringa non è più una f-string (niente 'f' iniziale), così le parentesi graffe di Jinja non danno errori!
     content = """
     <div class="panel" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
         <div>
@@ -404,7 +403,6 @@ def home():
     </div>
     """
     
-    # Inseriamo i valori dinamici in modo pulito
     content = content.replace("{threshold}", str(current_threshold))
     content = content.replace("{threshold_control}", threshold_control)
     content = content.replace("{signals_section}", signals_html)
@@ -430,6 +428,7 @@ def register():
     if request.method == "POST":
         username = request.form.get("username")
         password = generate_password_hash(request.form.get("password"))
+        init_db()
         try:
             conn = sqlite3.connect("trading_bot.db")
             cursor = conn.cursor()
@@ -439,7 +438,7 @@ def register():
             flash("Registrazione completata! Effettua il login.")
             return redirect(url_for("login"))
         except Exception:
-            flash("Username già esistente.")
+            flash("Username già esistente o errore di salvataggio.")
     content = """
     <div class="panel" style="max-width: 380px; margin: 30px auto;">
         <h3 style="color: #fff; margin-bottom: 15px; text-align: center;">Registrazione VIP</h3>
@@ -458,6 +457,7 @@ def login():
     if request.method == "POST":
         username = request.form.get("username")
         password = request.form.get("password")
+        init_db()
         conn = sqlite3.connect("trading_bot.db")
         cursor = conn.cursor()
         cursor.execute("SELECT id, password FROM users WHERE username = ?", (username,))
@@ -492,6 +492,7 @@ def logout():
 def settings():
     if "user_id" not in session:
         return redirect(url_for("login"))
+    init_db()
     conn = sqlite3.connect("trading_bot.db")
     cursor = conn.cursor()
     if request.method == "POST":
