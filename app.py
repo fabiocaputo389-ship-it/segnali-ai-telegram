@@ -225,6 +225,7 @@ def run_scanner_background():
 scanner_thread = threading.Thread(target=run_scanner_background, daemon=True)
 scanner_thread.start()
 
+# Template base (NOTA: Senza il tag di refresh automatico globale)
 BASE_HTML = """
 <!DOCTYPE html>
 <html lang="it">
@@ -247,7 +248,7 @@ BASE_HTML = """
         .card { background: #111827; border: 1px solid #1f2937; border-radius: 8px; padding: 12px; }
         .flash { background: #1e3a8a; color: #93c5fd; padding: 10px; border-radius: 6px; margin-bottom: 15px; }
     </style>
-    <meta http-equiv="refresh" content="5">
+    {refresh_tag}
 </head>
 <body>
     <div class="header">
@@ -301,7 +302,10 @@ def home():
         {% endfor %}
     </div>
     """
-    return render_template_string(BASE_HTML.replace("{{ content | safe }}", content), brand_name=BRAND_NAME, threshold=current_threshold, market_data=market_data_cache)
+    # Mettiamo un refresh ogni 15 secondi solo sulla home (così non dà fastidio e si aggiorna con calma)
+    refresh_tag = '<meta http-equiv="refresh" content="15">'
+    html = BASE_HTML.replace("{refresh_tag}", refresh_tag).replace("{{ content | safe }}", content)
+    return render_template_string(html, brand_name=BRAND_NAME, threshold=current_threshold, market_data=market_data_cache)
 
 @app.route("/set-threshold", methods=["POST"])
 def set_threshold():
@@ -339,7 +343,9 @@ def register():
         </form>
     </div>
     """
-    return render_template_string(BASE_HTML.replace("{{ content | safe }}", content), brand_name=BRAND_NAME)
+    # Nessun refresh sulle pagine di autenticazione/impostazioni!
+    html = BASE_HTML.replace("{refresh_tag}", "").replace("{{ content | safe }}", content)
+    return render_template_string(html, brand_name=BRAND_NAME)
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -367,7 +373,8 @@ def login():
         </form>
     </div>
     """
-    return render_template_string(BASE_HTML.replace("{{ content | safe }}", content), brand_name=BRAND_NAME)
+    html = BASE_HTML.replace("{refresh_tag}", "").replace("{{ content | safe }}", content)
+    return render_template_string(html, brand_name=BRAND_NAME)
 
 @app.route("/logout")
 def logout():
@@ -387,7 +394,7 @@ def settings():
         auto_trading = int(request.form.get("auto_trading", 0))
         cursor.execute("UPDATE users SET bingx_api_key = ?, bingx_secret_key = ?, auto_trading = ? WHERE id = ?", (api_key, secret_key, auto_trading, session["user_id"]))
         conn.commit()
-        flash("Impostazioni salvate!")
+        flash("Impostazioni salvate con successo!")
     cursor.execute("SELECT bingx_api_key, bingx_secret_key, auto_trading FROM users WHERE id = ?", (session["user_id"],))
     u_data = cursor.fetchone()
     conn.close()
@@ -398,21 +405,23 @@ def settings():
     
     content = f"""
     <div class="panel" style="max-width: 500px; margin: 20px auto;">
-        <h3 style="color: #fff; margin-bottom: 15px;">Configurazione API BingX</h3>
+        <h3 style="color: #fff; margin-bottom: 15px;">Configurazione API BingX & Auto-Trading</h3>
+        <p style="font-size: 13px; color: #9ca3af; margin-bottom: 20px;">Inserisci le tue chiavi API di BingX (attiva solo Futures, no prelievi).</p>
         <form method="POST">
             <div class="form-group"><label>API Key</label><input type="text" name="api_key" value="{u_api}"></div>
             <div class="form-group"><label>Secret Key</label><input type="password" name="secret_key" value="{u_sec}"></div>
-            <div class="form-group"><label>Auto-Trading</label>
+            <div class="form-group"><label>Stato Auto-Trading</label>
                 <select name="auto_trading">
                     <option value="0" {"selected" if u_auto == 0 else ""}>Disattivato</option>
-                    <option value="1" {"selected" if u_auto == 1 else ""}>Attivato</option>
+                    <option value="1" {"selected" if u_auto == 1 else ""}>Attivato (Automatico)</option>
                 </select>
             </div>
-            <button type="submit" class="btn" style="background: #059669;">Salva</button>
+            <button type="submit" class="btn" style="background: #059669; margin-top: 10px;">Salva Configurazione</button>
         </form>
     </div>
     """
-    return render_template_string(BASE_HTML.replace("{{ content | safe }}", content), brand_name=BRAND_NAME)
+    html = BASE_HTML.replace("{refresh_tag}", "").replace("{{ content | safe }}", content)
+    return render_template_string(html, brand_name=BRAND_NAME)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
