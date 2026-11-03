@@ -131,14 +131,20 @@ def set_bingx_leverage(api_key, secret_key, symbol, leverage, side):
         signature = hmac.new(secret_key.encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256).hexdigest()
         headers = {"X-BX-APIKEY": api_key}
         full_url = f"{url}?{query_string}&signature={signature}"
-        requests.post(full_url, headers=headers, timeout=5)
+        res = requests.post(full_url, headers=headers, timeout=5)
+        print(f"Risposta Leva BingX per {symbol}: {res.text}")
     except Exception as e:
         print(f"Errore impostazione leva BingX: {e}")
 
 def execute_bingx_order(api_key, secret_key, symbol, side, leverage=5, quantity=10.0, sl=0.0, tp1=0.0):
     if bot_settings["auto_execution"] == 0:
+        print("Auto-execution globale disattivata.")
+        return False
+    if not api_key or not secret_key:
+        print(f"❌ Errore: API Key o Secret Key mancanti per l'esecuzione su {symbol}!")
         return False
     try:
+        print(f"Tentativo apertura ordine BingX -> Asset: {symbol} | Lato: {side} | Leva: {leverage}x")
         set_bingx_leverage(api_key, secret_key, symbol, leverage, side)
         
         url = "https://open-api.bingx.com/openApi/swap/v2/trade/order"
@@ -159,10 +165,18 @@ def execute_bingx_order(api_key, secret_key, symbol, side, leverage=5, quantity=
         full_url = f"{url}?{query_string}&signature={signature}"
         response = requests.post(full_url, headers=headers, timeout=5)
         
-        print(f"Risposta ordine BingX per {symbol}: {response.text}")
-        return response.status_code == 200
+        # Stampa dettagliata della risposta dell'Exchange nei log
+        print(f"📥 RISPOSTA EXCHANGE BINGX ({symbol}) -> Status: {response.status_code} | Body: {response.text}")
+        
+        res_json = response.json()
+        if response.status_code == 200 and res_json.get("code") == 0:
+            print(f"✅ Ordine eseguito con successo su BingX per {symbol}!")
+            return True
+        else:
+            print(f"⚠️ Exchange ha rifiutato l'ordine per {symbol}. Errore dettagliato: {response.text}")
+            return False
     except Exception as e:
-        print(f"Errore esecuzione ordine BingX: {e}")
+        print(f"❌ Eccezione critica durante l'esecuzione dell'ordine BingX: {e}")
         return False
 
 def trigger_auto_trades(symbol, action, leverage, sl, tp1):
@@ -170,14 +184,15 @@ def trigger_auto_trades(symbol, action, leverage, sl, tp1):
         return
     side = "BUY" if action == "LONG" else "SELL"
     
-    # 1. Legge le variabili d'ambiente di Render se configurate lì
+    # 1. Legge le variabili d'ambiente di Render
     owner_api = os.environ.get("BINGX_API_KEY")
     owner_secret = os.environ.get("BINGX_SECRET_KEY")
     
     if owner_api and owner_secret:
+        print(f"Attivazione trade tramite variabili d'ambiente Render per {symbol}")
         execute_bingx_order(owner_api, owner_secret, symbol, side, leverage, 10.0, sl, tp1)
         
-    # 2. Legge anche gli utenti dal database che hanno attivato l'auto-trading
+    # 2. Legge gli utenti dal database
     try:
         init_db()
         conn = sqlite3.connect("trading_bot.db")
@@ -186,8 +201,8 @@ def trigger_auto_trades(symbol, action, leverage, sl, tp1):
         users = cursor.fetchall()
         conn.close()
         for u_api, u_sec in users:
-            # Evita di duplicare se l'utente usa le stesse chiavi di Render
             if u_api != owner_api:
+                print(f"Attivazione trade tramite DB utente per {symbol}")
                 execute_bingx_order(u_api, u_sec, symbol, side, leverage, 10.0, sl, tp1)
     except Exception as e:
         print(f"Errore recupero utenti auto-trading: {e}")
@@ -261,7 +276,6 @@ def fetch_bingx_klines(symbol, interval):
     return []
 
 def run_scanner_background():
-    # Legge il token Telegram e la chat ID direttamente dalle variabili d'ambiente di Render
     telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     channel_id = os.environ.get("CHANNEL_ID")
     last_signal_time = {symbol: 0 for symbol in SYMBOLS}
@@ -336,7 +350,7 @@ def run_scanner_background():
                             bearish_points += 1
                     else:
                         bullish_points += 1
-                        bearish_points += 1
+                        bullish_points += 1
 
                     action, score, rating, passed_indicators = "NEUTRAL", 50, "NEUTRAL", 0
 
@@ -400,32 +414,34 @@ def run_scanner_background():
                         "recommended_tf": recommended_tf
                     }
 
-                    if score >= current_threshold and action != "NEUTRAL" and telegram_token and channel_id:
+                    if score >= current_threshold and action != "NEUTRAL":
                         if current_time - last_signal_time[symbol] > COOLDOWN_SECONDS:
                             last_signal_time[symbol] = current_time
+                            print(f"🎯 Segnale valido intercettato per {symbol} ({action}) con score {score}%. Avvio esecuzione automatica...")
                             trigger_auto_trades(symbol, action, leverage, sl, tp1)
                             
-                            pair_name = symbol.replace("-USDT", " / USDT")
-                            decimals = 5 if current_price < 1 else 2
-                            dir_text = "🟢 LONG (ACQUISTO)" if action == "LONG" else "🔴 SHORT (VENDITA)"
+                            if telegram_token and channel_id:
+                                pair_name = symbol.replace("-USDT", " / USDT")
+                                decimals = 5 if current_price < 1 else 2
+                                dir_text = "🟢 LONG (ACQUISTO)" if action == "LONG" else "🔴 SHORT (VENDITA)"
 
-                            message = (
-                                f"🔥 **SEGNALE VIP ISTITUZIONALE ({BRAND_NAME})** 🔥\n\n"
-                                f"🔹 **Asset:** {pair_name}\n"
-                                f"📊 **Direzione:** {dir_text}\n"
-                                f"⭐ **Confluenza IA:** {score}% ({rating})\n"
-                                f"📈 **Raccomandazione:** {passed_indicators} su {total_indicators} indicatori allineati\n"
-                                f"🐳 **Flusso Balene:** {whale_txt}\n"
-                                f"⏳ **Timeframe:** {recommended_tf}\n"
-                                f"⚙️ **Leva:** {leverage}x | **RSI 1H:** {rsi_1h} | **RSI 4H:** {rsi_4h}\n"
-                                f"⚡ **Ingresso:** ${current_price:.{decimals}f}\n\n"
-                                f"🛑 **Stop Loss:** ${sl:.{decimals}f} ({sl_pct}%)\n"
-                                f"🎯 **Take Profit 1:** ${tp1:.{decimals}f} ({tp1_pct}%)\n"
-                                f"🎯 **Take Profit 2:** ${tp2:.{decimals}f} ({tp2_pct}%)\n"
-                                f"🎯 **Take Profit 3:** ${tp3:.{decimals}f} ({tp3_pct}%)\n\n"
-                                f"🚀 *Eseguito in automatico con leva {leverage}x!*"
-                            )
-                            requests.post(f"https://api.telegram.org/bot{telegram_token}/sendMessage", json={"chat_id": channel_id, "text": message, "parse_mode": "Markdown"})
+                                message = (
+                                    f"🔥 **SEGNALE VIP ISTITUZIONALE ({BRAND_NAME})** 🔥\n\n"
+                                    f"🔹 **Asset:** {pair_name}\n"
+                                    f"📊 **Direzione:** {dir_text}\n"
+                                    f"⭐ **Confluenza IA:** {score}% ({rating})\n"
+                                    f"📈 **Raccomandazione:** {passed_indicators} su {total_indicators} indicatori allineati\n"
+                                    f"🐳 **Flusso Balene:** {whale_txt}\n"
+                                    f"⏳ **Timeframe:** {recommended_tf}\n"
+                                    f"⚙️ **Leva:** {leverage}x | **RSI 1H:** {rsi_1h} | **RSI 4H:** {rsi_4h}\n"
+                                    f"⚡ **Ingresso:** ${current_price:.{decimals}f}\n\n"
+                                    f"🛑 **Stop Loss:** ${sl:.{decimals}f} ({sl_pct}%)\n"
+                                    f"🎯 **Take Profit 1:** ${tp1:.{decimals}f} ({tp1_pct}%)\n"
+                                    f"🎯 **Take Profit 2:** ${tp2:.{decimals}f} ({tp2_pct}%)\n"
+                                    f"🎯 **Take Profit 3:** ${tp3:.{decimals}f} ({tp3_pct}%)\n\n"
+                                    f"🚀 *Eseguito in automatico con leva {leverage}x!*"
+                                )
+                                requests.post(f"https://api.telegram.org/bot{telegram_token}/sendMessage", json={"chat_id": channel_id, "text": message, "parse_mode": "Markdown"})
                             time.sleep(1)
             except Exception as e:
                 print(f"Errore scanner: {e}")
