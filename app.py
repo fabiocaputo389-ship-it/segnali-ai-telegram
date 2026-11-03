@@ -22,6 +22,9 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "chiave_segreta_super_sicura
 BRAND_NAME = "SCANNER TRADING VIP"
 ADMIN_USERNAME = "Fabio"
 
+# Variabile globale per mostrare l'ultimo errore/stato di BingX direttamente sulla Dashboard
+last_bingx_debug_log = "Nessun tentativo di ordine recente. In attesa di segnali..."
+
 SYMBOLS = [
     "BTC-USDT", "ETH-USDT", "SOL-USDT", "BNB-USDT", "XRP-USDT", 
     "ADA-USDT", "AVAX-USDT", "LINK-USDT", "DOT-USDT", "NEAR-USDT", 
@@ -99,23 +102,6 @@ def init_db():
 
 init_db()
 
-def get_open_positions(api_key, secret_key):
-    try:
-        url = "https://open-api.bingx.com/openApi/swap/v2/user/positions"
-        timestamp = str(int(time.time() * 1000))
-        query_string = f"timestamp={timestamp}"
-        signature = hmac.new(secret_key.encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256).hexdigest()
-        headers = {"X-BX-APIKEY": api_key}
-        full_url = f"{url}?{query_string}&signature={signature}"
-        response = requests.get(full_url, headers=headers, timeout=5)
-        if response.status_code == 200:
-            data = response.json().get("data", [])
-            if isinstance(data, list):
-                return data
-    except Exception as e:
-        print(f"Errore recupero posizioni BingX: {e}")
-    return []
-
 def set_bingx_leverage(api_key, secret_key, symbol, leverage, side):
     try:
         url = "https://open-api.bingx.com/openApi/swap/v2/trade/leverage"
@@ -131,17 +117,18 @@ def set_bingx_leverage(api_key, secret_key, symbol, leverage, side):
         signature = hmac.new(secret_key.encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256).hexdigest()
         headers = {"X-BX-APIKEY": api_key}
         full_url = f"{url}?{query_string}&signature={signature}"
-        res = requests.post(full_url, headers=headers, timeout=5)
-        print(f"Risposta Leva BingX per {symbol}: {res.text}")
+        requests.post(full_url, headers=headers, timeout=5)
     except Exception as e:
         print(f"Errore impostazione leva BingX: {e}")
 
 def execute_bingx_order(api_key, secret_key, symbol, side, leverage=5, quantity=10.0, sl=0.0, tp1=0.0):
+    global last_bingx_debug_log
     if bot_settings["auto_execution"] == 0:
-        print("Auto-execution globale disattivata.")
+        last_bingx_debug_log = "⚠️ Auto-execution globale disattivata dal pannello admin."
         return False
     if not api_key or not secret_key:
-        print(f"❌ Errore: API Key o Secret Key mancanti per l'esecuzione su {symbol}!")
+        last_bingx_debug_log = f"❌ Errore: API Key o Secret Key mancanti per {symbol}!"
+        print(last_bingx_debug_log)
         return False
     try:
         print(f"Tentativo apertura ordine BingX -> Asset: {symbol} | Lato: {side} | Leva: {leverage}x")
@@ -165,18 +152,26 @@ def execute_bingx_order(api_key, secret_key, symbol, side, leverage=5, quantity=
         full_url = f"{url}?{query_string}&signature={signature}"
         response = requests.post(full_url, headers=headers, timeout=5)
         
-        # Stampa dettagliata della risposta dell'Exchange nei log
-        print(f"📥 RISPOSTA EXCHANGE BINGX ({symbol}) -> Status: {response.status_code} | Body: {response.text}")
+        res_text = response.text
+        print(f"📥 RISPOSTA EXCHANGE BINGX ({symbol}) -> Status: {response.status_code} | Body: {res_text}")
         
-        res_json = response.json()
-        if response.status_code == 200 and res_json.get("code") == 0:
-            print(f"✅ Ordine eseguito con successo su BingX per {symbol}!")
-            return True
-        else:
-            print(f"⚠️ Exchange ha rifiutato l'ordine per {symbol}. Errore dettagliato: {response.text}")
+        try:
+            res_json = response.json()
+            code = res_json.get("code")
+            msg = res_json.get("msg", "Nessun messaggio")
+            if response.status_code == 200 and code == 0:
+                last_bingx_debug_log = f"✅ SUCCESS: Ordine eseguito per {symbol} ({side})!"
+                return True
+            else:
+                last_bingx_debug_log = f"❌ BINGX ERROR [{symbol}] - Code: {code} | Msg: {msg} | Risposta: {res_text}"
+                return False
+        except Exception:
+            last_bingx_debug_log = f"❌ BINGX RAW ERROR [{symbol}] -> {res_text}"
             return False
+            
     except Exception as e:
-        print(f"❌ Eccezione critica durante l'esecuzione dell'ordine BingX: {e}")
+        last_bingx_debug_log = f"❌ Eccezione critica ordine {symbol}: {e}"
+        print(last_bingx_debug_log)
         return False
 
 def trigger_auto_trades(symbol, action, leverage, sl, tp1):
@@ -184,28 +179,48 @@ def trigger_auto_trades(symbol, action, leverage, sl, tp1):
         return
     side = "BUY" if action == "LONG" else "SELL"
     
-    # 1. Legge le variabili d'ambiente di Render
-    owner_api = os.environ.get("BINGX_API_KEY")
-    owner_secret = os.environ.get("BINGX_SECRET_KEY")
-    
-    if owner_api and owner_secret:
-        print(f"Attivazione trade tramite variabili d'ambiente Render per {symbol}")
-        execute_bingx_order(owner_api, owner_secret, symbol, side, leverage, 10.0, sl, tp1)
+    executed_count = 0
+    collected_keys = []
+
+    # 1. Legge la prima coppia da Render (BINGX_API_KEY / BINGX_SECRET_KEY)
+    api1 = os.environ.get("BINGX_API_KEY")
+    sec1 = os.environ.get("BINGX_SECRET_KEY")
+    if api1 and sec1:
+        print(f"Esecuzione trade tramite Render (Coppia Principale) per {symbol}")
+        if execute_bingx_order(api1, sec1, symbol, side, leverage, 10.0, sl, tp1):
+            executed_count += 1
+        collected_keys.append(api1)
+
+    # 2. Legge la seconda coppia da Render (USER2_BINGX_API_KEY / USER2_BINGX_SECRET_KEY)
+    api2 = os.environ.get("USER2_BINGX_API_KEY")
+    sec2 = os.environ.get("USER2_BINGX_SECRET_KEY")
+    if api2 and sec2:
+        print(f"Esecuzione trade tramite Render (USER2) per {symbol}")
+        if execute_bingx_order(api2, sec2, symbol, side, leverage, 10.0, sl, tp1):
+            executed_count += 1
+        collected_keys.append(api2)
         
-    # 2. Legge gli utenti dal database
+    # 3. Legge eventuali utenti dal database SQLite
     try:
         init_db()
         conn = sqlite3.connect("trading_bot.db")
         cursor = conn.cursor()
-        cursor.execute("SELECT bingx_api_key, bingx_secret_key FROM users WHERE auto_trading = 1 AND bingx_api_key IS NOT NULL AND bingx_secret_key IS NOT NULL")
+        cursor.execute("SELECT username, bingx_api_key, bingx_secret_key FROM users WHERE auto_trading = 1 AND bingx_api_key IS NOT NULL AND bingx_secret_key IS NOT NULL")
         users = cursor.fetchall()
         conn.close()
-        for u_api, u_sec in users:
-            if u_api != owner_api:
-                print(f"Attivazione trade tramite DB utente per {symbol}")
-                execute_bingx_order(u_api, u_sec, symbol, side, leverage, 10.0, sl, tp1)
+        
+        for uname, u_api, u_sec in users:
+            if u_api and u_sec and u_api not in collected_keys:
+                print(f"Esecuzione trade per l'utente DB '{uname}' su {symbol}")
+                if execute_bingx_order(u_api, u_sec, symbol, side, leverage, 10.0, sl, tp1):
+                    executed_count += 1
+                collected_keys.append(u_api)
     except Exception as e:
-        print(f"Errore recupero utenti auto-trading: {e}")
+        print(f"Errore recupero utenti auto-trading da DB: {e}")
+        
+    if executed_count == 0 and not collected_keys:
+        global last_bingx_debug_log
+        last_bingx_debug_log = f"⚠️ Nessuna API Key valida trovata né su Render né nel Database per eseguire {symbol}!"
 
 def calculate_rsi(prices, period=14):
     if len(prices) < period + 1:
@@ -350,7 +365,7 @@ def run_scanner_background():
                             bearish_points += 1
                     else:
                         bullish_points += 1
-                        bullish_points += 1
+                        bearish_points += 1
 
                     action, score, rating, passed_indicators = "NEUTRAL", 50, "NEUTRAL", 0
 
@@ -486,6 +501,7 @@ BASE_HTML = """
         .chart-btn:hover { background: #38bdf8; color: #000; }
         
         .signal-box { background: rgba(56, 189, 248, 0.05); border: 1px solid #38bdf8; border-radius: 8px; padding: 12px; margin-bottom: 20px; }
+        .debug-box { background: #1a150b; border: 1px solid #f59e0b; border-radius: 8px; padding: 12px; margin-bottom: 20px; font-family: monospace; font-size: 12px; color: #fbbf24; }
     </style>
     {refresh_tag}
 </head>
@@ -514,6 +530,7 @@ BASE_HTML = """
 @app.route("/")
 def home():
     try:
+        global last_bingx_debug_log
         active_signals = {s: d for s, d in market_data_cache.items() if d["score"] >= current_threshold and d["action"] != "NEUTRAL"}
 
         signals_html = ""
@@ -574,6 +591,13 @@ def home():
             )
             toggles_html = ""
 
+        debug_box_html = f"""
+        <div class="debug-box">
+            <strong>🛠️ DEBUG LIVE BINGX (Ultimo Stato/Errore):</strong><br>
+            {last_bingx_debug_log}
+        </div>
+        """
+
         content = """
         <div class="panel" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
             <div>
@@ -583,6 +607,7 @@ def home():
             {threshold_control}
         </div>
         
+        {debug_box}
         {toggles_section}
         {signals_section}
         
@@ -644,6 +669,7 @@ def home():
         
         content = content.replace("{threshold}", str(current_threshold))
         content = content.replace("{threshold_control}", threshold_control)
+        content = content.replace("{debug_box}", debug_box_html)
         content = content.replace("{toggles_section}", toggles_html)
         content = content.replace("{signals_section}", signals_html)
 
