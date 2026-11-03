@@ -18,9 +18,9 @@ from flask import (
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "chiave_segreta_super_sicura_vip_ai")
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "chiave_segreta_super_sicura_ai_master_gauge")
 
-BRAND_NAME = "👑 SCANNER TRADING VIP [AI ULTRA]"
+BRAND_NAME = "👑 SCANNER TRADING VIP [GAUGE ULTRA]"
 ADMIN_USERNAME = "Fabio"
 
 def fetch_all_bingx_symbols():
@@ -54,7 +54,7 @@ def fetch_all_bingx_symbols():
 
 SYMBOLS = fetch_all_bingx_symbols()
 
-current_threshold = 82
+current_threshold = 75
 
 bot_settings = {
     "use_trend_following": 1,
@@ -78,6 +78,7 @@ market_data_cache = {
         "score": 50,
         "rating": "NEUTRAL",
         "action": "NEUTRAL",
+        "ai_grade": "C (Analisi in corso)",
         "indicators_passed": 0,
         "indicators_total": 15,
         "sl": 0.0,
@@ -89,9 +90,8 @@ market_data_cache = {
         "tp2_pct": 0.0,
         "tp3_pct": 0.0,
         "leverage": 5,
-        "recommended_tf": "Multi-TF (15M / 1H / 4H)",
         "signal_time": "--:--:--",
-        "recommended_margin": 25.0
+        "recommended_margin": 30.0
     } for symbol in SYMBOLS
 }
 
@@ -132,24 +132,6 @@ def get_user_api_keys(username):
     except Exception:
         pass
     return env_api, env_sec
-
-def fetch_bingx_open_positions(api_key, secret_key):
-    if not api_key or not secret_key:
-        return []
-    try:
-        url = "https://open-api.bingx.com/openApi/swap/v2/user/positions"
-        timestamp = str(int(time.time() * 1000))
-        query_string = f"timestamp={timestamp}"
-        signature = hmac.new(secret_key.strip().encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256).hexdigest()
-        headers = {"X-BX-APIKEY": api_key.strip()}
-        full_url = f"{url}?{query_string}&signature={signature}"
-        res = requests.get(full_url, headers=headers, timeout=5)
-        if res.status_code == 200:
-            data = res.json().get("data", [])
-            return [p for p in data if float(p.get("positionAmt", 0)) != 0]
-    except Exception as e:
-        print(f"Errore recupero posizioni: {e}")
-    return []
 
 def set_bingx_leverage(api_key, secret_key, symbol, leverage, side):
     try:
@@ -260,10 +242,10 @@ def analyze_whale_volume(candles):
     
     if is_whale_activity:
         if last_close > prev_close:
-            return "WHALE ACCUMULATION 🐳", 2
+            return "INSTITUTIONAL ACCUMULATION 🐳", 2
         else:
-            return "WHALE DISTRIBUTION 🐋", -2
-    return "NORMAL", 0
+            return "INSTITUTIONAL DISTRIBUTION 🐋", -2
+    return "NORMAL LIQUIDITY", 0
 
 def fetch_bingx_klines(symbol, interval):
     try:
@@ -310,7 +292,6 @@ def run_scanner_background():
 
                     bullish_points, bearish_points, total_indicators = 0, 0, 15
 
-                    # Algoritmo IA Avanzato Multi-Timeframe
                     if bot_settings["use_rsi_filter"] == 1:
                         if rsi_15m > 50: bullish_points += 1
                         else: bearish_points += 1
@@ -349,41 +330,51 @@ def run_scanner_background():
                         elif whale_score_val == -2: bearish_points += 3
                         else:
                             bullish_points += 1
-                            bearish_points += 1
+                            bullish_points += 1
                     else:
                         bullish_points += 1
-                        bearish_points += 1
+                        bullish_points += 1
 
                     action, score, rating, passed_indicators = "NEUTRAL", 50, "NEUTRAL", 0
 
-                    if bullish_points >= 9 and (rsi_1h >= 52 or bot_settings["use_rsi_filter"] == 0):
+                    if bullish_points >= 8 and (rsi_1h >= 50 or bot_settings["use_rsi_filter"] == 0):
                         action = "LONG"
                         passed_indicators = bullish_points
-                        score = min(99, max(65, int((bullish_points / total_indicators) * 100)))
-                        rating = "QUANTUM BUY" if score >= 88 else "BUY"
-                    elif bearish_points >= 9 and (rsi_1h <= 48 or bot_settings["use_rsi_filter"] == 0):
+                        score = min(99, max(60, int((bullish_points / total_indicators) * 100)))
+                        rating = "ALPHA BUY" if score >= 85 else "QUANTUM BUY"
+                    elif bearish_points >= 8 and (rsi_1h <= 50 or bot_settings["use_rsi_filter"] == 0):
                         action = "SHORT"
                         passed_indicators = bearish_points
-                        score = min(99, max(65, int((bearish_points / total_indicators) * 100)))
-                        rating = "QUANTUM SELL" if score >= 88 else "SELL"
+                        score = min(99, max(60, int((bearish_points / total_indicators) * 100)))
+                        rating = "ALPHA SELL" if score >= 85 else "QUANTUM SELL"
 
-                    base_step = atr if atr > 0 else current_price * 0.012
+                    if score >= 90:
+                        ai_grade = "A+ (Elite Quantum)"
+                    elif score >= 80:
+                        ai_grade = "A (High Setup)"
+                    elif score >= 70:
+                        ai_grade = "B+ (Stable Momentum)"
+                    elif score >= 60:
+                        ai_grade = "B (Moderate)"
+                    else:
+                        ai_grade = "C (Neutral)"
+
+                    base_step = atr if atr > 0 else current_price * 0.01
                     leverage = 10 if score >= 90 else (5 if score >= 80 else 3)
-                    recommended_tf = "Multi-TF (15M / 1H / 4H)"
                     signal_time_str = datetime.now().strftime("%H:%M:%S")
                     
-                    recommended_margin = round(max(20.0, current_price * 0.04 / leverage), 2) if current_price < 100 else round(max(25.0, 1200.0 / leverage), 2)
+                    recommended_margin = round(max(25.0, current_price * 0.03 / leverage), 2) if current_price < 100 else round(max(30.0, 1500.0 / leverage), 2)
 
                     if action == "LONG":
-                        sl = current_price - (base_step * 1.1)
-                        tp1 = current_price + (base_step * 0.9)
-                        tp2 = current_price + (base_step * 1.8)
-                        tp3 = current_price + (base_step * 2.8)
+                        sl = current_price - (base_step * 1.0)
+                        tp1 = current_price + (base_step * 1.0)
+                        tp2 = current_price + (base_step * 2.0)
+                        tp3 = current_price + (base_step * 3.0)
                     elif action == "SHORT":
-                        sl = current_price + (base_step * 1.1)
-                        tp1 = current_price - (base_step * 0.9)
-                        tp2 = current_price - (base_step * 1.8)
-                        tp3 = current_price - (base_step * 2.8)
+                        sl = current_price + (base_step * 1.0)
+                        tp1 = current_price - (base_step * 1.0)
+                        tp2 = current_price - (base_step * 2.0)
+                        tp3 = current_price - (base_step * 3.0)
                     else:
                         sl, tp1, tp2, tp3 = current_price * 0.98, current_price * 1.01, current_price * 1.02, current_price * 1.03
 
@@ -405,6 +396,7 @@ def run_scanner_background():
                         "score": score,
                         "rating": rating,
                         "action": action,
+                        "ai_grade": ai_grade,
                         "indicators_passed": passed_indicators if action != "NEUTRAL" else int(total_indicators / 2),
                         "indicators_total": total_indicators,
                         "sl": sl,
@@ -416,7 +408,6 @@ def run_scanner_background():
                         "tp2_pct": tp2_pct,
                         "tp3_pct": tp3_pct,
                         "leverage": leverage,
-                        "recommended_tf": recommended_tf,
                         "signal_time": signal_time_str,
                         "recommended_margin": recommended_margin
                     }
@@ -429,14 +420,14 @@ def run_scanner_background():
                             if telegram_token and channel_id:
                                 pair_name = symbol.replace("-USDT", " / USDT")
                                 decimals = 5 if current_price < 1 else 2
-                                dir_text = "🟢 LONG QUANTUM" if action == "LONG" else "🔴 SHORT QUANTUM"
+                                dir_text = "🟢 LONG ALPHA" if action == "LONG" else "🔴 SHORT ALPHA"
 
                                 message = (
-                                    f"👑 **SCANNER TRADING VIP [AI ULTRA]** 👑\n"
+                                    f"👑 **SCANNER TRADING VIP** 👑\n"
                                     f"⏰ **Orario:** {signal_time_str}\n\n"
                                     f"🔹 **Asset:** {pair_name}\n"
                                     f"📊 **Direzione:** {dir_text}\n"
-                                    f"⭐ **Confluenza IA:** {score}% ({rating})\n"
+                                    f"⭐ **Confluenza IA:** {score}% | **Grado:** {ai_grade}\n"
                                     f"⚙️ **Leva:** {leverage}x | **Margine Consigliato:** ${recommended_margin} USDT\n"
                                     f"⚡ **Ingresso:** ${current_price:.{decimals}f}\n\n"
                                     f"🛑 **Stop Loss:** ${sl:.{decimals}f} ({sl_pct}%)\n"
@@ -484,9 +475,11 @@ BASE_HTML = """
         
         .flash { background: #111111; color: #00ff66; border: 1px solid #00ff66; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 13px; font-weight: bold; }
         
-        .gauge-container { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid #1a1a1a; padding-bottom: 8px; }
-        .gauge-bar-bg { background: #1a1a1a; height: 12px; border-radius: 6px; overflow: hidden; margin: 8px 0 12px 0; border: 1px solid #333333; position: relative; }
-        .gauge-bar-fill { height: 100%; transition: width 0.4s ease; }
+        /* Tachimetro Analogico Circolare con Lancetta Dinamica CSS */
+        .analog-gauge { width: 110px; height: 110px; border-radius: 50%; background: radial-gradient(circle, #111111 0%, #000000 100%); border: 2px solid #333333; position: relative; margin: 10px auto; display: flex; align-items: center; justify-content: center; box-shadow: inset 0 0 10px rgba(0,0,0,0.8); }
+        .gauge-center { width: 10px; height: 10px; background: #00ff66; border-radius: 50%; position: absolute; z-index: 3; box-shadow: 0 0 6px #00ff66; }
+        .gauge-needle { width: 2px; height: 45px; background: #ff3333; position: absolute; bottom: 50%; left: calc(50% - 1px); transform-origin: bottom center; z-index: 2; transition: transform 0.5s ease-in-out; box-shadow: 0 0 4px #ff3333; }
+        .gauge-value-text { position: absolute; bottom: 12px; font-size: 11px; font-weight: bold; color: #ffffff; z-index: 4; text-shadow: 0 1px 3px #000000; }
         
         .power-bar-bg { background: #1a1a1a; height: 6px; border-radius: 3px; overflow: hidden; margin: 4px 0 8px 0; border: 1px solid #333333; }
         .power-bar-fill { height: 100%; background: #00ff66; }
@@ -495,13 +488,12 @@ BASE_HTML = """
         .chart-btn:hover { background: #00ff66; color: #000000; }
         
         .signal-box { background: rgba(0,255,102,0.03); border: 1px solid #00ff66; border-radius: 10px; padding: 14px; margin-bottom: 20px; }
-        .positions-box { background: rgba(0,255,102,0.05); border: 1px solid #00ff66; border-radius: 10px; padding: 14px; margin-bottom: 20px; }
     </style>
     {refresh_tag}
 </head>
 <body>
     <div class="header">
-        <div class="logo">👑 SCANNER TRADING VIP [AI ULTRA]</div>
+        <div class="logo">👑 SCANNER TRADING VIP</div>
         <div class="nav">
             {% if session.get('user_id') %}
                 <span>Utente: <strong style="color: #00ff66;">{{ session.get('username') }}</strong></span>
@@ -525,38 +517,12 @@ BASE_HTML = """
 def home():
     try:
         active_signals = {s: d for s, d in market_data_cache.items() if d["score"] >= current_threshold and d["action"] != "NEUTRAL"}
-        
-        current_user = session.get('username', ADMIN_USERNAME)
-        api_key, secret_key = get_user_api_keys(current_user)
-        open_positions = fetch_bingx_open_positions(api_key, secret_key)
-
-        positions_html = ""
-        if open_positions:
-            positions_html += (
-                '<div class="positions-box">'
-                '<h3 style="color: #00ff66; font-size: 15px; margin-bottom: 10px;">🟢 Posizioni Live Attive su BingX</h3>'
-                '<div style="display: flex; flex-direction: column; gap: 6px;">'
-            )
-            for p in open_positions:
-                p_sym = p.get("symbol")
-                p_side = p.get("positionSide", "LONG")
-                p_amt = p.get("positionAmt")
-                p_lev = p.get("leverage")
-                p_pnl = float(p.get("unrealizedProfit", 0))
-                p_color = "#00ff66" if p_pnl >= 0 else "#ff3333"
-                positions_html += (
-                    f'<div style="background: #000000; padding: 8px 12px; border-radius: 6px; border: 1px solid #222222; display: flex; justify-content: space-between; align-items: center; font-size: 13px;">'
-                    f'<div><strong style="color: #ffffff;">{p_sym}</strong> <span style="color: #00ff66;">({p_side} {p_lev}x)</span> - Q.tà: {p_amt}</div>'
-                    f'<div>PnL: <strong style="color: {p_color};">${p_pnl:.2f}</strong></div>'
-                    f'</div>'
-                )
-            positions_html += "</div></div>"
 
         signals_html = ""
         if active_signals:
             signals_html += (
                 '<div class="signal-box">'
-                '<h3 style="color: #00ff66; font-size: 15px; margin-bottom: 10px;">🔥 Segnali IA Quantistici Attivi</h3>'
+                '<h3 style="color: #00ff66; font-size: 15px; margin-bottom: 10px;">🔥 Segnali Alpha Istituzionali Attivi</h3>'
                 '<div style="display: flex; flex-direction: column; gap: 8px;">'
             )
             for sym, dat in active_signals.items():
@@ -568,7 +534,7 @@ def home():
                     f'<div>'
                     f'<strong style="color: #ffffff; font-size: 14px;">{dat["symbol"]}</strong> - <span style="color: {dir_color}; font-weight: bold;">{dat["action"]}</span> '
                     f'<span style="font-size: 11px; color: #aaaaaa;">🕒 {dat["signal_time"]}</span>'
-                    f'<div style="font-size: 11px; color: #aaaaaa; margin-top: 2px;">Score IA: <strong style="color: #00ff66;">{dat["score"]}%</strong> | Leva: {dat["leverage"]}x | Margine Consigliato: <strong style="color: #00ff66;">${dat["recommended_margin"]}</strong></div>'
+                    f'<div style="font-size: 11px; color: #aaaaaa; margin-top: 2px;">Score IA: <strong style="color: #00ff66;">{dat["score"]}%</strong> | Grado: <strong style="color: #00ff66;">{dat["ai_grade"]}</strong> | Leva: {dat["leverage"]}x</div>'
                     f'</div>'
                     f'<div style="display: flex; gap: 10px; align-items: center;">'
                     f'<div style="font-size: 11px; color: #ffffff; text-align: right;">'
@@ -591,13 +557,13 @@ def home():
 
         toggles_html = f"""
         <div class="panel" style="border: 1px solid #333333;">
-            <h3 style="color: #ffffff; font-size: 14px; margin-bottom: 10px;">⚙️ Pannello Admin: Motore IA & Auto-Trading</h3>
+            <h3 style="color: #ffffff; font-size: 14px; margin-bottom: 10px;">⚙️ Pannello Admin: Motore IA Autonomo</h3>
             <form action="/toggle-settings" method="POST" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; font-size: 13px;">
                 <label style="color: #ffffff;"><input type="checkbox" name="use_trend_following" {"checked" if bot_settings["use_trend_following"]==1 else ""}> Trend-Following</label>
                 <label style="color: #ffffff;"><input type="checkbox" name="use_multi_ema" {"checked" if bot_settings["use_multi_ema"]==1 else ""}> Multi-EMA</label>
                 <label style="color: #ffffff;"><input type="checkbox" name="use_rsi_filter" {"checked" if bot_settings["use_rsi_filter"]==1 else ""}> RSI Filter</label>
                 <label style="color: #ffffff;"><input type="checkbox" name="use_whale_tracker" {"checked" if bot_settings["use_whale_tracker"]==1 else ""}> 🐳 Whale Tracker</label>
-                <label style="color: #ffffff;"><input type="checkbox" name="auto_execution" {"checked" if bot_settings["auto_execution"]==1 else ""}> 🚀 Auto-Trading Illimitato</label>
+                <label style="color: #ffffff;"><input type="checkbox" name="auto_execution" {"checked" if bot_settings["auto_execution"]==1 else ""}> 🚀 Auto-Trading H24</label>
                 <button type="submit" class="btn" style="width: auto; padding: 4px 10px; font-size: 12px;">Aggiorna</button>
             </form>
         </div>
@@ -606,21 +572,20 @@ def home():
         content = """
         <div class="panel" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
             <div>
-                <h3 style="color: #ffffff; font-size: 16px; margin-bottom: 3px;">Scanner Universale Multi-Timeframe (Crypto, Futures, Azioni & Nuove Quotazioni)</h3>
+                <h3 style="color: #ffffff; font-size: 16px; margin-bottom: 3px;">Scanner Universale Multi-Timeframe Autonomo</h3>
                 <p style="font-size: 12px; color: #aaaaaa;">Asset Monitorati: <strong style="color: #00ff66;">{total_assets}</strong> | Soglia Minima IA: <strong style="color: #00ff66;">{threshold}%</strong></p>
             </div>
             {threshold_control}
         </div>
         
-        {positions_section}
         {toggles_section}
         {signals_section}
         
-        <h3 style="margin-bottom: 12px; color: #ffffff; font-size: 16px; font-weight: bold; border-left: 3px solid #00ff66; padding-left: 8px;">📊 Monitoraggio Mercato Live & Tachimetri IA</h3>
+        <h3 style="margin-bottom: 12px; color: #ffffff; font-size: 16px; font-weight: bold; border-left: 3px solid #00ff66; padding-left: 8px;">📊 Monitoraggio Mercato Live & Tachimetri Analogici IA</h3>
         <div class="grid">
             {% for symbol, data in market_data.items() %}
             <div class="card">
-                <div class="gauge-container">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1a1a1a; padding-bottom: 8px; margin-bottom: 6px;">
                     <div>
                         <span style="font-weight: bold; color: #ffffff; font-size: 14px;">{{ data.symbol }}</span>
                         <div style="font-size: 11px; color: {% if data.action == 'LONG' %}#00ff66{% elif data.action == 'SHORT' %}#ff3333{% else %}#aaaaaa{% endif %}; font-weight: bold;">
@@ -628,17 +593,17 @@ def home():
                         </div>
                     </div>
                     <div style="text-align: right;">
-                        <span style="font-size: 13px; font-weight: bold; color: #ffffff;">Score IA: </span>
-                        <span style="font-size: 14px; font-weight: bold; color: #00ff66;">{{ data.score }}%</span>
+                        <span style="font-size: 11px; color: #00ff66; font-weight: bold;">Grado IA:</span>
+                        <div style="font-size: 11px; font-weight: bold; color: #ffffff;">{{ data.ai_grade }}</div>
                     </div>
                 </div>
 
-                <div style="font-size: 11px; color: #aaaaaa; display: flex; justify-content: space-between;">
-                    <span>Tachimetro Confluenza IA</span>
-                    <span style="color: #ffffff;">{{ data.score }} / 100%</span>
-                </div>
-                <div class="gauge-bar-bg">
-                    <div class="gauge-bar-fill" style="width: {{ data.score }}%; background: {% if data.score >= 82 %}#00ff66{% elif data.score >= 65 %}#ffaa00{% else %}#ff3333{% endif %};"></div>
+                <!-- Tachimetro Analogico Circolare con Lancetta Reale -->
+                <div class="analog-gauge">
+                    <div class="gauge-center"></div>
+                    <!-- Calcolo rotazione lancetta: da -90deg (0%) a +90deg (100%) -->
+                    <div class="gauge-needle" style="transform: rotate({{ (data.score * 1.8) - 90 }}deg);"></div>
+                    <div class="gauge-value-text">{{ data.score }}%</div>
                 </div>
 
                 <div style="font-size: 11px; color: #aaaaaa; display: flex; justify-content: space-between; margin-top: 4px;">
@@ -663,10 +628,6 @@ def home():
                         <span style="color: #00ff66;">Take Profit 1:</span>
                         <strong style="color: #00ff66;">${{ "%.4f"|format(data.tp1) if data.price < 1 else "%.2f"|format(data.tp1) }} (+{{ data.tp1_pct }}%)</strong>
                     </div>
-                    <div style="display: flex; justify-content: space-between;">
-                        <span style="color: #00ff66;">Take Profit 2:</span>
-                        <strong style="color: #00ff66;">${{ "%.4f"|format(data.tp2) if data.price < 1 else "%.2f"|format(data.tp2) }} (+{{ data.tp2_pct }}%)</strong>
-                    </div>
                 </div>
 
                 <a href="https://www.tradingview.com/chart/?symbol=BINGX:{{ data.symbol }}USDT" target="_blank" class="chart-btn">📈 Apri Grafico Live ({{ data.symbol }})</a>
@@ -678,7 +639,6 @@ def home():
         content = content.replace("{threshold}", str(current_threshold))
         content = content.replace("{total_assets}", str(len(SYMBOLS)))
         content = content.replace("{threshold_control}", threshold_control)
-        content = content.replace("{positions_section}", positions_html)
         content = content.replace("{toggles_section}", toggles_html)
         content = content.replace("{signals_section}", signals_html)
 
@@ -713,7 +673,7 @@ def settings():
     content = f"""
     <div class="panel" style="max-width: 420px; margin: 30px auto; border: 1px solid #333333;">
         <h3 style="color: #00ff66; margin-bottom: 15px; text-align: center;">Configurazione API BingX</h3>
-        <p style="font-size: 12px; color: #aaaaaa; margin-bottom: 15px; text-align: center;">Inserisci le tue chiavi API Futures per abilitare la lettura delle posizioni personali.</p>
+        <p style="font-size: 12px; color: #aaaaaa; margin-bottom: 15px; text-align: center;">Inserisci le tue chiavi API Futures per abilitare l'auto-trading autonomo.</p>
         <form method="POST">
             <div class="form-group"><label>BingX API Key</label><input type="text" name="api_key" value="{current_api}" required></div>
             <div class="form-group"><label>BingX Secret Key</label><input type="password" name="secret_key" value="{current_sec}" required></div>
