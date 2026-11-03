@@ -34,7 +34,7 @@ SYMBOLS = [
 ]
 
 current_threshold = 80
-MAX_ACTIVE_TRADES = 2
+MAX_ACTIVE_TRADES = 999  # Posizioni illimitate
 
 bot_settings = {
     "use_trend_following": 1,
@@ -139,11 +139,6 @@ def execute_bingx_order(api_key, secret_key, symbol, side, leverage=5, quantity=
     if bot_settings["auto_execution"] == 0:
         return False
     try:
-        open_positions = get_open_positions(api_key, secret_key)
-        if len(open_positions) >= MAX_ACTIVE_TRADES:
-            print(f"Limite massimo di {MAX_ACTIVE_TRADES} posizioni raggiunto. Ordine saltato.")
-            return False
-
         set_bingx_leverage(api_key, secret_key, symbol, leverage, side)
         
         url = "https://open-api.bingx.com/openApi/swap/v2/trade/order"
@@ -352,7 +347,6 @@ def run_scanner_background():
                     leverage = 10 if score >= 90 else (5 if score >= 80 else 3)
                     recommended_tf = "1H / 4H (Conferme Avanzate)" if score >= 85 else "1H (Momentum)"
 
-                    # MODIFICA: 3 Take Profit più ravvicinati e realistici
                     if action == "LONG":
                         sl = current_price - (base_step * 1.2)
                         tp1 = current_price + (base_step * 0.8)
@@ -451,7 +445,7 @@ BASE_HTML = """
         .form-group label { display: block; font-size: 12px; color: #9ca3af; margin-bottom: 4px; }
         .form-group input, .form-group select { width: 100%; background: #0b0e14; border: 1px solid #374151; color: #fff; padding: 8px; border-radius: 6px; font-size: 14px; }
         .btn { background: #2563eb; color: #fff; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer; width: 100%; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
         .card { background: #111827; border: 1px solid #1f2937; border-radius: 8px; padding: 12px; position: relative; }
         .flash { background: #1e3a8a; color: #93c5fd; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 13px; }
         
@@ -460,6 +454,12 @@ BASE_HTML = """
         .gauge-long { border-color: #10b981; color: #10b981; background: rgba(16,185,129,0.1); }
         .gauge-short { border-color: #ef4444; color: #ef4444; background: rgba(239,68,68,0.1); }
         .gauge-neutral { border-color: #6b7280; color: #9ca3af; background: rgba(107,114,128,0.1); }
+        
+        .power-bar-bg { background: #1f2937; height: 8px; border-radius: 4px; overflow: hidden; margin: 6px 0 10px 0; }
+        .power-bar-fill { height: 100%; background: linear-gradient(90deg, #38bdf8, #10b981); }
+        
+        .chart-btn { display: inline-block; background: rgba(56, 189, 248, 0.1); color: #38bdf8; border: 1px solid #38bdf8; padding: 4px 8px; border-radius: 4px; font-size: 11px; text-decoration: none; font-weight: bold; margin-top: 8px; text-align: center; width: 100%; }
+        .chart-btn:hover { background: #38bdf8; color: #000; }
         
         .signal-box { background: rgba(56, 189, 248, 0.05); border: 1px solid #38bdf8; border-radius: 8px; padding: 12px; margin-bottom: 20px; }
     </style>
@@ -496,24 +496,26 @@ def home():
         if active_signals:
             signals_html += (
                 '<div class="signal-box">'
-                '<h3 style="color: #38bdf8; font-size: 15px; margin-bottom: 10px;">🔥 Segnali ad Alta Confluenza Attivi (Pronti per Auto-Trading)</h3>'
+                '<h3 style="color: #38bdf8; font-size: 15px; margin-bottom: 10px;">🔥 Scanner Grafico: Segnali ad Alta Confluenza Attivi</h3>'
                 '<div style="display: flex; flex-direction: column; gap: 8px;">'
             )
             for sym, dat in active_signals.items():
                 dir_color = "#10b981" if dat["action"] == "LONG" else "#ef4444"
                 p_val = f"${dat['price']:.5f}" if dat['price'] < 1 else f"${dat['price']:.2f}"
-                sl_val = f"${dat['sl']:.4f}"
-                tp1_val = f"${dat['tp1']:.4f}"
+                chart_url = f"https://www.tradingview.com/chart/?symbol=BINGX:{dat['symbol']}USDT"
                 signals_html += (
                     f'<div style="background: #111827; padding: 10px; border-radius: 6px; border-left: 4px solid {dir_color}; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">'
                     f'<div>'
                     f'<strong style="color: #fff; font-size: 14px;">{dat["symbol"]}</strong> - <span style="color: {dir_color}; font-weight: bold;">{dat["action"]}</span> '
                     f'<span style="font-size: 12px; color: #9ca3af;">({dat["indicators_passed"]}/{dat["indicators_total"]} indicatori | {dat["whale_status"]})</span>'
-                    f'<div style="font-size: 11px; color: #38bdf8; margin-top: 2px;">Score: {dat["score"]}% | Leva: {dat["leverage"]}x</div>'
+                    f'<div style="font-size: 11px; color: #38bdf8; margin-top: 2px;">Score IA: {dat["score"]}% | Leva: {dat["leverage"]}x</div>'
                     f'</div>'
+                    f'<div style="display: flex; gap: 10px; align-items: center;">'
                     f'<div style="font-size: 11px; color: #d1d5db; text-align: right;">'
                     f'<div>Prezzo: <strong>{p_val}</strong></div>'
-                    f'<div>SL: <span style="color: #ef4444;">{sl_val} ({dat["sl_pct"]}%)</span> | TP1: <span style="color: #10b981;">{tp1_val} (+{dat["tp1_pct"]}%)</span></div>'
+                    f'<div>SL: <span style="color: #ef4444;">${dat["sl"]:.4f}</span> | TP1: <span style="color: #10b981;">${dat["tp1"]:.4f}</span></div>'
+                    f'</div>'
+                    f'<a href="{chart_url}" target="_blank" style="background: #38bdf8; color: #000; padding: 6px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; text-decoration: none;">📈 Grafico</a>'
                     f'</div>'
                     f'</div>'
                 )
@@ -531,13 +533,13 @@ def home():
             
             toggles_html = f"""
             <div class="panel" style="background: #1a2332; border: 1px solid #38bdf8;">
-                <h3 style="color: #38bdf8; font-size: 14px; margin-bottom: 10px;">⚙️ Pannello Admin: Attivazione / Disattivazione Moduli IA</h3>
+                <h3 style="color: #38bdf8; font-size: 14px; margin-bottom: 10px;">⚙️ Pannello Admin: Moduli IA e Scanner Avanzato</h3>
                 <form action="/toggle-settings" method="POST" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; font-size: 13px;">
                     <label><input type="checkbox" name="use_trend_following" {"checked" if bot_settings["use_trend_following"]==1 else ""}> Trend-Following</label>
                     <label><input type="checkbox" name="use_multi_ema" {"checked" if bot_settings["use_multi_ema"]==1 else ""}> Multi-EMA</label>
                     <label><input type="checkbox" name="use_rsi_filter" {"checked" if bot_settings["use_rsi_filter"]==1 else ""}> RSI Filter</label>
                     <label><input type="checkbox" name="use_whale_tracker" {"checked" if bot_settings["use_whale_tracker"]==1 else ""}> 🐳 Whale Tracker</label>
-                    <label><input type="checkbox" name="auto_execution" {"checked" if bot_settings["auto_execution"]==1 else ""}> 🚀 Auto-Trading Globale</label>
+                    <label><input type="checkbox" name="auto_execution" {"checked" if bot_settings["auto_execution"]==1 else ""}> 🚀 Auto-Trading Illimitato</label>
                     <button type="submit" class="btn" style="width: auto; padding: 4px 10px; font-size: 12px;">Aggiorna Stato</button>
                 </form>
             </div>
@@ -551,8 +553,8 @@ def home():
         content = """
         <div class="panel" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
             <div>
-                <h3 style="color: #fff; font-size: 15px; margin-bottom: 3px;">Dashboard & Scanner Istituzionale IA</h3>
-                <p style="font-size: 12px; color: #9ca3af;">Soglia Minima Segnale: <strong style="color: #f97316;">{threshold}%</strong> (Max 2 posizioni simultanee)</p>
+                <h3 style="color: #fff; font-size: 15px; margin-bottom: 3px;">Scanner Grafico & Intelligenza Istituzionale</h3>
+                <p style="font-size: 12px; color: #9ca3af;">Soglia Minima Segnale: <strong style="color: #f97316;">{threshold}%</strong> (Posizioni Illimitate su BingX)</p>
             </div>
             {threshold_control}
         </div>
@@ -560,25 +562,36 @@ def home():
         {toggles_section}
         {signals_section}
         
-        <h3 style="margin-bottom: 12px; color: #fff; font-size: 15px;">Monitoraggio Mercato Live & 3 Take Profit Scalettati</h3>
+        <h3 style="margin-bottom: 12px; color: #fff; font-size: 15px;">Monitoraggio Mercato Live (Tutti i Parametri & Grafici)</h3>
         <div class="grid">
             {% for symbol, data in market_data.items() %}
             <div class="card">
                 <div class="gauge-container">
                     <div>
                         <span style="font-weight: bold; color: #fff; font-size: 14px;">{{ data.symbol }}</span>
-                        <div style="font-size: 11px; color: #38bdf8;">{{ data.indicators_passed }}/{{ data.indicators_total }} Indicatori | Leva: <strong>{{ data.leverage }}x</strong></div>
+                        <div style="font-size: 11px; color: {% if data.action == 'LONG' %}#10b981{% elif data.action == 'SHORT' %}#ef4444{% else %}#9ca3af{% endif %}; font-weight: bold;">
+                            Direzione: {{ data.action }}
+                        </div>
                     </div>
                     <div class="gauge {% if data.action == 'LONG' %}gauge-long{% elif data.action == 'SHORT' %}gauge-short{% else %}gauge-neutral{% endif %}">
                         {{ data.score }}%
                     </div>
                 </div>
+
+                <!-- Barra Potenza Segnale -->
+                <div style="font-size: 11px; color: #9ca3af; display: flex; justify-content: space-between; margin-top: 4px;">
+                    <span>⚡ POTENZA IA & INDICATORI</span>
+                    <span style="color: #38bdf8; font-weight: bold;">{{ data.indicators_passed }}/{{ data.indicators_total }}</span>
+                </div>
+                <div class="power-bar-bg">
+                    <div class="power-bar-fill" style="width: {{ (data.indicators_passed / data.indicators_total * 100)|int }}%;"></div>
+                </div>
                 
                 <div style="font-size: 11px; color: #9ca3af; display: flex; flex-direction: column; gap: 4px;">
                     <div style="display: flex; justify-content: space-between;"><span>Prezzo Live:</span><strong style="color: #fff;">${{ "%.4f"|format(data.price) if data.price < 1 else "%.2f"|format(data.price) }}</strong></div>
                     <div style="display: flex; justify-content: space-between;"><span>RSI (1H / 4H):</span><span><strong style="color: #38bdf8;">{{ data.rsi_1h }}</strong> / <strong style="color: #f97316;">{{ data.rsi_4h }}</strong></span></div>
-                    <div style="display: flex; justify-content: space-between;"><span>EMA (9 / 21 / 50):</span><span style="color: #93c5fd;">{{ "%.2f"|format(data.ema_9) }} / {{ "%.2f"|format(data.ema_21) }} / {{ "%.2f"|format(data.ema_50) }}</span></div>
-                    <div style="display: flex; justify-content: space-between;"><span>Tracciamento Balene:</span><strong style="color: #f59e0b;">{{ data.whale_status }}</strong></div>
+                    <div style="display: flex; justify-content: space-between;"><span>EMA (9/21/50):</span><span style="color: #93c5fd;">{{ "%.2f"|format(data.ema_9) }} / {{ "%.2f"|format(data.ema_21) }} / {{ "%.2f"|format(data.ema_50) }}</span></div>
+                    <div style="display: flex; justify-content: space-between;"><span>Whale Tracker:</span><strong style="color: #f59e0b;">{{ data.whale_status }}</strong></div>
                     
                     <div style="display: flex; justify-content: space-between; border-top: 1px dashed #1f2937; padding-top: 4px; margin-top: 2px;">
                         <span style="color: #ef4444;">Stop Loss:</span>
@@ -597,6 +610,9 @@ def home():
                         <strong style="color: #6ee7b7;">${{ "%.4f"|format(data.tp3) if data.price < 1 else "%.2f"|format(data.tp3) }} (+{{ data.tp3_pct }}%)</strong>
                     </div>
                 </div>
+
+                <!-- Pulsante Grafico Dedicato -->
+                <a href="https://www.tradingview.com/chart/?symbol=BINGX:{{ data.symbol }}USDT" target="_blank" class="chart-btn">📈 Apri Grafico Live ({{ data.symbol }})</a>
             </div>
             {% endfor %}
         </div>
