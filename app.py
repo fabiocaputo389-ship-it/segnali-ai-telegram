@@ -1,4 +1,3 @@
-
 import os
 import time
 import threading
@@ -446,4 +445,299 @@ BASE_HTML = """
         .form-group input, .form-group select { width: 100%; background: #0b0e14; border: 1px solid #374151; color: #fff; padding: 8px; border-radius: 6px; font-size: 14px; }
         .btn { background: #2563eb; color: #fff; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer; width: 100%; }
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
-        .card { background: #111827; border: 1px solid #1f2937; border-radiu
+        .card { background: #111827; border: 1px solid #1f2937; border-radius: 8px; padding: 12px; position: relative; }
+        .flash { background: #1e3a8a; color: #93c5fd; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 13px; }
+        
+        .gauge-container { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid #1f2937; padding-bottom: 8px; }
+        .gauge { width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 11px; border: 3px solid #374151; }
+        .gauge-long { border-color: #10b981; color: #10b981; background: rgba(16,185,129,0.1); }
+        .gauge-short { border-color: #ef4444; color: #ef4444; background: rgba(239,68,68,0.1); }
+        .gauge-neutral { border-color: #6b7280; color: #9ca3af; background: rgba(107,114,128,0.1); }
+        
+        .signal-box { background: rgba(56, 189, 248, 0.05); border: 1px solid #38bdf8; border-radius: 8px; padding: 12px; margin-bottom: 20px; }
+    </style>
+    {refresh_tag}
+</head>
+<body>
+    <div class="header">
+        <div class="logo">⚡ {{ brand_name }}</div>
+        <div class="nav">
+            {% if session.get('user_id') %}
+                <span>Utente: <strong>{{ session.get('username') }}</strong></span>
+                <a href="/settings">⚙️ API</a>
+                <a href="/logout" style="color: #ef4444;">Esci</a>
+            {% else %}
+                <a href="/login">Accedi</a>
+                <a href="/register">Registrati</a>
+            {% endif %}
+        </div>
+    </div>
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}{% for message in messages %}<div class="flash">{{ message }}</div>{% endfor %}{% endif %}
+    {% endwith %}
+    {{ content | safe }}
+</body>
+</html>
+"""
+
+@app.route("/")
+def home():
+    try:
+        active_signals = {s: d for s, d in market_data_cache.items() if d["score"] >= current_threshold and d["action"] != "NEUTRAL"}
+
+        signals_html = ""
+        if active_signals:
+            signals_html += (
+                '<div class="signal-box">'
+                '<h3 style="color: #38bdf8; font-size: 15px; margin-bottom: 10px;">🔥 Segnali ad Alta Confluenza Attivi (Pronti per Auto-Trading)</h3>'
+                '<div style="display: flex; flex-direction: column; gap: 8px;">'
+            )
+            for sym, dat in active_signals.items():
+                dir_color = "#10b981" if dat["action"] == "LONG" else "#ef4444"
+                p_val = f"${dat['price']:.5f}" if dat['price'] < 1 else f"${dat['price']:.2f}"
+                sl_val = f"${dat['sl']:.4f}"
+                tp1_val = f"${dat['tp1']:.4f}"
+                signals_html += (
+                    f'<div style="background: #111827; padding: 10px; border-radius: 6px; border-left: 4px solid {dir_color}; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">'
+                    f'<div>'
+                    f'<strong style="color: #fff; font-size: 14px;">{dat["symbol"]}</strong> - <span style="color: {dir_color}; font-weight: bold;">{dat["action"]}</span> '
+                    f'<span style="font-size: 12px; color: #9ca3af;">({dat["indicators_passed"]}/{dat["indicators_total"]} indicatori | {dat["whale_status"]})</span>'
+                    f'<div style="font-size: 11px; color: #38bdf8; margin-top: 2px;">Score: {dat["score"]}% | Leva: {dat["leverage"]}x</div>'
+                    f'</div>'
+                    f'<div style="font-size: 11px; color: #d1d5db; text-align: right;">'
+                    f'<div>Prezzo: <strong>{p_val}</strong></div>'
+                    f'<div>SL: <span style="color: #ef4444;">{sl_val} ({dat["sl_pct"]}%)</span> | TP1: <span style="color: #10b981;">{tp1_val} (+{dat["tp1_pct"]}%)</span></div>'
+                    f'</div>'
+                    f'</div>'
+                )
+            signals_html += "</div></div>"
+
+        is_admin = session.get('username') == ADMIN_USERNAME
+        
+        if is_admin:
+            threshold_control = (
+                f'<form action="/set-threshold" method="POST" style="display: flex; gap: 8px; align-items: center;">'
+                f'<input type="number" name="threshold" min="40" max="99" value="{current_threshold}" style="width: 60px; text-align: center; background: #0b0e14; border: 1px solid #374151; color: #fff; padding: 6px; border-radius: 6px;">'
+                f'<button type="submit" class="btn" style="width: auto; padding: 6px 12px;">Imposta</button>'
+                f'</form>'
+            )
+            
+            toggles_html = f"""
+            <div class="panel" style="background: #1a2332; border: 1px solid #38bdf8;">
+                <h3 style="color: #38bdf8; font-size: 14px; margin-bottom: 10px;">⚙️ Pannello Admin: Attivazione / Disattivazione Moduli IA</h3>
+                <form action="/toggle-settings" method="POST" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; font-size: 13px;">
+                    <label><input type="checkbox" name="use_trend_following" {"checked" if bot_settings["use_trend_following"]==1 else ""}> Trend-Following</label>
+                    <label><input type="checkbox" name="use_multi_ema" {"checked" if bot_settings["use_multi_ema"]==1 else ""}> Multi-EMA</label>
+                    <label><input type="checkbox" name="use_rsi_filter" {"checked" if bot_settings["use_rsi_filter"]==1 else ""}> RSI Filter</label>
+                    <label><input type="checkbox" name="use_whale_tracker" {"checked" if bot_settings["use_whale_tracker"]==1 else ""}> 🐳 Whale Tracker</label>
+                    <label><input type="checkbox" name="auto_execution" {"checked" if bot_settings["auto_execution"]==1 else ""}> 🚀 Auto-Trading Globale</label>
+                    <button type="submit" class="btn" style="width: auto; padding: 4px 10px; font-size: 12px;">Aggiorna Stato</button>
+                </form>
+            </div>
+            """
+        else:
+            threshold_control = (
+                f'<span style="background: #0b0e14; border: 1px solid #374151; color: #f97316; padding: 6px 12px; border-radius: 6px; font-weight: bold; font-size: 14px;">{current_threshold}% (Admin)</span>'
+            )
+            toggles_html = ""
+
+        content = """
+        <div class="panel" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div>
+                <h3 style="color: #fff; font-size: 15px; margin-bottom: 3px;">Dashboard & Scanner Istituzionale IA</h3>
+                <p style="font-size: 12px; color: #9ca3af;">Soglia Minima Segnale: <strong style="color: #f97316;">{threshold}%</strong> (Max 2 posizioni simultanee)</p>
+            </div>
+            {threshold_control}
+        </div>
+        
+        {toggles_section}
+        {signals_section}
+        
+        <h3 style="margin-bottom: 12px; color: #fff; font-size: 15px;">Monitoraggio Mercato Live & Tutti i Parametri Dettagliati</h3>
+        <div class="grid">
+            {% for symbol, data in market_data.items() %}
+            <div class="card">
+                <div class="gauge-container">
+                    <div>
+                        <span style="font-weight: bold; color: #fff; font-size: 14px;">{{ data.symbol }}</span>
+                        <div style="font-size: 11px; color: #38bdf8;">{{ data.indicators_passed }}/{{ data.indicators_total }} Indicatori | Leva: <strong>{{ data.leverage }}x</strong></div>
+                    </div>
+                    <div class="gauge {% if data.action == 'LONG' %}gauge-long{% elif data.action == 'SHORT' %}gauge-short{% else %}gauge-neutral{% endif %}">
+                        {{ data.score }}%
+                    </div>
+                </div>
+                
+                <div style="font-size: 11px; color: #9ca3af; display: flex; flex-direction: column; gap: 4px;">
+                    <div style="display: flex; justify-content: space-between;"><span>Prezzo Live:</span><strong style="color: #fff;">${{ "%.4f"|format(data.price) if data.price < 1 else "%.2f"|format(data.price) }}</strong></div>
+                    <div style="display: flex; justify-content: space-between;"><span>RSI (1H / 4H):</span><span><strong style="color: #38bdf8;">{{ data.rsi_1h }}</strong> / <strong style="color: #f97316;">{{ data.rsi_4h }}</strong></span></div>
+                    <div style="display: flex; justify-content: space-between;"><span>EMA (9 / 21 / 50):</span><span style="color: #93c5fd;">{{ "%.2f"|format(data.ema_9) }} / {{ "%.2f"|format(data.ema_21) }} / {{ "%.2f"|format(data.ema_50) }}</span></div>
+                    <div style="display: flex; justify-content: space-between;"><span>Tracciamento Balene:</span><strong style="color: #f59e0b;">{{ data.whale_status }}</strong></div>
+                    <div style="display: flex; justify-content: space-between; border-top: 1px dashed #1f2937; padding-top: 4px; margin-top: 2px;">
+                        <span style="color: #ef4444;">Stop Loss:</span>
+                        <strong style="color: #ef4444;">${{ "%.4f"|format(data.sl) if data.price < 1 else "%.2f"|format(data.sl) }} ({{ data.sl_pct }}%)</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span style="color: #10b981;">Take Profit 1:</span>
+                        <strong style="color: #10b981;">${{ "%.4f"|format(data.tp1) if data.price < 1 else "%.2f"|format(data.tp1) }} (+{{ data.tp1_pct }}%)</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span style="color: #059669;">Take Profit 2:</span>
+                        <strong style="color: #059669;">${{ "%.4f"|format(data.tp2) if data.price < 1 else "%.2f"|format(data.tp2) }} (+{{ data.tp2_pct }}%)</strong>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        """
+        
+        content = content.replace("{threshold}", str(current_threshold))
+        content = content.replace("{threshold_control}", threshold_control)
+        content = content.replace("{toggles_section}", toggles_html)
+        content = content.replace("{signals_section}", signals_html)
+
+        refresh_tag = '<meta http-equiv="refresh" content="15">'
+        html = BASE_HTML.replace("{refresh_tag}", refresh_tag).replace("{{ content | safe }}", content)
+        return render_template_string(html, brand_name=BRAND_NAME, market_data=market_data_cache)
+    except Exception as e:
+        return f"Errore interno temporaneo: {e}", 500
+
+@app.route("/set-threshold", methods=["POST"])
+def set_threshold():
+    global current_threshold
+    if session.get("username") == ADMIN_USERNAME:
+        try:
+            val = int(request.form.get("threshold"))
+            if 40 <= val <= 99:
+                current_threshold = val
+        except ValueError:
+            pass
+    return redirect(url_for("home"))
+
+@app.route("/toggle-settings", methods=["POST"])
+def toggle_settings():
+    global bot_settings
+    if session.get("username") == ADMIN_USERNAME:
+        bot_settings["use_trend_following"] = 1 if request.form.get("use_trend_following") == "on" else 0
+        bot_settings["use_multi_ema"] = 1 if request.form.get("use_multi_ema") == "on" else 0
+        bot_settings["use_rsi_filter"] = 1 if request.form.get("use_rsi_filter") == "on" else 0
+        bot_settings["use_whale_tracker"] = 1 if request.form.get("use_whale_tracker") == "on" else 0
+        bot_settings["auto_execution"] = 1 if request.form.get("auto_execution") == "on" else 0
+    return redirect(url_for("home"))
+
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if request.method == "POST":
+        username = request.form.get("username")
+        password = generate_password_hash(request.form.get("password"))
+        init_db()
+        try:
+            conn = sqlite3.connect("trading_bot.db")
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, password))
+            conn.commit()
+            conn.close()
+            flash("Registrazione completata! Effettua il login.")
+            return redirect(url_for("login"))
+        except Exception:
+            flash("Username già esistente o errore di salvataggio.")
+    content = """
+    <div class="panel" style="max-width: 380px; margin: 30px auto;">
+        <h3 style="color: #fff; margin-bottom: 15px; text-align: center;">Registrazione VIP</h3>
+        <form method="POST">
+            <div class="form-group"><label>Username</label><input type="text" name="username" required></div>
+            <div class="form-group"><label>Password</label><input type="password" name="password" required></div>
+            <button type="submit" class="btn" style="margin-top: 10px;">Registrati</button>
+        </form>
+    </div>
+    """
+    html = BASE_HTML.replace("{refresh_tag}", "").replace("{{ content | safe }}", content)
+    return render_template_string(html, brand_name=BRAND_NAME)
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        username = request.form.get("username")
+        password = request.form.get("password")
+        init_db()
+        try:
+            conn = sqlite3.connect("trading_bot.db")
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, password FROM users WHERE username = ?", (username,))
+            user = cursor.fetchone()
+            conn.close()
+            if user and check_password_hash(user[1], password):
+                session["user_id"] = user[0]
+                session["username"] = username
+                flash("Login effettuato con successo!")
+                return redirect(url_for("home"))
+        except Exception:
+            pass
+        flash("Credenziali non valide.")
+    content = """
+    <div class="panel" style="max-width: 380px; margin: 30px auto;">
+        <h3 style="color: #fff; margin-bottom: 15px; text-align: center;">Accesso Piattaforma</h3>
+        <form method="POST">
+            <div class="form-group"><label>Username</label><input type="text" name="username" required></div>
+            <div class="form-group"><label>Password</label><input type="password" name="password" required></div>
+            <button type="submit" class="btn" style="margin-top: 10px;">Accedi</button>
+        </form>
+    </div>
+    """
+    html = BASE_HTML.replace("{refresh_tag}", "").replace("{{ content | safe }}", content)
+    return render_template_string(html, brand_name=BRAND_NAME)
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    flash("Logout effettuato.")
+    return redirect(url_for("home"))
+
+@app.route("/settings", methods=["GET", "POST"])
+def settings():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+    init_db()
+    try:
+        conn = sqlite3.connect("trading_bot.db")
+        cursor = conn.cursor()
+        if request.method == "POST":
+            api_key = request.form.get("api_key")
+            secret_key = request.form.get("secret_key")
+            auto_trading = int(request.form.get("auto_trading", 0))
+            cursor.execute("UPDATE users SET bingx_api_key = ?, bingx_secret_key = ?, auto_trading = ? WHERE id = ?", (api_key, secret_key, auto_trading, session["user_id"]))
+            conn.commit()
+            flash("Configurazione API salvata in modo persistente!")
+        cursor.execute("SELECT bingx_api_key, bingx_secret_key, auto_trading FROM users WHERE id = ?", (session["user_id"],))
+        u_data = cursor.fetchone()
+        conn.close()
+        
+        u_api = u_data[0] if u_data and u_data[0] else ''
+        u_sec = u_data[1] if u_data and u_data[1] else ''
+        u_auto = u_data[2] if u_data and len(u_data) > 2 and u_data[2] is not None else 0
+    except Exception as e:
+        print(f"Errore pagina settings: {e}")
+        u_api, u_sec, u_auto = '', '', 0
+    
+    content = f"""
+    <div class="panel" style="max-width: 450px; margin: 20px auto;">
+        <h3 style="color: #fff; margin-bottom: 12px;">Gestione API BingX Personali</h3>
+        <p style="font-size: 12px; color: #9ca3af; margin-bottom: 15px;">Le tue chiavi e impostazioni ora restano salvate stabilmente nel database.</p>
+        <form method="POST">
+            <div class="form-group"><label>API Key</label><input type="text" name="api_key" value="{u_api}"></div>
+            <div class="form-group"><label>Secret Key</label><input type="password" name="secret_key" value="{u_sec}">*</div>
+            <div class="form-group"><label>Stato Auto-Trading</label>
+                <select name="auto_trading">
+                    <option value="0" {"selected" if u_auto == 0 else ""}>Disattivato</option>
+                    <option value="1" {"selected" if u_auto == 1 else ""}>Attivato (Esecuzione Automatica)</option>
+                </select>
+            </div>
+            <button type="submit" class="btn" style="background: #059669; margin-top: 10px;">Salva Chiavi</button>
+        </form>
+    </div>
+    """
+    html = BASE_HTML.replace("{refresh_tag}", "").replace("{{ content | safe }}", content)
+    return render_template_string(html, brand_name=BRAND_NAME)
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
