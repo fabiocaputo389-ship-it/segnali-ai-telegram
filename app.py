@@ -63,9 +63,11 @@ market_data_cache = {
         "sl": 0.0,
         "tp1": 0.0,
         "tp2": 0.0,
+        "tp3": 0.0,
         "sl_pct": 0.0,
         "tp1_pct": 0.0,
         "tp2_pct": 0.0,
+        "tp3_pct": 0.0,
         "leverage": 5,
         "recommended_tf": "1H / 4H Multi-TF"
     } for symbol in SYMBOLS
@@ -142,10 +144,8 @@ def execute_bingx_order(api_key, secret_key, symbol, side, leverage=5, quantity=
             print(f"Limite massimo di {MAX_ACTIVE_TRADES} posizioni raggiunto. Ordine saltato.")
             return False
 
-        # 1. Imposta la leva
         set_bingx_leverage(api_key, secret_key, symbol, leverage, side)
         
-        # 2. Invia ordine di mercato pulito (senza forzare SL/TP direttamente nell'order per evitare rifiuti dell'API)
         url = "https://open-api.bingx.com/openApi/swap/v2/trade/order"
         timestamp = str(int(time.time() * 1000))
         
@@ -333,7 +333,7 @@ def run_scanner_background():
                             bearish_points += 1
                     else:
                         bullish_points += 1
-                        bearish_points += 1
+                        bullish_points += 1
 
                     action, score, rating, passed_indicators = "NEUTRAL", 50, "NEUTRAL", 0
 
@@ -352,20 +352,24 @@ def run_scanner_background():
                     leverage = 10 if score >= 90 else (5 if score >= 80 else 3)
                     recommended_tf = "1H / 4H (Conferme Avanzate)" if score >= 85 else "1H (Momentum)"
 
+                    # MODIFICA: 3 Take Profit più ravvicinati e realistici
                     if action == "LONG":
-                        sl = current_price - (base_step * 1.5)
-                        tp1 = current_price + (base_step * 2.0)
-                        tp2 = current_price + (base_step * 3.5)
+                        sl = current_price - (base_step * 1.2)
+                        tp1 = current_price + (base_step * 0.8)
+                        tp2 = current_price + (base_step * 1.6)
+                        tp3 = current_price + (base_step * 2.5)
                     elif action == "SHORT":
-                        sl = current_price + (base_step * 1.5)
-                        tp1 = current_price - (base_step * 2.0)
-                        tp2 = current_price - (base_step * 3.5)
+                        sl = current_price + (base_step * 1.2)
+                        tp1 = current_price - (base_step * 0.8)
+                        tp2 = current_price - (base_step * 1.6)
+                        tp3 = current_price - (base_step * 2.5)
                     else:
-                        sl, tp1, tp2 = current_price * 0.98, current_price * 1.02, current_price * 1.04
+                        sl, tp1, tp2, tp3 = current_price * 0.98, current_price * 1.01, current_price * 1.02, current_price * 1.03
 
                     sl_pct = round(((sl - current_price) / current_price) * 100, 2)
                     tp1_pct = round(((tp1 - current_price) / current_price) * 100, 2)
                     tp2_pct = round(((tp2 - current_price) / current_price) * 100, 2)
+                    tp3_pct = round(((tp3 - current_price) / current_price) * 100, 2)
 
                     market_data_cache[symbol] = {
                         "symbol": symbol.replace("-USDT", ""),
@@ -385,9 +389,11 @@ def run_scanner_background():
                         "sl": sl,
                         "tp1": tp1,
                         "tp2": tp2,
+                        "tp3": tp3,
                         "sl_pct": sl_pct,
                         "tp1_pct": tp1_pct,
                         "tp2_pct": tp2_pct,
+                        "tp3_pct": tp3_pct,
                         "leverage": leverage,
                         "recommended_tf": recommended_tf
                     }
@@ -413,7 +419,8 @@ def run_scanner_background():
                                 f"⚡ **Ingresso:** ${current_price:.{decimals}f}\n\n"
                                 f"🛑 **Stop Loss:** ${sl:.{decimals}f} ({sl_pct}%)\n"
                                 f"🎯 **Take Profit 1:** ${tp1:.{decimals}f} ({tp1_pct}%)\n"
-                                f"🎯 **Take Profit 2:** ${tp2:.{decimals}f} ({tp2_pct}%)\n\n"
+                                f"🎯 **Take Profit 2:** ${tp2:.{decimals}f} ({tp2_pct}%)\n"
+                                f"🎯 **Take Profit 3:** ${tp3:.{decimals}f} ({tp3_pct}%)\n\n"
                                 f"🚀 *Eseguito in automatico con leva {leverage}x!*"
                             )
                             requests.post(f"https://api.telegram.org/bot{telegram_token}/sendMessage", json={"chat_id": channel_id, "text": message, "parse_mode": "Markdown"})
@@ -444,7 +451,7 @@ BASE_HTML = """
         .form-group label { display: block; font-size: 12px; color: #9ca3af; margin-bottom: 4px; }
         .form-group input, .form-group select { width: 100%; background: #0b0e14; border: 1px solid #374151; color: #fff; padding: 8px; border-radius: 6px; font-size: 14px; }
         .btn { background: #2563eb; color: #fff; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer; width: 100%; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
         .card { background: #111827; border: 1px solid #1f2937; border-radius: 8px; padding: 12px; position: relative; }
         .flash { background: #1e3a8a; color: #93c5fd; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 13px; }
         
@@ -553,7 +560,7 @@ def home():
         {toggles_section}
         {signals_section}
         
-        <h3 style="margin-bottom: 12px; color: #fff; font-size: 15px;">Monitoraggio Mercato Live & Tutti i Parametri Dettagliati</h3>
+        <h3 style="margin-bottom: 12px; color: #fff; font-size: 15px;">Monitoraggio Mercato Live & 3 Take Profit Scalettati</h3>
         <div class="grid">
             {% for symbol, data in market_data.items() %}
             <div class="card">
@@ -572,6 +579,7 @@ def home():
                     <div style="display: flex; justify-content: space-between;"><span>RSI (1H / 4H):</span><span><strong style="color: #38bdf8;">{{ data.rsi_1h }}</strong> / <strong style="color: #f97316;">{{ data.rsi_4h }}</strong></span></div>
                     <div style="display: flex; justify-content: space-between;"><span>EMA (9 / 21 / 50):</span><span style="color: #93c5fd;">{{ "%.2f"|format(data.ema_9) }} / {{ "%.2f"|format(data.ema_21) }} / {{ "%.2f"|format(data.ema_50) }}</span></div>
                     <div style="display: flex; justify-content: space-between;"><span>Tracciamento Balene:</span><strong style="color: #f59e0b;">{{ data.whale_status }}</strong></div>
+                    
                     <div style="display: flex; justify-content: space-between; border-top: 1px dashed #1f2937; padding-top: 4px; margin-top: 2px;">
                         <span style="color: #ef4444;">Stop Loss:</span>
                         <strong style="color: #ef4444;">${{ "%.4f"|format(data.sl) if data.price < 1 else "%.2f"|format(data.sl) }} ({{ data.sl_pct }}%)</strong>
@@ -581,8 +589,12 @@ def home():
                         <strong style="color: #10b981;">${{ "%.4f"|format(data.tp1) if data.price < 1 else "%.2f"|format(data.tp1) }} (+{{ data.tp1_pct }}%)</strong>
                     </div>
                     <div style="display: flex; justify-content: space-between;">
-                        <span style="color: #059669;">Take Profit 2:</span>
-                        <strong style="color: #059669;">${{ "%.4f"|format(data.tp2) if data.price < 1 else "%.2f"|format(data.tp2) }} (+{{ data.tp2_pct }}%)</strong>
+                        <span style="color: #34d399;">Take Profit 2:</span>
+                        <strong style="color: #34d399;">${{ "%.4f"|format(data.tp2) if data.price < 1 else "%.2f"|format(data.tp2) }} (+{{ data.tp2_pct }}%)</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span style="color: #6ee7b7;">Take Profit 3:</span>
+                        <strong style="color: #6ee7b7;">${{ "%.4f"|format(data.tp3) if data.price < 1 else "%.2f"|format(data.tp3) }} (+{{ data.tp3_pct }}%)</strong>
                     </div>
                 </div>
             </div>
