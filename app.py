@@ -169,10 +169,15 @@ def trigger_auto_trades(symbol, action, leverage, sl, tp1):
     if bot_settings["auto_execution"] == 0:
         return
     side = "BUY" if action == "LONG" else "SELL"
+    
+    # 1. Legge le variabili d'ambiente di Render se configurate lì
     owner_api = os.environ.get("BINGX_API_KEY")
     owner_secret = os.environ.get("BINGX_SECRET_KEY")
+    
     if owner_api and owner_secret:
         execute_bingx_order(owner_api, owner_secret, symbol, side, leverage, 10.0, sl, tp1)
+        
+    # 2. Legge anche gli utenti dal database che hanno attivato l'auto-trading
     try:
         init_db()
         conn = sqlite3.connect("trading_bot.db")
@@ -181,7 +186,9 @@ def trigger_auto_trades(symbol, action, leverage, sl, tp1):
         users = cursor.fetchall()
         conn.close()
         for u_api, u_sec in users:
-            execute_bingx_order(u_api, u_sec, symbol, side, leverage, 10.0, sl, tp1)
+            # Evita di duplicare se l'utente usa le stesse chiavi di Render
+            if u_api != owner_api:
+                execute_bingx_order(u_api, u_sec, symbol, side, leverage, 10.0, sl, tp1)
     except Exception as e:
         print(f"Errore recupero utenti auto-trading: {e}")
 
@@ -254,6 +261,7 @@ def fetch_bingx_klines(symbol, interval):
     return []
 
 def run_scanner_background():
+    # Legge il token Telegram e la chat ID direttamente dalle variabili d'ambiente di Render
     telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     channel_id = os.environ.get("CHANNEL_ID")
     last_signal_time = {symbol: 0 for symbol in SYMBOLS}
@@ -733,7 +741,6 @@ def settings():
             secret_key = request.form.get("secret_key")
             auto_trading = int(request.form.get("auto_trading", 0))
             
-            # Mantiene la secret key esistente se il campo viene lasciato vuoto per sicurezza
             if not secret_key:
                 cursor.execute("SELECT bingx_secret_key FROM users WHERE id = ?", (session["user_id"],))
                 old_sec = cursor.fetchone()
@@ -758,9 +765,9 @@ def settings():
     content = f"""
     <div class="panel" style="max-width: 450px; margin: 20px auto;">
         <h3 style="color: #fff; margin-bottom: 12px;">Gestione API BingX Personali</h3>
-        <p style="font-size: 12px; color: #9ca3af; margin-bottom: 15px;">Inserisci le tue chiavi ufficiali di BingX e imposta l'auto-trading su Attivato.</p>
+        <p style="font-size: 12px; color: #9ca3af; margin-bottom: 15px;">Inserisci le tue chiavi ufficiali di BingX o sfrutta quelle globali di Render.</p>
         <form method="POST">
-            <div class="form-group"><label>API Key</label><input type="text" name="api_key" value="{u_api}" placeholder="Incolla qui la tua API Key di BingX" required></div>
+            <div class="form-group"><label>API Key</label><input type="text" name="api_key" value="{u_api}" placeholder="Incolla qui la tua API Key di BingX"></div>
             <div class="form-group"><label>Secret Key</label><input type="password" name="secret_key" value="{u_sec}" placeholder="Incolla qui la tua Secret Key"></div>
             <div class="form-group"><label>Stato Auto-Trading</label>
                 <select name="auto_trading">
