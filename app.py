@@ -20,7 +20,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "chiave_segreta_super_sicura_vip")
 
-BRAND_NAME = "VIP LUXURY TRADING AI"
+BRAND_NAME = "👑 SCANNER TRADING VIP"
 ADMIN_USERNAME = "Fabio"
 
 def fetch_all_bingx_symbols():
@@ -105,7 +105,9 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT UNIQUE NOT NULL,
                 password TEXT NOT NULL,
-                auto_trading INTEGER DEFAULT 0
+                auto_trading INTEGER DEFAULT 0,
+                bingx_api_key TEXT DEFAULT '',
+                bingx_secret_key TEXT DEFAULT ''
             )
         """)
         conn.commit()
@@ -114,6 +116,24 @@ def init_db():
         print(f"Errore DB Init: {e}")
 
 init_db()
+
+def get_user_api_keys(username):
+    # Fallback sulle variabili d'ambiente di Render se l'utente non ha impostato le proprie
+    env_api = os.environ.get("BINGX_API_KEY", "")
+    env_sec = os.environ.get("BINGX_SECRET_KEY", "")
+    try:
+        conn = sqlite3.connect("trading_bot.db")
+        cursor = conn.cursor()
+        cursor.execute("SELECT bingx_api_key, bingx_secret_key FROM users WHERE username = ?", (username,))
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            db_api, db_sec = row[0], row[1]
+            if db_api and db_sec:
+                return db_api, db_sec
+    except Exception:
+        pass
+    return env_api, env_sec
 
 def fetch_bingx_open_positions(api_key, secret_key):
     if not api_key or not secret_key:
@@ -187,8 +207,8 @@ def trigger_auto_trades(symbol, action, leverage, sl, tp1):
     if bot_settings["auto_execution"] == 0:
         return
     side = "BUY" if action == "LONG" else "SELL"
-    api_key = os.environ.get("BINGX_API_KEY")
-    secret_key = os.environ.get("BINGX_SECRET_KEY")
+    # Esegue in automatico usando le chiavi dell'admin o configurate globalmente
+    api_key, secret_key = get_user_api_keys(ADMIN_USERNAME)
     if api_key and secret_key:
         execute_bingx_order(api_key, secret_key, symbol, side, leverage, 10.0, sl, tp1)
 
@@ -413,7 +433,7 @@ def run_scanner_background():
                                 dir_text = "🟢 LONG (ACQUISTO)" if action == "LONG" else "🔴 SHORT (VENDITA)"
 
                                 message = (
-                                    f"👑 **VIP LUXURY SEGNALE ISTITUZIONALE** 👑\n"
+                                    f"👑 **SCANNER TRADING VIP** 👑\n"
                                     f"⏰ **Orario:** {signal_time_str}\n\n"
                                     f"🔹 **Asset:** {pair_name}\n"
                                     f"📊 **Direzione:** {dir_text}\n"
@@ -479,10 +499,11 @@ BASE_HTML = """
 </head>
 <body>
     <div class="header">
-        <div class="logo">👑 {{ brand_name }}</div>
+        <div class="logo">👑 SCANNER TRADING VIP</div>
         <div class="nav">
             {% if session.get('user_id') %}
                 <span>Utente: <strong style="color: #d4af37;">{{ session.get('username') }}</strong></span>
+                <a href="/settings">API Key</a>
                 <a href="/logout" style="color: #ef4444; border-color: #ef4444;">Esci</a>
             {% else %}
                 <a href="/login">Accedi</a>
@@ -503,8 +524,8 @@ def home():
     try:
         active_signals = {s: d for s, d in market_data_cache.items() if d["score"] >= current_threshold and d["action"] != "NEUTRAL"}
         
-        api_key = os.environ.get("BINGX_API_KEY")
-        secret_key = os.environ.get("BINGX_SECRET_KEY")
+        current_user = session.get('username', ADMIN_USERNAME)
+        api_key, secret_key = get_user_api_keys(current_user)
         open_positions = fetch_bingx_open_positions(api_key, secret_key)
 
         positions_html = ""
@@ -665,6 +686,44 @@ def home():
         return render_template_string(html, brand_name=BRAND_NAME, market_data=market_data_cache, sin=math.sin, cos=math.cos)
     except Exception as e:
         return f"Errore interno temporaneo: {e}", 500
+
+@app.route("/settings", methods=["GET", "POST"])
+def settings():
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+    
+    username = session.get("username")
+    if request.method == "POST":
+        api_key = request.form.get("api_key", "").strip()
+        secret_key = request.form.get("secret_key", "").strip()
+        try:
+            conn = sqlite3.connect("trading_bot.db")
+            cursor = conn.cursor()
+            cursor.execute("UPDATE users SET bingx_api_key = ?, bingx_secret_key = ? WHERE username = ?", (api_key, secret_key, username))
+            conn.commit()
+            conn.close()
+            flash("API Key salvate con successo!")
+        except Exception as e:
+            flash(f"Errore salvataggio API Key: {e}")
+        return redirect(url_for("settings"))
+    
+    current_api, current_sec = get_user_api_keys(username)
+    masked_api = current_api[:6] + "..." if len(current_api) > 6 else current_api
+    
+    content = f"""
+    <div class="panel" style="max-width: 420px; margin: 30px auto; border: 1px solid #d4af37;">
+        <h3 style="color: #d4af37; margin-bottom: 15px; text-align: center;">Configurazione API BingX</h3>
+        <p style="font-size: 12px; color: #9ca3af; margin-bottom: 15px; text-align: center;">Inserisci le tue chiavi API Futures per abilitare la lettura delle posizioni personali.</p>
+        <form method="POST">
+            <div class="form-group"><label>BingX API Key</label><input type="text" name="api_key" value="{current_api}" required></div>
+            <div class="form-group"><label>BingX Secret Key</label><input type="password" name="secret_key" value="{current_sec}" required></div>
+            <button type="submit" class="btn" style="margin-top: 10px;">Salva Chiavi API</button>
+        </form>
+        <div style="margin-top: 15px; text-align: center;"><a href="/" style="color: #d4af37; font-size: 13px; text-decoration: none;">← Torna alla Dashboard</a></div>
+    </div>
+    """
+    html = BASE_HTML.replace("{refresh_tag}", "").replace("{{ content | safe }}", content)
+    return render_template_string(html, brand_name=BRAND_NAME)
 
 @app.route("/set-threshold", methods=["POST"])
 def set_threshold():
