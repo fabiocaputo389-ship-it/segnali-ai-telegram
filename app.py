@@ -84,16 +84,9 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT UNIQUE NOT NULL,
                 password TEXT NOT NULL,
-                bingx_api_key TEXT,
-                bingx_secret_key TEXT,
                 auto_trading INTEGER DEFAULT 0
             )
         """)
-        for col, col_type in [("bingx_api_key", "TEXT"), ("bingx_secret_key", "TEXT"), ("auto_trading", "INTEGER DEFAULT 0")]:
-            try:
-                cursor.execute(f"ALTER TABLE users ADD COLUMN {col} {col_type}")
-            except sqlite3.OperationalError:
-                pass
         conn.commit()
         conn.close()
     except Exception as e:
@@ -120,20 +113,20 @@ def set_bingx_leverage(api_key, secret_key, symbol, leverage, side):
     except Exception as e:
         print(f"Errore impostazione leva BingX: {e}")
 
-def execute_bingx_order(api_key, secret_key, symbol, side, leverage=5, quantity=10.0, sl=0.0, tp1=0.0, account_label=""):
+def execute_bingx_order(api_key, secret_key, symbol, side, leverage=5, quantity=10.0, sl=0.0, tp1=0.0):
     global last_bingx_debug_log
     if bot_settings["auto_execution"] == 0:
         last_bingx_debug_log = "⚠️ Auto-execution globale disattivata dal pannello admin."
         return False
     if not api_key or not secret_key or len(api_key.strip()) < 5:
-        last_bingx_debug_log = f"❌ Errore [{account_label}]: API Key o Secret Key non valide o vuote!"
+        last_bingx_debug_log = f"❌ Errore: API Key o Secret Key non valide o vuote su Render!"
         print(last_bingx_debug_log)
         return False
     try:
         clean_api = api_key.strip()
         clean_sec = secret_key.strip()
         
-        print(f"Tentativo apertura ordine BingX [{account_label}] -> Asset: {symbol} | Lato: {side} | Leva: {leverage}x")
+        print(f"Tentativo apertura ordine BingX -> Asset: {symbol} | Lato: {side} | Leva: {leverage}x")
         set_bingx_leverage(clean_api, clean_sec, symbol, leverage, side)
         
         url = "https://open-api.bingx.com/openApi/swap/v2/trade/order"
@@ -155,24 +148,24 @@ def execute_bingx_order(api_key, secret_key, symbol, side, leverage=5, quantity=
         response = requests.post(full_url, headers=headers, timeout=5)
         
         res_text = response.text
-        print(f"📥 RISPOSTA EXCHANGE BINGX [{account_label}] ({symbol}) -> Status: {response.status_code} | Body: {res_text}")
+        print(f"📥 RISPOSTA EXCHANGE BINGX ({symbol}) -> Status: {response.status_code} | Body: {res_text}")
         
         try:
             res_json = response.json()
             code = res_json.get("code")
             msg = res_json.get("msg", "Nessun messaggio")
             if response.status_code == 200 and code == 0:
-                last_bingx_debug_log = f"✅ SUCCESS [{account_label}]: Ordine eseguito per {symbol} ({side})!"
+                last_bingx_debug_log = f"✅ SUCCESS: Ordine eseguito per {symbol} ({side})!"
                 return True
             else:
-                last_bingx_debug_log = f"❌ BINGX ERROR [{account_label}] ({symbol}) - Code: {code} | Msg: {msg}"
+                last_bingx_debug_log = f"❌ BINGX ERROR [{symbol}] - Code: {code} | Msg: {msg}"
                 return False
         except Exception:
-            last_bingx_debug_log = f"❌ BINGX RAW ERROR [{account_label}] -> {res_text}"
+            last_bingx_debug_log = f"❌ BINGX RAW ERROR -> {res_text}"
             return False
             
     except Exception as e:
-        last_bingx_debug_log = f"❌ Eccezione critica ordine [{account_label}] {symbol}: {e}"
+        last_bingx_debug_log = f"❌ Eccezione critica ordine {symbol}: {e}"
         print(last_bingx_debug_log)
         return False
 
@@ -181,41 +174,15 @@ def trigger_auto_trades(symbol, action, leverage, sl, tp1):
         return
     side = "BUY" if action == "LONG" else "SELL"
     
-    executed_count = 0
-    collected_keys = []
-
-    # 1. Controlla la coppia principale su Render
-    api1 = os.environ.get("BINGX_API_KEY")
-    sec1 = os.environ.get("BINGX_SECRET_KEY")
-    if api1 and sec1:
-        if execute_bingx_order(api1, sec1, symbol, side, leverage, 10.0, sl, tp1, "Render Principale"):
-            executed_count += 1
-        collected_keys.append(api1)
-
-    # 2. Controlla USER2 su Render
-    api2 = os.environ.get("USER2_BINGX_API_KEY")
-    sec2 = os.environ.get("USER2_BINGX_SECRET_KEY")
-    if api2 and sec2:
-        if execute_bingx_order(api2, sec2, symbol, side, leverage, 10.0, sl, tp1, "Render USER2"):
-            executed_count += 1
-        collected_keys.append(api2)
-        
-    # 3. Controlla il database SQLite
-    try:
-        init_db()
-        conn = sqlite3.connect("trading_bot.db")
-        cursor = conn.cursor()
-        cursor.execute("SELECT username, bingx_api_key, bingx_secret_key FROM users WHERE auto_trading = 1 AND bingx_api_key IS NOT NULL AND bingx_secret_key IS NOT NULL")
-        users = cursor.fetchall()
-        conn.close()
-        
-        for uname, u_api, u_sec in users:
-            if u_api and u_sec and u_api not in collected_keys:
-                if execute_bingx_order(u_api, u_sec, symbol, side, leverage, 10.0, sl, tp1, f"DB User: {uname}"):
-                    executed_count += 1
-                collected_keys.append(u_api)
-    except Exception as e:
-        print(f"Errore recupero utenti auto-trading da DB: {e}")
+    # Legge unicamente le variabili principali da Render
+    api_key = os.environ.get("BINGX_API_KEY")
+    secret_key = os.environ.get("BINGX_SECRET_KEY")
+    
+    if api_key and secret_key:
+        execute_bingx_order(api_key, secret_key, symbol, side, leverage, 10.0, sl, tp1)
+    else:
+        global last_bingx_debug_log
+        last_bingx_debug_log = "⚠️ BINGX_API_KEY o BINGX_SECRET_KEY non trovate nelle variabili d'ambiente di Render!"
 
 def calculate_rsi(prices, period=14):
     if len(prices) < period + 1:
@@ -357,7 +324,7 @@ def run_scanner_background():
                         elif whale_score_val == -1: bearish_points += 2
                         else:
                             bullish_points += 1
-                            bullish_points += 1
+                            bearish_points += 1
                     else:
                         bullish_points += 1
                         bullish_points += 1
@@ -506,7 +473,6 @@ BASE_HTML = """
         <div class="nav">
             {% if session.get('user_id') %}
                 <span>Utente: <strong>{{ session.get('username') }}</strong></span>
-                <a href="/settings">⚙️ API</a>
                 <a href="/logout" style="color: #ef4444;">Esci</a>
             {% else %}
                 <a href="/login">Accedi</a>
@@ -764,60 +730,6 @@ def logout():
     session.clear()
     flash("Logout effettuato.")
     return redirect(url_for("home"))
-
-@app.route("/settings", methods=["GET", "POST"])
-def settings():
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-    init_db()
-    try:
-        conn = sqlite3.connect("trading_bot.db")
-        cursor = conn.cursor()
-        if request.method == "POST":
-            api_key = request.form.get("api_key")
-            secret_key = request.form.get("secret_key")
-            auto_trading = int(request.form.get("auto_trading", 0))
-            
-            if not secret_key:
-                cursor.execute("SELECT bingx_secret_key FROM users WHERE id = ?", (session["user_id"],))
-                old_sec = cursor.fetchone()
-                if old_sec and old_sec[0]:
-                    secret_key = old_sec[0]
-
-            cursor.execute("UPDATE users SET bingx_api_key = ?, bingx_secret_key = ?, auto_trading = ? WHERE id = ?", (api_key, secret_key, auto_trading, session["user_id"]))
-            conn.commit()
-            flash("Configurazione API salvata in modo persistente!")
-            
-        cursor.execute("SELECT bingx_api_key, bingx_secret_key, auto_trading FROM users WHERE id = ?", (session["user_id"],))
-        u_data = cursor.fetchone()
-        conn.close()
-        
-        u_api = u_data[0] if u_data and u_data[0] else ''
-        u_sec = u_data[1] if u_data and u_data[1] else ''
-        u_auto = u_data[2] if u_data and len(u_data) > 2 and u_data[2] is not None else 0
-    except Exception as e:
-        print(f"Errore pagina settings: {e}")
-        u_api, u_sec, u_auto = '', '', 0
-    
-    content = f"""
-    <div class="panel" style="max-width: 450px; margin: 20px auto;">
-        <h3 style="color: #fff; margin-bottom: 12px;">Gestione API BingX Personali</h3>
-        <p style="font-size: 12px; color: #9ca3af; margin-bottom: 15px;">Inserisci le tue chiavi ufficiali di BingX o sfrutta quelle globali di Render.</p>
-        <form method="POST">
-            <div class="form-group"><label>API Key</label><input type="text" name="api_key" value="{u_api}" placeholder="Incolla qui la tua API Key di BingX"></div>
-            <div class="form-group"><label>Secret Key</label><input type="password" name="secret_key" value="{u_sec}" placeholder="Incolla qui la tua Secret Key"></div>
-            <div class="form-group"><label>Stato Auto-Trading</label>
-                <select name="auto_trading">
-                    <option value="0" {"selected" if u_auto == 0 else ""}>Disattivato</option>
-                    <option value="1" {"selected" if u_auto == 1 else ""}>Attivato (Esecuzione Automatica)</option>
-                </select>
-            </div>
-            <button type="submit" class="btn" style="background: #059669; margin-top: 10px;">Salva Chiavi e Attiva</button>
-        </form>
-    </div>
-    """
-    html = BASE_HTML.replace("{refresh_tag}", "").replace("{{ content | safe }}", content)
-    return render_template_string(html, brand_name=BRAND_NAME)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
