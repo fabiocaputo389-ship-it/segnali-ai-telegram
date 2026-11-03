@@ -5,6 +5,7 @@ import sqlite3
 import hmac
 import hashlib
 import requests
+from datetime import datetime
 from flask import (
     Flask,
     request,
@@ -19,21 +20,39 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "chiave_segreta_super_sicura_vip")
 
-BRAND_NAME = "SCANNER TRADING VIP"
+BRAND_NAME = "VIP LUXURY TRADING AI"
 ADMIN_USERNAME = "Fabio"
 
-last_bingx_debug_log = "Nessun tentativo di ordine recente. In attesa di segnali..."
+def fetch_all_bingx_symbols():
+    default_symbols = [
+        "BTC-USDT", "ETH-USDT", "SOL-USDT", "BNB-USDT", "XRP-USDT", 
+        "ADA-USDT", "AVAX-USDT", "LINK-USDT", "DOT-USDT", "NEAR-USDT", 
+        "UNI-USDT", "RENDER-USDT", "SUI-USDT", "ARB-USDT", "OP-USDT", 
+        "IMX-USDT", "ICP-USDT", "APT-USDT", "FIL-USDT", "PEPE-USDT", 
+        "DOGE-USDT", "SHIB-USDT", "ATOM-USDT", "XLM-USDT", "ALGO-USDT", 
+        "FET-USDT", "INJ-USDT", "LTC-USDT", "BCH-USDT", "ETC-USDT", 
+        "SAND-USDT", "MANA-USDT", "AAVE-USDT", "FTM-USDT", "RUNE-USDT", 
+        "ZEC-USDT", "TRX-USDT"
+    ]
+    try:
+        url = "https://open-api.bingx.com/openApi/swap/v2/quote/contracts"
+        res = requests.get(url, timeout=10)
+        if res.status_code == 200:
+            data = res.json().get("data", [])
+            if isinstance(data, list) and len(data) > 0:
+                dynamic_list = []
+                for contract in data:
+                    sym = contract.get("symbol")
+                    status = contract.get("status", 1)
+                    if sym and status == 1 and sym.endswith("USDT"):
+                        dynamic_list.append(sym)
+                if dynamic_list:
+                    return dynamic_list
+    except Exception as e:
+        print(f"Errore caricamento dinamico simboli: {e}")
+    return default_symbols
 
-SYMBOLS = [
-    "BTC-USDT", "ETH-USDT", "SOL-USDT", "BNB-USDT", "XRP-USDT", 
-    "ADA-USDT", "AVAX-USDT", "LINK-USDT", "DOT-USDT", "NEAR-USDT", 
-    "UNI-USDT", "RENDER-USDT", "SUI-USDT", "ARB-USDT", "OP-USDT", 
-    "IMX-USDT", "ICP-USDT", "APT-USDT", "FIL-USDT", "PEPE-USDT", 
-    "DOGE-USDT", "SHIB-USDT", "ATOM-USDT", "XLM-USDT", "ALGO-USDT", 
-    "FET-USDT", "INJ-USDT", "LTC-USDT", "BCH-USDT", "ETC-USDT", 
-    "SAND-USDT", "MANA-USDT", "AAVE-USDT", "FTM-USDT", "RUNE-USDT", 
-    "ZEC-USDT", "TRX-USDT"
-]
+SYMBOLS = fetch_all_bingx_symbols()
 
 current_threshold = 80
 MAX_ACTIVE_TRADES = 999
@@ -71,7 +90,9 @@ market_data_cache = {
         "tp2_pct": 0.0,
         "tp3_pct": 0.0,
         "leverage": 5,
-        "recommended_tf": "1H / 4H Multi-TF"
+        "recommended_tf": "1H / 4H Multi-TF",
+        "signal_time": "--:--:--",
+        "recommended_margin": 20.0
     } for symbol in SYMBOLS
 }
 
@@ -94,6 +115,24 @@ def init_db():
 
 init_db()
 
+def fetch_bingx_open_positions(api_key, secret_key):
+    if not api_key or not secret_key:
+        return []
+    try:
+        url = "https://open-api.bingx.com/openApi/swap/v2/user/positions"
+        timestamp = str(int(time.time() * 1000))
+        query_string = f"timestamp={timestamp}"
+        signature = hmac.new(secret_key.strip().encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256).hexdigest()
+        headers = {"X-BX-APIKEY": api_key.strip()}
+        full_url = f"{url}?{query_string}&signature={signature}"
+        res = requests.get(full_url, headers=headers, timeout=5)
+        if res.status_code == 200:
+            data = res.json().get("data", [])
+            return [p for p in data if float(p.get("positionAmt", 0)) != 0]
+    except Exception as e:
+        print(f"Errore recupero posizioni: {e}")
+    return []
+
 def set_bingx_leverage(api_key, secret_key, symbol, leverage, side):
     try:
         url = "https://open-api.bingx.com/openApi/swap/v2/trade/leverage"
@@ -111,27 +150,20 @@ def set_bingx_leverage(api_key, secret_key, symbol, leverage, side):
         full_url = f"{url}?{query_string}&signature={signature}"
         requests.post(full_url, headers=headers, timeout=5)
     except Exception as e:
-        print(f"Errore impostazione leva BingX: {e}")
+        print(f"Errore leva: {e}")
 
 def execute_bingx_order(api_key, secret_key, symbol, side, leverage=5, quantity=10.0, sl=0.0, tp1=0.0):
-    global last_bingx_debug_log
     if bot_settings["auto_execution"] == 0:
-        last_bingx_debug_log = "⚠️ Auto-execution globale disattivata dal pannello admin."
         return False
     if not api_key or not secret_key or len(api_key.strip()) < 5:
-        last_bingx_debug_log = f"❌ Errore: API Key o Secret Key non valide o vuote su Render!"
-        print(last_bingx_debug_log)
         return False
     try:
         clean_api = api_key.strip()
         clean_sec = secret_key.strip()
-        
-        print(f"Tentativo apertura ordine BingX -> Asset: {symbol} | Lato: {side} | Leva: {leverage}x")
         set_bingx_leverage(clean_api, clean_sec, symbol, leverage, side)
         
         url = "https://open-api.bingx.com/openApi/swap/v2/trade/order"
         timestamp = str(int(time.time() * 1000))
-        
         params = {
             "symbol": symbol,
             "side": side,
@@ -140,49 +172,25 @@ def execute_bingx_order(api_key, secret_key, symbol, side, leverage=5, quantity=
             "quantity": str(quantity),
             "timestamp": timestamp
         }
-
         query_string = "&".join([f"{key}={params[key]}" for key in sorted(params.keys())]) + f"&timestamp={timestamp}"
         signature = hmac.new(clean_sec.encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256).hexdigest()
         headers = {"X-BX-APIKEY": clean_api}
         full_url = f"{url}?{query_string}&signature={signature}"
         response = requests.post(full_url, headers=headers, timeout=5)
-        
-        res_text = response.text
-        print(f"📥 RISPOSTA EXCHANGE BINGX ({symbol}) -> Status: {response.status_code} | Body: {res_text}")
-        
-        try:
-            res_json = response.json()
-            code = res_json.get("code")
-            msg = res_json.get("msg", "Nessun messaggio")
-            if response.status_code == 200 and code == 0:
-                last_bingx_debug_log = f"✅ SUCCESS: Ordine eseguito per {symbol} ({side})!"
-                return True
-            else:
-                last_bingx_debug_log = f"❌ BINGX ERROR [{symbol}] - Code: {code} | Msg: {msg}"
-                return False
-        except Exception:
-            last_bingx_debug_log = f"❌ BINGX RAW ERROR -> {res_text}"
-            return False
-            
+        if response.status_code == 200 and response.json().get("code") == 0:
+            return True
     except Exception as e:
-        last_bingx_debug_log = f"❌ Eccezione critica ordine {symbol}: {e}"
-        print(last_bingx_debug_log)
-        return False
+        print(f"Errore ordine {symbol}: {e}")
+    return False
 
 def trigger_auto_trades(symbol, action, leverage, sl, tp1):
     if bot_settings["auto_execution"] == 0:
         return
     side = "BUY" if action == "LONG" else "SELL"
-    
-    # Legge unicamente le variabili principali da Render
     api_key = os.environ.get("BINGX_API_KEY")
     secret_key = os.environ.get("BINGX_SECRET_KEY")
-    
     if api_key and secret_key:
         execute_bingx_order(api_key, secret_key, symbol, side, leverage, 10.0, sl, tp1)
-    else:
-        global last_bingx_debug_log
-        last_bingx_debug_log = "⚠️ BINGX_API_KEY o BINGX_SECRET_KEY non trovate nelle variabili d'ambiente di Render!"
 
 def calculate_rsi(prices, period=14):
     if len(prices) < period + 1:
@@ -249,7 +257,7 @@ def fetch_bingx_klines(symbol, interval):
             if isinstance(data, list) and len(data) > 0:
                 return sorted(data, key=lambda x: int(x['time']))
     except Exception as e:
-        print(f"Errore API BingX {symbol}: {e}")
+        print(f"Errore API klines: {e}")
     return []
 
 def run_scanner_background():
@@ -278,9 +286,7 @@ def run_scanner_background():
                     atr = calculate_atr(candles_1h)
                     whale_txt, whale_score_val = analyze_whale_volume(candles_1h)
 
-                    bullish_points = 0
-                    bearish_points = 0
-                    total_indicators = 13
+                    bullish_points, bearish_points, total_indicators = 0, 0, 13
 
                     if bot_settings["use_rsi_filter"] == 1:
                         if rsi_1h > 50: bullish_points += 1
@@ -345,6 +351,9 @@ def run_scanner_background():
                     base_step = atr if atr > 0 else current_price * 0.015
                     leverage = 10 if score >= 90 else (5 if score >= 80 else 3)
                     recommended_tf = "1H / 4H (Conferme Avanzate)" if score >= 85 else "1H (Momentum)"
+                    signal_time_str = datetime.now().strftime("%H:%M:%S")
+                    
+                    recommended_margin = round(max(15.0, current_price * 0.05 / leverage), 2) if current_price < 100 else round(max(20.0, 1000.0 / leverage), 2)
 
                     if action == "LONG":
                         sl = current_price - (base_step * 1.2)
@@ -388,13 +397,14 @@ def run_scanner_background():
                         "tp2_pct": tp2_pct,
                         "tp3_pct": tp3_pct,
                         "leverage": leverage,
-                        "recommended_tf": recommended_tf
+                        "recommended_tf": recommended_tf,
+                        "signal_time": signal_time_str,
+                        "recommended_margin": recommended_margin
                     }
 
                     if score >= current_threshold and action != "NEUTRAL":
                         if current_time - last_signal_time[symbol] > COOLDOWN_SECONDS:
                             last_signal_time[symbol] = current_time
-                            print(f"🎯 Segnale valido intercettato per {symbol} ({action}) con score {score}%. Avvio esecuzione automatica...")
                             trigger_auto_trades(symbol, action, leverage, sl, tp1)
                             
                             if telegram_token and channel_id:
@@ -403,20 +413,17 @@ def run_scanner_background():
                                 dir_text = "🟢 LONG (ACQUISTO)" if action == "LONG" else "🔴 SHORT (VENDITA)"
 
                                 message = (
-                                    f"🔥 **SEGNALE VIP ISTITUZIONALE ({BRAND_NAME})** 🔥\n\n"
+                                    f"👑 **VIP LUXURY SEGNALE ISTITUZIONALE** 👑\n"
+                                    f"⏰ **Orario:** {signal_time_str}\n\n"
                                     f"🔹 **Asset:** {pair_name}\n"
                                     f"📊 **Direzione:** {dir_text}\n"
                                     f"⭐ **Confluenza IA:** {score}% ({rating})\n"
-                                    f"📈 **Raccomandazione:** {passed_indicators} su {total_indicators} indicatori allineati\n"
-                                    f"🐳 **Flusso Balene:** {whale_txt}\n"
-                                    f"⏳ **Timeframe:** {recommended_tf}\n"
-                                    f"⚙️ **Leva:** {leverage}x | **RSI 1H:** {rsi_1h} | **RSI 4H:** {rsi_4h}\n"
+                                    f"⚙️ **Leva:** {leverage}x | **Margine Consigliato:** ${recommended_margin} USDT\n"
                                     f"⚡ **Ingresso:** ${current_price:.{decimals}f}\n\n"
                                     f"🛑 **Stop Loss:** ${sl:.{decimals}f} ({sl_pct}%)\n"
-                                    f"🎯 **Take Profit 1:** ${tp1:.{decimals}f} ({tp1_pct}%)\n"
-                                    f"🎯 **Take Profit 2:** ${tp2:.{decimals}f} ({tp2_pct}%)\n"
-                                    f"🎯 **Take Profit 3:** ${tp3:.{decimals}f} ({tp3_pct}%)\n\n"
-                                    f"🚀 *Eseguito in automatico con leva {leverage}x!*"
+                                    f"🎯 **Take Profit 1:** ${tp1:.{decimals}f} (+{tp1_pct}%)\n"
+                                    f"🎯 **Take Profit 2:** ${tp2:.{decimals}f} (+{tp2_pct}%)\n"
+                                    f"🎯 **Take Profit 3:** ${tp3:.{decimals}f} (+{tp3_pct}%)\n"
                                 )
                                 requests.post(f"https://api.telegram.org/bot{telegram_token}/sendMessage", json={"chat_id": channel_id, "text": message, "parse_mode": "Markdown"})
                             time.sleep(1)
@@ -437,43 +444,46 @@ BASE_HTML = """
     <title>{{ brand_name }}</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background-color: #0b0e14; color: #d1d5db; font-family: sans-serif; padding: 15px; }
-        .header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 15px; border-bottom: 1px solid #1f2937; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;}
-        .logo { font-size: 18px; font-weight: bold; color: #38bdf8; }
-        .nav a { color: #38bdf8; text-decoration: none; margin-left: 10px; background: #111827; padding: 6px 10px; border-radius: 6px; border: 1px solid #374151; font-size: 13px;}
-        .panel { background: #111827; border: 1px solid #1f2937; border-radius: 10px; padding: 15px; margin-bottom: 20px; }
+        body { background-color: #050505; color: #e5e7eb; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 15px; }
+        
+        .header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 15px; border-bottom: 2px solid #d4af37; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;}
+        .logo { font-size: 20px; font-weight: 900; color: #d4af37; letter-spacing: 1px; text-shadow: 0 0 10px rgba(212,175,55,0.3); }
+        .nav a { color: #d4af37; text-decoration: none; margin-left: 10px; background: #121212; padding: 6px 12px; border-radius: 6px; border: 1px solid #d4af37; font-size: 13px; font-weight: bold; transition: all 0.3s;}
+        .nav a:hover { background: #d4af37; color: #000; }
+        
+        .panel { background: #121212; border: 1px solid #d4af37; border-radius: 12px; padding: 18px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.8); }
         .form-group { margin-bottom: 12px; }
-        .form-group label { display: block; font-size: 12px; color: #9ca3af; margin-bottom: 4px; }
-        .form-group input, .form-group select { width: 100%; background: #0b0e14; border: 1px solid #374151; color: #fff; padding: 8px; border-radius: 6px; font-size: 14px; }
-        .btn { background: #2563eb; color: #fff; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer; width: 100%; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
-        .card { background: #111827; border: 1px solid #1f2937; border-radius: 8px; padding: 12px; position: relative; }
-        .flash { background: #1e3a8a; color: #93c5fd; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 13px; }
+        .form-group label { display: block; font-size: 12px; color: #d4af37; margin-bottom: 4px; font-weight: bold; }
+        .form-group input, .form-group select { width: 100%; background: #000; border: 1px solid #333; color: #d4af37; padding: 8px; border-radius: 6px; font-size: 14px; }
+        .btn { background: linear-gradient(135deg, #d4af37 0%, #aa8c2c 100%); color: #000; border: none; padding: 9px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; width: 100%; box-shadow: 0 2px 10px rgba(212,175,55,0.3); }
+        .btn:hover { opacity: 0.9; }
         
-        .gauge-container { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid #1f2937; padding-bottom: 8px; }
-        .gauge { width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 11px; border: 3px solid #374151; }
-        .gauge-long { border-color: #10b981; color: #10b981; background: rgba(16,185,129,0.1); }
-        .gauge-short { border-color: #ef4444; color: #ef4444; background: rgba(239,68,68,0.1); }
-        .gauge-neutral { border-color: #6b7280; color: #9ca3af; background: rgba(107,114,128,0.1); }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+        .card { background: #121212; border: 1px solid #262626; border-radius: 10px; padding: 14px; position: relative; box-shadow: 0 4px 15px rgba(0,0,0,0.5); transition: border-color 0.3s;}
+        .card:hover { border-color: #d4af37; }
         
-        .power-bar-bg { background: #1f2937; height: 8px; border-radius: 4px; overflow: hidden; margin: 6px 0 10px 0; }
-        .power-bar-fill { height: 100%; background: linear-gradient(90deg, #38bdf8, #10b981); }
+        .flash { background: #1a1600; color: #d4af37; border: 1px solid #d4af37; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 13px; font-weight: bold; }
         
-        .chart-btn { display: inline-block; background: rgba(56, 189, 248, 0.1); color: #38bdf8; border: 1px solid #38bdf8; padding: 4px 8px; border-radius: 4px; font-size: 11px; text-decoration: none; font-weight: bold; margin-top: 8px; text-align: center; width: 100%; }
-        .chart-btn:hover { background: #38bdf8; color: #000; }
+        .speedometer-container { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid #222; padding-bottom: 8px; }
         
-        .signal-box { background: rgba(56, 189, 248, 0.05); border: 1px solid #38bdf8; border-radius: 8px; padding: 12px; margin-bottom: 20px; }
-        .debug-box { background: #1a150b; border: 1px solid #f59e0b; border-radius: 8px; padding: 12px; margin-bottom: 20px; font-family: monospace; font-size: 12px; color: #fbbf24; }
+        .power-bar-bg { background: #1a1a1a; height: 8px; border-radius: 4px; overflow: hidden; margin: 6px 0 10px 0; border: 1px solid #333; }
+        .power-bar-fill { height: 100%; background: linear-gradient(90deg, #aa8c2c, #d4af37); }
+        
+        .chart-btn { display: inline-block; background: rgba(212, 175, 55, 0.1); color: #d4af37; border: 1px solid #d4af37; padding: 6px 10px; border-radius: 6px; font-size: 11px; text-decoration: none; font-weight: bold; margin-top: 10px; text-align: center; width: 100%; transition: all 0.3s; }
+        .chart-btn:hover { background: #d4af37; color: #000; }
+        
+        .signal-box { background: rgba(212, 175, 55, 0.05); border: 1px solid #d4af37; border-radius: 10px; padding: 14px; margin-bottom: 20px; box-shadow: 0 0 15px rgba(212,175,55,0.1); }
+        .positions-box { background: rgba(16, 185, 129, 0.05); border: 1px solid #10b981; border-radius: 10px; padding: 14px; margin-bottom: 20px; }
     </style>
     {refresh_tag}
 </head>
 <body>
     <div class="header">
-        <div class="logo">⚡ {{ brand_name }}</div>
+        <div class="logo">👑 {{ brand_name }}</div>
         <div class="nav">
             {% if session.get('user_id') %}
-                <span>Utente: <strong>{{ session.get('username') }}</strong></span>
-                <a href="/logout" style="color: #ef4444;">Esci</a>
+                <span>Utente: <strong style="color: #d4af37;">{{ session.get('username') }}</strong></span>
+                <a href="/logout" style="color: #ef4444; border-color: #ef4444;">Esci</a>
             {% else %}
                 <a href="/login">Accedi</a>
                 <a href="/register">Registrati</a>
@@ -491,14 +501,39 @@ BASE_HTML = """
 @app.route("/")
 def home():
     try:
-        global last_bingx_debug_log
         active_signals = {s: d for s, d in market_data_cache.items() if d["score"] >= current_threshold and d["action"] != "NEUTRAL"}
+        
+        api_key = os.environ.get("BINGX_API_KEY")
+        secret_key = os.environ.get("BINGX_SECRET_KEY")
+        open_positions = fetch_bingx_open_positions(api_key, secret_key)
+
+        positions_html = ""
+        if open_positions:
+            positions_html += (
+                '<div class="positions-box">'
+                '<h3 style="color: #10b981; font-size: 15px; margin-bottom: 10px;">🟢 Posizioni Live Attive su BingX</h3>'
+                '<div style="display: flex; flex-direction: column; gap: 6px;">'
+            )
+            for p in open_positions:
+                p_sym = p.get("symbol")
+                p_side = p.get("positionSide", "LONG")
+                p_amt = p.get("positionAmt")
+                p_lev = p.get("leverage")
+                p_pnl = float(p.get("unrealizedProfit", 0))
+                p_color = "#10b981" if p_pnl >= 0 else "#ef4444"
+                positions_html += (
+                    f'<div style="background: #000; padding: 8px 12px; border-radius: 6px; border: 1px solid #222; display: flex; justify-content: space-between; align-items: center; font-size: 13px;">'
+                    f'<div><strong style="color: #fff;">{p_sym}</strong> <span style="color: #d4af37;">({p_side} {p_lev}x)</span> - Q.tà: {p_amt}</div>'
+                    f'<div>PnL: <strong style="color: {p_color};">${p_pnl:.2f}</strong></div>'
+                    f'</div>'
+                )
+            positions_html += "</div></div>"
 
         signals_html = ""
         if active_signals:
             signals_html += (
                 '<div class="signal-box">'
-                '<h3 style="color: #38bdf8; font-size: 15px; margin-bottom: 10px;">🔥 Scanner Grafico: Segnali ad Alta Confluenza Attivi</h3>'
+                '<h3 style="color: #d4af37; font-size: 15px; margin-bottom: 10px;">🔥 Segnali VIP ad Alta Confluenza Attivi</h3>'
                 '<div style="display: flex; flex-direction: column; gap: 8px;">'
             )
             for sym, dat in active_signals.items():
@@ -506,92 +541,86 @@ def home():
                 p_val = f"${dat['price']:.5f}" if dat['price'] < 1 else f"${dat['price']:.2f}"
                 chart_url = f"https://www.tradingview.com/chart/?symbol=BINGX:{dat['symbol']}USDT"
                 signals_html += (
-                    f'<div style="background: #111827; padding: 10px; border-radius: 6px; border-left: 4px solid {dir_color}; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">'
+                    f'<div style="background: #000; padding: 10px; border-radius: 8px; border: 1px solid #d4af37; border-left: 4px solid {dir_color}; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">'
                     f'<div>'
                     f'<strong style="color: #fff; font-size: 14px;">{dat["symbol"]}</strong> - <span style="color: {dir_color}; font-weight: bold;">{dat["action"]}</span> '
-                    f'<span style="font-size: 12px; color: #9ca3af;">({dat["indicators_passed"]}/{dat["indicators_total"]} indicatori | {dat["whale_status"]})</span>'
-                    f'<div style="font-size: 11px; color: #38bdf8; margin-top: 2px;">Score IA: {dat["score"]}% | Leva: {dat["leverage"]}x</div>'
+                    f'<span style="font-size: 11px; color: #d4af37;">🕒 {dat["signal_time"]}</span>'
+                    f'<div style="font-size: 11px; color: #9ca3af; margin-top: 2px;">Score IA: <strong style="color: #d4af37;">{dat["score"]}%</strong> | Leva: {dat["leverage"]}x | Margine Consigliato: <strong style="color: #10b981;">${dat["recommended_margin"]}</strong></div>'
                     f'</div>'
                     f'<div style="display: flex; gap: 10px; align-items: center;">'
                     f'<div style="font-size: 11px; color: #d1d5db; text-align: right;">'
                     f'<div>Prezzo: <strong>{p_val}</strong></div>'
                     f'<div>SL: <span style="color: #ef4444;">${dat["sl"]:.4f}</span> | TP1: <span style="color: #10b981;">${dat["tp1"]:.4f}</span></div>'
                     f'</div>'
-                    f'<a href="{chart_url}" target="_blank" style="background: #38bdf8; color: #000; padding: 6px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; text-decoration: none;">📈 Grafico</a>'
+                    f'<a href="{chart_url}" target="_blank" style="background: #d4af37; color: #000; padding: 6px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; text-decoration: none;">📈 Grafico</a>'
                     f'</div>'
                     f'</div>'
                 )
             signals_html += "</div></div>"
 
         is_admin = session.get('username') == ADMIN_USERNAME
-        
-        if is_admin:
-            threshold_control = (
-                f'<form action="/set-threshold" method="POST" style="display: flex; gap: 8px; align-items: center;">'
-                f'<input type="number" name="threshold" min="40" max="99" value="{current_threshold}" style="width: 60px; text-align: center; background: #0b0e14; border: 1px solid #374151; color: #fff; padding: 6px; border-radius: 6px;">'
-                f'<button type="submit" class="btn" style="width: auto; padding: 6px 12px;">Imposta</button>'
-                f'</form>'
-            )
-            
-            toggles_html = f"""
-            <div class="panel" style="background: #1a2332; border: 1px solid #38bdf8;">
-                <h3 style="color: #38bdf8; font-size: 14px; margin-bottom: 10px;">⚙️ Pannello Admin: Moduli IA e Scanner Avanzato</h3>
-                <form action="/toggle-settings" method="POST" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; font-size: 13px;">
-                    <label><input type="checkbox" name="use_trend_following" {"checked" if bot_settings["use_trend_following"]==1 else ""}> Trend-Following</label>
-                    <label><input type="checkbox" name="use_multi_ema" {"checked" if bot_settings["use_multi_ema"]==1 else ""}> Multi-EMA</label>
-                    <label><input type="checkbox" name="use_rsi_filter" {"checked" if bot_settings["use_rsi_filter"]==1 else ""}> RSI Filter</label>
-                    <label><input type="checkbox" name="use_whale_tracker" {"checked" if bot_settings["use_whale_tracker"]==1 else ""}> 🐳 Whale Tracker</label>
-                    <label><input type="checkbox" name="auto_execution" {"checked" if bot_settings["auto_execution"]==1 else ""}> 🚀 Auto-Trading Illimitato</label>
-                    <button type="submit" class="btn" style="width: auto; padding: 4px 10px; font-size: 12px;">Aggiorna Stato</button>
-                </form>
-            </div>
-            """
-        else:
-            threshold_control = (
-                f'<span style="background: #0b0e14; border: 1px solid #374151; color: #f97316; padding: 6px 12px; border-radius: 6px; font-weight: bold; font-size: 14px;">{current_threshold}% (Admin)</span>'
-            )
-            toggles_html = ""
+        threshold_control = (
+            f'<form action="/set-threshold" method="POST" style="display: flex; gap: 8px; align-items: center;">'
+            f'<input type="number" name="threshold" min="40" max="99" value="{current_threshold}" style="width: 60px; text-align: center; background: #000; border: 1px solid #d4af37; color: #d4af37; padding: 6px; border-radius: 6px; font-weight: bold;">'
+            f'<button type="submit" class="btn" style="width: auto; padding: 6px 12px; font-size: 12px;">Imposta</button>'
+            f'</form>'
+        ) if is_admin else f'<span style="color: #d4af37; font-weight: bold;">{current_threshold}%</span>'
 
-        debug_box_html = f"""
-        <div class="debug-box">
-            <strong>🛠️ DEBUG LIVE BINGX (Ultimo Stato/Errore):</strong><br>
-            {last_bingx_debug_log}
+        toggles_html = f"""
+        <div class="panel" style="border: 1px solid #d4af37;">
+            <h3 style="color: #d4af37; font-size: 14px; margin-bottom: 10px;">⚙️ Pannello Admin: Moduli IA e Scanner Universale</h3>
+            <form action="/toggle-settings" method="POST" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; font-size: 13px;">
+                <label style="color: #fff;"><input type="checkbox" name="use_trend_following" {"checked" if bot_settings["use_trend_following"]==1 else ""}> Trend-Following</label>
+                <label style="color: #fff;"><input type="checkbox" name="use_multi_ema" {"checked" if bot_settings["use_multi_ema"]==1 else ""}> Multi-EMA</label>
+                <label style="color: #fff;"><input type="checkbox" name="use_rsi_filter" {"checked" if bot_settings["use_rsi_filter"]==1 else ""}> RSI Filter</label>
+                <label style="color: #fff;"><input type="checkbox" name="use_whale_tracker" {"checked" if bot_settings["use_whale_tracker"]==1 else ""}> 🐳 Whale Tracker</label>
+                <label style="color: #fff;"><input type="checkbox" name="auto_execution" {"checked" if bot_settings["auto_execution"]==1 else ""}> 🚀 Auto-Trading Illimitato</label>
+                <button type="submit" class="btn" style="width: auto; padding: 4px 10px; font-size: 12px;">Aggiorna</button>
+            </form>
         </div>
-        """
+        """ if is_admin else ""
 
         content = """
         <div class="panel" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
             <div>
-                <h3 style="color: #fff; font-size: 15px; margin-bottom: 3px;">Scanner Grafico & Intelligenza Istituzionale</h3>
-                <p style="font-size: 12px; color: #9ca3af;">Soglia Minima Segnale: <strong style="color: #f97316;">{threshold}%</strong> (Posizioni Illimitate su BingX)</p>
+                <h3 style="color: #fff; font-size: 16px; margin-bottom: 3px;">Scanner Dinamico Universale (Futures, Crypto, Azioni & Nuove Quotazioni)</h3>
+                <p style="font-size: 12px; color: #9ca3af;">Asset Monitorati: <strong style="color: #d4af37;">{total_assets}</strong> | Soglia Minima IA: <strong style="color: #d4af37;">{threshold}%</strong></p>
             </div>
             {threshold_control}
         </div>
         
-        {debug_box}
+        {positions_section}
         {toggles_section}
         {signals_section}
         
-        <h3 style="margin-bottom: 12px; color: #fff; font-size: 15px;">Monitoraggio Mercato Live (Tutti i Parametri & Grafici)</h3>
+        <h3 style="margin-bottom: 12px; color: #d4af37; font-size: 16px; font-weight: bold; border-left: 3px solid #d4af37; padding-left: 8px;">📊 Monitoraggio Mercato Live & Tachimetri IA</h3>
         <div class="grid">
             {% for symbol, data in market_data.items() %}
             <div class="card">
-                <div class="gauge-container">
+                <div class="speedometer-container">
                     <div>
                         <span style="font-weight: bold; color: #fff; font-size: 14px;">{{ data.symbol }}</span>
                         <div style="font-size: 11px; color: {% if data.action == 'LONG' %}#10b981{% elif data.action == 'SHORT' %}#ef4444{% else %}#9ca3af{% endif %}; font-weight: bold;">
-                            Direzione: {{ data.action }}
+                            Direzione: {{ data.action }} <span style="color: #d4af37; font-weight: normal;">({{ data.signal_time }})</span>
                         </div>
                     </div>
-                    <div class="gauge {% if data.action == 'LONG' %}gauge-long{% elif data.action == 'SHORT' %}gauge-short{% else %}gauge-neutral{% endif %}">
-                        {{ data.score }}%
+                    <!-- Tachimetro SVG con Lancetta Dorata -->
+                    <div style="width: 55px; height: 35px; position: relative;">
+                        <svg viewBox="0 0 100 60" style="width: 100%; height: 100%;">
+                            <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="#222" stroke-width="12" stroke-linecap="round" />
+                            <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="#d4af37" stroke-width="12" stroke-dasharray="125.6" stroke-dashoffset="{{ 125.6 - (125.6 * data.score / 100) }}" stroke-linecap="round" />
+                            {% set angle = -90 + (180 * data.score / 100) %}
+                            <line x1="50" y1="50" x2="{{ 50 + 30 * cos(angle * 3.14159 / 180) }}" y2="{{ 50 + 30 * sin(angle * 3.14159 / 180) }}" stroke="#fff" stroke-width="3" stroke-linecap="round" />
+                            <circle cx="50" cy="50" r="4" fill="#d4af37" />
+                        </svg>
+                        <div style="text-align: center; font-size: 10px; font-weight: bold; color: #d4af37; margin-top: -2px;">{{ data.score }}%</div>
                     </div>
                 </div>
 
                 <!-- Barra Potenza Segnale -->
                 <div style="font-size: 11px; color: #9ca3af; display: flex; justify-content: space-between; margin-top: 4px;">
                     <span>⚡ POTENZA IA & INDICATORI</span>
-                    <span style="color: #38bdf8; font-weight: bold;">{{ data.indicators_passed }}/{{ data.indicators_total }}</span>
+                    <span style="color: #d4af37; font-weight: bold;">{{ data.indicators_passed }}/{{ data.indicators_total }}</span>
                 </div>
                 <div class="power-bar-bg">
                     <div class="power-bar-fill" style="width: {{ (data.indicators_passed / data.indicators_total * 100)|int }}%;"></div>
@@ -599,11 +628,11 @@ def home():
                 
                 <div style="font-size: 11px; color: #9ca3af; display: flex; flex-direction: column; gap: 4px;">
                     <div style="display: flex; justify-content: space-between;"><span>Prezzo Live:</span><strong style="color: #fff;">${{ "%.4f"|format(data.price) if data.price < 1 else "%.2f"|format(data.price) }}</strong></div>
-                    <div style="display: flex; justify-content: space-between;"><span>RSI (1H / 4H):</span><span><strong style="color: #38bdf8;">{{ data.rsi_1h }}</strong> / <strong style="color: #f97316;">{{ data.rsi_4h }}</strong></span></div>
-                    <div style="display: flex; justify-content: space-between;"><span>EMA (9/21/50):</span><span style="color: #93c5fd;">{{ "%.2f"|format(data.ema_9) }} / {{ "%.2f"|format(data.ema_21) }} / {{ "%.2f"|format(data.ema_50) }}</span></div>
-                    <div style="display: flex; justify-content: space-between;"><span>Whale Tracker:</span><strong style="color: #f59e0b;">{{ data.whale_status }}</strong></div>
+                    <div style="display: flex; justify-content: space-between;"><span>RSI (1H / 4H):</span><span><strong style="color: #d4af37;">{{ data.rsi_1h }}</strong> / <strong style="color: #aa8c2c;">{{ data.rsi_4h }}</strong></span></div>
+                    <div style="display: flex; justify-content: space-between;"><span>Margine Consigliato:</span><strong style="color: #10b981;">${{ data.recommended_margin }} USDT ({{ data.leverage }}x)</strong></div>
+                    <div style="display: flex; justify-content: space-between;"><span>Whale Tracker:</span><strong style="color: #d4af37;">{{ data.whale_status }}</strong></div>
                     
-                    <div style="display: flex; justify-content: space-between; border-top: 1px dashed #1f2937; padding-top: 4px; margin-top: 2px;">
+                    <div style="display: flex; justify-content: space-between; border-top: 1px dashed #222; padding-top: 4px; margin-top: 2px;">
                         <span style="color: #ef4444;">Stop Loss:</span>
                         <strong style="color: #ef4444;">${{ "%.4f"|format(data.sl) if data.price < 1 else "%.2f"|format(data.sl) }} ({{ data.sl_pct }}%)</strong>
                     </div>
@@ -615,28 +644,25 @@ def home():
                         <span style="color: #34d399;">Take Profit 2:</span>
                         <strong style="color: #34d399;">${{ "%.4f"|format(data.tp2) if data.price < 1 else "%.2f"|format(data.tp2) }} (+{{ data.tp2_pct }}%)</strong>
                     </div>
-                    <div style="display: flex; justify-content: space-between;">
-                        <span style="color: #6ee7b7;">Take Profit 3:</span>
-                        <strong style="color: #6ee7b7;">${{ "%.4f"|format(data.tp3) if data.price < 1 else "%.2f"|format(data.tp3) }} (+{{ data.tp3_pct }}%)</strong>
-                    </div>
                 </div>
 
-                <!-- Pulsante Grafico Dedicato -->
                 <a href="https://www.tradingview.com/chart/?symbol=BINGX:{{ data.symbol }}USDT" target="_blank" class="chart-btn">📈 Apri Grafico Live ({{ data.symbol }})</a>
             </div>
             {% endfor %}
         </div>
         """
         
+        import math
         content = content.replace("{threshold}", str(current_threshold))
+        content = content.replace("{total_assets}", str(len(SYMBOLS)))
         content = content.replace("{threshold_control}", threshold_control)
-        content = content.replace("{debug_box}", debug_box_html)
+        content = content.replace("{positions_section}", positions_html)
         content = content.replace("{toggles_section}", toggles_html)
         content = content.replace("{signals_section}", signals_html)
 
-        refresh_tag = '<meta http-equiv="refresh" content="15">'
+        refresh_tag = '<meta http-equiv="refresh" content="30">'
         html = BASE_HTML.replace("{refresh_tag}", refresh_tag).replace("{{ content | safe }}", content)
-        return render_template_string(html, brand_name=BRAND_NAME, market_data=market_data_cache)
+        return render_template_string(html, brand_name=BRAND_NAME, market_data=market_data_cache, sin=math.sin, cos=math.cos)
     except Exception as e:
         return f"Errore interno temporaneo: {e}", 500
 
@@ -680,8 +706,8 @@ def register():
         except Exception:
             flash("Username già esistente o errore di salvataggio.")
     content = """
-    <div class="panel" style="max-width: 380px; margin: 30px auto;">
-        <h3 style="color: #fff; margin-bottom: 15px; text-align: center;">Registrazione VIP</h3>
+    <div class="panel" style="max-width: 380px; margin: 30px auto; border: 1px solid #d4af37;">
+        <h3 style="color: #d4af37; margin-bottom: 15px; text-align: center;">Registrazione VIP</h3>
         <form method="POST">
             <div class="form-group"><label>Username</label><input type="text" name="username" required></div>
             <div class="form-group"><label>Password</label><input type="password" name="password" required></div>
@@ -713,8 +739,8 @@ def login():
             pass
         flash("Credenziali non valide.")
     content = """
-    <div class="panel" style="max-width: 380px; margin: 30px auto;">
-        <h3 style="color: #fff; margin-bottom: 15px; text-align: center;">Accesso Piattaforma</h3>
+    <div class="panel" style="max-width: 380px; margin: 30px auto; border: 1px solid #d4af37;">
+        <h3 style="color: #d4af37; margin-bottom: 15px; text-align: center;">Accesso Piattaforma</h3>
         <form method="POST">
             <div class="form-group"><label>Username</label><input type="text" name="username" required></div>
             <div class="form-group"><label>Password</label><input type="password" name="password" required></div>
