@@ -328,7 +328,7 @@ def run_scanner_background():
                             bearish_points += 1
                     else:
                         bullish_points += 1
-                        bullish_points += 1
+                        bearish_points += 1
 
                     action, score, rating, passed_indicators = "NEUTRAL", 50, "NEUTRAL", 0
 
@@ -732,9 +732,18 @@ def settings():
             api_key = request.form.get("api_key")
             secret_key = request.form.get("secret_key")
             auto_trading = int(request.form.get("auto_trading", 0))
+            
+            # Mantiene la secret key esistente se il campo viene lasciato vuoto per sicurezza
+            if not secret_key:
+                cursor.execute("SELECT bingx_secret_key FROM users WHERE id = ?", (session["user_id"],))
+                old_sec = cursor.fetchone()
+                if old_sec and old_sec[0]:
+                    secret_key = old_sec[0]
+
             cursor.execute("UPDATE users SET bingx_api_key = ?, bingx_secret_key = ?, auto_trading = ? WHERE id = ?", (api_key, secret_key, auto_trading, session["user_id"]))
             conn.commit()
             flash("Configurazione API salvata in modo persistente!")
+            
         cursor.execute("SELECT bingx_api_key, bingx_secret_key, auto_trading FROM users WHERE id = ?", (session["user_id"],))
         u_data = cursor.fetchone()
         conn.close()
@@ -749,17 +758,17 @@ def settings():
     content = f"""
     <div class="panel" style="max-width: 450px; margin: 20px auto;">
         <h3 style="color: #fff; margin-bottom: 12px;">Gestione API BingX Personali</h3>
-        <p style="font-size: 12px; color: #9ca3af; margin-bottom: 15px;">Le tue chiavi e impostazioni ora restano salvate stabilmente nel database.</p>
+        <p style="font-size: 12px; color: #9ca3af; margin-bottom: 15px;">Inserisci le tue chiavi ufficiali di BingX e imposta l'auto-trading su Attivato.</p>
         <form method="POST">
-            <div class="form-group"><label>API Key</label><input type="text" name="api_key" value="{u_api}"></div>
-            <div class="form-group"><label>Secret Key</label><input type="password" name="secret_key" value="{u_sec}">*</div>
+            <div class="form-group"><label>API Key</label><input type="text" name="api_key" value="{u_api}" placeholder="Incolla qui la tua API Key di BingX" required></div>
+            <div class="form-group"><label>Secret Key</label><input type="password" name="secret_key" value="{u_sec}" placeholder="Incolla qui la tua Secret Key"></div>
             <div class="form-group"><label>Stato Auto-Trading</label>
                 <select name="auto_trading">
                     <option value="0" {"selected" if u_auto == 0 else ""}>Disattivato</option>
                     <option value="1" {"selected" if u_auto == 1 else ""}>Attivato (Esecuzione Automatica)</option>
                 </select>
             </div>
-            <button type="submit" class="btn" style="background: #059669; margin-top: 10px;">Salva Chiavi</button>
+            <button type="submit" class="btn" style="background: #059669; margin-top: 10px;">Salva Chiavi e Attiva</button>
         </form>
     </div>
     """
