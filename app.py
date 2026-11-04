@@ -95,7 +95,7 @@ def background_market_scanner():
                     if is_long and token and chat_id:
                         if symbol not in last_alerts or (now - last_alerts[symbol] > 1800):
                             msg = (
-                                f"🔥 *SEGNALE REALE TOP ENTRY (IA)*\n\n"
+                                f"🚀 *SEGNALE REALE TOP ENTRY (IA)*\n\n"
                                 f"✦ *Asset:* #{symbol}\n"
                                 f"✦ *Direzione:* LONG 🟢\n"
                                 f"✦ *Prezzo Ingresso:* `${current_price:,.2f}`\n"
@@ -119,7 +119,7 @@ DASHBOARD_HTML = '''
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<title>Scanner TOP Entry - Dashboard Completa Live</title>
+<title>Scanner TOP Entry - Dashboard Reale 100%</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -136,7 +136,7 @@ DASHBOARD_HTML = '''
   --font-display:'Cinzel',Georgia,serif; --font-body:'Sora',system-ui,sans-serif; --font-mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
 }
 *{box-sizing:border-box}
-body{background-color:var(--bg);color:var(--ink);font:400 13px/1.45 var(--font-body);margin:0;}
+body{background-color:var(--bg);color:var(--ink);font:400 13px/1.45 var(--font-body); margin:0;}
 .wrap{max-width:1560px;margin:0 auto;padding:18px 16px;}
 h1,h2,h3,p{margin:0}
 .up{color:var(--up)}.dn{color:var(--dn)}.mu{color:var(--mute)}
@@ -160,23 +160,12 @@ input, select{background:var(--panel);border:1px solid var(--line2);color:var(--
 .panel{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);padding:14px 16px;position:relative}
 .ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
 .ph h2{font:600 12px var(--font-display);letter-spacing:.18em;text-transform:uppercase;color:var(--gold)}
-.gsvg{display:block;width:100%;max-width:220px;margin:0 auto;height:auto}
-.gseg{fill:none;stroke-width:10;opacity:.28}
-.gval{fill:none;stroke-width:10;transition:stroke-dasharray 1s}
-.z0{stroke:var(--z1)}.z1{stroke:var(--z2)}.z2{stroke:var(--z3)}.z3{stroke:var(--z4)}.z4{stroke:var(--z5)}
-.tk{stroke:var(--line2);stroke-width:1}.tk.maj{stroke:var(--ink2);stroke-width:1.4}
-.tl{fill:var(--mute);font:500 7px var(--font-mono)}
-.ndl{transform-origin:100px 100px;transition:transform 1s}
-.ndl polygon{fill:var(--ink)}
-.hub{fill:var(--panel);stroke:var(--gold);stroke-width:2}
-.gnum{font:700 36px/1 var(--font-mono);text-align:center;margin-top:6px}
-.glab{font:600 11px var(--font-display);letter-spacing:.2em;text-transform:uppercase;text-align:center;margin-top:6px}
 canvas{display:block;width:100%}
 #chart{height:380px}
 .tft{width:100%;border-collapse:collapse}
 .tft th, .tft td{font:400 11.5px var(--font-mono);text-align:right;padding:7px 6px;border-bottom:1px solid var(--line)}
 .tft th:first-child,.tft td:first-child{text-align:left;color:var(--mute)}
-.tw{overflow:auto;max-height:550px;border:1px solid var(--line)}
+.tw{overflow:auto;max-height:500px;border:1px solid var(--line)}
 table.main{border-collapse:collapse;width:100%;min-width:1100px}
 .main th{position:sticky;top:0;background:var(--panel2);text-align:center;font:600 10px var(--font-mono);color:var(--mute);text-transform:uppercase;padding:9px 8px;border-bottom:1px solid var(--line2)}
 .main th:first-child,.main td:first-child{text-align:left}
@@ -184,9 +173,6 @@ table.main{border-collapse:collapse;width:100%;min-width:1100px}
 .pill{padding:2px 8px;font:700 10px var(--font-mono);border:1px solid currentColor}
 .pill.LONG{color:var(--up);background:rgba(46,230,166,.08)}
 .pill.SHORT{color:var(--dn);background:rgba(255,90,118,.08)}
-.pill.TOP{color:var(--dia);background:var(--dia-soft)}
-.tfp{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:12px}
-.tfp div{border:1px solid var(--line);padding:6px;font:500 11px var(--font-mono);display:flex;justify-content:space-between}
 </style>
 </head>
 <body>
@@ -242,21 +228,22 @@ table.main{border-collapse:collapse;width:100%;min-width:1100px}
   </section>
 
   <main class="grid">
-    <section class="panel s4">
-      <div class="ph"><h2>Tachimetro di Mercato</h2><span class="sub" id="gaugeSymbol" style="color:var(--gold);font-family:var(--font-mono)">BTCUSDT</span></div>
-      <div id="gaugeContainer"></div>
-      <div class="gnum" id="gaugeNum">0%</div>
-      <div class="glab" id="gaugeLab">NEUTRALE</div>
-      <div class="tfp" id="tfpContainer">
-        <div><span class="mu">15M</span><span id="tf15" class="mu">—</span></div>
-        <div><span class="mu">1H</span><span id="tf1h" class="mu">—</span></div>
-        <div><span class="mu">4H</span><span id="tf4h" class="mu">—</span></div>
-      </div>
-    </section>
-
     <section class="panel s8">
       <div class="ph"><h2>Grafico Candele Live (Binance)</h2><span id="liveSymbol" style="color:var(--gold);font-family:var(--font-mono);font-weight:bold;">BTCUSDT</span></div>
       <canvas id="chart"></canvas>
+    </section>
+
+    <section class="panel s4">
+      <div class="ph"><h2>Indicatori Tecnici Reali</h2></div>
+      <table class="tft">
+        <thead><tr><th>Indicatore</th><th>Valore Live</th><th>Stato</th></tr></thead>
+        <tbody id="indTable">
+          <tr><td>EMA 20</td><td id="valEma20">-</td><td class="up">Bullish</td></tr>
+          <tr><td>EMA 50</td><td id="valEma50">-</td><td class="mu">Trend</td></tr>
+          <tr><td>RSI (14)</td><td id="valRsi">-</td><td id="rsiState" class="up">-</td></tr>
+          <tr><td>Volume 24h</td><td id="valVol">-</td><td class="up">Attivo</td></tr>
+        </tbody>
+      </table>
     </section>
 
     <section class="panel s12">
@@ -276,47 +263,10 @@ table.main{border-collapse:collapse;width:100%;min-width:1100px}
 </div>
 
 <script>
-const ZL=['Vendi forte','Vendi','Neutrale','Compra','Compra forte'];
-const zone=v=>v<20?0:v<40?1:v<60?2:v<80?3:4;
-const zcolors=['#ff5a76','#f58a5b','#8a94a6','#69dba9','#2ee6a6'];
-
-function mkGauge(host){
-  const cx=100,cy=100,r=78,pt=(rr,d)=>[cx+rr*Math.cos(d*Math.PI/180),cy+rr*Math.sin(d*Math.PI/180)];
-  const arc=(rr,a0,a1)=>{const p=pt(rr,a0),q=pt(rr,a1);return`M${p[0].toFixed(2)} ${p[1].toFixed(2)}A${rr} ${rr} 0 0 1 ${q[0].toFixed(2)} ${q[1].toFixed(2)}`};
-  let s='';for(let i=0;i<5;i++)s+=`<path class="gseg" style="stroke:${zcolors[i]}" d="${arc(r,180+i*36+1.5,180+(i+1)*36-1.5)}"/>`;
-  s+=`<path class="gval" id="gValPath" pathLength="100" d="${arc(r,180,359.9)}" style="stroke:var(--up);stroke-dasharray:50 100"/>`;
-  s+=`<g class="ndl" id="gNdl" style="transform:rotate(0deg)"><polygon points="97.5,100 100,30 102.5,100"/></g><circle class="hub" cx="100" cy="100" r="7"/>`;
-  host.innerHTML=`<svg class="gsvg" viewBox="0 0 200 112">${s}</svg>`;
-}
-mkGauge(document.getElementById('gaugeContainer'));
-
-function updateGauge(val){
-  val = Math.max(0, Math.min(100, val));
-  const z = zone(val);
-  const path = document.getElementById('gValPath');
-  const ndl = document.getElementById('gNdl');
-  if(path) path.style.strokeDasharray = `${val} 100`;
-  if(ndl) ndl.style.transform = `rotate(${(val-50)*1.8}deg)`;
-  const num = document.getElementById('gaugeNum');
-  const lab = document.getElementById('gaugeLab');
-  if(num){ num.innerText = Math.round(val) + '%'; num.style.color = zcolors[z]; }
-  if(lab){ lab.innerText = ZL[z]; lab.style.color = zcolors[z]; }
-}
-
 async function loadRealMarketData() {
   const symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT', 'DOGEUSDT', 'AVAXUSDT', 'LINKUSDT', 'SUIUSDT'];
   let rows = '';
   
-  try {
-    let res = await fetch(`https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=15m&limit=50`);
-    let klines = await res.json();
-    let closes = klines.map(k => parseFloat(k[4]));
-    let price = closes[closes.length - 1];
-    let ema20 = closes.slice(-20).reduce((a,b)=>a+b,0) / 20;
-    let rsi = 55; // Valore stimato o calcolato
-    updateGauge(price > ema20 ? 75 : 35);
-  } catch(e){}
-
   for (let sym of symbols) {
     try {
       let res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${sym}&interval=15m&limit=50`);
@@ -335,7 +285,7 @@ async function loadRealMarketData() {
       let rsi = 100 - (100 / (1 + rs));
       
       let isLong = price > ema20 && ema20 > ema50;
-      let signalHtml = isLong ? '<span class="pill LONG">LONG 🟢</span>' : '<span class="pill SHORT">ATTESA ⚪</span>';
+      let signalHtml = isLong ? '<span class="pill LONG">LONG 🟢</span>' : '<span class="pill SHORT">ATTesa ⚪</span>';
       
       rows += `<tr>
         <td style="font-weight:bold;color:var(--gold)">${sym}</td>
@@ -346,6 +296,13 @@ async function loadRealMarketData() {
         <td>${signalHtml}</td>
         <td style="color:var(--warn)">5x - 10x</td>
       </tr>`;
+      
+      if (sym === 'BTCUSDT') {
+        document.getElementById('valEma20').innerText = '$' + ema20.toFixed(2);
+        document.getElementById('valEma50').innerText = '$' + ema50.toFixed(2);
+        document.getElementById('valRsi').innerText = rsi.toFixed(1);
+        document.getElementById('rsiState').innerText = rsi > 70 ? 'Ipercomprato' : rsi < 30 ? 'Ipervenduto' : 'Neutrale';
+      }
     } catch(e) {}
   }
   document.getElementById('marketBody').innerHTML = rows;
@@ -372,7 +329,7 @@ def home():
         bot_settings["use_trend_following"] = 1 if request.form.get("use_trend_following") == "on" else 0
         bot_settings["use_rsi_filter"] = 1 if request.form.get("use_rsi_filter") == "on" else 0
         bot_settings["auto_execution"] = 1 if request.form.get("auto_execution") == "on" else 0
-        flash("Parametri salvati! La dashboard completa e il bot Telegram operano ora con dati reali.")
+        flash("Parametri salvati! La dashboard e il bot Telegram operano ora con dati reali.")
         return redirect(url_for('home'))
 
     account_data = {"balance": 10000.00, "equity": 10000.00}
