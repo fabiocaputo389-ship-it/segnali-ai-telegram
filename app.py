@@ -21,7 +21,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "chiave_segreta_super_sicura_quantum_tf")
 
-BRAND_NAME = "👑 SCANNER TRADING VIP [TIMEFRAME OPTIMIZED]"
+BRAND_NAME = "👑 SCANNER TRADING VIP [MULTI-TF & TARGET TRACKER A.I.]"
 ADMIN_USERNAME = "Fabio"
 
 def fetch_all_bingx_symbols():
@@ -65,11 +65,15 @@ bot_settings = {
     "auto_execution": 1
 }
 
+# Struttura dati per tracciare le posizioni attive ed esiti TP/SL
+active_trades = {}
+
 market_data_cache = {
     symbol: {
         "symbol": symbol.replace("-USDT", ""),
         "pair": symbol.replace("-USDT", "/USDT"),
         "price": 100.0,
+        "rsi_15m": 50.0,
         "rsi_1h": 50.0,
         "rsi_4h": 50.0,
         "ema_9": 0.0,
@@ -93,7 +97,8 @@ market_data_cache = {
         "leverage": 5,
         "signal_time": "--:--:--",
         "recommended_tf": "1h",
-        "recommended_margin": 30.0
+        "recommended_margin": 30.0,
+        "trade_status": "SEARCHING"  # SEARCHING, IN_PROGRESS, TP1, TP2, TP3, SL_HIT
     } for symbol in SYMBOLS
 }
 
@@ -274,6 +279,95 @@ def fetch_bingx_klines(symbol, interval):
         print(f"Errore API klines {symbol}: {e}")
     return []
 
+def determine_optimal_timeframe(candles_15m, candles_1h, candles_4h):
+    try:
+        vol_15m = calculate_atr(candles_15m) / float(candles_15m[-1]['close']) if candles_15m else 0
+        vol_1h = calculate_atr(candles_1h) / float(candles_1h[-1]['close']) if candles_1h else 0
+        vol_4h = calculate_atr(candles_4h) / float(candles_4h[-1]['close']) if candles_4h else 0
+
+        if vol_15m > (vol_1h * 1.5):
+            return "15m"
+        elif vol_4h > vol_1h:
+            return "4h"
+        else:
+            return "1h"
+    except Exception:
+        return "1h"
+
+def check_tp_sl_hits(symbol, current_price, telegram_token, channel_id):
+    """
+    Traccia ed emette alert quando un prezzo raggiunge Take Profit o Stop Loss.
+    """
+    if symbol not in active_trades:
+        return "SEARCHING"
+
+    trade = active_trades[symbol]
+    action = trade["action"]
+    entry = trade["entry"]
+    sl = trade["sl"]
+    tp1 = trade["tp1"]
+    tp2 = trade["tp2"]
+    tp3 = trade["tp3"]
+    hit_status = trade.get("status", "IN_PROGRESS")
+
+    pair_name = symbol.replace("-USDT", " / USDT")
+    decimals = 5 if current_price < 1 else 2
+
+    # Controllo LONG
+    if action == "LONG":
+        if current_price <= sl and "SL" not in trade["hits"]:
+            trade["hits"].append("SL")
+            trade["status"] = "🛑 STOP LOSS HIT"
+            msg = f"🛑 **STOP LOSS COLPITO** | {pair_name}\nPrezzo Attuale: ${current_price:.{decimals}f} (SL: ${sl:.{decimals}f})"
+            send_telegram_msg(telegram_token, channel_id, msg)
+        elif current_price >= tp3 and "TP3" not in trade["hits"]:
+            trade["hits"].extend(["TP1", "TP2", "TP3"])
+            trade["status"] = "🎯🎯🎯 TP3 RAGGIUNTO (MAX TARGET)"
+            msg = f"🎯🎯🎯 **TAKE PROFIT 3 RAGGIUNTO!** | {pair_name}\nPrezzo Attuale: ${current_price:.{decimals}f} (+{trade['tp3_pct']}%)"
+            send_telegram_msg(telegram_token, channel_id, msg)
+        elif current_price >= tp2 and "TP2" not in trade["hits"]:
+            trade["hits"].extend(["TP1", "TP2"])
+            trade["status"] = "🎯🎯 TP2 RAGGIUNTO"
+            msg = f"🎯🎯 **TAKE PROFIT 2 RAGGIUNTO!** | {pair_name}\nPrezzo Attuale: ${current_price:.{decimals}f} (+{trade['tp2_pct']}%)"
+            send_telegram_msg(telegram_token, channel_id, msg)
+        elif current_price >= tp1 and "TP1" not in trade["hits"]:
+            trade["hits"].append("TP1")
+            trade["status"] = "🎯 TP1 RAGGIUNTO"
+            msg = f"🎯 **TAKE PROFIT 1 RAGGIUNTO!** | {pair_name}\nPrezzo Attuale: ${current_price:.{decimals}f} (+{trade['tp1_pct']}%)"
+            send_telegram_msg(telegram_token, channel_id, msg)
+
+    # Controllo SHORT
+    elif action == "SHORT":
+        if current_price >= sl and "SL" not in trade["hits"]:
+            trade["hits"].append("SL")
+            trade["status"] = "🛑 STOP LOSS HIT"
+            msg = f"🛑 **STOP LOSS COLPITO** | {pair_name}\nPrezzo Attuale: ${current_price:.{decimals}f} (SL: ${sl:.{decimals}f})"
+            send_telegram_msg(telegram_token, channel_id, msg)
+        elif current_price <= tp3 and "TP3" not in trade["hits"]:
+            trade["hits"].extend(["TP1", "TP2", "TP3"])
+            trade["status"] = "🎯🎯🎯 TP3 RAGGIUNTO (MAX TARGET)"
+            msg = f"🎯🎯🎯 **TAKE PROFIT 3 RAGGIUNTO!** | {pair_name}\nPrezzo Attuale: ${current_price:.{decimals}f} (+{trade['tp3_pct']}%)"
+            send_telegram_msg(telegram_token, channel_id, msg)
+        elif current_price <= tp2 and "TP2" not in trade["hits"]:
+            trade["hits"].extend(["TP1", "TP2"])
+            trade["status"] = "🎯🎯 TP2 RAGGIUNTO"
+            msg = f"🎯🎯 **TAKE PROFIT 2 RAGGIUNTO!** | {pair_name}\nPrezzo Attuale: ${current_price:.{decimals}f} (+{trade['tp2_pct']}%)"
+            send_telegram_msg(telegram_token, channel_id, msg)
+        elif current_price <= tp1 and "TP1" not in trade["hits"]:
+            trade["hits"].append("TP1")
+            trade["status"] = "🎯 TP1 RAGGIUNTO"
+            msg = f"🎯 **TAKE PROFIT 1 RAGGIUNTO!** | {pair_name}\nPrezzo Attuale: ${current_price:.{decimals}f} (+{trade['tp1_pct']}%)"
+            send_telegram_msg(telegram_token, channel_id, msg)
+
+    return trade["status"]
+
+def send_telegram_msg(token, channel_id, message):
+    if token and channel_id:
+        try:
+            requests.post(f"https://api.telegram.org/bot{token}/sendMessage", json={"chat_id": channel_id, "text": message, "parse_mode": "Markdown"}, timeout=5)
+        except Exception as e:
+            print(f"Errore invio Telegram: {e}")
+
 def run_scanner_background():
     telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     channel_id = os.environ.get("CHANNEL_ID")
@@ -281,7 +375,7 @@ def run_scanner_background():
     COOLDOWN_SECONDS = 3600
 
     while True:
-        global current_threshold, market_data_cache, bot_settings
+        global current_threshold, market_data_cache, bot_settings, active_trades
         current_time = time.time()
         for symbol in SYMBOLS:
             try:
@@ -304,6 +398,8 @@ def run_scanner_background():
                     ema_50 = calculate_ema(closes_1h, 50)
                     atr = calculate_atr(candles_1h)
                     whale_txt, whale_score_val = analyze_whale_volume(candles_1h)
+
+                    recommended_tf = determine_optimal_timeframe(candles_15m, candles_1h, candles_4h)
 
                     bullish_points, bearish_points, total_indicators = 0, 0, 20
 
@@ -373,8 +469,6 @@ def run_scanner_background():
                     leverage = 10 if score >= 90 else (5 if score >= 82 else 3)
                     
                     signal_time_str = datetime.now(ZoneInfo("Europe/Rome")).strftime("%H:%M:%S")
-                    recommended_tf = "1h"
-                    
                     recommended_margin = round(max(25.0, current_price * 0.03 / leverage), 2) if current_price < 100 else round(max(30.0, 1500.0 / leverage), 2)
 
                     if action == "LONG":
@@ -395,10 +489,14 @@ def run_scanner_background():
                     tp2_pct = round(((tp2 - current_price) / current_price) * 100, 2)
                     tp3_pct = round(((tp3 - current_price) / current_price) * 100, 2)
 
+                    # Monitora se la posizione attiva ha colpito TP o SL
+                    trade_status = check_tp_sl_hits(symbol, current_price, telegram_token, channel_id)
+
                     market_data_cache[symbol] = {
                         "symbol": symbol.replace("-USDT", ""),
                         "pair": symbol.replace("-USDT", "/USDT"),
                         "price": current_price,
+                        "rsi_15m": rsi_15m,
                         "rsi_1h": rsi_1h,
                         "rsi_4h": rsi_4h,
                         "ema_9": ema_9,
@@ -422,12 +520,29 @@ def run_scanner_background():
                         "leverage": leverage,
                         "signal_time": signal_time_str,
                         "recommended_tf": recommended_tf,
-                        "recommended_margin": recommended_margin
+                        "recommended_margin": recommended_margin,
+                        "trade_status": trade_status
                     }
 
                     if score >= current_threshold and action != "NEUTRAL":
                         if current_time - last_signal_time[symbol] > COOLDOWN_SECONDS:
                             last_signal_time[symbol] = current_time
+                            
+                            # Registra il nuovo segnale nel tracker per il controllo continuo
+                            active_trades[symbol] = {
+                                "action": action,
+                                "entry": current_price,
+                                "sl": sl,
+                                "tp1": tp1,
+                                "tp2": tp2,
+                                "tp3": tp3,
+                                "tp1_pct": tp1_pct,
+                                "tp2_pct": tp2_pct,
+                                "tp3_pct": tp3_pct,
+                                "status": "🚀 POSIZIONE APERTA",
+                                "hits": []
+                            }
+
                             trigger_auto_trades(symbol, action, leverage, sl, tp1)
                             
                             if telegram_token and channel_id:
@@ -436,8 +551,8 @@ def run_scanner_background():
                                 dir_text = "🟢 LONG PRECISION" if action == "LONG" else "🔴 SHORT PRECISION"
 
                                 message = (
-                                    f"👑 **SCANNER TRADING VIP [TIMEFRAME 1H]** 👑\n"
-                                    f"⏰ **Orario:** {signal_time_str} | ⏱️ **Timeframe:** {recommended_tf}\n\n"
+                                    f"👑 **SCANNER TRADING VIP [A.I. MULTI-TF]** 👑\n"
+                                    f"⏰ **Orario:** {signal_time_str} | ⏱️ **TF Consigliato:** {recommended_tf.upper()}\n\n"
                                     f"🔹 **Asset:** {pair_name}\n"
                                     f"📊 **Direzione:** {dir_text}\n"
                                     f"⭐ **Confluenza IA:** {score}% | **Grado:** {ai_grade}\n"
@@ -448,7 +563,7 @@ def run_scanner_background():
                                     f"🎯 **Take Profit 2:** ${tp2:.{decimals}f} (+{tp2_pct}%)\n"
                                     f"🎯 **Take Profit 3:** ${tp3:.{decimals}f} (+{tp3_pct}%)\n"
                                 )
-                                requests.post(f"https://api.telegram.org/bot{telegram_token}/sendMessage", json={"chat_id": channel_id, "text": message, "parse_mode": "Markdown"})
+                                send_telegram_msg(telegram_token, channel_id, message)
                             time.sleep(1)
             except Exception as e:
                 print(f"Errore scanner: {e}")
@@ -534,23 +649,26 @@ def home():
         if active_signals:
             signals_html += (
                 '<div class="signal-box">'
-                '<h3 style="color: #00ff66; font-size: 15px; margin-bottom: 10px;">🔥 Segnali Ottimizzati Timeframe 1H Attivi</h3>'
+                '<h3 style="color: #00ff66; font-size: 15px; margin-bottom: 10px;">🔥 Segnali Attivi & Status Raggiungimento Target (TP/SL)</h3>'
                 '<div style="display: flex; flex-direction: column; gap: 8px;">'
             )
             for sym, dat in active_signals.items():
                 dir_color = "#00ff66" if dat["action"] == "LONG" else "#ff3333"
                 p_val = f"${dat['price']:.5f}" if dat['price'] < 1 else f"${dat['price']:.2f}"
                 chart_url = f"https://www.tradingview.com/chart/?symbol=BINGX:{dat['symbol']}USDT"
+                
+                status_badge = f'<span style="background: #111; color: #00ff66; padding: 3px 8px; border-radius: 4px; font-weight: bold; border: 1px solid #00ff66; font-size: 11px;">{dat["trade_status"]}</span>'
+
                 signals_html += (
                     f'<div style="background: #000000; padding: 10px; border-radius: 8px; border: 1px solid #333333; border-left: 4px solid {dir_color}; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">'
                     f'<div>'
                     f'<strong style="color: #ffffff; font-size: 14px;">{dat["symbol"]}</strong> - <span style="color: {dir_color}; font-weight: bold;">{dat["action"]}</span> '
-                    f'<span style="font-size: 11px; color: #aaaaaa;">🕒 {dat["signal_time"]} (TF: {dat["recommended_tf"]})</span>'
-                    f'<div style="font-size: 11px; color: #aaaaaa; margin-top: 2px;">Score IA: <strong style="color: #00ff66;">{dat["score"]}%</strong> | Grado: <strong style="color: #00ff66;">{dat["ai_grade"]}</strong> | Leva: {dat["leverage"]}x</div>'
+                    f'<span style="font-size: 11px; color: #aaaaaa;">🕒 {dat["signal_time"]} (TF: {dat["recommended_tf"].upper()})</span>'
+                    f'<div style="font-size: 11px; color: #aaaaaa; margin-top: 4px;">Status Target: {status_badge}</div>'
                     f'</div>'
                     f'<div style="display: flex; gap: 10px; align-items: center;">'
                     f'<div style="font-size: 11px; color: #ffffff; text-align: right;">'
-                    f'<div>Prezzo: <strong>{p_val}</strong></div>'
+                    f'<div>Prezzo Live: <strong>{p_val}</strong></div>'
                     f'<div>SL: <span style="color: #ff3333;">${dat["sl"]:.4f}</span> | TP1: <span style="color: #00ff66;">${dat["tp1"]:.4f}</span></div>'
                     f'</div>'
                     f'<a href="{chart_url}" target="_blank" style="background: #00ff66; color: #000000; padding: 6px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; text-decoration: none;">📈 Grafico</a>'
@@ -569,7 +687,7 @@ def home():
 
         toggles_html = f"""
         <div class="panel" style="border: 1px solid #333333;">
-            <h3 style="color: #ffffff; font-size: 14px; margin-bottom: 10px;">⚙️ Pannello Admin: Motore IA Timeframe Ottimizzato</h3>
+            <h3 style="color: #ffffff; font-size: 14px; margin-bottom: 10px;">⚙️ Pannello Admin: Motore IA Dinamico & Tracker Target</h3>
             <form action="/toggle-settings" method="POST" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; font-size: 13px;">
                 <label style="color: #ffffff;"><input type="checkbox" name="use_trend_following" {"checked" if bot_settings["use_trend_following"]==1 else ""}> Trend-Following</label>
                 <label style="color: #ffffff;"><input type="checkbox" name="use_multi_ema" {"checked" if bot_settings["use_multi_ema"]==1 else ""}> Multi-EMA</label>
@@ -584,7 +702,7 @@ def home():
         content = """
         <div class="panel" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
             <div>
-                <h3 style="color: #ffffff; font-size: 16px; margin-bottom: 3px;">Scanner Universale Multi-Timeframe (Consiglio TF: 1H)</h3>
+                <h3 style="color: #ffffff; font-size: 16px; margin-bottom: 3px;">Scanner Multi-Timeframe con Rilevamento TP/SL in Tempo Reale</h3>
                 <p style="font-size: 12px; color: #aaaaaa;">Asset Monitorati: <strong style="color: #00ff66;">{total_assets}</strong> | Soglia Minima IA: <strong style="color: #00ff66;">{threshold}%</strong></p>
             </div>
             {threshold_control}
@@ -625,11 +743,10 @@ def home():
                 </div>
                 
                 <div style="font-size: 11px; color: #aaaaaa; display: flex; flex-direction: column; gap: 4px; margin-top: 8px;">
-                    <div style="display: flex; justify-content: space-between;"><span>Timeframe Consigliato:</span><strong style="color: #00ff66;">Grafico {{ data.recommended_tf }}</strong></div>
+                    <div style="display: flex; justify-content: space-between;"><span>Timeframe Ottimale A.I.:</span><strong style="color: #00ff66; background: #111; padding: 2px 6px; border-radius: 4px; border: 1px solid #00ff66;">Grafico {{ data.recommended_tf.upper() }}</strong></div>
                     <div style="display: flex; justify-content: space-between;"><span>Prezzo Live:</span><strong style="color: #ffffff;">${{ "%.4f"|format(data.price) if data.price < 1 else "%.2f"|format(data.price) }}</strong></div>
-                    <div style="display: flex; justify-content: space-between;"><span>RSI (1H / 4H):</span><span><strong style="color: #ffffff;">{{ data.rsi_1h }}</strong> / <strong style="color: #aaaaaa;">{{ data.rsi_4h }}</strong></span></div>
-                    <div style="display: flex; justify-content: space-between;"><span>Margine Consigliato:</span><strong style="color: #00ff66;">${{ data.recommended_margin }} USDT ({{ data.leverage }}x)</strong></div>
-                    <div style="display: flex; justify-content: space-between;"><span>Whale Tracker:</span><strong style="color: #ffffff;">{{ data.whale_status }}</strong></div>
+                    <div style="display: flex; justify-content: space-between;"><span>RSI (15m / 1H / 4H):</span><span><strong style="color: #aaaaaa;">{{ data.rsi_15m }}</strong> / <strong style="color: #ffffff;">{{ data.rsi_1h }}</strong> / <strong style="color: #aaaaaa;">{{ data.rsi_4h }}</strong></span></div>
+                    <div style="display: flex; justify-content: space-between;"><span>Status Operazione:</span><strong style="color: #00ff66;">{{ data.trade_status }}</strong></div>
                     
                     <div style="display: flex; justify-content: space-between; border-top: 1px dashed #222222; padding-top: 4px; margin-top: 2px;">
                         <span style="color: #ff3333;">Stop Loss:</span>
