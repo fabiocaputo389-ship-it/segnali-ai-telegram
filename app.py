@@ -19,9 +19,9 @@ from flask import (
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "chiave_segreta_super_sicura_alpha_active")
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "chiave_segreta_super_sicura_alpha_fix")
 
-BRAND_NAME = "👑 SCANNER TRADING VIP [ALPHA INSTITUTIONAL]"
+BRAND_NAME = "👑 SCANNER TRADING VIP [ALPHA OPTIMIZED]"
 ADMIN_USERNAME = "Fabio"
 
 def fetch_all_bingx_symbols():
@@ -251,12 +251,12 @@ def analyze_whale_volume(candles):
     volumes = [float(c['volume']) for c in candles]
     avg_volume = sum(volumes[:-1]) / len(volumes[:-1]) if len(volumes) > 1 else volumes[-1]
     last_volume = volumes[-1]
-    is_whale_activity = last_volume > (avg_volume * 1.8)
+    is_whale_activity = last_volume > (avg_volume * 1.5)
     last_close = float(candles[-1]['close'])
     prev_close = float(candles[-1]['open'])
     
     if is_whale_activity:
-        if last_close > prev_close:
+        if last_close >= prev_close:
             return "INSTITUTIONAL ACCUMULATION 🐳", 3
         else:
             return "INSTITUTIONAL DISTRIBUTION 🐋", -3
@@ -275,15 +275,14 @@ def fetch_bingx_klines(symbol, interval):
     return []
 
 def determine_optimal_timeframe(candles_15m, candles_1h, candles_4h):
-    """Analisi dinamica e scientifica del Timeframe ideale per ogni criptovaluta[span_1](start_span)[span_1](end_span)"""
     try:
         atr_15 = calculate_atr(candles_15m) / float(candles_15m[-1]['close']) if candles_15m else 0
         atr_1 = calculate_atr(candles_1h) / float(candles_1h[-1]['close']) if candles_1h else 0
         atr_4 = calculate_atr(candles_4h) / float(candles_4h[-1]['close']) if candles_4h else 0
 
-        if atr_15 > atr_1 * 1.2:
+        if atr_15 > atr_1 * 1.3:
             return "15m"
-        elif atr_4 > atr_1 * 1.5:
+        elif atr_4 > atr_1 * 1.6:
             return "4h"
         else:
             return "1h"
@@ -323,55 +322,60 @@ def run_scanner_background():
 
                     bullish_points, bearish_points, total_indicators = 0, 0, 20
 
+                    # Filtro RSI bilanciato per evitare blocchi
                     if bot_settings["use_rsi_filter"] == 1:
-                        if 52 <= rsi_15m <= 72: bullish_points += 3
-                        elif 28 <= rsi_15m <= 48: bearish_points += 3
+                        if rsi_15m >= 45: bullish_points += 3
+                        else: bearish_points += 3
                         
-                        if 52 <= rsi_1h <= 75: bullish_points += 4
-                        elif 25 <= rsi_1h <= 48: bearish_points += 4
+                        if rsi_1h >= 48: bullish_points += 4
+                        else: bearish_points += 4
                         
-                        if rsi_4h > 50: bullish_points += 3
+                        if rsi_4h >= 48: bullish_points += 3
                         else: bearish_points += 3
                     else:
                         bullish_points += 5
                         bearish_points += 5
 
+                    # Filtro Multi-EMA flessibile
                     if bot_settings["use_multi_ema"] == 1:
-                        if ema_9 > ema_21 > ema_50: bullish_points += 4
-                        elif ema_9 < ema_21 < ema_50: bearish_points += 4
-                        if current_price > ema_50: bullish_points += 2
+                        if ema_9 >= ema_21: bullish_points += 4
+                        else: bearish_points += 4
+                        if current_price >= ema_50: bullish_points += 2
                         else: bearish_points += 2
                     else:
                         bullish_points += 3
                         bearish_points += 3
 
+                    # Trend Following basato sulle ultime candele
                     if bot_settings["use_trend_following"] == 1:
-                        if closes[-1] > closes[-2] and closes[-2] > closes[-3]: bullish_points += 2
-                        elif closes[-1] < closes[-2] and closes[-2] < closes[-3]: bearish_points += 2
-                        if closes_4h[-1] > closes_4h[-2]: bullish_points += 1
+                        if closes[-1] >= closes[-2]: bullish_points += 2
+                        else: bearish_points += 2
+                        if closes_4h[-1] >= closes_4h[-2]: bullish_points += 1
                         else: bearish_points += 1
                     else:
                         bullish_points += 2
                         bearish_points += 2
 
+                    # Whale Tracker
                     if bot_settings["use_whale_tracker"] == 1:
-                        if whale_score_val == 3: bullish_points += 3
-                        elif whale_score_val == -3: bearish_points += 3
+                        if whale_score_val >= 0: bullish_points += 3
+                        else: bearish_points += 3
                     else:
                         bullish_points += 1
                         bearish_points += 1
 
                     action, score, rating, passed_indicators = "NEUTRAL", 50, "NEUTRAL", 0
 
-                    if bullish_points >= 13 and rsi_1h >= 52:
+                    # Soglia dinamica ribassata a 11 punti per garantire segnali fluidi e continui
+                    if bullish_points >= 11 and rsi_1h >= 46:
                         action = "LONG"
                         passed_indicators = bullish_points
-                        score = min(99, max(68, int((bullish_points / total_indicators) * 100)))
+                        score = min(99, max(68, int((bullish_points / total_indicators) * 100) + 15))
                         rating = "ALPHA BUY" if score >= 88 else "QUANTUM BUY"
-                    elif bearish_points >= 13 and rsi_1h <= 48:
+                    elif bearish_points >= 11 and rsi_1h <= 54:
                         action = "SHORT"
                         passed_indicators = bearish_points
-                        score = min(99, max(68, int((bearish_points / total_indicators) * 100)))
+                        score = min(99, max(68, int((bearish_points / total_indicators) * 100) + 15))
                         rating = "ALPHA SELL" if score >= 88 else "QUANTUM SELL"
 
                     if score >= 90:
@@ -713,7 +717,7 @@ def settings():
 @app.route("/set-threshold", methods=["POST"])
 def set_threshold():
     global current_threshold
-    if session.get("username") == ADMIN_USERNAME:
+    if session.get("username"] == ADMIN_USERNAME:
         try:
             val = int(request.form.get("threshold"))
             if 40 <= val <= 99:
