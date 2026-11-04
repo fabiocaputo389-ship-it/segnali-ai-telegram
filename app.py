@@ -19,21 +19,18 @@ from flask import (
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "chiave_segreta_super_sicura_quantum_tf")
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "chiave_segreta_super_sicura_quantum_elite_cap")
 
-BRAND_NAME = "👑 SCANNER TRADING VIP [MULTI-TF & TARGET TRACKER A.I.]"
+BRAND_NAME = "👑 ALL-MARKET TERMINAL VIP [CAPITAL MANAGEMENT & A.I.]"
 ADMIN_USERNAME = "Fabio"
 
-def fetch_all_bingx_symbols():
+def fetch_all_market_symbols():
     default_symbols = [
         "BTC-USDT", "ETH-USDT", "SOL-USDT", "BNB-USDT", "XRP-USDT", 
         "ADA-USDT", "AVAX-USDT", "LINK-USDT", "DOT-USDT", "NEAR-USDT", 
         "UNI-USDT", "RENDER-USDT", "SUI-USDT", "ARB-USDT", "OP-USDT", 
-        "IMX-USDT", "ICP-USDT", "APT-USDT", "FIL-USDT", "PEPE-USDT", 
-        "DOGE-USDT", "SHIB-USDT", "ATOM-USDT", "XLM-USDT", "ALGO-USDT", 
-        "FET-USDT", "INJ-USDT", "LTC-USDT", "BCH-USDT", "ETC-USDT", 
-        "SAND-USDT", "MANA-USDT", "AAVE-USDT", "FTM-USDT", "RUNE-USDT", 
-        "ZEC-USDT", "TRX-USDT"
+        "PEPE-USDT", "DOGE-USDT", "SHIB-USDT", "FET-USDT", "INJ-USDT",
+        "PAXG-USDT", "GOLD-USDT", "OIL-USDT", "SILVER-USDT", "COPPER-USDT"
     ]
     try:
         url = "https://open-api.bingx.com/openApi/swap/v2/quote/contracts"
@@ -53,7 +50,7 @@ def fetch_all_bingx_symbols():
         print(f"Errore caricamento dinamico simboli: {e}")
     return default_symbols
 
-SYMBOLS = fetch_all_bingx_symbols()
+SYMBOLS = fetch_all_market_symbols()
 
 current_threshold = 82
 
@@ -62,16 +59,20 @@ bot_settings = {
     "use_multi_ema": 1,
     "use_rsi_filter": 1,
     "use_whale_tracker": 1,
-    "auto_execution": 1
+    "auto_execution": 1,
+    "max_concurrent_trades": 2,      # Massimo 2 operazioni contemporanee
+    "enable_concurrent_limit": 1,     # 1 = Attivo, 0 = Disattivo
+    "trade_capital_usdt": 20.0,      # Capitale base predefinito per operazione (USDT)
+    "capital_risk_mode": "FIXED"     # FIXED (Importo fisso) o PCT (Percentuale)
 }
 
-# Struttura dati per tracciare le posizioni attive ed esiti TP/SL
 active_trades = {}
 
 market_data_cache = {
     symbol: {
         "symbol": symbol.replace("-USDT", ""),
         "pair": symbol.replace("-USDT", "/USDT"),
+        "asset_type": "COMMODITY/METALS" if any(x in symbol for x in ["GOLD", "PAXG", "OIL", "SILVER", "COPPER"]) else "CRYPTO",
         "price": 100.0,
         "rsi_15m": 50.0,
         "rsi_1h": 50.0,
@@ -97,8 +98,9 @@ market_data_cache = {
         "leverage": 5,
         "signal_time": "--:--:--",
         "recommended_tf": "1h",
-        "recommended_margin": 30.0,
-        "trade_status": "SEARCHING"  # SEARCHING, IN_PROGRESS, TP1, TP2, TP3, SL_HIT
+        "recommended_margin": 20.0,
+        "capital_advice": "Conservativo (2-3% del saldo)",
+        "trade_status": "SEARCHING"
     } for symbol in SYMBOLS
 }
 
@@ -157,9 +159,9 @@ def set_bingx_leverage(api_key, secret_key, symbol, leverage, side):
         full_url = f"{url}?{query_string}&signature={signature}"
         requests.post(full_url, headers=headers, timeout=5)
     except Exception as e:
-        print(f"Errore leva: {e}")
+        print(f"Errore leva BingX: {e}")
 
-def execute_bingx_order(api_key, secret_key, symbol, side, leverage=5, quantity=10.0, sl=0.0, tp1=0.0):
+def execute_bingx_order(api_key, secret_key, symbol, side, leverage=5, capital_usdt=20.0, sl=0.0, tp1=0.0):
     if bot_settings["auto_execution"] == 0:
         return False
     if not api_key or not secret_key or len(api_key.strip()) < 5:
@@ -174,12 +176,13 @@ def execute_bingx_order(api_key, secret_key, symbol, side, leverage=5, quantity=
         timestamp = str(int(time.time() * 1000))
         position_side = "LONG" if side == "BUY" else "SHORT"
         
+        # Calcolo quantita basata sul capitale impostato
         params = {
             "symbol": symbol,
             "side": side,
             "positionSide": position_side,
             "type": "MARKET",
-            "quantity": str(quantity),
+            "quantity": str(round(capital_usdt, 2)),
             "timestamp": timestamp
         }
         
@@ -196,6 +199,7 @@ def execute_bingx_order(api_key, secret_key, symbol, side, leverage=5, quantity=
         response = requests.post(full_url, headers=headers, timeout=5)
         res_json = response.json()
         if response.status_code == 200 and res_json.get("code") == 0:
+            print(f"Ordine eseguito con successo su BingX per {symbol} (Capitale: ${capital_usdt}): {res_json}")
             return True
         else:
             print(f"Errore API BingX ordine {symbol}: {res_json}")
@@ -203,13 +207,28 @@ def execute_bingx_order(api_key, secret_key, symbol, side, leverage=5, quantity=
         print(f"Errore esecuzione ordine {symbol}: {e}")
     return False
 
-def trigger_auto_trades(symbol, action, leverage, sl, tp1):
+def count_open_trades():
+    count = 0
+    for sym, trade in active_trades.items():
+        status = trade.get("status", "")
+        if "POSIZIONE APERTA" in status or "IN_PROGRESS" in status:
+            count += 1
+    return count
+
+def trigger_auto_trades(symbol, action, leverage, sl, tp1, custom_capital):
     if bot_settings["auto_execution"] == 0:
-        return
+        return False
+
+    if bot_settings["enable_concurrent_limit"] == 1:
+        if count_open_trades() >= bot_settings["max_concurrent_trades"]:
+            print(f"Limite massimo di {bot_settings['max_concurrent_trades']} operazioni raggiunto.")
+            return False
+
     side = "BUY" if action == "LONG" else "SELL"
     api_key, secret_key = get_user_api_keys(ADMIN_USERNAME)
     if api_key and secret_key:
-        execute_bingx_order(api_key, secret_key, symbol, side, leverage, 10.0, sl, tp1)
+        return execute_bingx_order(api_key, secret_key, symbol, side, leverage, custom_capital, sl, tp1)
+    return False
 
 def calculate_rsi(prices, period=14):
     if len(prices) < period + 1:
@@ -256,15 +275,15 @@ def analyze_whale_volume(candles):
     volumes = [float(c['volume']) for c in candles]
     avg_volume = sum(volumes[:-1]) / len(volumes[:-1]) if len(volumes) > 1 else volumes[-1]
     last_volume = volumes[-1]
-    is_whale_activity = last_volume > (avg_volume * 1.8)
+    is_institutional = last_volume > (avg_volume * 1.8)
     last_close = float(candles[-1]['close'])
     prev_close = float(candles[-1]['open'])
     
-    if is_whale_activity:
+    if is_institutional:
         if last_close > prev_close:
-            return "INSTITUTIONAL ACCUMULATION 🐳", 3
+            return "INSTITUTIONAL ACCUMULATION 🏛️", 3
         else:
-            return "INSTITUTIONAL DISTRIBUTION 🐋", -3
+            return "INSTITUTIONAL DISTRIBUTION 🏛️", -3
     return "NORMAL LIQUIDITY", 0
 
 def fetch_bingx_klines(symbol, interval):
@@ -294,70 +313,66 @@ def determine_optimal_timeframe(candles_15m, candles_1h, candles_4h):
     except Exception:
         return "1h"
 
+def get_capital_advice(score, leverage):
+    """
+    Genera il consiglio personalizzato di Money Management dell'A.I. in base allo Score del segnale.
+    """
+    if score >= 90:
+        return f"🔥 AGGRESSIVO | Margine Consigliato: ${bot_settings['trade_capital_usdt']} USDT ({leverage}x)"
+    elif score >= 82:
+        return f"⚖️ BILANCIATO | Margine Consigliato: ${bot_settings['trade_capital_usdt'] * 0.8:.1f} USDT ({leverage}x)"
+    else:
+        return f"🛡️ CONSERVATIVO | Margine Consigliato: ${bot_settings['trade_capital_usdt'] * 0.5:.1f} USDT ({leverage}x)"
+
 def check_tp_sl_hits(symbol, current_price, telegram_token, channel_id):
-    """
-    Traccia ed emette alert quando un prezzo raggiunge Take Profit o Stop Loss.
-    """
     if symbol not in active_trades:
         return "SEARCHING"
 
     trade = active_trades[symbol]
     action = trade["action"]
-    entry = trade["entry"]
     sl = trade["sl"]
     tp1 = trade["tp1"]
     tp2 = trade["tp2"]
     tp3 = trade["tp3"]
-    hit_status = trade.get("status", "IN_PROGRESS")
 
     pair_name = symbol.replace("-USDT", " / USDT")
     decimals = 5 if current_price < 1 else 2
 
-    # Controllo LONG
     if action == "LONG":
         if current_price <= sl and "SL" not in trade["hits"]:
             trade["hits"].append("SL")
             trade["status"] = "🛑 STOP LOSS HIT"
-            msg = f"🛑 **STOP LOSS COLPITO** | {pair_name}\nPrezzo Attuale: ${current_price:.{decimals}f} (SL: ${sl:.{decimals}f})"
-            send_telegram_msg(telegram_token, channel_id, msg)
+            send_telegram_msg(telegram_token, channel_id, f"🛑 **STOP LOSS COLPITO** | {pair_name}\nPrezzo: ${current_price:.{decimals}f}")
         elif current_price >= tp3 and "TP3" not in trade["hits"]:
             trade["hits"].extend(["TP1", "TP2", "TP3"])
-            trade["status"] = "🎯🎯🎯 TP3 RAGGIUNTO (MAX TARGET)"
-            msg = f"🎯🎯🎯 **TAKE PROFIT 3 RAGGIUNTO!** | {pair_name}\nPrezzo Attuale: ${current_price:.{decimals}f} (+{trade['tp3_pct']}%)"
-            send_telegram_msg(telegram_token, channel_id, msg)
+            trade["status"] = "🎯🎯🎯 TP3 RAGGIUNTO"
+            send_telegram_msg(telegram_token, channel_id, f"🎯🎯🎯 **TAKE PROFIT 3 RAGGIUNTO!** | {pair_name}\nPrezzo: ${current_price:.{decimals}f}")
         elif current_price >= tp2 and "TP2" not in trade["hits"]:
             trade["hits"].extend(["TP1", "TP2"])
             trade["status"] = "🎯🎯 TP2 RAGGIUNTO"
-            msg = f"🎯🎯 **TAKE PROFIT 2 RAGGIUNTO!** | {pair_name}\nPrezzo Attuale: ${current_price:.{decimals}f} (+{trade['tp2_pct']}%)"
-            send_telegram_msg(telegram_token, channel_id, msg)
+            send_telegram_msg(telegram_token, channel_id, f"🎯🎯 **TAKE PROFIT 2 RAGGIUNTO!** | {pair_name}\nPrezzo: ${current_price:.{decimals}f}")
         elif current_price >= tp1 and "TP1" not in trade["hits"]:
             trade["hits"].append("TP1")
             trade["status"] = "🎯 TP1 RAGGIUNTO"
-            msg = f"🎯 **TAKE PROFIT 1 RAGGIUNTO!** | {pair_name}\nPrezzo Attuale: ${current_price:.{decimals}f} (+{trade['tp1_pct']}%)"
-            send_telegram_msg(telegram_token, channel_id, msg)
+            send_telegram_msg(telegram_token, channel_id, f"🎯 **TAKE PROFIT 1 RAGGIUNTO!** | {pair_name}\nPrezzo: ${current_price:.{decimals}f}")
 
-    # Controllo SHORT
     elif action == "SHORT":
         if current_price >= sl and "SL" not in trade["hits"]:
             trade["hits"].append("SL")
             trade["status"] = "🛑 STOP LOSS HIT"
-            msg = f"🛑 **STOP LOSS COLPITO** | {pair_name}\nPrezzo Attuale: ${current_price:.{decimals}f} (SL: ${sl:.{decimals}f})"
-            send_telegram_msg(telegram_token, channel_id, msg)
+            send_telegram_msg(telegram_token, channel_id, f"🛑 **STOP LOSS COLPITO** | {pair_name}\nPrezzo: ${current_price:.{decimals}f}")
         elif current_price <= tp3 and "TP3" not in trade["hits"]:
             trade["hits"].extend(["TP1", "TP2", "TP3"])
-            trade["status"] = "🎯🎯🎯 TP3 RAGGIUNTO (MAX TARGET)"
-            msg = f"🎯🎯🎯 **TAKE PROFIT 3 RAGGIUNTO!** | {pair_name}\nPrezzo Attuale: ${current_price:.{decimals}f} (+{trade['tp3_pct']}%)"
-            send_telegram_msg(telegram_token, channel_id, msg)
+            trade["status"] = "🎯🎯🎯 TP3 RAGGIUNTO"
+            send_telegram_msg(telegram_token, channel_id, f"🎯🎯🎯 **TAKE PROFIT 3 RAGGIUNTO!** | {pair_name}\nPrezzo: ${current_price:.{decimals}f}")
         elif current_price <= tp2 and "TP2" not in trade["hits"]:
             trade["hits"].extend(["TP1", "TP2"])
             trade["status"] = "🎯🎯 TP2 RAGGIUNTO"
-            msg = f"🎯🎯 **TAKE PROFIT 2 RAGGIUNTO!** | {pair_name}\nPrezzo Attuale: ${current_price:.{decimals}f} (+{trade['tp2_pct']}%)"
-            send_telegram_msg(telegram_token, channel_id, msg)
+            send_telegram_msg(telegram_token, channel_id, f"🎯🎯 **TAKE PROFIT 2 RAGGIUNTO!** | {pair_name}\nPrezzo: ${current_price:.{decimals}f}")
         elif current_price <= tp1 and "TP1" not in trade["hits"]:
             trade["hits"].append("TP1")
             trade["status"] = "🎯 TP1 RAGGIUNTO"
-            msg = f"🎯 **TAKE PROFIT 1 RAGGIUNTO!** | {pair_name}\nPrezzo Attuale: ${current_price:.{decimals}f} (+{trade['tp1_pct']}%)"
-            send_telegram_msg(telegram_token, channel_id, msg)
+            send_telegram_msg(telegram_token, channel_id, f"🎯 **TAKE PROFIT 1 RAGGIUNTO!** | {pair_name}\nPrezzo: ${current_price:.{decimals}f}")
 
     return trade["status"]
 
@@ -469,7 +484,8 @@ def run_scanner_background():
                     leverage = 10 if score >= 90 else (5 if score >= 82 else 3)
                     
                     signal_time_str = datetime.now(ZoneInfo("Europe/Rome")).strftime("%H:%M:%S")
-                    recommended_margin = round(max(25.0, current_price * 0.03 / leverage), 2) if current_price < 100 else round(max(30.0, 1500.0 / leverage), 2)
+                    
+                    capital_advice_str = get_capital_advice(score, leverage)
 
                     if action == "LONG":
                         sl = current_price - (base_step * 0.5)
@@ -489,12 +505,14 @@ def run_scanner_background():
                     tp2_pct = round(((tp2 - current_price) / current_price) * 100, 2)
                     tp3_pct = round(((tp3 - current_price) / current_price) * 100, 2)
 
-                    # Monitora se la posizione attiva ha colpito TP o SL
                     trade_status = check_tp_sl_hits(symbol, current_price, telegram_token, channel_id)
+
+                    asset_type_val = "COMMODITY/METALS" if any(x in symbol for x in ["GOLD", "PAXG", "OIL", "SILVER", "COPPER"]) else "CRYPTO"
 
                     market_data_cache[symbol] = {
                         "symbol": symbol.replace("-USDT", ""),
                         "pair": symbol.replace("-USDT", "/USDT"),
+                        "asset_type": asset_type_val,
                         "price": current_price,
                         "rsi_15m": rsi_15m,
                         "rsi_1h": rsi_1h,
@@ -520,55 +538,63 @@ def run_scanner_background():
                         "leverage": leverage,
                         "signal_time": signal_time_str,
                         "recommended_tf": recommended_tf,
-                        "recommended_margin": recommended_margin,
+                        "recommended_margin": bot_settings["trade_capital_usdt"],
+                        "capital_advice": capital_advice_str,
                         "trade_status": trade_status
                     }
 
                     if score >= current_threshold and action != "NEUTRAL":
                         if current_time - last_signal_time[symbol] > COOLDOWN_SECONDS:
-                            last_signal_time[symbol] = current_time
-                            
-                            # Registra il nuovo segnale nel tracker per il controllo continuo
-                            active_trades[symbol] = {
-                                "action": action,
-                                "entry": current_price,
-                                "sl": sl,
-                                "tp1": tp1,
-                                "tp2": tp2,
-                                "tp3": tp3,
-                                "tp1_pct": tp1_pct,
-                                "tp2_pct": tp2_pct,
-                                "tp3_pct": tp3_pct,
-                                "status": "🚀 POSIZIONE APERTA",
-                                "hits": []
-                            }
+                            can_open = True
+                            if bot_settings["enable_concurrent_limit"] == 1:
+                                if count_open_trades() >= bot_settings["max_concurrent_trades"]:
+                                    can_open = False
 
-                            trigger_auto_trades(symbol, action, leverage, sl, tp1)
-                            
-                            if telegram_token and channel_id:
-                                pair_name = symbol.replace("-USDT", " / USDT")
-                                decimals = 5 if current_price < 1 else 2
-                                dir_text = "🟢 LONG PRECISION" if action == "LONG" else "🔴 SHORT PRECISION"
+                            if can_open:
+                                last_signal_time[symbol] = current_time
+                                
+                                active_trades[symbol] = {
+                                    "action": action,
+                                    "entry": current_price,
+                                    "sl": sl,
+                                    "tp1": tp1,
+                                    "tp2": tp2,
+                                    "tp3": tp3,
+                                    "tp1_pct": tp1_pct,
+                                    "tp2_pct": tp2_pct,
+                                    "tp3_pct": tp3_pct,
+                                    "status": "🚀 POSIZIONE APERTA",
+                                    "hits": []
+                                }
 
-                                message = (
-                                    f"👑 **SCANNER TRADING VIP [A.I. MULTI-TF]** 👑\n"
-                                    f"⏰ **Orario:** {signal_time_str} | ⏱️ **TF Consigliato:** {recommended_tf.upper()}\n\n"
-                                    f"🔹 **Asset:** {pair_name}\n"
-                                    f"📊 **Direzione:** {dir_text}\n"
-                                    f"⭐ **Confluenza IA:** {score}% | **Grado:** {ai_grade}\n"
-                                    f"⚙️ **Leva:** {leverage}x | **Margine Consigliato:** ${recommended_margin} USDT\n"
-                                    f"⚡ **Ingresso:** ${current_price:.{decimals}f}\n\n"
-                                    f"🛑 **Stop Loss:** ${sl:.{decimals}f} ({sl_pct}%)\n"
-                                    f"🎯 **Take Profit 1:** ${tp1:.{decimals}f} (+{tp1_pct}%)\n"
-                                    f"🎯 **Take Profit 2:** ${tp2:.{decimals}f} (+{tp2_pct}%)\n"
-                                    f"🎯 **Take Profit 3:** ${tp3:.{decimals}f} (+{tp3_pct}%)\n"
-                                )
-                                send_telegram_msg(telegram_token, channel_id, message)
-                            time.sleep(1)
+                                executed = trigger_auto_trades(symbol, action, leverage, sl, tp1, bot_settings["trade_capital_usdt"])
+                                exec_txt = "✅ Inviato su BingX" if executed else "⚠️ Solo Segnale (Auto-Trading disattivato o limite raggiunto)"
+
+                                if telegram_token and channel_id:
+                                    pair_name = symbol.replace("-USDT", " / USDT")
+                                    decimals = 5 if current_price < 1 else 2
+                                    dir_text = "🟢 LONG PRECISION" if action == "LONG" else "🔴 SHORT PRECISION"
+
+                                    message = (
+                                        f"👑 **ALL-MARKET TERMINAL VIP** 👑\n"
+                                        f"⏰ **Orario:** {signal_time_str} | ⏱️ **TF:** {recommended_tf.upper()}\n\n"
+                                        f"🔹 **Asset:** {pair_name} ({asset_type_val})\n"
+                                        f"📊 **Direzione:** {dir_text} ({exec_txt})\n"
+                                        f"⭐ **Confluenza IA:** {score}% | **Grado:** {ai_grade}\n"
+                                        f"💰 **Consiglio Capitale IA:** {capital_advice_str}\n"
+                                        f"⚙️ **Leva:** {leverage}x | **Capitale Impostato:** ${bot_settings['trade_capital_usdt']} USDT\n"
+                                        f"⚡ **Ingresso:** ${current_price:.{decimals}f}\n\n"
+                                        f"🛑 **Stop Loss:** ${sl:.{decimals}f} ({sl_pct}%)\n"
+                                        f"🎯 **Take Profit 1:** ${tp1:.{decimals}f} (+{tp1_pct}%)\n"
+                                        f"🎯 **Take Profit 2:** ${tp2:.{decimals}f} (+{tp2_pct}%)\n"
+                                        f"🎯 **Take Profit 3:** ${tp3:.{decimals}f} (+{tp3_pct}%)\n"
+                                    )
+                                    send_telegram_msg(telegram_token, channel_id, message)
+                                time.sleep(1)
             except Exception as e:
                 print(f"Errore scanner: {e}")
-            time.sleep(0.3)
-        time.sleep(15)
+            time.sleep(0.2)
+        time.sleep(10)
 
 scanner_thread = threading.Thread(target=run_scanner_background, daemon=True)
 scanner_thread.start()
@@ -615,12 +641,13 @@ BASE_HTML = """
         .chart-btn:hover { background: #00ff66; color: #000000; }
         
         .signal-box { background: rgba(0,255,102,0.03); border: 1px solid #00ff66; border-radius: 10px; padding: 14px; margin-bottom: 20px; }
+        .badge-type { font-size: 9px; padding: 2px 5px; border-radius: 3px; font-weight: bold; background: #222; border: 1px solid #444; margin-left: 5px; }
     </style>
     {refresh_tag}
 </head>
 <body>
     <div class="header">
-        <div class="logo">👑 SCANNER TRADING VIP</div>
+        <div class="logo">👑 ALL-MARKET TERMINAL VIP</div>
         <div class="nav">
             {% if session.get('user_id') %}
                 <span>Utente: <strong style="color: #00ff66;">{{ session.get('username') }}</strong></span>
@@ -649,22 +676,22 @@ def home():
         if active_signals:
             signals_html += (
                 '<div class="signal-box">'
-                '<h3 style="color: #00ff66; font-size: 15px; margin-bottom: 10px;">🔥 Segnali Attivi & Status Raggiungimento Target (TP/SL)</h3>'
+                '<h3 style="color: #00ff66; font-size: 15px; margin-bottom: 10px;">🔥 Segnali Attivi & Consiglio Capitale A.I.</h3>'
                 '<div style="display: flex; flex-direction: column; gap: 8px;">'
             )
             for sym, dat in active_signals.items():
                 dir_color = "#00ff66" if dat["action"] == "LONG" else "#ff3333"
                 p_val = f"${dat['price']:.5f}" if dat['price'] < 1 else f"${dat['price']:.2f}"
                 chart_url = f"https://www.tradingview.com/chart/?symbol=BINGX:{dat['symbol']}USDT"
-                
                 status_badge = f'<span style="background: #111; color: #00ff66; padding: 3px 8px; border-radius: 4px; font-weight: bold; border: 1px solid #00ff66; font-size: 11px;">{dat["trade_status"]}</span>'
 
                 signals_html += (
                     f'<div style="background: #000000; padding: 10px; border-radius: 8px; border: 1px solid #333333; border-left: 4px solid {dir_color}; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">'
                     f'<div>'
-                    f'<strong style="color: #ffffff; font-size: 14px;">{dat["symbol"]}</strong> - <span style="color: {dir_color}; font-weight: bold;">{dat["action"]}</span> '
+                    f'<strong style="color: #ffffff; font-size: 14px;">{dat["symbol"]}</strong> <span class="badge-type">{dat["asset_type"]}</span> - <span style="color: {dir_color}; font-weight: bold;">{dat["action"]}</span> '
                     f'<span style="font-size: 11px; color: #aaaaaa;">🕒 {dat["signal_time"]} (TF: {dat["recommended_tf"].upper()})</span>'
-                    f'<div style="font-size: 11px; color: #aaaaaa; margin-top: 4px;">Status Target: {status_badge}</div>'
+                    f'<div style="font-size: 11px; color: #00ff66; font-weight: bold; margin-top: 3px;">💡 Consiglio Capitale: {dat["capital_advice"]}</div>'
+                    f'<div style="font-size: 11px; color: #aaaaaa; margin-top: 2px;">Status Target: {status_badge}</div>'
                     f'</div>'
                     f'<div style="display: flex; gap: 10px; align-items: center;">'
                     f'<div style="font-size: 11px; color: #ffffff; text-align: right;">'
@@ -687,14 +714,19 @@ def home():
 
         toggles_html = f"""
         <div class="panel" style="border: 1px solid #333333;">
-            <h3 style="color: #ffffff; font-size: 14px; margin-bottom: 10px;">⚙️ Pannello Admin: Motore IA Dinamico & Tracker Target</h3>
-            <form action="/toggle-settings" method="POST" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; font-size: 13px;">
+            <h3 style="color: #ffffff; font-size: 14px; margin-bottom: 10px;">⚙️ Pannello Admin: Configurazione Capitale & Strategie</h3>
+            <form action="/toggle-settings" method="POST" style="display: flex; flex-wrap: wrap; gap: 14px; align-items: center; font-size: 13px;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <label style="color: #00ff66; font-weight: bold;">Capitale per Trade (USDT):</label>
+                    <input type="number" name="trade_capital_usdt" value="{bot_settings['trade_capital_usdt']}" min="5" max="10000" style="width: 80px; background: #000; border: 1px solid #00ff66; color: #fff; padding: 4px; border-radius: 4px; text-align: center;">
+                </div>
                 <label style="color: #ffffff;"><input type="checkbox" name="use_trend_following" {"checked" if bot_settings["use_trend_following"]==1 else ""}> Trend-Following</label>
                 <label style="color: #ffffff;"><input type="checkbox" name="use_multi_ema" {"checked" if bot_settings["use_multi_ema"]==1 else ""}> Multi-EMA</label>
                 <label style="color: #ffffff;"><input type="checkbox" name="use_rsi_filter" {"checked" if bot_settings["use_rsi_filter"]==1 else ""}> RSI Filter</label>
-                <label style="color: #ffffff;"><input type="checkbox" name="use_whale_tracker" {"checked" if bot_settings["use_whale_tracker"]==1 else ""}> 🐳 Whale Tracker</label>
-                <label style="color: #ffffff;"><input type="checkbox" name="auto_execution" {"checked" if bot_settings["auto_execution"]==1 else ""}> 🚀 Auto-Trading H24</label>
-                <button type="submit" class="btn" style="width: auto; padding: 4px 10px; font-size: 12px;">Aggiorna</button>
+                <label style="color: #ffffff;"><input type="checkbox" name="use_whale_tracker" {"checked" if bot_settings["use_whale_tracker"]==1 else ""}> 🏛️ Institutional Flow</label>
+                <label style="color: #00ff66; font-weight: bold;"><input type="checkbox" name="auto_execution" {"checked" if bot_settings["auto_execution"]==1 else ""}> 🚀 Esecuzione Automatica BingX</label>
+                <label style="color: #ff3333; font-weight: bold;"><input type="checkbox" name="enable_concurrent_limit" {"checked" if bot_settings["enable_concurrent_limit"]==1 else ""}> 🔒 Limite Max 2 Trade in Contemporanea</label>
+                <button type="submit" class="btn" style="width: auto; padding: 4px 12px; font-size: 12px;">Salva Impostazioni</button>
             </form>
         </div>
         """ if is_admin else ""
@@ -702,8 +734,8 @@ def home():
         content = """
         <div class="panel" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
             <div>
-                <h3 style="color: #ffffff; font-size: 16px; margin-bottom: 3px;">Scanner Multi-Timeframe con Rilevamento TP/SL in Tempo Reale</h3>
-                <p style="font-size: 12px; color: #aaaaaa;">Asset Monitorati: <strong style="color: #00ff66;">{total_assets}</strong> | Soglia Minima IA: <strong style="color: #00ff66;">{threshold}%</strong></p>
+                <h3 style="color: #ffffff; font-size: 16px; margin-bottom: 3px;">Scanner con Gestione Personalizzata del Capitale (Crypto & Commodities)</h3>
+                <p style="font-size: 12px; color: #aaaaaa;">Capitale Predefinito Impostato: <strong style="color: #00ff66;">${trade_capital} USDT</strong> | Operazioni Aperte: <strong style="color: #00ff66;">{open_trades_count} / 2</strong></p>
             </div>
             {threshold_control}
         </div>
@@ -717,7 +749,7 @@ def home():
             <div class="card">
                 <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1a1a1a; padding-bottom: 8px; margin-bottom: 6px;">
                     <div>
-                        <span style="font-weight: bold; color: #ffffff; font-size: 14px;">{{ data.symbol }}</span>
+                        <span style="font-weight: bold; color: #ffffff; font-size: 14px;">{{ data.symbol }}</span> <span class="badge-type">{{ data.asset_type }}</span>
                         <div style="font-size: 11px; color: {% if data.action == 'LONG' %}#00ff66{% elif data.action == 'SHORT' %}#ff3333{% else %}#aaaaaa{% endif %}; font-weight: bold;">
                             Direzione: {{ data.action }} <span style="color: #aaaaaa; font-weight: normal;">({{ data.signal_time }})</span>
                         </div>
@@ -745,6 +777,7 @@ def home():
                 <div style="font-size: 11px; color: #aaaaaa; display: flex; flex-direction: column; gap: 4px; margin-top: 8px;">
                     <div style="display: flex; justify-content: space-between;"><span>Timeframe Ottimale A.I.:</span><strong style="color: #00ff66; background: #111; padding: 2px 6px; border-radius: 4px; border: 1px solid #00ff66;">Grafico {{ data.recommended_tf.upper() }}</strong></div>
                     <div style="display: flex; justify-content: space-between;"><span>Prezzo Live:</span><strong style="color: #ffffff;">${{ "%.4f"|format(data.price) if data.price < 1 else "%.2f"|format(data.price) }}</strong></div>
+                    <div style="display: flex; justify-content: space-between;"><span>Consiglio Capitale IA:</span><strong style="color: #00ff66;">{{ data.capital_advice }}</strong></div>
                     <div style="display: flex; justify-content: space-between;"><span>RSI (15m / 1H / 4H):</span><span><strong style="color: #aaaaaa;">{{ data.rsi_15m }}</strong> / <strong style="color: #ffffff;">{{ data.rsi_1h }}</strong> / <strong style="color: #aaaaaa;">{{ data.rsi_4h }}</strong></span></div>
                     <div style="display: flex; justify-content: space-between;"><span>Status Operazione:</span><strong style="color: #00ff66;">{{ data.trade_status }}</strong></div>
                     
@@ -766,6 +799,8 @@ def home():
         
         content = content.replace("{threshold}", str(current_threshold))
         content = content.replace("{total_assets}", str(len(SYMBOLS)))
+        content = content.replace("{trade_capital}", str(bot_settings["trade_capital_usdt"]))
+        content = content.replace("{open_trades_count}", str(count_open_trades()))
         content = content.replace("{threshold_control}", threshold_control)
         content = content.replace("{toggles_section}", toggles_html)
         content = content.replace("{signals_section}", signals_html)
@@ -801,7 +836,7 @@ def settings():
     content = f"""
     <div class="panel" style="max-width: 420px; margin: 30px auto; border: 1px solid #333333;">
         <h3 style="color: #00ff66; margin-bottom: 15px; text-align: center;">Configurazione API BingX</h3>
-        <p style="font-size: 12px; color: #aaaaaa; margin-bottom: 15px; text-align: center;">Inserisci le tue chiavi API Futures per abilitare l'auto-trading autonomo.</p>
+        <p style="font-size: 12px; color: #aaaaaa; margin-bottom: 15px; text-align: center;">Inserisci le tue chiavi API per abilitare il trading automatico su Crypto e Materie Prime.</p>
         <form method="POST">
             <div class="form-group"><label>BingX API Key</label><input type="text" name="api_key" value="{current_api}" required></div>
             <div class="form-group"><label>BingX Secret Key</label><input type="password" name="secret_key" value="{current_sec}" required></div>
@@ -834,6 +869,13 @@ def toggle_settings():
         bot_settings["use_rsi_filter"] = 1 if request.form.get("use_rsi_filter") == "on" else 0
         bot_settings["use_whale_tracker"] = 1 if request.form.get("use_whale_tracker") == "on" else 0
         bot_settings["auto_execution"] = 1 if request.form.get("auto_execution") == "on" else 0
+        bot_settings["enable_concurrent_limit"] = 1 if request.form.get("enable_concurrent_limit") == "on" else 0
+        try:
+            cap_val = float(request.form.get("trade_capital_usdt", 20.0))
+            if cap_val >= 5.0:
+                bot_settings["trade_capital_usdt"] = cap_val
+        except ValueError:
+            pass
     return redirect(url_for("home"))
 
 @app.route("/register", methods=["GET", "POST"])
