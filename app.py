@@ -21,21 +21,15 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "chiave_segreta_super_sicura_quantum_elite")
 
-BRAND_NAME = "👑 ALL-MARKET TERMINAL VIP [CRYPTO & COMMODITIES A.I.]"
+BRAND_NAME = "👑 vip.trading"
 ADMIN_USERNAME = "Fabio"
 
 def fetch_all_market_symbols():
-    """
-    Carica dinamicamente sia le crypto che le materie prime / asset tokenizzati da BingX.
-    Include una lista di fallback estesa con cripto top e materie prime (es. Oro, Petrolio, ecc.).
-    """
     default_symbols = [
-        # Criptovalute Top
         "BTC-USDT", "ETH-USDT", "SOL-USDT", "BNB-USDT", "XRP-USDT", 
         "ADA-USDT", "AVAX-USDT", "LINK-USDT", "DOT-USDT", "NEAR-USDT", 
         "UNI-USDT", "RENDER-USDT", "SUI-USDT", "ARB-USDT", "OP-USDT", 
         "PEPE-USDT", "DOGE-USDT", "SHIB-USDT", "FET-USDT", "INJ-USDT",
-        # Materie Prime e Asset Speciali (Tokenizzati / Futures supportati)
         "PAXG-USDT", "GOLD-USDT", "OIL-USDT", "SILVER-USDT", "COPPER-USDT"
     ]
     try:
@@ -51,7 +45,6 @@ def fetch_all_market_symbols():
                     if sym and status == 1 and sym.endswith("USDT"):
                         dynamic_list.append(sym)
                 if dynamic_list:
-                    # Assicuriamoci di includere eventuali materie prime se presenti nel listino
                     return dynamic_list
     except Exception as e:
         print(f"Errore caricamento dinamico simboli: {e}")
@@ -66,9 +59,9 @@ bot_settings = {
     "use_multi_ema": 1,
     "use_rsi_filter": 1,
     "use_whale_tracker": 1,
-    "auto_execution": 1,
-    "max_concurrent_trades": 2,      # Massimo 2 operazioni contemporanee
-    "enable_concurrent_limit": 1     # 1 = Attivo, 0 = Disattivo
+    "auto_execution": 0,           # Manuale di default (Solo Segnali)
+    "max_concurrent_trades": 2,      
+    "enable_concurrent_limit": 1     
 }
 
 active_trades = {}
@@ -302,14 +295,19 @@ def fetch_bingx_klines(symbol, interval):
     return []
 
 def determine_optimal_timeframe(candles_15m, candles_1h, candles_4h):
+    """
+    Intelligenza IA per determinare il timeframe ottimale in base alla volatilità e alla forza dei trend multi-periodo.
+    """
     try:
         vol_15m = calculate_atr(candles_15m) / float(candles_15m[-1]['close']) if candles_15m else 0
         vol_1h = calculate_atr(candles_1h) / float(candles_1h[-1]['close']) if candles_1h else 0
         vol_4h = calculate_atr(candles_4h) / float(candles_4h[-1]['close']) if candles_4h else 0
 
-        if vol_15m > (vol_1h * 1.5):
+        # Se il 15m ha un'esplosione di volatilità superiore, sceglie scalping/momentum rapido
+        if vol_15m > (vol_1h * 1.4):
             return "15m"
-        elif vol_4h > vol_1h:
+        # Se il quadro di lungo periodo sul 4h mostra forte espansione direzionale
+        elif vol_4h > vol_1h * 1.2:
             return "4h"
         else:
             return "1h"
@@ -558,7 +556,7 @@ def run_scanner_background():
                                 }
 
                                 executed = trigger_auto_trades(symbol, action, leverage, sl, tp1)
-                                exec_txt = "✅ Inviato su BingX" if executed else "⚠️ Solo Segnale (Auto-Trading disattivato o limite raggiunto)"
+                                exec_txt = "✅ Inviato su BingX" if executed else "⚠️ Solo Segnale (Modalità Manuale Attiva)"
 
                                 if telegram_token and channel_id:
                                     pair_name = symbol.replace("-USDT", " / USDT")
@@ -567,7 +565,7 @@ def run_scanner_background():
 
                                     message = (
                                         f"👑 **vip.trading** 👑\n"
-                                        f"⏰ **Orario:** {signal_time_str} | ⏱️ **TF:** {recommended_tf.upper()}\n\n"
+                                        f"⏰ **Orario:** {signal_time_str} | ⏱️ **Timeframe Ottimale:** {recommended_tf.upper()}\n\n"
                                         f"🔹 **Asset:** {pair_name} ({asset_type_val})\n"
                                         f"📊 **Direzione:** {dir_text} ({exec_txt})\n"
                                         f"⭐ **Confluenza IA:** {score}% | **Grado:** {ai_grade}\n"
@@ -665,7 +663,7 @@ def home():
         if active_signals:
             signals_html += (
                 '<div class="signal-box">'
-                '<h3 style="color: #00ff66; font-size: 15px; margin-bottom: 10px;">🔥 Segnali Crypto & Commodities Attivi</h3>'
+                '<h3 style="color: #00ff66; font-size: 15px; margin-bottom: 10px;">🔥 Segnali Crypto & Commodities Attivi (Con Timeframe IA Ottimale)</h3>'
                 '<div style="display: flex; flex-direction: column; gap: 8px;">'
             )
             for sym, dat in active_signals.items():
@@ -678,8 +676,8 @@ def home():
                     f'<div style="background: #000000; padding: 10px; border-radius: 8px; border: 1px solid #333333; border-left: 4px solid {dir_color}; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">'
                     f'<div>'
                     f'<strong style="color: #ffffff; font-size: 14px;">{dat["symbol"]}</strong> <span class="badge-type">{dat["asset_type"]}</span> - <span style="color: {dir_color}; font-weight: bold;">{dat["action"]}</span> '
-                    f'<span style="font-size: 11px; color: #aaaaaa;">🕒 {dat["signal_time"]} (TF: {dat["recommended_tf"].upper()})</span>'
-                    f'<div style="font-size: 11px; color: #aaaaaa; margin-top: 4px;">Status Target: {status_badge}</div>'
+                    f'<span style="font-size: 11px; color: #00ff66; background: #111; padding: 2px 5px; border-radius: 3px; border: 1px solid #00ff66; font-weight: bold;">⏱️ TF: {dat["recommended_tf"].upper()}</span>'
+                    f'<div style="font-size: 11px; color: #aaaaaa; margin-top: 4px;">Orario: 🕒 {dat["signal_time"]} | Status Target: {status_badge}</div>'
                     f'</div>'
                     f'<div style="display: flex; gap: 10px; align-items: center;">'
                     f'<div style="font-size: 11px; color: #ffffff; text-align: right;">'
@@ -702,13 +700,13 @@ def home():
 
         toggles_html = f"""
         <div class="panel" style="border: 1px solid #333333;">
-            <h3 style="color: #ffffff; font-size: 14px; margin-bottom: 10px;">⚙️ Pannello Admin: Strategie & Limite Max 2 Trade</h3>
+            <h3 style="color: #ffffff; font-size: 14px; margin-bottom: 10px;">⚙️ Pannello Admin: Strategie & Controllo Esecuzione</h3>
             <form action="/toggle-settings" method="POST" style="display: flex; flex-wrap: wrap; gap: 14px; align-items: center; font-size: 13px;">
                 <label style="color: #ffffff;"><input type="checkbox" name="use_trend_following" {"checked" if bot_settings["use_trend_following"]==1 else ""}> Trend-Following</label>
                 <label style="color: #ffffff;"><input type="checkbox" name="use_multi_ema" {"checked" if bot_settings["use_multi_ema"]==1 else ""}> Multi-EMA</label>
                 <label style="color: #ffffff;"><input type="checkbox" name="use_rsi_filter" {"checked" if bot_settings["use_rsi_filter"]==1 else ""}> RSI Filter</label>
                 <label style="color: #ffffff;"><input type="checkbox" name="use_whale_tracker" {"checked" if bot_settings["use_whale_tracker"]==1 else ""}> 🏛️ Institutional Flow</label>
-                <label style="color: #00ff66; font-weight: bold;"><input type="checkbox" name="auto_execution" {"checked" if bot_settings["auto_execution"]==1 else ""}> 🚀 Esecuzione Automatica BingX</label>
+                <label style="color: #00ff66; font-weight: bold;"><input type="checkbox" name="auto_execution" {"checked" if bot_settings["auto_execution"]==1 else ""}> 🚀 Esecuzione Automatica BingX (Spento = Manuale su Segnali)</label>
                 <label style="color: #ff3333; font-weight: bold;"><input type="checkbox" name="enable_concurrent_limit" {"checked" if bot_settings["enable_concurrent_limit"]==1 else ""}> 🔒 Limite Max 2 Trade in Contemporanea</label>
                 <button type="submit" class="btn" style="width: auto; padding: 4px 12px; font-size: 12px;">Salva Impostazioni</button>
             </form>
@@ -719,7 +717,7 @@ def home():
         <div class="panel" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
             <div>
                 <h3 style="color: #ffffff; font-size: 16px; margin-bottom: 3px;">Scanner Universale Avanzato (Crypto + Materie Prime / Oro / Petrolio)</h3>
-                <p style="font-size: 12px; color: #aaaaaa;">Asset Monitorati: <strong style="color: #00ff66;">{total_assets}</strong></p>
+                <p style="font-size: 12px; color: #aaaaaa;">Asset Monitorati: <strong style="color: #00ff66;">{total_assets}</strong> | Modalità: <strong style="color: #00ff66;">{bot_mode}</strong></p>
             </div>
             {threshold_control}
         </div>
@@ -780,8 +778,10 @@ def home():
         </div>
         """
         
+        mode_text = "🤖 Automatico (BingX attivo)" if bot_settings["auto_execution"] == 1 else "✋ Manuale (Solo Segnali)"
         content = content.replace("{threshold}", str(current_threshold))
         content = content.replace("{total_assets}", str(len(SYMBOLS)))
+        content = content.replace("{bot_mode}", mode_text)
         content = content.replace("{threshold_control}", threshold_control)
         content = content.replace("{toggles_section}", toggles_html)
         content = content.replace("{signals_section}", signals_html)
@@ -817,7 +817,7 @@ def settings():
     content = f"""
     <div class="panel" style="max-width: 420px; margin: 30px auto; border: 1px solid #333333;">
         <h3 style="color: #00ff66; margin-bottom: 15px; text-align: center;">Configurazione API BingX</h3>
-        <p style="font-size: 12px; color: #aaaaaa; margin-bottom: 15px; text-align: center;">Inserisci le tue chiavi API per abilitare il trading automatico su Crypto e Materie Prime.</p>
+        <p style="font-size: 12px; color: #aaaaaa; margin-bottom: 15px; text-align: center;">Inserisci le tue chiavi API per abilitare il trading automatico o manuale su Crypto e Materie Prime.</p>
         <form method="POST">
             <div class="form-group"><label>BingX API Key</label><input type="text" name="api_key" value="{current_api}" required></div>
             <div class="form-group"><label>BingX Secret Key</label><input type="password" name="secret_key" value="{current_sec}" required></div>
