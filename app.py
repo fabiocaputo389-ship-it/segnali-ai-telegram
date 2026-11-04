@@ -6,6 +6,7 @@ import hmac
 import hashlib
 import requests
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from flask import (
     Flask,
     request,
@@ -18,9 +19,9 @@ from flask import (
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "chiave_segreta_super_sicura_ai_master_gauge")
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "chiave_segreta_super_sicura_ai_precision_ultra")
 
-BRAND_NAME = "👑 SCANNER TRADING VIP [GAUGE ULTRA]"
+BRAND_NAME = "👑 SCANNER TRADING VIP [PRECISION ULTRA]"
 ADMIN_USERNAME = "Fabio"
 
 def fetch_all_bingx_symbols():
@@ -54,7 +55,7 @@ def fetch_all_bingx_symbols():
 
 SYMBOLS = fetch_all_bingx_symbols()
 
-current_threshold = 75
+current_threshold = 80
 
 bot_settings = {
     "use_trend_following": 1,
@@ -80,7 +81,7 @@ market_data_cache = {
         "action": "NEUTRAL",
         "ai_grade": "C (Analisi in corso)",
         "indicators_passed": 0,
-        "indicators_total": 15,
+        "indicators_total": 20,
         "sl": 0.0,
         "tp1": 0.0,
         "tp2": 0.0,
@@ -160,27 +161,40 @@ def execute_bingx_order(api_key, secret_key, symbol, side, leverage=5, quantity=
     try:
         clean_api = api_key.strip()
         clean_sec = secret_key.strip()
+        
         set_bingx_leverage(clean_api, clean_sec, symbol, leverage, side)
         
         url = "https://open-api.bingx.com/openApi/swap/v2/trade/order"
         timestamp = str(int(time.time() * 1000))
+        position_side = "LONG" if side == "BUY" else "SHORT"
+        
         params = {
             "symbol": symbol,
             "side": side,
-            "positionSide": "LONG" if side == "BUY" else "SHORT",
+            "positionSide": position_side,
             "type": "MARKET",
             "quantity": str(quantity),
             "timestamp": timestamp
         }
+        
+        if sl > 0:
+            params["stopLossPrice"] = str(sl)
+        if tp1 > 0:
+            params["takeProfitPrice"] = str(tp1)
+
         query_string = "&".join([f"{key}={params[key]}" for key in sorted(params.keys())]) + f"&timestamp={timestamp}"
         signature = hmac.new(clean_sec.encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256).hexdigest()
         headers = {"X-BX-APIKEY": clean_api}
         full_url = f"{url}?{query_string}&signature={signature}"
+        
         response = requests.post(full_url, headers=headers, timeout=5)
-        if response.status_code == 200 and response.json().get("code") == 0:
+        res_json = response.json()
+        if response.status_code == 200 and res_json.get("code") == 0:
             return True
+        else:
+            print(f"Errore API BingX ordine {symbol}: {res_json}")
     except Exception as e:
-        print(f"Errore ordine {symbol}: {e}")
+        print(f"Errore esecuzione ordine {symbol}: {e}")
     return False
 
 def trigger_auto_trades(symbol, action, leverage, sl, tp1):
@@ -236,15 +250,15 @@ def analyze_whale_volume(candles):
     volumes = [float(c['volume']) for c in candles]
     avg_volume = sum(volumes[:-1]) / len(volumes[:-1]) if len(volumes) > 1 else volumes[-1]
     last_volume = volumes[-1]
-    is_whale_activity = last_volume > (avg_volume * 1.7)
+    is_whale_activity = last_volume > (avg_volume * 1.8)
     last_close = float(candles[-1]['close'])
     prev_close = float(candles[-1]['open'])
     
     if is_whale_activity:
         if last_close > prev_close:
-            return "INSTITUTIONAL ACCUMULATION 🐳", 2
+            return "INSTITUTIONAL ACCUMULATION 🐳", 3
         else:
-            return "INSTITUTIONAL DISTRIBUTION 🐋", -2
+            return "INSTITUTIONAL DISTRIBUTION 🐋", -3
     return "NORMAL LIQUIDITY", 0
 
 def fetch_bingx_klines(symbol, interval):
@@ -290,32 +304,33 @@ def run_scanner_background():
                     atr = calculate_atr(candles_1h)
                     whale_txt, whale_score_val = analyze_whale_volume(candles_1h)
 
-                    bullish_points, bearish_points, total_indicators = 0, 0, 15
+                    bullish_points, bearish_points, total_indicators = 0, 0, 20
 
+                    # 1. Filtro di Confluenza Multi-RSI (Ponderato per precisione chirurgica)
                     if bot_settings["use_rsi_filter"] == 1:
-                        if rsi_15m > 50: bullish_points += 1
-                        else: bearish_points += 1
-                        if rsi_1h > 50: bullish_points += 1
-                        else: bearish_points += 1
-                        if rsi_4h > 50: bullish_points += 1
-                        else: bearish_points += 1
-                        if rsi_1h > 55: bullish_points += 1
-                        elif rsi_1h < 45: bearish_points += 1
+                        if 52 <= rsi_15m <= 72: bullish_points += 3
+                        elif 28 <= rsi_15m <= 48: bearish_points += 3
+                        
+                        if 52 <= rsi_1h <= 75: bullish_points += 4
+                        elif 25 <= rsi_1h <= 48: bearish_points += 4
+                        
+                        if rsi_4h > 50: bullish_points += 3
+                        else: bearish_points += 3
                     else:
-                        bullish_points += 3
-                        bearish_points += 3
+                        bullish_points += 5
+                        bearish_points += 5
 
+                    # 2. Allineamento Dinamico delle Medie Mobili (EMA)
                     if bot_settings["use_multi_ema"] == 1:
-                        if ema_9 > ema_21: bullish_points += 2
-                        else: bearish_points += 2
+                        if ema_9 > ema_21 > ema_50: bullish_points += 4
+                        elif ema_9 < ema_21 < ema_50: bearish_points += 4
                         if current_price > ema_50: bullish_points += 2
                         else: bearish_points += 2
-                        if ema_21 > ema_50: bullish_points += 1
-                        else: bearish_points += 1
                     else:
                         bullish_points += 3
                         bearish_points += 3
 
+                    # 3. Analisi Price Action & Trend-Following Multi-TF
                     if bot_settings["use_trend_following"] == 1:
                         if closes_1h[-1] > closes_1h[-2] and closes_1h[-2] > closes_1h[-3]: bullish_points += 2
                         elif closes_1h[-1] < closes_1h[-2] and closes_1h[-2] < closes_1h[-3]: bearish_points += 2
@@ -325,56 +340,55 @@ def run_scanner_background():
                         bullish_points += 2
                         bearish_points += 2
 
+                    # 4. Whale Tracker & Volumi Istituzionali
                     if bot_settings["use_whale_tracker"] == 1:
-                        if whale_score_val == 2: bullish_points += 3
-                        elif whale_score_val == -2: bearish_points += 3
-                        else:
-                            bullish_points += 1
-                            bullish_points += 1
+                        if whale_score_val == 3: bullish_points += 3
+                        elif whale_score_val == -3: bearish_points += 3
                     else:
                         bullish_points += 1
-                        bullish_points += 1
+                        bearish_points += 1
 
                     action, score, rating, passed_indicators = "NEUTRAL", 50, "NEUTRAL", 0
 
-                    if bullish_points >= 8 and (rsi_1h >= 50 or bot_settings["use_rsi_filter"] == 0):
+                    if bullish_points >= 12 and rsi_1h >= 52:
                         action = "LONG"
                         passed_indicators = bullish_points
-                        score = min(99, max(60, int((bullish_points / total_indicators) * 100)))
-                        rating = "ALPHA BUY" if score >= 85 else "QUANTUM BUY"
-                    elif bearish_points >= 8 and (rsi_1h <= 50 or bot_settings["use_rsi_filter"] == 0):
+                        score = min(99, max(65, int((bullish_points / total_indicators) * 100)))
+                        rating = "ALPHA BUY" if score >= 88 else "QUANTUM BUY"
+                    elif bearish_points >= 12 and rsi_1h <= 48:
                         action = "SHORT"
                         passed_indicators = bearish_points
-                        score = min(99, max(60, int((bearish_points / total_indicators) * 100)))
-                        rating = "ALPHA SELL" if score >= 85 else "QUANTUM SELL"
+                        score = min(99, max(65, int((bearish_points / total_indicators) * 100)))
+                        rating = "ALPHA SELL" if score >= 88 else "QUANTUM SELL"
 
                     if score >= 90:
-                        ai_grade = "A+ (Elite Quantum)"
-                    elif score >= 80:
-                        ai_grade = "A (High Setup)"
-                    elif score >= 70:
-                        ai_grade = "B+ (Stable Momentum)"
-                    elif score >= 60:
-                        ai_grade = "B (Moderate)"
+                        ai_grade = "A+ (Elite Precision)"
+                    elif score >= 82:
+                        ai_grade = "A (High Probability)"
+                    elif score >= 75:
+                        ai_grade = "B+ (Stable Setup)"
+                    elif score >= 65:
+                        ai_grade = "B (Moderate Setup)"
                     else:
-                        ai_grade = "C (Neutral)"
+                        ai_grade = "C (Standby)"
 
-                    base_step = atr if atr > 0 else current_price * 0.01
-                    leverage = 10 if score >= 90 else (5 if score >= 80 else 3)
-                    signal_time_str = datetime.now().strftime("%H:%M:%S")
+                    base_step = atr if atr > 0 else current_price * 0.012
+                    leverage = 10 if score >= 90 else (5 if score >= 82 else 3)
+                    
+                    signal_time_str = datetime.now(ZoneInfo("Europe/Rome")).strftime("%H:%M:%S")
                     
                     recommended_margin = round(max(25.0, current_price * 0.03 / leverage), 2) if current_price < 100 else round(max(30.0, 1500.0 / leverage), 2)
 
                     if action == "LONG":
-                        sl = current_price - (base_step * 1.0)
-                        tp1 = current_price + (base_step * 1.0)
-                        tp2 = current_price + (base_step * 2.0)
-                        tp3 = current_price + (base_step * 3.0)
+                        sl = current_price - (base_step * 1.1)
+                        tp1 = current_price + (base_step * 1.2)
+                        tp2 = current_price + (base_step * 2.4)
+                        tp3 = current_price + (base_step * 3.6)
                     elif action == "SHORT":
-                        sl = current_price + (base_step * 1.0)
-                        tp1 = current_price - (base_step * 1.0)
-                        tp2 = current_price - (base_step * 2.0)
-                        tp3 = current_price - (base_step * 3.0)
+                        sl = current_price + (base_step * 1.1)
+                        tp1 = current_price - (base_step * 1.2)
+                        tp2 = current_price - (base_step * 2.4)
+                        tp3 = current_price - (base_step * 3.6)
                     else:
                         sl, tp1, tp2, tp3 = current_price * 0.98, current_price * 1.01, current_price * 1.02, current_price * 1.03
 
@@ -420,10 +434,10 @@ def run_scanner_background():
                             if telegram_token and channel_id:
                                 pair_name = symbol.replace("-USDT", " / USDT")
                                 decimals = 5 if current_price < 1 else 2
-                                dir_text = "🟢 LONG ALPHA" if action == "LONG" else "🔴 SHORT ALPHA"
+                                dir_text = "🟢 LONG PRECISION" if action == "LONG" else "🔴 SHORT PRECISION"
 
                                 message = (
-                                    f"👑 **SCANNER TRADING VIP** 👑\n"
+                                    f"👑 **SCANNER TRADING VIP [PRECISION]** 👑\n"
                                     f"⏰ **Orario:** {signal_time_str}\n\n"
                                     f"🔹 **Asset:** {pair_name}\n"
                                     f"📊 **Direzione:** {dir_text}\n"
@@ -475,7 +489,6 @@ BASE_HTML = """
         
         .flash { background: #111111; color: #00ff66; border: 1px solid #00ff66; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 13px; font-weight: bold; }
         
-        /* Tachimetro Analogico Circolare con Lancetta Dinamica CSS */
         .analog-gauge { width: 110px; height: 110px; border-radius: 50%; background: radial-gradient(circle, #111111 0%, #000000 100%); border: 2px solid #333333; position: relative; margin: 10px auto; display: flex; align-items: center; justify-content: center; box-shadow: inset 0 0 10px rgba(0,0,0,0.8); }
         .gauge-center { width: 10px; height: 10px; background: #00ff66; border-radius: 50%; position: absolute; z-index: 3; box-shadow: 0 0 6px #00ff66; }
         .gauge-needle { width: 2px; height: 45px; background: #ff3333; position: absolute; bottom: 50%; left: calc(50% - 1px); transform-origin: bottom center; z-index: 2; transition: transform 0.5s ease-in-out; box-shadow: 0 0 4px #ff3333; }
@@ -522,7 +535,7 @@ def home():
         if active_signals:
             signals_html += (
                 '<div class="signal-box">'
-                '<h3 style="color: #00ff66; font-size: 15px; margin-bottom: 10px;">🔥 Segnali Alpha Istituzionali Attivi</h3>'
+                '<h3 style="color: #00ff66; font-size: 15px; margin-bottom: 10px;">🔥 Segnali ad Alta Precisione Attivi</h3>'
                 '<div style="display: flex; flex-direction: column; gap: 8px;">'
             )
             for sym, dat in active_signals.items():
@@ -557,7 +570,7 @@ def home():
 
         toggles_html = f"""
         <div class="panel" style="border: 1px solid #333333;">
-            <h3 style="color: #ffffff; font-size: 14px; margin-bottom: 10px;">⚙️ Pannello Admin: Motore IA Autonomo</h3>
+            <h3 style="color: #ffffff; font-size: 14px; margin-bottom: 10px;">⚙️ Pannello Admin: Motore IA Autonomo di Precisione</h3>
             <form action="/toggle-settings" method="POST" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; font-size: 13px;">
                 <label style="color: #ffffff;"><input type="checkbox" name="use_trend_following" {"checked" if bot_settings["use_trend_following"]==1 else ""}> Trend-Following</label>
                 <label style="color: #ffffff;"><input type="checkbox" name="use_multi_ema" {"checked" if bot_settings["use_multi_ema"]==1 else ""}> Multi-EMA</label>
@@ -572,7 +585,7 @@ def home():
         content = """
         <div class="panel" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
             <div>
-                <h3 style="color: #ffffff; font-size: 16px; margin-bottom: 3px;">Scanner Universale Multi-Timeframe Autonomo</h3>
+                <h3 style="color: #ffffff; font-size: 16px; margin-bottom: 3px;">Scanner Universale Multi-Timeframe ad Alta Precisione</h3>
                 <p style="font-size: 12px; color: #aaaaaa;">Asset Monitorati: <strong style="color: #00ff66;">{total_assets}</strong> | Soglia Minima IA: <strong style="color: #00ff66;">{threshold}%</strong></p>
             </div>
             {threshold_control}
@@ -598,10 +611,8 @@ def home():
                     </div>
                 </div>
 
-                <!-- Tachimetro Analogico Circolare con Lancetta Reale -->
                 <div class="analog-gauge">
                     <div class="gauge-center"></div>
-                    <!-- Calcolo rotazione lancetta: da -90deg (0%) a +90deg (100%) -->
                     <div class="gauge-needle" style="transform: rotate({{ (data.score * 1.8) - 90 }}deg);"></div>
                     <div class="gauge-value-text">{{ data.score }}%</div>
                 </div>
