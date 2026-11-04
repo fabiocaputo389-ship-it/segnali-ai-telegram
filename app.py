@@ -19,51 +19,24 @@ from flask import (
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "chiave_segreta_super_sicura_live_status")
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "chiave_segreta_super_sicura_full_visible")
 
-BRAND_NAME = "👑 SCANNER TRADING VIP [LIVE ENGINE MONITOR]"
+BRAND_NAME = "👑 SCANNER TRADING VIP [FULL AI VISIBILITY]"
 ADMIN_USERNAME = "Fabio"
 
-# Variabile globale per tracciare lo stato di lavoro in tempo reale del bot
-bot_live_status = {
-    "last_scan_time": "--:--:--",
-    "scanned_count": 0,
-    "active_thread": "Attivo e Sincronizzato",
-    "current_action_symbol": "In attesa..."
-}
+# Lista solida e ottimizzata di asset principali per garantire scansioni rapide e precise senza timeout
+SYMBOLS = [
+    "BTC-USDT", "ETH-USDT", "SOL-USDT", "BNB-USDT", "XRP-USDT", 
+    "ADA-USDT", "AVAX-USDT", "LINK-USDT", "DOT-USDT", "NEAR-USDT", 
+    "UNI-USDT", "RENDER-USDT", "SUI-USDT", "ARB-USDT", "OP-USDT", 
+    "IMX-USDT", "ICP-USDT", "APT-USDT", "FIL-USDT", "PEPE-USDT", 
+    "DOGE-USDT", "SHIB-USDT", "ATOM-USDT", "XLM-USDT", "ALGO-USDT", 
+    "FET-USDT", "INJ-USDT", "LTC-USDT", "BCH-USDT", "ETC-USDT", 
+    "SAND-USDT", "MANA-USDT", "AAVE-USDT", "FTM-USDT", "RUNE-USDT", 
+    "ZEC-USDT", "TRX-USDT", "NEAR-USDT", "NEAR-USDT"
+]
 
-def fetch_all_bingx_symbols():
-    default_symbols = [
-        "BTC-USDT", "ETH-USDT", "SOL-USDT", "BNB-USDT", "XRP-USDT", 
-        "ADA-USDT", "AVAX-USDT", "LINK-USDT", "DOT-USDT", "NEAR-USDT", 
-        "UNI-USDT", "RENDER-USDT", "SUI-USDT", "ARB-USDT", "OP-USDT", 
-        "IMX-USDT", "ICP-USDT", "APT-USDT", "FIL-USDT", "PEPE-USDT", 
-        "DOGE-USDT", "SHIB-USDT", "ATOM-USDT", "XLM-USDT", "ALGO-USDT", 
-        "FET-USDT", "INJ-USDT", "LTC-USDT", "BCH-USDT", "ETC-USDT", 
-        "SAND-USDT", "MANA-USDT", "AAVE-USDT", "FTM-USDT", "RUNE-USDT", 
-        "ZEC-USDT", "TRX-USDT"
-    ]
-    try:
-        url = "https://open-api.bingx.com/openApi/swap/v2/quote/contracts"
-        res = requests.get(url, timeout=10)
-        if res.status_code == 200:
-            data = res.json().get("data", [])
-            if isinstance(data, list) and len(data) > 0:
-                dynamic_list = []
-                for contract in data:
-                    sym = contract.get("symbol")
-                    status = contract.get("status", 1)
-                    if sym and status == 1 and sym.endswith("USDT"):
-                        dynamic_list.append(sym)
-                if dynamic_list:
-                    return dynamic_list
-    except Exception as e:
-        print(f"Errore caricamento dinamico simboli: {e}")
-    return default_symbols
-
-SYMBOLS = fetch_all_bingx_symbols()
-
-current_threshold = 82
+current_threshold = 75
 
 bot_settings = {
     "use_trend_following": 1,
@@ -71,6 +44,13 @@ bot_settings = {
     "use_rsi_filter": 1,
     "use_whale_tracker": 1,
     "auto_execution": 1
+}
+
+bot_live_status = {
+    "last_scan_time": "In corso...",
+    "scanned_count": 0,
+    "active_thread": "Attivo e Sincronizzato",
+    "current_action_symbol": "Avvio scansione..."
 }
 
 market_data_cache = {
@@ -259,7 +239,7 @@ def analyze_whale_volume(candles):
     volumes = [float(c['volume']) for c in candles]
     avg_volume = sum(volumes[:-1]) / len(volumes[:-1]) if len(volumes) > 1 else volumes[-1]
     last_volume = volumes[-1]
-    is_whale_activity = last_volume > (avg_volume * 1.5)
+    is_whale_activity = last_volume > (avg_volume * 1.4)
     last_close = float(candles[-1]['close'])
     prev_close = float(candles[-1]['open'])
     
@@ -302,7 +282,7 @@ def run_scanner_background():
     telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     channel_id = os.environ.get("CHANNEL_ID")
     last_signal_time = {symbol: 0 for symbol in SYMBOLS}
-    COOLDOWN_SECONDS = 3600
+    COOLDOWN_SECONDS = 1800
 
     while True:
         global current_threshold, market_data_cache, bot_settings
@@ -335,13 +315,13 @@ def run_scanner_background():
                     bullish_points, bearish_points, total_indicators = 0, 0, 20
 
                     if bot_settings["use_rsi_filter"] == 1:
-                        if rsi_15m >= 45: bullish_points += 3
+                        if rsi_15m >= 42: bullish_points += 3
                         else: bearish_points += 3
                         
-                        if rsi_1h >= 48: bullish_points += 4
+                        if rsi_1h >= 45: bullish_points += 4
                         else: bearish_points += 4
                         
-                        if rsi_4h >= 48: bullish_points += 3
+                        if rsi_4h >= 45: bullish_points += 3
                         else: bearish_points += 3
                     else:
                         bullish_points += 5
@@ -370,20 +350,20 @@ def run_scanner_background():
                         else: bearish_points += 3
                     else:
                         bullish_points += 1
-                        bullish_points += 1
+                        bearish_points += 1
 
                     action, score, rating, passed_indicators = "NEUTRAL", 50, "NEUTRAL", 0
 
-                    if bullish_points >= 11 and rsi_1h >= 46:
+                    if bullish_points >= 10 and rsi_1h >= 42:
                         action = "LONG"
                         passed_indicators = bullish_points
-                        score = min(99, max(68, int((bullish_points / total_indicators) * 100) + 15))
-                        rating = "ALPHA BUY" if score >= 88 else "QUANTUM BUY"
-                    elif bearish_points >= 11 and rsi_1h <= 54:
+                        score = min(99, max(72, int((bullish_points / total_indicators) * 100) + 20))
+                        rating = "ALPHA BUY" if score >= 85 else "QUANTUM BUY"
+                    elif bearish_points >= 10 and rsi_1h <= 58:
                         action = "SHORT"
                         passed_indicators = bearish_points
-                        score = min(99, max(68, int((bearish_points / total_indicators) * 100) + 15))
-                        rating = "ALPHA SELL" if score >= 88 else "QUANTUM SELL"
+                        score = min(99, max(72, int((bearish_points / total_indicators) * 100) + 20))
+                        rating = "ALPHA SELL" if score >= 85 else "QUANTUM SELL"
 
                     if score >= 90:
                         ai_grade = "A+ (Elite Quantum)"
@@ -478,12 +458,12 @@ def run_scanner_background():
                             time.sleep(1)
             except Exception as e:
                 print(f"Errore scanner: {e}")
-            time.sleep(0.3)
+            time.sleep(0.2)
         
         bot_live_status["last_scan_time"] = datetime.now(ZoneInfo("Europe/Rome")).strftime("%H:%M:%S")
         bot_live_status["scanned_count"] = scanned_counter
-        bot_live_status["current_action_symbol"] = "In attesa ciclo successivo..."
-        time.sleep(15)
+        bot_live_status["current_action_symbol"] = "Ciclo completato in attesa..."
+        time.sleep(10)
 
 scanner_thread = threading.Thread(target=run_scanner_background, daemon=True)
 scanner_thread.start()
@@ -576,7 +556,7 @@ def home():
                     f'<div style="background: #000000; padding: 10px; border-radius: 8px; border: 1px solid #333333; border-left: 4px solid {dir_color}; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">'
                     f'<div>'
                     f'<strong style="color: #ffffff; font-size: 14px;">{dat["symbol"]} - {dat["action"]}</strong> '
-                    f'<span style="font-size: 11px; color: #aaaaaa;">🕒 {dat["signal_time"]} | ⏱️ TF Dinamico: <strong style="color: #00ff66;">{dat["recommended_tf"]}</strong></span>'
+                    f'<span style="font-size: 11px; color: #aaaaaa;">🕒 {dat["signal_time"]} | ⏱️ TF: <strong style="color: #00ff66;">{dat["recommended_tf"]}</strong></span>'
                     f'<div style="font-size: 11px; color: #aaaaaa; margin-top: 2px;">Score IA: <strong style="color: #00ff66;">{dat["score"]}%</strong> | Grado: <strong style="color: #00ff66;">{dat["ai_grade"]}</strong> | Leva: {dat["leverage"]}x</div>'
                     f'</div>'
                     f'<div style="display: flex; gap: 10px; align-items: center;">'
@@ -612,12 +592,11 @@ def home():
         </div>
         """ if is_admin else ""
 
-        # Pannello di visione in tempo reale di come sta lavorando il bot
         live_status_html = f"""
         <div class="live-status-box">
             <div>🟢 <strong>STATO MOTORE:</strong> <span style="color: #00ff66;">{bot_live_status["active_thread"]}</span></div>
             <div>🔄 <strong>ULTIMO CICLO:</strong> <span style="color: #ffffff;">{bot_live_status["last_scan_time"]}</span></div>
-            <div>📡 <strong>COIN ANALIZZATA:</strong> <span style="color: #00ff66;">{bot_live_status["current_action_symbol"]}</span></div>
+            <div>📡 <strong>COIN IN ELABORAZIONE:</strong> <span style="color: #00ff66;">{bot_live_status["current_action_symbol"]}</span></div>
             <div>📊 <strong>ASSET SCANSIONATI:</strong> <span style="color: #ffffff;">{bot_live_status["scanned_count"]} / {len(SYMBOLS)}</span></div>
         </div>
         """
