@@ -4,6 +4,7 @@ import hmac
 import hashlib
 import requests
 import sqlite3
+import threading
 from flask import Flask, render_template_string, request, redirect, url_for, session, flash
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -37,9 +38,19 @@ def init_db():
 
 init_db()
 
-# --- BINGX API HELPERS ---
+# --- BINGX API & TELEGRAM HELPERS ---
 def get_bingx_signature(secret_key, payload):
     return hmac.new(secret_key.encode('utf-8'), payload.encode('utf-8'), hashlib.sha256).hexdigest()
+
+def send_telegram_alert(token, chat_id, message):
+    if not token or not chat_id:
+        return
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
+    try:
+        requests.post(url, json=payload, timeout=5)
+    except Exception as e:
+        print(f"Errore invio Telegram: {e}")
 
 def get_bingx_account_balance(api_key, secret_key):
     if not api_key or not secret_key:
@@ -49,7 +60,6 @@ def get_bingx_account_balance(api_key, secret_key):
     timestamp = str(int(time.time() * 1000))
     params = f"timestamp={timestamp}"
     signature = get_bingx_signature(secret_key, params)
-    
     headers = {"X-BX-APIKEY": api_key}
     full_url = f"{url}?{params}&signature={signature}"
     
@@ -67,13 +77,58 @@ def get_bingx_account_balance(api_key, secret_key):
     except Exception as e:
         return {"balance": 0.0, "equity": 0.0, "error": str(e)}
 
+# --- MOTORE SCANNER IA IN BACKGROUND ---
+def background_market_scanner():
+    symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT', 'DOGEUSDT', 'AVAXUSDT', 'LINKUSDT']
+    last_alerts = {}
+
+    while True:
+        try:
+            token = bot_settings.get("telegram_token")
+            chat_id = bot_settings.get("chat_id")
+            
+            if token and chat_id:
+                for symbol in symbols:
+                    res = requests.get(f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=15m&limit=50", timeout=5)
+                    if res.status_code == 200:
+                        klines = res.json()
+                        closes = [float(k[4]) for k in klines]
+                        current_price = closes[-1]
+                        ema20 = sum(closes[-20:]) / 20
+                        ema50 = sum(closes[-50:]) / 50
+                        
+                        is_long = current_price > ema20 and ema20 > ema50
+                        now = time.time()
+                        
+                        if is_long and (symbol not in last_alerts or now - last_alerts[symbol] > 1800):
+                            msg = (
+                                f"🚀 *SEGNALE TOP ENTRY (IA Scanner)*\n\n"
+                                f"✦ *Asset:* #{symbol}\n"
+                                f"✦ *Direzione:* LONG 🟢\n"
+                                f"✦ *Prezzo Entrata:* ${current_price:,.2f}\n"
+                                f"✦ *Leva Consigliata:* 5x - 10x\n\n"
+                                f"🎯 *Take Profit 1:* ${current_price * 1.015:,.2f}\n"
+                                f"🎯 *Take Profit 2:* ${current_price * 1.03:,.2f}\n"
+                                f"🛑 *Stop Loss:* ${current_price * 0.985:,.2f}\n\n"
+                                f"⚡ _Generato da AI Market Scanner su Render_"
+                            )
+                            send_telegram_alert(token, chat_id, msg)
+                            last_alerts[symbol] = now
+        except Exception as e:
+            print(f"Errore nello scanner background: {e}")
+        
+        time.sleep(30)
+
+scanner_thread = threading.Thread(target=background_market_scanner, daemon=True)
+scanner_thread.start()
+
 
 DASHBOARD_HTML = '''
 <!DOCTYPE html>
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<title>Scanner TOP Entry - BingX Live & Dashboard</title>
+<title>Scanner TOP Entry - Dashboard Completa</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -104,15 +159,12 @@ h1,h2,h3,p{margin:0}
 .chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .chip{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line2);padding:6px 10px;font:500 11px var(--font-mono);letter-spacing:.05em;color:var(--ink2);background:rgba(12,16,23,.7)}
 .dot{width:7px;height:7px;border-radius:50%;background:var(--up);box-shadow:0 0 8px var(--up);animation:pulse 1.8s infinite}
-.dot.off{background:var(--warn);box-shadow:0 0 8px var(--warn);animation:none}
 @keyframes pulse{50%{opacity:.35}}
 button, .btn{font:600 11px var(--font-mono);letter-spacing:.07em;color:var(--gold);background:transparent;border:1px solid var(--gold);padding:6px 12px;cursor:pointer;text-transform:uppercase; text-decoration:none; display:inline-block;}
 button:hover, .btn:hover{background:var(--gold-soft)}
 
 .banner{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;border:1px solid var(--dia);background:var(--dia-soft);padding:10px 14px;margin-bottom:14px;font:600 12px var(--font-mono);letter-spacing:.06em;color:var(--dia)}
 .banner.idle{border-color:var(--line2);background:transparent;color:var(--mute)}
-.banner .tops{display:flex;flex-wrap:wrap;gap:6px;margin-left:auto}
-.banner .tops button{color:var(--dia);border-color:var(--dia);padding:3px 8px;font-size:10.5px}
 .dia{display:inline-block;filter:drop-shadow(0 0 5px var(--dia))}
 .dia.blink{animation:blink 1s steps(2,jump-none) infinite}
 @keyframes blink{50%{opacity:.25}}
@@ -175,7 +227,6 @@ button:hover, .btn:hover{background:var(--gold-soft)}
 .exe div{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)}
 .exe div:last-child{border-bottom:0}
 .exe span{font:400 11px var(--font-mono);color:var(--mute);display:flex;align-items:center;gap:8px}
-.exe span::before{content:"";width:6px;height:6px;background:var(--c);flex:none}
 .exe b{font:500 13px var(--font-mono);text-align:right}
 .topbox{border:1px solid var(--dia);background:var(--dia-soft);padding:12px 14px}
 .topbox h3{font:700 11px var(--font-mono);letter-spacing:.06em;color:var(--dia);margin-bottom:8px}
@@ -267,12 +318,12 @@ footer{margin-top:18px;font:400 10.5px var(--font-mono);color:var(--mute);letter
   <header class="top">
     <div class="brand">
       <svg width="40" height="40" viewBox="0 0 40 40"><polygon points="20,3 36,15 20,37 4,15" fill="none" stroke="#ffd23f" stroke-width="1.6"/><polygon points="20,3 28,15 20,37 12,15" fill="rgba(255,210,63,.18)" stroke="#ffd23f" stroke-width="1"/></svg>
-      <div><h1>Scanner · Segnali TOP Entry</h1><p>Utente: {{ username }} · <span style="color:var(--gold)">BingX Live Dashboard</span></p></div>
+      <div><h1>Scanner · Segnali TOP Entry</h1><p>Utente: {{ username }} · <span style="color:var(--gold)">BingX & Telegram Live</span></p></div>
     </div>
     <div class="chips">
       <span class="chip">Balance: <b style="color:var(--gold)">${{ "%.2f"|format(account.balance) }}</b></span>
       <span class="chip">Equity: <b style="color:var(--up)">${{ "%.2f"|format(account.equity) }}</b></span>
-      <span class="chip"><i class="dot" id="feedDot"></i><span id="feedTxt">BINGX SYNC</span></span>
+      <span class="chip"><i class="dot" id="feedDot"></i><span id="feedTxt">LIVE SYNC</span></span>
       <span class="chip">Auto-refresh: <b id="refresh" style="font-weight:700">00:02</b></span>
       <span class="chip" id="clock">--:--:--</span>
       <button id="pauseBtn" type="button">Pausa</button>
@@ -282,7 +333,7 @@ footer{margin-top:18px;font:400 10.5px var(--font-mono);color:var(--mute);letter
 
   <!-- PANNELLO CONFIGURAZIONE BINGX / BOT -->
   <section class="form-box">
-    <h3>⚙️ Configurazione BingX & Parametri Bot</h3>
+    <h3>⚙️ Configurazione BingX & Parametri Bot Telegram</h3>
     <form method="POST">
       <div class="form-grid">
         <div class="form-group">
@@ -312,7 +363,7 @@ footer{margin-top:18px;font:400 10.5px var(--font-mono);color:var(--mute);letter
       <div style="display:flex; gap:20px; margin-top:10px; flex-wrap:wrap; align-items:center;">
         <div class="checkbox-row"><input type="checkbox" name="use_trend_following" {% if settings.use_trend_following == 1 %}checked{% endif %}> Trend Following</div>
         <div class="checkbox-row"><input type="checkbox" name="use_rsi_filter" {% if settings.use_rsi_filter == 1 %}checked{% endif %}> Filtro RSI</div>
-        <div class="checkbox-row"><input type="checkbox" name="auto_execution" {% if settings.auto_execution == 1 %}checked{% endif %}> Esecuzione Automatica</div>
+        <div class="checkbox-row"><input type="checkbox" name="auto_execution" {% if settings.auto_execution == 1 %}checked{% endif %}> Esecuzione Automatica BingX</div>
         <button type="submit" style="margin-left:auto;">Salva Impostazioni</button>
       </div>
     </form>
@@ -609,7 +660,7 @@ function mkGauge(host,big){
   s+=`<g class="ndl" style="transform:rotate(0deg)"><polygon points="97.5,100 100,30 102.5,100"/></g><circle class="hub" cx="100" cy="100" r="7"/>`;
   host.innerHTML=`<svg class="gsvg" viewBox="0 0 200 112" role="img" aria-label="Tachimetro">${s}</svg>`;
   const val=host.querySelector('.gval'),nd=host.querySelector('.ndl');
-  return v=>{v=clamp(v,0,100);const z=zone(v);val.style.strokeDasharray=`${v} 100`;val.setAttribute('class','gval z'+z);nd.style.transform=`rotate(${(v-50)*1.8}deg)`;return z};
+  return v=>{v=clamp(v,0,100);const z=zone(v);val.style.strokeDasharray=`${v} 100`;val.setAttribute('class','gval z'+z);nd.style.transform=`rotate(${(v-50)*1.8}deg)`};
 }
 const gMain=mkGauge($('#gMain'),true),gCry=mkGauge($('#gCry')),gStk=mkGauge($('#gStk')),gCom=mkGauge($('#gCom'));
 function setG(fn,numEl,labEl,v){const z=fn(v);numEl.textContent=Math.round(v);numEl.style.color=zcol(z);labEl.textContent=ZL[z];labEl.style.color=zcol(z)}
