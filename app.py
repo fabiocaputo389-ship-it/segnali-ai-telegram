@@ -19,10 +19,18 @@ from flask import (
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "chiave_segreta_super_sicura_dynamic_engine")
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "chiave_segreta_super_sicura_live_status")
 
-BRAND_NAME = "👑 SCANNER TRADING VIP [DYNAMIC TIMEFRAME ENGINE]"
+BRAND_NAME = "👑 SCANNER TRADING VIP [LIVE ENGINE MONITOR]"
 ADMIN_USERNAME = "Fabio"
+
+# Variabile globale per tracciare lo stato di lavoro in tempo reale del bot
+bot_live_status = {
+    "last_scan_time": "--:--:--",
+    "scanned_count": 0,
+    "active_thread": "Attivo e Sincronizzato",
+    "current_action_symbol": "In attesa..."
+}
 
 def fetch_all_bingx_symbols():
     default_symbols = [
@@ -275,25 +283,22 @@ def fetch_bingx_klines(symbol, interval):
     return []
 
 def determine_optimal_timeframe(candles_15m, candles_1h, candles_4h):
-    """Dynamic Timeframe Engine: Analisi della volatilità specifica (ATR) per determinare in tempo reale il TF ideale"""
     try:
         atr_15 = calculate_atr(candles_15m) / float(candles_15m[-1]['close']) if candles_15m else 0
         atr_1 = calculate_atr(candles_1h) / float(candles_1h[-1]['close']) if candles_1h else 0
         atr_4 = calculate_atr(candles_4h) / float(candles_4h[-1]['close']) if candles_4h else 0
 
-        # Se la volatilità sul brevissimo è dominante -> 15m (Scalping rapido)
         if atr_15 > atr_1 * 1.3:
             return "15m"
-        # Se il trend di medio periodo è dominante -> 4h
         elif atr_4 > atr_1 * 1.6:
             return "4h"
-        # Standard operativo di precisione intraday -> 1h
         else:
             return "1h"
     except Exception:
         return "1h"
 
 def run_scanner_background():
+    global bot_live_status
     telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     channel_id = os.environ.get("CHANNEL_ID")
     last_signal_time = {symbol: 0 for symbol in SYMBOLS}
@@ -302,16 +307,17 @@ def run_scanner_background():
     while True:
         global current_threshold, market_data_cache, bot_settings
         current_time = time.time()
+        scanned_counter = 0
+        
         for symbol in SYMBOLS:
             try:
+                bot_live_status["current_action_symbol"] = symbol.replace("-USDT", "")
                 candles_15m = fetch_bingx_klines(symbol, "15m")
                 candles_1h = fetch_bingx_klines(symbol, "1h")
                 candles_4h = fetch_bingx_klines(symbol, "4h")
                 
                 if candles_15m and candles_1h and candles_4h:
-                    # Attivazione del Dynamic Timeframe Engine per determinare il TF ideale della coin
                     recommended_tf = determine_optimal_timeframe(candles_15m, candles_1h, candles_4h)
-                    
                     active_candles = candles_15m if recommended_tf == "15m" else (candles_4h if recommended_tf == "4h" else candles_1h)
                     closes = [float(c['close']) for c in active_candles]
                     current_price = closes[-1]
@@ -364,7 +370,7 @@ def run_scanner_background():
                         else: bearish_points += 3
                     else:
                         bullish_points += 1
-                        bearish_points += 1
+                        bullish_points += 1
 
                     action, score, rating, passed_indicators = "NEUTRAL", 50, "NEUTRAL", 0
 
@@ -443,6 +449,7 @@ def run_scanner_background():
                         "recommended_tf": recommended_tf,
                         "recommended_margin": recommended_margin
                     }
+                    scanned_counter += 1
 
                     if score >= current_threshold and action != "NEUTRAL":
                         if current_time - last_signal_time[symbol] > COOLDOWN_SECONDS:
@@ -472,6 +479,10 @@ def run_scanner_background():
             except Exception as e:
                 print(f"Errore scanner: {e}")
             time.sleep(0.3)
+        
+        bot_live_status["last_scan_time"] = datetime.now(ZoneInfo("Europe/Rome")).strftime("%H:%M:%S")
+        bot_live_status["scanned_count"] = scanned_counter
+        bot_live_status["current_action_symbol"] = "In attesa ciclo successivo..."
         time.sleep(15)
 
 scanner_thread = threading.Thread(target=run_scanner_background, daemon=True)
@@ -519,6 +530,7 @@ BASE_HTML = """
         .chart-btn:hover { background: #00ff66; color: #000000; }
         
         .signal-box { background: rgba(0,255,102,0.03); border: 1px solid #00ff66; border-radius: 10px; padding: 14px; margin-bottom: 20px; }
+        .live-status-box { background: #000000; border: 1px dashed #00ff66; border-radius: 8px; padding: 12px; margin-bottom: 15px; font-size: 12px; color: #aaaaaa; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
     </style>
     {refresh_tag}
 </head>
@@ -600,6 +612,16 @@ def home():
         </div>
         """ if is_admin else ""
 
+        # Pannello di visione in tempo reale di come sta lavorando il bot
+        live_status_html = f"""
+        <div class="live-status-box">
+            <div>🟢 <strong>STATO MOTORE:</strong> <span style="color: #00ff66;">{bot_live_status["active_thread"]}</span></div>
+            <div>🔄 <strong>ULTIMO CICLO:</strong> <span style="color: #ffffff;">{bot_live_status["last_scan_time"]}</span></div>
+            <div>📡 <strong>COIN ANALIZZATA:</strong> <span style="color: #00ff66;">{bot_live_status["current_action_symbol"]}</span></div>
+            <div>📊 <strong>ASSET SCANSIONATI:</strong> <span style="color: #ffffff;">{bot_live_status["scanned_count"]} / {len(SYMBOLS)}</span></div>
+        </div>
+        """
+
         content = """
         <div class="panel" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
             <div>
@@ -609,6 +631,7 @@ def home():
             {threshold_control}
         </div>
         
+        {live_status_section}
         {toggles_section}
         {signals_section}
         
@@ -669,6 +692,7 @@ def home():
         content = content.replace("{threshold}", str(current_threshold))
         content = content.replace("{total_assets}", str(len(SYMBOLS)))
         content = content.replace("{threshold_control}", threshold_control)
+        content = content.replace("{live_status_section}", live_status_html)
         content = content.replace("{toggles_section}", toggles_html)
         content = content.replace("{signals_section}", signals_html)
 
