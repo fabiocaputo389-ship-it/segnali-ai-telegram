@@ -576,17 +576,17 @@ def home():
         </div>
         """ if is_admin else ""
 
-        content = f"""
+        content = """
         <div class="panel" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
             <div>
                 <h3 style="color: #ffffff; font-size: 16px; margin-bottom: 3px;">Scanner Universale Avanzato (Crypto + Materie Prime / Oro / Petrolio)</h3>
-                <p style="font-size: 12px; color: #aaaaaa;">Asset Monitorati: <strong style="color: #00ff66;">{len(SYMBOLS)}</strong> | Modalità: <strong style="color: #00ff66;">{"🤖 Automatico" if bot_settings["auto_execution"]==1 else "✋ Manuale (Solo Segnali)"}</strong></p>
+                <p style="font-size: 12px; color: #aaaaaa;">Asset Monitorati: <strong style="color: #00ff66;">__TOTAL_ASSETS__</strong> | Modalità: <strong style="color: #00ff66;">__BOT_MODE__</strong></p>
             </div>
-            {threshold_control}
+            __THRESHOLD_CONTROL__
         </div>
         
-        {toggles_html}
-        {signals_html}
+        __TOGGLES_HTML__
+        __SIGNALS_HTML__
         
         <h3 style="margin-bottom: 12px; color: #ffffff; font-size: 16px; font-weight: bold; border-left: 3px solid #00ff66; padding-left: 8px;">📊 Monitoraggio Mercato Live & Tachimetri Analogici IA</h3>
         <div class="grid">
@@ -595,7 +595,7 @@ def home():
                 <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1a1a1a; padding-bottom: 8px; margin-bottom: 6px;">
                     <div>
                         <span style="font-weight: bold; color: #ffffff; font-size: 14px;">{{ data.symbol }}</span> <span class="badge-type">{{ data.asset_type }}</span>
-                        <div style="font-size: 11px; color: {{ '#00ff66' if data.action == 'LONG' else '#ff3333' if data.action == 'SHORT' else '#aaaaaa' }}; font-weight: bold;">
+                        <div style="font-size: 11px; color: {% if data.action == 'LONG' %}#00ff66{% elif data.action == 'SHORT' %}#ff3333{% else %}#aaaaaa{% endif %}; font-weight: bold;">
                             Direzione: {{ data.action }} <span style="color: #aaaaaa; font-weight: normal;">({{ data.signal_time }})</span>
                         </div>
                     </div>
@@ -640,6 +640,13 @@ def home():
             {% endfor %}
         </div>
         """
+
+        mode_text = "🤖 Automatico" if bot_settings["auto_execution"] == 1 else "✋ Manuale (Solo Segnali)"
+        content = content.replace("__TOTAL_ASSETS__", str(len(SYMBOLS)))
+        content = content.replace("__BOT_MODE__", mode_text)
+        content = content.replace("__THRESHOLD_CONTROL__", threshold_control)
+        content = content.replace("__TOGGLES_HTML__", toggles_html)
+        content = content.replace("__SIGNALS_HTML__", signals_html)
 
         refresh_tag = '<meta http-equiv="refresh" content="30">'
         html = BASE_HTML.replace("{refresh_tag}", refresh_tag)
