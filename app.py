@@ -566,7 +566,7 @@ def run_scanner_background():
                                     dir_text = "🟢 LONG PRECISION" if action == "LONG" else "🔴 SHORT PRECISION"
 
                                     message = (
-                                        f"👑 **ALL-MARKET TERMINAL VIP** 👑\n"
+                                        f"👑 **vip.trading** 👑\n"
                                         f"⏰ **Orario:** {signal_time_str} | ⏱️ **TF:** {recommended_tf.upper()}\n\n"
                                         f"🔹 **Asset:** {pair_name} ({asset_type_val})\n"
                                         f"📊 **Direzione:** {dir_text} ({exec_txt})\n"
@@ -600,7 +600,7 @@ BASE_HTML = """
         body { background-color: #000000; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 15px; }
         
         .header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 15px; border-bottom: 2px solid #00ff66; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;}
-        .logo { font-size: 20px; font-weight: 900; color: #ffffff; letter-spacing: 1px; }
+        .logo { font-size: 24px; font-weight: 900; color: #ffffff; letter-spacing: 1px; }
         .nav a { color: #ffffff; text-decoration: none; margin-left: 10px; background: #0a0a0a; padding: 6px 12px; border-radius: 6px; border: 1px solid #00ff66; font-size: 13px; font-weight: bold; transition: all 0.3s;}
         .nav a:hover { background: #00ff66; color: #000000; }
         
@@ -636,7 +636,7 @@ BASE_HTML = """
 </head>
 <body>
     <div class="header">
-        <div class="logo">👑 ALL-MARKET TERMINAL VIP</div>
+        <div class="logo" style="font-size: 26px; font-weight: 900; color: #00ff66;"><b>vip.trading</b></div>
         <div class="nav">
             {% if session.get('user_id') %}
                 <span>Utente: <strong style="color: #00ff66;">{{ session.get('username') }}</strong></span>
@@ -719,7 +719,7 @@ def home():
         <div class="panel" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
             <div>
                 <h3 style="color: #ffffff; font-size: 16px; margin-bottom: 3px;">Scanner Universale Avanzato (Crypto + Materie Prime / Oro / Petrolio)</h3>
-                <p style="font-size: 12px; color: #aaaaaa;">Asset Monitorati: <strong style="color: #00ff66;">{total_assets}</strong> | Operazioni Aperte Attuali: <strong style="color: #00ff66;">{open_trades_count} / 2</strong></p>
+                <p style="font-size: 12px; color: #aaaaaa;">Asset Monitorati: <strong style="color: #00ff66;">{total_assets}</strong></p>
             </div>
             {threshold_control}
         </div>
@@ -782,7 +782,6 @@ def home():
         
         content = content.replace("{threshold}", str(current_threshold))
         content = content.replace("{total_assets}", str(len(SYMBOLS)))
-        content = content.replace("{open_trades_count}", str(count_open_trades()))
         content = content.replace("{threshold_control}", threshold_control)
         content = content.replace("{toggles_section}", toggles_html)
         content = content.replace("{signals_section}", signals_html)
