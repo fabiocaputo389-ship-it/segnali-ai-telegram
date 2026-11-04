@@ -19,17 +19,23 @@ from flask import (
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "chiave_segreta_super_sicura_quantum_elite_cap")
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "chiave_segreta_super_sicura_quantum_elite")
 
-BRAND_NAME = "👑 ALL-MARKET TERMINAL VIP [CAPITAL MANAGEMENT & A.I.]"
+BRAND_NAME = "👑 ALL-MARKET TERMINAL VIP [CRYPTO & COMMODITIES A.I.]"
 ADMIN_USERNAME = "Fabio"
 
 def fetch_all_market_symbols():
+    """
+    Carica dinamicamente sia le crypto che le materie prime / asset tokenizzati da BingX.
+    Include una lista di fallback estesa con cripto top e materie prime (es. Oro, Petrolio, ecc.).
+    """
     default_symbols = [
+        # Criptovalute Top
         "BTC-USDT", "ETH-USDT", "SOL-USDT", "BNB-USDT", "XRP-USDT", 
         "ADA-USDT", "AVAX-USDT", "LINK-USDT", "DOT-USDT", "NEAR-USDT", 
         "UNI-USDT", "RENDER-USDT", "SUI-USDT", "ARB-USDT", "OP-USDT", 
         "PEPE-USDT", "DOGE-USDT", "SHIB-USDT", "FET-USDT", "INJ-USDT",
+        # Materie Prime e Asset Speciali (Tokenizzati / Futures supportati)
         "PAXG-USDT", "GOLD-USDT", "OIL-USDT", "SILVER-USDT", "COPPER-USDT"
     ]
     try:
@@ -45,6 +51,7 @@ def fetch_all_market_symbols():
                     if sym and status == 1 and sym.endswith("USDT"):
                         dynamic_list.append(sym)
                 if dynamic_list:
+                    # Assicuriamoci di includere eventuali materie prime se presenti nel listino
                     return dynamic_list
     except Exception as e:
         print(f"Errore caricamento dinamico simboli: {e}")
@@ -61,9 +68,7 @@ bot_settings = {
     "use_whale_tracker": 1,
     "auto_execution": 1,
     "max_concurrent_trades": 2,      # Massimo 2 operazioni contemporanee
-    "enable_concurrent_limit": 1,     # 1 = Attivo, 0 = Disattivo
-    "trade_capital_usdt": 20.0,      # Capitale base predefinito per operazione (USDT)
-    "capital_risk_mode": "FIXED"     # FIXED (Importo fisso) o PCT (Percentuale)
+    "enable_concurrent_limit": 1     # 1 = Attivo, 0 = Disattivo
 }
 
 active_trades = {}
@@ -98,8 +103,7 @@ market_data_cache = {
         "leverage": 5,
         "signal_time": "--:--:--",
         "recommended_tf": "1h",
-        "recommended_margin": 20.0,
-        "capital_advice": "Conservativo (2-3% del saldo)",
+        "recommended_margin": 30.0,
         "trade_status": "SEARCHING"
     } for symbol in SYMBOLS
 }
@@ -161,7 +165,7 @@ def set_bingx_leverage(api_key, secret_key, symbol, leverage, side):
     except Exception as e:
         print(f"Errore leva BingX: {e}")
 
-def execute_bingx_order(api_key, secret_key, symbol, side, leverage=5, capital_usdt=20.0, sl=0.0, tp1=0.0):
+def execute_bingx_order(api_key, secret_key, symbol, side, leverage=5, quantity=10.0, sl=0.0, tp1=0.0):
     if bot_settings["auto_execution"] == 0:
         return False
     if not api_key or not secret_key or len(api_key.strip()) < 5:
@@ -176,13 +180,12 @@ def execute_bingx_order(api_key, secret_key, symbol, side, leverage=5, capital_u
         timestamp = str(int(time.time() * 1000))
         position_side = "LONG" if side == "BUY" else "SHORT"
         
-        # Calcolo quantita basata sul capitale impostato
         params = {
             "symbol": symbol,
             "side": side,
             "positionSide": position_side,
             "type": "MARKET",
-            "quantity": str(round(capital_usdt, 2)),
+            "quantity": str(quantity),
             "timestamp": timestamp
         }
         
@@ -199,7 +202,7 @@ def execute_bingx_order(api_key, secret_key, symbol, side, leverage=5, capital_u
         response = requests.post(full_url, headers=headers, timeout=5)
         res_json = response.json()
         if response.status_code == 200 and res_json.get("code") == 0:
-            print(f"Ordine eseguito con successo su BingX per {symbol} (Capitale: ${capital_usdt}): {res_json}")
+            print(f"Ordine eseguito con successo su BingX per {symbol}: {res_json}")
             return True
         else:
             print(f"Errore API BingX ordine {symbol}: {res_json}")
@@ -215,7 +218,7 @@ def count_open_trades():
             count += 1
     return count
 
-def trigger_auto_trades(symbol, action, leverage, sl, tp1, custom_capital):
+def trigger_auto_trades(symbol, action, leverage, sl, tp1):
     if bot_settings["auto_execution"] == 0:
         return False
 
@@ -227,7 +230,7 @@ def trigger_auto_trades(symbol, action, leverage, sl, tp1, custom_capital):
     side = "BUY" if action == "LONG" else "SELL"
     api_key, secret_key = get_user_api_keys(ADMIN_USERNAME)
     if api_key and secret_key:
-        return execute_bingx_order(api_key, secret_key, symbol, side, leverage, custom_capital, sl, tp1)
+        return execute_bingx_order(api_key, secret_key, symbol, side, leverage, 10.0, sl, tp1)
     return False
 
 def calculate_rsi(prices, period=14):
@@ -312,17 +315,6 @@ def determine_optimal_timeframe(candles_15m, candles_1h, candles_4h):
             return "1h"
     except Exception:
         return "1h"
-
-def get_capital_advice(score, leverage):
-    """
-    Genera il consiglio personalizzato di Money Management dell'A.I. in base allo Score del segnale.
-    """
-    if score >= 90:
-        return f"🔥 AGGRESSIVO | Margine Consigliato: ${bot_settings['trade_capital_usdt']} USDT ({leverage}x)"
-    elif score >= 82:
-        return f"⚖️ BILANCIATO | Margine Consigliato: ${bot_settings['trade_capital_usdt'] * 0.8:.1f} USDT ({leverage}x)"
-    else:
-        return f"🛡️ CONSERVATIVO | Margine Consigliato: ${bot_settings['trade_capital_usdt'] * 0.5:.1f} USDT ({leverage}x)"
 
 def check_tp_sl_hits(symbol, current_price, telegram_token, channel_id):
     if symbol not in active_trades:
@@ -484,8 +476,7 @@ def run_scanner_background():
                     leverage = 10 if score >= 90 else (5 if score >= 82 else 3)
                     
                     signal_time_str = datetime.now(ZoneInfo("Europe/Rome")).strftime("%H:%M:%S")
-                    
-                    capital_advice_str = get_capital_advice(score, leverage)
+                    recommended_margin = round(max(25.0, current_price * 0.03 / leverage), 2) if current_price < 100 else round(max(30.0, 1500.0 / leverage), 2)
 
                     if action == "LONG":
                         sl = current_price - (base_step * 0.5)
@@ -538,8 +529,7 @@ def run_scanner_background():
                         "leverage": leverage,
                         "signal_time": signal_time_str,
                         "recommended_tf": recommended_tf,
-                        "recommended_margin": bot_settings["trade_capital_usdt"],
-                        "capital_advice": capital_advice_str,
+                        "recommended_margin": recommended_margin,
                         "trade_status": trade_status
                     }
 
@@ -567,7 +557,7 @@ def run_scanner_background():
                                     "hits": []
                                 }
 
-                                executed = trigger_auto_trades(symbol, action, leverage, sl, tp1, bot_settings["trade_capital_usdt"])
+                                executed = trigger_auto_trades(symbol, action, leverage, sl, tp1)
                                 exec_txt = "✅ Inviato su BingX" if executed else "⚠️ Solo Segnale (Auto-Trading disattivato o limite raggiunto)"
 
                                 if telegram_token and channel_id:
@@ -581,8 +571,7 @@ def run_scanner_background():
                                         f"🔹 **Asset:** {pair_name} ({asset_type_val})\n"
                                         f"📊 **Direzione:** {dir_text} ({exec_txt})\n"
                                         f"⭐ **Confluenza IA:** {score}% | **Grado:** {ai_grade}\n"
-                                        f"💰 **Consiglio Capitale IA:** {capital_advice_str}\n"
-                                        f"⚙️ **Leva:** {leverage}x | **Capitale Impostato:** ${bot_settings['trade_capital_usdt']} USDT\n"
+                                        f"⚙️ **Leva:** {leverage}x | **Margine:** ${recommended_margin} USDT\n"
                                         f"⚡ **Ingresso:** ${current_price:.{decimals}f}\n\n"
                                         f"🛑 **Stop Loss:** ${sl:.{decimals}f} ({sl_pct}%)\n"
                                         f"🎯 **Take Profit 1:** ${tp1:.{decimals}f} (+{tp1_pct}%)\n"
@@ -676,7 +665,7 @@ def home():
         if active_signals:
             signals_html += (
                 '<div class="signal-box">'
-                '<h3 style="color: #00ff66; font-size: 15px; margin-bottom: 10px;">🔥 Segnali Attivi & Consiglio Capitale A.I.</h3>'
+                '<h3 style="color: #00ff66; font-size: 15px; margin-bottom: 10px;">🔥 Segnali Crypto & Commodities Attivi</h3>'
                 '<div style="display: flex; flex-direction: column; gap: 8px;">'
             )
             for sym, dat in active_signals.items():
@@ -690,8 +679,7 @@ def home():
                     f'<div>'
                     f'<strong style="color: #ffffff; font-size: 14px;">{dat["symbol"]}</strong> <span class="badge-type">{dat["asset_type"]}</span> - <span style="color: {dir_color}; font-weight: bold;">{dat["action"]}</span> '
                     f'<span style="font-size: 11px; color: #aaaaaa;">🕒 {dat["signal_time"]} (TF: {dat["recommended_tf"].upper()})</span>'
-                    f'<div style="font-size: 11px; color: #00ff66; font-weight: bold; margin-top: 3px;">💡 Consiglio Capitale: {dat["capital_advice"]}</div>'
-                    f'<div style="font-size: 11px; color: #aaaaaa; margin-top: 2px;">Status Target: {status_badge}</div>'
+                    f'<div style="font-size: 11px; color: #aaaaaa; margin-top: 4px;">Status Target: {status_badge}</div>'
                     f'</div>'
                     f'<div style="display: flex; gap: 10px; align-items: center;">'
                     f'<div style="font-size: 11px; color: #ffffff; text-align: right;">'
@@ -714,12 +702,8 @@ def home():
 
         toggles_html = f"""
         <div class="panel" style="border: 1px solid #333333;">
-            <h3 style="color: #ffffff; font-size: 14px; margin-bottom: 10px;">⚙️ Pannello Admin: Configurazione Capitale & Strategie</h3>
+            <h3 style="color: #ffffff; font-size: 14px; margin-bottom: 10px;">⚙️ Pannello Admin: Strategie & Limite Max 2 Trade</h3>
             <form action="/toggle-settings" method="POST" style="display: flex; flex-wrap: wrap; gap: 14px; align-items: center; font-size: 13px;">
-                <div style="display: flex; align-items: center; gap: 6px;">
-                    <label style="color: #00ff66; font-weight: bold;">Capitale per Trade (USDT):</label>
-                    <input type="number" name="trade_capital_usdt" value="{bot_settings['trade_capital_usdt']}" min="5" max="10000" style="width: 80px; background: #000; border: 1px solid #00ff66; color: #fff; padding: 4px; border-radius: 4px; text-align: center;">
-                </div>
                 <label style="color: #ffffff;"><input type="checkbox" name="use_trend_following" {"checked" if bot_settings["use_trend_following"]==1 else ""}> Trend-Following</label>
                 <label style="color: #ffffff;"><input type="checkbox" name="use_multi_ema" {"checked" if bot_settings["use_multi_ema"]==1 else ""}> Multi-EMA</label>
                 <label style="color: #ffffff;"><input type="checkbox" name="use_rsi_filter" {"checked" if bot_settings["use_rsi_filter"]==1 else ""}> RSI Filter</label>
@@ -734,8 +718,8 @@ def home():
         content = """
         <div class="panel" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
             <div>
-                <h3 style="color: #ffffff; font-size: 16px; margin-bottom: 3px;">Scanner con Gestione Personalizzata del Capitale (Crypto & Commodities)</h3>
-                <p style="font-size: 12px; color: #aaaaaa;">Capitale Predefinito Impostato: <strong style="color: #00ff66;">${trade_capital} USDT</strong> | Operazioni Aperte: <strong style="color: #00ff66;">{open_trades_count} / 2</strong></p>
+                <h3 style="color: #ffffff; font-size: 16px; margin-bottom: 3px;">Scanner Universale Avanzato (Crypto + Materie Prime / Oro / Petrolio)</h3>
+                <p style="font-size: 12px; color: #aaaaaa;">Asset Monitorati: <strong style="color: #00ff66;">{total_assets}</strong> | Operazioni Aperte Attuali: <strong style="color: #00ff66;">{open_trades_count} / 2</strong></p>
             </div>
             {threshold_control}
         </div>
@@ -777,7 +761,6 @@ def home():
                 <div style="font-size: 11px; color: #aaaaaa; display: flex; flex-direction: column; gap: 4px; margin-top: 8px;">
                     <div style="display: flex; justify-content: space-between;"><span>Timeframe Ottimale A.I.:</span><strong style="color: #00ff66; background: #111; padding: 2px 6px; border-radius: 4px; border: 1px solid #00ff66;">Grafico {{ data.recommended_tf.upper() }}</strong></div>
                     <div style="display: flex; justify-content: space-between;"><span>Prezzo Live:</span><strong style="color: #ffffff;">${{ "%.4f"|format(data.price) if data.price < 1 else "%.2f"|format(data.price) }}</strong></div>
-                    <div style="display: flex; justify-content: space-between;"><span>Consiglio Capitale IA:</span><strong style="color: #00ff66;">{{ data.capital_advice }}</strong></div>
                     <div style="display: flex; justify-content: space-between;"><span>RSI (15m / 1H / 4H):</span><span><strong style="color: #aaaaaa;">{{ data.rsi_15m }}</strong> / <strong style="color: #ffffff;">{{ data.rsi_1h }}</strong> / <strong style="color: #aaaaaa;">{{ data.rsi_4h }}</strong></span></div>
                     <div style="display: flex; justify-content: space-between;"><span>Status Operazione:</span><strong style="color: #00ff66;">{{ data.trade_status }}</strong></div>
                     
@@ -799,7 +782,6 @@ def home():
         
         content = content.replace("{threshold}", str(current_threshold))
         content = content.replace("{total_assets}", str(len(SYMBOLS)))
-        content = content.replace("{trade_capital}", str(bot_settings["trade_capital_usdt"]))
         content = content.replace("{open_trades_count}", str(count_open_trades()))
         content = content.replace("{threshold_control}", threshold_control)
         content = content.replace("{toggles_section}", toggles_html)
@@ -870,12 +852,6 @@ def toggle_settings():
         bot_settings["use_whale_tracker"] = 1 if request.form.get("use_whale_tracker") == "on" else 0
         bot_settings["auto_execution"] = 1 if request.form.get("auto_execution") == "on" else 0
         bot_settings["enable_concurrent_limit"] = 1 if request.form.get("enable_concurrent_limit") == "on" else 0
-        try:
-            cap_val = float(request.form.get("trade_capital_usdt", 20.0))
-            if cap_val >= 5.0:
-                bot_settings["trade_capital_usdt"] = cap_val
-        except ValueError:
-            pass
     return redirect(url_for("home"))
 
 @app.route("/register", methods=["GET", "POST"])
