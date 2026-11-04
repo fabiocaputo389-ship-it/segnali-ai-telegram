@@ -19,9 +19,9 @@ from flask import (
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "chiave_segreta_super_sicura_quantum_max")
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "chiave_segreta_super_sicura_dynamic_tf")
 
-BRAND_NAME = "👑 SCANNER TRADING VIP [MAX POWER ULTRA]"
+BRAND_NAME = "👑 SCANNER TRADING VIP [DYNAMIC TIMEFRAME ULTRA]"
 ADMIN_USERNAME = "Fabio"
 
 def fetch_all_bingx_symbols():
@@ -92,6 +92,7 @@ market_data_cache = {
         "tp3_pct": 0.0,
         "leverage": 5,
         "signal_time": "--:--:--",
+        "recommended_tf": "1h",
         "recommended_margin": 30.0
     } for symbol in SYMBOLS
 }
@@ -273,6 +274,25 @@ def fetch_bingx_klines(symbol, interval):
         print(f"Errore API klines {symbol}: {e}")
     return []
 
+def determine_optimal_timeframe(candles_15m, candles_1h, candles_4h):
+    """Analizza la volatilità e la struttura dei volumi per consigliare il timeframe perfetto in base al mercato attuale"""
+    try:
+        atr_15 = calculate_atr(candles_15m) / float(candles_15m[-1]['close']) if candles_15m else 0
+        atr_1 = calculate_atr(candles_1h) / float(candles_1h[-1]['close']) if candles_1h else 0
+        atr_4 = calculate_atr(candles_4h) / float(candles_4h[-1]['close']) if candles_4h else 0
+
+        # Se c'è altissima volatilità sul brevissimo, consiglia 15m per scalping rapido
+        if atr_15 > atr_1 * 1.2:
+            return "15m"
+        # Se il trend è stabile sul medio/lungo periodo, consiglia 4h
+        elif atr_4 > atr_1 * 1.5:
+            return "4h"
+        # Standard operativo di massima precisione istituzionale
+        else:
+            return "1h"
+    except Exception:
+        return "1h"
+
 def run_scanner_background():
     telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     channel_id = os.environ.get("CHANNEL_ID")
@@ -289,20 +309,23 @@ def run_scanner_background():
                 candles_4h = fetch_bingx_klines(symbol, "4h")
                 
                 if candles_15m and candles_1h and candles_4h:
-                    closes_15m = [float(c['close']) for c in candles_15m]
-                    closes_1h = [float(c['close']) for c in candles_1h]
-                    closes_4h = [float(c['close']) for c in candles_4h]
-                    current_price = closes_1h[-1]
+                    # Determina dinamicamente il timeframe migliore in base al mercato attuale della singola crypto
+                    recommended_tf = determine_optimal_timeframe(candles_15m, candles_1h, candles_4h)
                     
-                    rsi_15m = calculate_rsi(closes_15m)
-                    rsi_1h = calculate_rsi(closes_1h)
-                    rsi_4h = calculate_rsi(closes_4h)
+                    # Seleziona le candele di riferimento in base al timeframe scelto dall'IA
+                    active_candles = candles_15m if recommended_tf == "15m" else (candles_4h if recommended_tf == "4h" else candles_1h)
+                    closes = [float(c['close']) for c in active_candles]
+                    current_price = closes[-1]
                     
-                    ema_9 = calculate_ema(closes_1h, 9)
-                    ema_21 = calculate_ema(closes_1h, 21)
-                    ema_50 = calculate_ema(closes_1h, 50)
-                    atr = calculate_atr(candles_1h)
-                    whale_txt, whale_score_val = analyze_whale_volume(candles_1h)
+                    rsi_15m = calculate_rsi([float(c['close']) for c in candles_15m])
+                    rsi_1h = calculate_rsi([float(c['close']) for c in candles_1h])
+                    rsi_4h = calculate_rsi([float(c['close']) for c in candles_4h])
+                    
+                    ema_9 = calculate_ema(closes, 9)
+                    ema_21 = calculate_ema(closes, 21)
+                    ema_50 = calculate_ema(closes, 50)
+                    atr = calculate_atr(active_candles)
+                    whale_txt, whale_score_val = analyze_whale_volume(active_candles)
 
                     bullish_points, bearish_points, total_indicators = 0, 0, 20
 
@@ -329,8 +352,8 @@ def run_scanner_background():
                         bearish_points += 3
 
                     if bot_settings["use_trend_following"] == 1:
-                        if closes_1h[-1] > closes_1h[-2] and closes_1h[-2] > closes_1h[-3]: bullish_points += 2
-                        elif closes_1h[-1] < closes_1h[-2] and closes_1h[-2] < closes_1h[-3]: bearish_points += 2
+                        if closes[-1] > closes[-2] and closes[-2] > closes[-3]: bullish_points += 2
+                        elif closes[-1] < closes[-2] and closes[-2] < closes[-3]: bearish_points += 2
                         if closes_4h[-1] > closes_4h[-2]: bullish_points += 1
                         else: bearish_points += 1
                     else:
@@ -368,25 +391,24 @@ def run_scanner_background():
                     else:
                         ai_grade = "C (Standby)"
 
-                    base_step = atr if atr > 0 else current_price * 0.012
+                    base_step = atr if atr > 0 else current_price * 0.008
                     leverage = 10 if score >= 90 else (5 if score >= 82 else 3)
                     
                     signal_time_str = datetime.now(ZoneInfo("Europe/Rome")).strftime("%H:%M:%S")
-                    
                     recommended_margin = round(max(25.0, current_price * 0.03 / leverage), 2) if current_price < 100 else round(max(30.0, 1500.0 / leverage), 2)
 
                     if action == "LONG":
-                        sl = current_price - (base_step * 1.1)
-                        tp1 = current_price + (base_step * 1.2)
-                        tp2 = current_price + (base_step * 2.4)
-                        tp3 = current_price + (base_step * 3.6)
+                        sl = current_price - (base_step * 0.5)
+                        tp1 = current_price + (base_step * 0.6)
+                        tp2 = current_price + (base_step * 1.2)
+                        tp3 = current_price + (base_step * 1.8)
                     elif action == "SHORT":
-                        sl = current_price + (base_step * 1.1)
-                        tp1 = current_price - (base_step * 1.2)
-                        tp2 = current_price - (base_step * 2.4)
-                        tp3 = current_price - (base_step * 3.6)
+                        sl = current_price + (base_step * 0.5)
+                        tp1 = current_price - (base_step * 0.6)
+                        tp2 = current_price - (base_step * 1.2)
+                        tp3 = current_price - (base_step * 1.8)
                     else:
-                        sl, tp1, tp2, tp3 = current_price * 0.98, current_price * 1.01, current_price * 1.02, current_price * 1.03
+                        sl, tp1, tp2, tp3 = current_price * 0.99, current_price * 1.005, current_price * 1.01, current_price * 1.015
 
                     sl_pct = round(((sl - current_price) / current_price) * 100, 2)
                     tp1_pct = round(((tp1 - current_price) / current_price) * 100, 2)
@@ -419,6 +441,7 @@ def run_scanner_background():
                         "tp3_pct": tp3_pct,
                         "leverage": leverage,
                         "signal_time": signal_time_str,
+                        "recommended_tf": recommended_tf,
                         "recommended_margin": recommended_margin
                     }
 
@@ -430,11 +453,11 @@ def run_scanner_background():
                             if telegram_token and channel_id:
                                 pair_name = symbol.replace("-USDT", " / USDT")
                                 decimals = 5 if current_price < 1 else 2
-                                dir_text = "🟢 LONG MAX" if action == "LONG" else "🔴 SHORT MAX"
+                                dir_text = "🟢 LONG DYNAMIC" if action == "LONG" else "🔴 SHORT DYNAMIC"
 
                                 message = (
-                                    f"👑 **SCANNER TRADING VIP [MAX POWER]** 👑\n"
-                                    f"⏰ **Orario:** {signal_time_str}\n\n"
+                                    f"👑 **SCANNER TRADING VIP [TF: {recommended_tf.upper()}]** 👑\n"
+                                    f"⏰ **Orario:** {signal_time_str} | ⏱️ **Timeframe Consigliato:** {recommended_tf}\n\n"
                                     f"🔹 **Asset:** {pair_name}\n"
                                     f"📊 **Direzione:** {dir_text}\n"
                                     f"⭐ **Confluenza IA:** {score}% | **Grado:** {ai_grade}\n"
@@ -531,7 +554,7 @@ def home():
         if active_signals:
             signals_html += (
                 '<div class="signal-box">'
-                '<h3 style="color: #00ff66; font-size: 15px; margin-bottom: 10px;">🔥 Segnali MAX Power Attivi</h3>'
+                '<h3 style="color: #00ff66; font-size: 15px; margin-bottom: 10px;">🔥 Segnali con Timeframe Dinamico Attivi</h3>'
                 '<div style="display: flex; flex-direction: column; gap: 8px;">'
             )
             for sym, dat in active_signals.items():
@@ -542,7 +565,7 @@ def home():
                     f'<div style="background: #000000; padding: 10px; border-radius: 8px; border: 1px solid #333333; border-left: 4px solid {dir_color}; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">'
                     f'<div>'
                     f'<strong style="color: #ffffff; font-size: 14px;">{dat["symbol"]}</strong> - <span style="color: {dir_color}; font-weight: bold;">{dat["action"]}</span> '
-                    f'<span style="font-size: 11px; color: #aaaaaa;">🕒 {dat["signal_time"]}</span>'
+                    f'<span style="font-size: 11px; color: #aaaaaa;">🕒 {dat["signal_time"]} | ⏱️ TF: <strong style="color: #00ff66;">{dat["recommended_tf"]}</strong></span>'
                     f'<div style="font-size: 11px; color: #aaaaaa; margin-top: 2px;">Score IA: <strong style="color: #00ff66;">{dat["score"]}%</strong> | Grado: <strong style="color: #00ff66;">{dat["ai_grade"]}</strong> | Leva: {dat["leverage"]}x</div>'
                     f'</div>'
                     f'<div style="display: flex; gap: 10px; align-items: center;">'
@@ -566,7 +589,7 @@ def home():
 
         toggles_html = f"""
         <div class="panel" style="border: 1px solid #333333;">
-            <h3 style="color: #ffffff; font-size: 14px; margin-bottom: 10px;">⚙️ Pannello Admin: Motore IA MAX POWER</h3>
+            <h3 style="color: #ffffff; font-size: 14px; margin-bottom: 10px;">⚙️ Pannello Admin: Motore IA Timeframe Dinamico</h3>
             <form action="/toggle-settings" method="POST" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; font-size: 13px;">
                 <label style="color: #ffffff;"><input type="checkbox" name="use_trend_following" {"checked" if bot_settings["use_trend_following"]==1 else ""}> Trend-Following</label>
                 <label style="color: #ffffff;"><input type="checkbox" name="use_multi_ema" {"checked" if bot_settings["use_multi_ema"]==1 else ""}> Multi-EMA</label>
@@ -581,7 +604,7 @@ def home():
         content = """
         <div class="panel" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
             <div>
-                <h3 style="color: #ffffff; font-size: 16px; margin-bottom: 3px;">Scanner Universale Multi-Timeframe MAX POWER</h3>
+                <h3 style="color: #ffffff; font-size: 16px; margin-bottom: 3px;">Scanner Universale Multi-Crypto (Timeframe Dinamico IA)</h3>
                 <p style="font-size: 12px; color: #aaaaaa;">Asset Monitorati: <strong style="color: #00ff66;">{total_assets}</strong> | Soglia Minima IA: <strong style="color: #00ff66;">{threshold}%</strong></p>
             </div>
             {threshold_control}
@@ -622,6 +645,7 @@ def home():
                 </div>
                 
                 <div style="font-size: 11px; color: #aaaaaa; display: flex; flex-direction: column; gap: 4px; margin-top: 8px;">
+                    <div style="display: flex; justify-content: space-between;"><span>Timeframe Ottimale:</span><strong style="color: #00ff66;">Grafico {{ data.recommended_tf }}</strong></div>
                     <div style="display: flex; justify-content: space-between;"><span>Prezzo Live:</span><strong style="color: #ffffff;">${{ "%.4f"|format(data.price) if data.price < 1 else "%.2f"|format(data.price) }}</strong></div>
                     <div style="display: flex; justify-content: space-between;"><span>RSI (1H / 4H):</span><span><strong style="color: #ffffff;">{{ data.rsi_1h }}</strong> / <strong style="color: #aaaaaa;">{{ data.rsi_4h }}</strong></span></div>
                     <div style="display: flex; justify-content: space-between;"><span>Margine Consigliato:</span><strong style="color: #00ff66;">${{ data.recommended_margin }} USDT ({{ data.leverage }}x)</strong></div>
