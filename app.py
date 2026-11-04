@@ -59,7 +59,7 @@ bot_settings = {
     "use_multi_ema": 1,
     "use_rsi_filter": 1,
     "use_whale_tracker": 1,
-    "auto_execution": 0,           # Manuale di default (Solo Segnali)
+    "auto_execution": 0,
     "max_concurrent_trades": 2,      
     "enable_concurrent_limit": 1     
 }
@@ -166,7 +166,6 @@ def execute_bingx_order(api_key, secret_key, symbol, side, leverage=5, quantity=
     try:
         clean_api = api_key.strip()
         clean_sec = secret_key.strip()
-        
         set_bingx_leverage(clean_api, clean_sec, symbol, leverage, side)
         
         url = "https://open-api.bingx.com/openApi/swap/v2/trade/order"
@@ -181,7 +180,6 @@ def execute_bingx_order(api_key, secret_key, symbol, side, leverage=5, quantity=
             "quantity": str(quantity),
             "timestamp": timestamp
         }
-        
         if sl > 0:
             params["stopLossPrice"] = str(sl)
         if tp1 > 0:
@@ -194,11 +192,7 @@ def execute_bingx_order(api_key, secret_key, symbol, side, leverage=5, quantity=
         
         response = requests.post(full_url, headers=headers, timeout=5)
         res_json = response.json()
-        if response.status_code == 200 and res_json.get("code") == 0:
-            print(f"Ordine eseguito con successo su BingX per {symbol}: {res_json}")
-            return True
-        else:
-            print(f"Errore API BingX ordine {symbol}: {res_json}")
+        return response.status_code == 200 and res_json.get("code") == 0
     except Exception as e:
         print(f"Errore esecuzione ordine {symbol}: {e}")
     return False
@@ -206,20 +200,15 @@ def execute_bingx_order(api_key, secret_key, symbol, side, leverage=5, quantity=
 def count_open_trades():
     count = 0
     for sym, trade in active_trades.items():
-        status = trade.get("status", "")
-        if "POSIZIONE APERTA" in status or "IN_PROGRESS" in status:
+        if "POSIZIONE APERTA" in trade.get("status", "") or "IN_PROGRESS" in trade.get("status", ""):
             count += 1
     return count
 
 def trigger_auto_trades(symbol, action, leverage, sl, tp1):
     if bot_settings["auto_execution"] == 0:
         return False
-
-    if bot_settings["enable_concurrent_limit"] == 1:
-        if count_open_trades() >= bot_settings["max_concurrent_trades"]:
-            print(f"Limite massimo di {bot_settings['max_concurrent_trades']} operazioni raggiunto.")
-            return False
-
+    if bot_settings["enable_concurrent_limit"] == 1 and count_open_trades() >= bot_settings["max_concurrent_trades"]:
+        return False
     side = "BUY" if action == "LONG" else "SELL"
     api_key, secret_key = get_user_api_keys(ADMIN_USERNAME)
     if api_key and secret_key:
@@ -233,11 +222,9 @@ def calculate_rsi(prices, period=14):
     for i in range(1, len(prices)):
         diff = prices[i] - prices[i-1]
         if diff >= 0:
-            gains.append(diff)
-            losses.append(0)
+            gains.append(diff); losses.append(0)
         else:
-            gains.append(0)
-            losses.append(abs(diff))
+            gains.append(0); losses.append(abs(diff))
     avg_gain = sum(gains[-period:]) / period
     avg_loss = sum(losses[-period:]) / period
     if avg_loss == 0:
@@ -271,15 +258,8 @@ def analyze_whale_volume(candles):
     volumes = [float(c['volume']) for c in candles]
     avg_volume = sum(volumes[:-1]) / len(volumes[:-1]) if len(volumes) > 1 else volumes[-1]
     last_volume = volumes[-1]
-    is_institutional = last_volume > (avg_volume * 1.8)
-    last_close = float(candles[-1]['close'])
-    prev_close = float(candles[-1]['open'])
-    
-    if is_institutional:
-        if last_close > prev_close:
-            return "INSTITUTIONAL ACCUMULATION 🏛️", 3
-        else:
-            return "INSTITUTIONAL DISTRIBUTION 🏛️", -3
+    if last_volume > (avg_volume * 1.8):
+        return ("INSTITUTIONAL ACCUMULATION 🏛️", 3) if float(candles[-1]['close']) > float(candles[-1]['open']) else ("INSTITUTIONAL DISTRIBUTION 🏛️", -3)
     return "NORMAL LIQUIDITY", 0
 
 def fetch_bingx_klines(symbol, interval):
@@ -299,7 +279,6 @@ def determine_optimal_timeframe(candles_15m, candles_1h, candles_4h):
         vol_15m = calculate_atr(candles_15m) / float(candles_15m[-1]['close']) if candles_15m else 0
         vol_1h = calculate_atr(candles_1h) / float(candles_1h[-1]['close']) if candles_1h else 0
         vol_4h = calculate_atr(candles_4h) / float(candles_4h[-1]['close']) if candles_4h else 0
-
         if vol_15m > (vol_1h * 1.4):
             return "15m"
         elif vol_4h > vol_1h * 1.2:
@@ -312,53 +291,29 @@ def determine_optimal_timeframe(candles_15m, candles_1h, candles_4h):
 def check_tp_sl_hits(symbol, current_price, telegram_token, channel_id):
     if symbol not in active_trades:
         return "SEARCHING"
-
     trade = active_trades[symbol]
-    action = trade["action"]
-    sl = trade["sl"]
-    tp1 = trade["tp1"]
-    tp2 = trade["tp2"]
-    tp3 = trade["tp3"]
-
+    action, sl, tp1, tp2, tp3 = trade["action"], trade["sl"], trade["tp1"], trade["tp2"], trade["tp3"]
     pair_name = symbol.replace("-USDT", " / USDT")
     decimals = 5 if current_price < 1 else 2
 
     if action == "LONG":
         if current_price <= sl and "SL" not in trade["hits"]:
-            trade["hits"].append("SL")
-            trade["status"] = "🛑 STOP LOSS HIT"
-            send_telegram_msg(telegram_token, channel_id, f"🛑 **STOP LOSS COLPITO** | {pair_name}\nPrezzo: ${current_price:.{decimals}f}")
+            trade["hits"].append("SL"); trade["status"] = "🛑 STOP LOSS HIT"
         elif current_price >= tp3 and "TP3" not in trade["hits"]:
-            trade["hits"].extend(["TP1", "TP2", "TP3"])
-            trade["status"] = "🎯🎯🎯 TP3 RAGGIUNTO"
-            send_telegram_msg(telegram_token, channel_id, f"🎯🎯🎯 **TAKE PROFIT 3 RAGGIUNTO!** | {pair_name}\nPrezzo: ${current_price:.{decimals}f}")
+            trade["hits"].extend(["TP1", "TP2", "TP3"]); trade["status"] = "🎯🎯🎯 TP3 RAGGIUNTO"
         elif current_price >= tp2 and "TP2" not in trade["hits"]:
-            trade["hits"].extend(["TP1", "TP2"])
-            trade["status"] = "🎯🎯 TP2 RAGGIUNTO"
-            send_telegram_msg(telegram_token, channel_id, f"🎯🎯 **TAKE PROFIT 2 RAGGIUNTO!** | {pair_name}\nPrezzo: ${current_price:.{decimals}f}")
+            trade["hits"].extend(["TP1", "TP2"]); trade["status"] = "🎯🎯 TP2 RAGGIUNTO"
         elif current_price >= tp1 and "TP1" not in trade["hits"]:
-            trade["hits"].append("TP1")
-            trade["status"] = "🎯 TP1 RAGGIUNTO"
-            send_telegram_msg(telegram_token, channel_id, f"🎯 **TAKE PROFIT 1 RAGGIUNTO!** | {pair_name}\nPrezzo: ${current_price:.{decimals}f}")
-
+            trade["hits"].append("TP1"); trade["status"] = "🎯 TP1 RAGGIUNTO"
     elif action == "SHORT":
         if current_price >= sl and "SL" not in trade["hits"]:
-            trade["hits"].append("SL")
-            trade["status"] = "🛑 STOP LOSS HIT"
-            send_telegram_msg(telegram_token, channel_id, f"🛑 **STOP LOSS COLPITO** | {pair_name}\nPrezzo: ${current_price:.{decimals}f}")
+            trade["hits"].append("SL"); trade["status"] = "🛑 STOP LOSS HIT"
         elif current_price <= tp3 and "TP3" not in trade["hits"]:
-            trade["hits"].extend(["TP1", "TP2", "TP3"])
-            trade["status"] = "🎯🎯🎯 TP3 RAGGIUNTO"
-            send_telegram_msg(telegram_token, channel_id, f"🎯🎯🎯 **TAKE PROFIT 3 RAGGIUNTO!** | {pair_name}\nPrezzo: ${current_price:.{decimals}f}")
+            trade["hits"].extend(["TP1", "TP2", "TP3"]); trade["status"] = "🎯🎯🎯 TP3 RAGGIUNTO"
         elif current_price <= tp2 and "TP2" not in trade["hits"]:
-            trade["hits"].extend(["TP1", "TP2"])
-            trade["status"] = "🎯🎯 TP2 RAGGIUNTO"
-            send_telegram_msg(telegram_token, channel_id, f"🎯🎯 **TAKE PROFIT 2 RAGGIUNTO!** | {pair_name}\nPrezzo: ${current_price:.{decimals}f}")
+            trade["hits"].extend(["TP1", "TP2"]); trade["status"] = "🎯🎯 TP2 RAGGIUNTO"
         elif current_price <= tp1 and "TP1" not in trade["hits"]:
-            trade["hits"].append("TP1")
-            trade["status"] = "🎯 TP1 RAGGIUNTO"
-            send_telegram_msg(telegram_token, channel_id, f"🎯 **TAKE PROFIT 1 RAGGIUNTO!** | {pair_name}\nPrezzo: ${current_price:.{decimals}f}")
-
+            trade["hits"].append("TP1"); trade["status"] = "🎯 TP1 RAGGIUNTO"
     return trade["status"]
 
 def send_telegram_msg(token, channel_id, message):
@@ -398,23 +353,18 @@ def run_scanner_background():
                     ema_50 = calculate_ema(closes_1h, 50)
                     atr = calculate_atr(candles_1h)
                     whale_txt, whale_score_val = analyze_whale_volume(candles_1h)
-
                     recommended_tf = determine_optimal_timeframe(candles_15m, candles_1h, candles_4h)
 
                     bullish_points, bearish_points, total_indicators = 0, 0, 20
-
                     if bot_settings["use_rsi_filter"] == 1:
                         if 52 <= rsi_15m <= 72: bullish_points += 3
                         elif 28 <= rsi_15m <= 48: bearish_points += 3
-                        
                         if 52 <= rsi_1h <= 75: bullish_points += 4
                         elif 25 <= rsi_1h <= 48: bearish_points += 4
-                        
                         if rsi_4h > 50: bullish_points += 3
                         else: bearish_points += 3
                     else:
-                        bullish_points += 5
-                        bearish_points += 5
+                        bullish_points += 5; bearish_points += 5
 
                     if bot_settings["use_multi_ema"] == 1:
                         if ema_9 > ema_21 > ema_50: bullish_points += 4
@@ -422,54 +372,35 @@ def run_scanner_background():
                         if current_price > ema_50: bullish_points += 2
                         else: bearish_points += 2
                     else:
-                        bullish_points += 3
-                        bearish_points += 3
+                        bullish_points += 3; bearish_points += 3
 
                     if bot_settings["use_trend_following"] == 1:
-                        if closes_1h[-1] > closes_1h[-2] and closes_1h[-2] > closes_1h[-3]: bullish_points += 2
-                        elif closes_1h[-1] < closes_1h[-2] and closes_1h[-2] < closes_1h[-3]: bearish_points += 2
-                        if closes_4h[-1] > closes_4h[-2]: bullish_points += 1
-                        else: bearish_points += 1
+                        if closes_1h[-1] > closes_1h[-2]: bullish_points += 2
+                        else: bearish_points += 2
                     else:
-                        bullish_points += 2
-                        bearish_points += 2
+                        bullish_points += 2; bearish_points += 2
 
                     if bot_settings["use_whale_tracker"] == 1:
                         if whale_score_val == 3: bullish_points += 3
                         elif whale_score_val == -3: bearish_points += 3
                     else:
-                        bullish_points += 1
-                        bullish_points += 1
+                        bullish_points += 1; bearish_points += 1
 
                     action, score, rating, passed_indicators = "NEUTRAL", 50, "NEUTRAL", 0
-
                     if bullish_points >= 13 and rsi_1h >= 52:
-                        action = "LONG"
-                        passed_indicators = bullish_points
+                        action = "LONG"; passed_indicators = bullish_points
                         score = min(99, max(68, int((bullish_points / total_indicators) * 100)))
                         rating = "ALPHA BUY" if score >= 88 else "QUANTUM BUY"
                     elif bearish_points >= 13 and rsi_1h <= 48:
-                        action = "SHORT"
-                        passed_indicators = bearish_points
+                        action = "SHORT"; passed_indicators = bearish_points
                         score = min(99, max(68, int((bearish_points / total_indicators) * 100)))
                         rating = "ALPHA SELL" if score >= 88 else "QUANTUM SELL"
 
-                    if score >= 90:
-                        ai_grade = "A+ (Elite Quantum MAX)"
-                    elif score >= 82:
-                        ai_grade = "A (High Probability)"
-                    elif score >= 75:
-                        ai_grade = "B+ (Stable Setup)"
-                    elif score >= 68:
-                        ai_grade = "B (Moderate Setup)"
-                    else:
-                        ai_grade = "C (Standby)"
-
+                    ai_grade = "A+ (Elite Quantum MAX)" if score >= 90 else "A (High Probability)" if score >= 82 else "B+ (Stable Setup)" if score >= 75 else "B (Moderate Setup)" if score >= 68 else "C (Standby)"
                     base_step = atr if atr > 0 else current_price * 0.008
                     leverage = 10 if score >= 90 else (5 if score >= 82 else 3)
-                    
                     signal_time_str = datetime.now(ZoneInfo("Europe/Rome")).strftime("%H:%M:%S")
-                    recommended_margin = round(max(25.0, current_price * 0.03 / leverage), 2) if current_price < 100 else round(max(30.0, 1500.0 / leverage), 2)
+                    recommended_margin = round(max(25.0, current_price * 0.03 / leverage), 2)
 
                     if action == "LONG":
                         sl = current_price - (base_step * 0.5)
@@ -488,9 +419,7 @@ def run_scanner_background():
                     tp1_pct = round(((tp1 - current_price) / current_price) * 100, 2)
                     tp2_pct = round(((tp2 - current_price) / current_price) * 100, 2)
                     tp3_pct = round(((tp3 - current_price) / current_price) * 100, 2)
-
                     trade_status = check_tp_sl_hits(symbol, current_price, telegram_token, channel_id)
-
                     asset_type_val = "COMMODITY/METALS" if any(x in symbol for x in ["GOLD", "PAXG", "OIL", "SILVER", "COPPER"]) else "CRYPTO"
 
                     market_data_cache[symbol] = {
@@ -498,81 +427,31 @@ def run_scanner_background():
                         "pair": symbol.replace("-USDT", "/USDT"),
                         "asset_type": asset_type_val,
                         "price": current_price,
-                        "rsi_15m": rsi_15m,
-                        "rsi_1h": rsi_1h,
-                        "rsi_4h": rsi_4h,
-                        "ema_9": ema_9,
-                        "ema_21": ema_21,
-                        "ema_50": ema_50,
-                        "whale_status": whale_txt,
-                        "score": score,
-                        "rating": rating,
-                        "action": action,
-                        "ai_grade": ai_grade,
+                        "rsi_15m": rsi_15m, "rsi_1h": rsi_1h, "rsi_4h": rsi_4h,
+                        "ema_9": ema_9, "ema_21": ema_21, "ema_50": ema_50,
+                        "whale_status": whale_txt, "score": score, "rating": rating,
+                        "action": action, "ai_grade": ai_grade,
                         "indicators_passed": passed_indicators if action != "NEUTRAL" else int(total_indicators / 2),
                         "indicators_total": total_indicators,
-                        "sl": sl,
-                        "tp1": tp1,
-                        "tp2": tp2,
-                        "tp3": tp3,
-                        "sl_pct": sl_pct,
-                        "tp1_pct": tp1_pct,
-                        "tp2_pct": tp2_pct,
-                        "tp3_pct": tp3_pct,
-                        "leverage": leverage,
-                        "signal_time": signal_time_str,
-                        "recommended_tf": recommended_tf,
-                        "recommended_margin": recommended_margin,
+                        "sl": sl, "tp1": tp1, "tp2": tp2, "tp3": tp3,
+                        "sl_pct": sl_pct, "tp1_pct": tp1_pct, "tp2_pct": tp2_pct, "tp3_pct": tp3_pct,
+                        "leverage": leverage, "signal_time": signal_time_str,
+                        "recommended_tf": recommended_tf, "recommended_margin": recommended_margin,
                         "trade_status": trade_status
                     }
 
                     if score >= current_threshold and action != "NEUTRAL":
                         if current_time - last_signal_time[symbol] > COOLDOWN_SECONDS:
                             can_open = True
-                            if bot_settings["enable_concurrent_limit"] == 1:
-                                if count_open_trades() >= bot_settings["max_concurrent_trades"]:
-                                    can_open = False
-
+                            if bot_settings["enable_concurrent_limit"] == 1 and count_open_trades() >= bot_settings["max_concurrent_trades"]:
+                                can_open = False
                             if can_open:
                                 last_signal_time[symbol] = current_time
-                                
                                 active_trades[symbol] = {
-                                    "action": action,
-                                    "entry": current_price,
-                                    "sl": sl,
-                                    "tp1": tp1,
-                                    "tp2": tp2,
-                                    "tp3": tp3,
-                                    "tp1_pct": tp1_pct,
-                                    "tp2_pct": tp2_pct,
-                                    "tp3_pct": tp3_pct,
-                                    "status": "🚀 POSIZIONE APERTA",
-                                    "hits": []
+                                    "action": action, "entry": current_price, "sl": sl, "tp1": tp1, "tp2": tp2, "tp3": tp3,
+                                    "tp1_pct": tp1_pct, "tp2_pct": tp2_pct, "tp3_pct": tp3_pct, "status": "🚀 POSIZIONE APERTA", "hits": []
                                 }
-
-                                executed = trigger_auto_trades(symbol, action, leverage, sl, tp1)
-                                exec_txt = "✅ Inviato su BingX" if executed else "⚠️ Solo Segnale (Modalità Manuale Attiva)"
-
-                                if telegram_token and channel_id:
-                                    pair_name = symbol.replace("-USDT", " / USDT")
-                                    decimals = 5 if current_price < 1 else 2
-                                    dir_text = "🟢 LONG PRECISION" if action == "LONG" else "🔴 SHORT PRECISION"
-
-                                    message = (
-                                        f"👑 **vip.trading** 👑\n"
-                                        f"⏰ **Orario:** {signal_time_str} | ⏱️ **Timeframe Ottimale:** {recommended_tf.upper()}\n\n"
-                                        f"🔹 **Asset:** {pair_name} ({asset_type_val})\n"
-                                        f"📊 **Direzione:** {dir_text} ({exec_txt})\n"
-                                        f"⭐ **Confluenza IA:** {score}% | **Grado:** {ai_grade}\n"
-                                        f"⚙️ **Leva:** {leverage}x | **Margine:** ${recommended_margin} USDT\n"
-                                        f"⚡ **Ingresso:** ${current_price:.{decimals}f}\n\n"
-                                        f"🛑 **Stop Loss:** ${sl:.{decimals}f} ({sl_pct}%)\n"
-                                        f"🎯 **Take Profit 1:** ${tp1:.{decimals}f} (+{tp1_pct}%)\n"
-                                        f"🎯 **Take Profit 2:** ${tp2:.{decimals}f} (+{tp2_pct}%)\n"
-                                        f"🎯 **Take Profit 3:** ${tp3:.{decimals}f} (+{tp3_pct}%)\n"
-                                    )
-                                    send_telegram_msg(telegram_token, channel_id, message)
-                                time.sleep(1)
+                                trigger_auto_trades(symbol, action, leverage, sl, tp1)
             except Exception as e:
                 print(f"Errore scanner: {e}")
             time.sleep(0.2)
@@ -591,37 +470,28 @@ BASE_HTML = """
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { background-color: #000000; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 15px; }
-        
         .header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 15px; border-bottom: 2px solid #00ff66; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;}
         .logo { font-size: 24px; font-weight: 900; color: #ffffff; letter-spacing: 1px; }
         .nav a { color: #ffffff; text-decoration: none; margin-left: 10px; background: #0a0a0a; padding: 6px 12px; border-radius: 6px; border: 1px solid #00ff66; font-size: 13px; font-weight: bold; transition: all 0.3s;}
         .nav a:hover { background: #00ff66; color: #000000; }
-        
         .panel { background: #0a0a0a; border: 1px solid #222222; border-radius: 12px; padding: 18px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0,255,102,0.1); }
         .form-group { margin-bottom: 12px; }
         .form-group label { display: block; font-size: 12px; color: #00ff66; margin-bottom: 4px; font-weight: bold; }
         .form-group input, .form-group select { width: 100%; background: #000000; border: 1px solid #333333; color: #ffffff; padding: 8px; border-radius: 6px; font-size: 14px; }
-        
         .btn { background: #00ff66; color: #000000; border: none; padding: 9px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; width: 100%; box-shadow: 0 2px 10px rgba(0,255,102,0.3); }
         .btn:hover { opacity: 0.85; }
-        
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
         .card { background: #0a0a0a; border: 1px solid #222222; border-radius: 10px; padding: 14px; position: relative; box-shadow: 0 4px 15px rgba(0,0,0,0.7); transition: border-color 0.3s;}
         .card:hover { border-color: #00ff66; }
-        
         .flash { background: #111111; color: #00ff66; border: 1px solid #00ff66; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 13px; font-weight: bold; }
-        
         .analog-gauge { width: 110px; height: 110px; border-radius: 50%; background: radial-gradient(circle, #111111 0%, #000000 100%); border: 2px solid #333333; position: relative; margin: 10px auto; display: flex; align-items: center; justify-content: center; box-shadow: inset 0 0 10px rgba(0,0,0,0.8); }
         .gauge-center { width: 10px; height: 10px; background: #00ff66; border-radius: 50%; position: absolute; z-index: 3; box-shadow: 0 0 6px #00ff66; }
         .gauge-needle { width: 2px; height: 45px; background: #ff3333; position: absolute; bottom: 50%; left: calc(50% - 1px); transform-origin: bottom center; z-index: 2; transition: transform 0.5s ease-in-out; box-shadow: 0 0 4px #ff3333; }
         .gauge-value-text { position: absolute; bottom: 12px; font-size: 11px; font-weight: bold; color: #ffffff; z-index: 4; text-shadow: 0 1px 3px #000000; }
-        
         .power-bar-bg { background: #1a1a1a; height: 6px; border-radius: 3px; overflow: hidden; margin: 4px 0 8px 0; border: 1px solid #333333; }
         .power-bar-fill { height: 100%; background: #00ff66; }
-        
         .chart-btn { display: inline-block; background: rgba(0,255,102,0.1); color: #00ff66; border: 1px solid #00ff66; padding: 6px 10px; border-radius: 6px; font-size: 11px; text-decoration: none; font-weight: bold; margin-top: 10px; text-align: center; width: 100%; transition: all 0.3s; }
         .chart-btn:hover { background: #00ff66; color: #000000; }
-        
         .signal-box { background: rgba(0,255,102,0.03); border: 1px solid #00ff66; border-radius: 10px; padding: 14px; margin-bottom: 20px; }
         .badge-type { font-size: 9px; padding: 2px 5px; border-radius: 3px; font-weight: bold; background: #222; border: 1px solid #444; margin-left: 5px; }
     </style>
@@ -629,7 +499,7 @@ BASE_HTML = """
 </head>
 <body>
     <div class="header">
-        <div class="logo" style="font-size: 26px; font-weight: 900; color: #00ff66;"><b>vip.trading</b></div>
+        <div class="logo"><b>vip.trading</b></div>
         <div class="nav">
             {% if session.get('user_id') %}
                 <span>Utente: <strong style="color: #00ff66;">{{ session.get('username') }}</strong></span>
@@ -708,82 +578,74 @@ def home():
         </div>
         """ if is_admin else ""
 
-        content = """
+        content = f"""
         <div class="panel" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
             <div>
                 <h3 style="color: #ffffff; font-size: 16px; margin-bottom: 3px;">Scanner Universale Avanzato (Crypto + Materie Prime / Oro / Petrolio)</h3>
-                <p style="font-size: 12px; color: #aaaaaa;">Asset Monitorati: <strong style="color: #00ff66;">{total_assets}</strong> | Modalità: <strong style="color: #00ff66;">{bot_mode}</strong></p>
+                <p style="font-size: 12px; color: #aaaaaa;">Asset Monitorati: <strong style="color: #00ff66;">{len(SYMBOLS)}</strong> | Modalità: <strong style="color: #00ff66;">{"🤖 Automatico" if bot_settings["auto_execution"]==1 else "✋ Manuale (Solo Segnali)"}</strong></p>
             </div>
             {threshold_control}
         </div>
         
-        {toggles_section}
-        {signals_section}
+        {toggles_html}
+        {signals_html}
         
         <h3 style="margin-bottom: 12px; color: #ffffff; font-size: 16px; font-weight: bold; border-left: 3px solid #00ff66; padding-left: 8px;">📊 Monitoraggio Mercato Live & Tachimetri Analogici IA</h3>
         <div class="grid">
-            {% for symbol, data in market_data.items() %}
+            {{% for symbol, data in market_data.items() %}}
             <div class="card">
                 <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1a1a1a; padding-bottom: 8px; margin-bottom: 6px;">
                     <div>
-                        <span style="font-weight: bold; color: #ffffff; font-size: 14px;">{{ data.symbol }}</span> <span class="badge-type">{{ data.asset_type }}</span>
-                        <div style="font-size: 11px; color: {% if data.action == 'LONG' %}#00ff66{% elif data.action == 'SHORT' %}#ff3333{% else %}#aaaaaa{% endif %}; font-weight: bold;">
-                            Direzione: {{ data.action }} <span style="color: #aaaaaa; font-weight: normal;">({{ data.signal_time }})</span>
+                        <span style="font-weight: bold; color: #ffffff; font-size: 14px;">{{{{ data.symbol }}}}</span> <span class="badge-type">{{{{ data.asset_type }}}}</span>
+                        <div style="font-size: 11px; color: {{{{ '#00ff66' if data.action == 'LONG' else '#ff3333' if data.action == 'SHORT' else '#aaaaaa' }}}}; font-weight: bold;">
+                            Direzione: {{{{ data.action }}}} <span style="color: #aaaaaa; font-weight: normal;">({{{{ data.signal_time }}}})</span>
                         </div>
                     </div>
                     <div style="text-align: right;">
                         <span style="font-size: 11px; color: #00ff66; font-weight: bold;">Grado IA:</span>
-                        <div style="font-size: 11px; font-weight: bold; color: #ffffff;">{{ data.ai_grade }}</div>
+                        <div style="font-size: 11px; font-weight: bold; color: #ffffff;">{{{{ data.ai_grade }}}}</div>
                     </div>
                 </div>
 
                 <div class="analog-gauge">
                     <div class="gauge-center"></div>
-                    <div class="gauge-needle" style="transform: rotate({{ (data.score * 1.8) - 90 }}deg);"></div>
-                    <div class="gauge-value-text">{{ data.score }}%</div>
+                    <div class="gauge-needle" style="transform: rotate({{{{ (data.score * 1.8) - 90 }}}}deg);"></div>
+                    <div class="gauge-value-text">{{{{ data.score }}}}%</div>
                 </div>
 
                 <div style="font-size: 11px; color: #aaaaaa; display: flex; justify-content: space-between; margin-top: 4px;">
                     <span>⚡ POTENZA & INDICATORI</span>
-                    <span style="color: #00ff66; font-weight: bold;">{{ data.indicators_passed }}/{{ data.indicators_total }}</span>
+                    <span style="color: #00ff66; font-weight: bold;">{{{{ data.indicators_passed }}}}/{{{{ data.indicators_total }}}}</span>
                 </div>
                 <div class="power-bar-bg">
-                    <div class="power-bar-fill" style="width: {{ (data.indicators_passed / data.indicators_total * 100)|int }}%;"></div>
+                    <div class="power-bar-fill" style="width: {{{{ (data.indicators_passed / data.indicators_total * 100)|int }}}}%;"></div>
                 </div>
                 
                 <div style="font-size: 11px; color: #aaaaaa; display: flex; flex-direction: column; gap: 4px; margin-top: 8px;">
-                    <div style="display: flex; justify-content: space-between;"><span>Timeframe Ottimale A.I.:</span><strong style="color: #00ff66; background: #111; padding: 2px 6px; border-radius: 4px; border: 1px solid #00ff66;">Grafico {{ data.recommended_tf.upper() }}</strong></div>
-                    <div style="display: flex; justify-content: space-between;"><span>Prezzo Live:</span><strong style="color: #ffffff;">${{ "%.4f"|format(data.price) if data.price < 1 else "%.2f"|format(data.price) }}</strong></div>
-                    <div style="display: flex; justify-content: space-between;"><span>RSI (15m / 1H / 4H):</span><span><strong style="color: #aaaaaa;">{{ data.rsi_15m }}</strong> / <strong style="color: #ffffff;">{{ data.rsi_1h }}</strong> / <strong style="color: #aaaaaa;">{{ data.rsi_4h }}</strong></span></div>
-                    <div style="display: flex; justify-content: space-between;"><span>Status Operazione:</span><strong style="color: #00ff66;">{{ data.trade_status }}</strong></div>
+                    <div style="display: flex; justify-content: space-between;"><span>Timeframe Ottimale A.I.:</span><strong style="color: #00ff66; background: #111; padding: 2px 6px; border-radius: 4px; border: 1px solid #00ff66;">Grafico {{{{ data.recommended_tf.upper() }}}}</strong></div>
+                    <div style="display: flex; justify-content: space-between;"><span>Prezzo Live:</span><strong style="color: #ffffff;">${{{{ "%.4f"|format(data.price) if data.price < 1 else "%.2f"|format(data.price) }}}}</strong></div>
+                    <div style="display: flex; justify-content: space-between;"><span>RSI (15m / 1H / 4H):</span><span><strong style="color: #aaaaaa;">{{{{ data.rsi_15m }}}}</strong> / <strong style="color: #ffffff;">{{{{ data.rsi_1h }}}}</strong> / <strong style="color: #aaaaaa;">{{{{ data.rsi_4h }}}}</strong></span></div>
+                    <div style="display: flex; justify-content: space-between;"><span>Status Operazione:</span><strong style="color: #00ff66;">{{{{ data.trade_status }}}}</strong></div>
                     
                     <div style="display: flex; justify-content: space-between; border-top: 1px dashed #222222; padding-top: 4px; margin-top: 2px;">
                         <span style="color: #ff3333;">Stop Loss:</span>
-                        <strong style="color: #ff3333;">${{ "%.4f"|format(data.sl) if data.price < 1 else "%.2f"|format(data.sl) }} ({{ data.sl_pct }}%)</strong>
+                        <strong style="color: #ff3333;">${{{{ "%.4f"|format(data.sl) if data.price < 1 else "%.2f"|format(data.sl) }}}} ({{{{ data.sl_pct }}}% )</strong>
                     </div>
                     <div style="display: flex; justify-content: space-between;">
                         <span style="color: #00ff66;">Take Profit 1:</span>
-                        <strong style="color: #00ff66;">${{ "%.4f"|format(data.tp1) if data.price < 1 else "%.2f"|format(data.tp1) }} (+{{ data.tp1_pct }}%)</strong>
+                        <strong style="color: #00ff66;">${{{{ "%.4f"|format(data.tp1) if data.price < 1 else "%.2f"|format(data.tp1) }}}} (+{{{{ data.tp1_pct }}}% )</strong>
                     </div>
                 </div>
 
-                <a href="https://www.tradingview.com/chart/?symbol=BINGX:{{ data.symbol }}USDT" target="_blank" class="chart-btn">📈 Apri Grafico Live ({{ data.symbol }})</a>
+                <a href="https://www.tradingview.com/chart/?symbol=BINGX:{{{{ data.symbol }}}}USDT" target="_blank" class="chart-btn">📈 Apri Grafico Live ({{{{ data.symbol }}}})</a>
             </div>
-            {% endfor %}
+            {{% endfor %}}
         </div>
         """
-        
-        mode_text = "🤖 Automatico (BingX attivo)" if bot_settings["auto_execution"] == 1 else "✋ Manuale (Solo Segnali)"
-        content = content.replace("{threshold}", str(current_threshold))
-        content = content.replace("{total_assets}", str(len(SYMBOLS)))
-        content = content.replace("{bot_mode}", mode_text)
-        content = content.replace("{threshold_control}", threshold_control)
-        content = content.replace("{toggles_section}", toggles_html)
-        content = content.replace("{signals_section}", signals_html)
 
         refresh_tag = '<meta http-equiv="refresh" content="30">'
-        html = BASE_HTML.replace("{refresh_tag}", refresh_tag).replace("{content | safe}", content)
-        return render_template_string(html, brand_name=BRAND_NAME, market_data=market_data_cache)
+        html = BASE_HTML.replace("{refresh_tag}", refresh_tag)
+        return render_template_string(html, brand_name=BRAND_NAME, market_data=market_data_cache, content=content)
     except Exception as e:
         return f"Errore interno temporaneo: {e}", 500
 
@@ -821,8 +683,8 @@ def settings():
         <div style="margin-top: 15px; text-align: center;"><a href="/" style="color: #00ff66; font-size: 13px; text-decoration: none;">← Torna alla Dashboard</a></div>
     </div>
     """
-    html = BASE_HTML.replace("{refresh_tag}", "").replace("{content | safe}", content)
-    return render_template_string(html, brand_name=BRAND_NAME)
+    html = BASE_HTML.replace("{refresh_tag}", "")
+    return render_template_string(html, brand_name=BRAND_NAME, content=content)
 
 @app.route("/set-threshold", methods=["POST"])
 def set_threshold():
@@ -874,8 +736,8 @@ def register():
         </form>
     </div>
     """
-    html = BASE_HTML.replace("{refresh_tag}", "").replace("{content | safe}", content)
-    return render_template_string(html, brand_name=BRAND_NAME)
+    html = BASE_HTML.replace("{refresh_tag}", "")
+    return render_template_string(html, brand_name=BRAND_NAME, content=content)
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -907,8 +769,8 @@ def login():
         </form>
     </div>
     """
-    html = BASE_HTML.replace("{refresh_tag}", "").replace("{content | safe}", content)
-    return render_template_string(html, brand_name=BRAND_NAME)
+    html = BASE_HTML.replace("{refresh_tag}", "")
+    return render_template_string(html, brand_name=BRAND_NAME, content=content)
 
 @app.route("/logout")
 def logout():
