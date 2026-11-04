@@ -19,9 +19,9 @@ from flask import (
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "chiave_segreta_super_sicura_ai_precision_ultra")
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "chiave_segreta_super_sicura_quantum_max")
 
-BRAND_NAME = "👑 SCANNER TRADING VIP [PRECISION ULTRA]"
+BRAND_NAME = "👑 SCANNER TRADING VIP [MAX POWER ULTRA]"
 ADMIN_USERNAME = "Fabio"
 
 def fetch_all_bingx_symbols():
@@ -55,7 +55,7 @@ def fetch_all_bingx_symbols():
 
 SYMBOLS = fetch_all_bingx_symbols()
 
-current_threshold = 80
+current_threshold = 82
 
 bot_settings = {
     "use_trend_following": 1,
@@ -306,7 +306,6 @@ def run_scanner_background():
 
                     bullish_points, bearish_points, total_indicators = 0, 0, 20
 
-                    # 1. Filtro di Confluenza Multi-RSI (Ponderato per precisione chirurgica)
                     if bot_settings["use_rsi_filter"] == 1:
                         if 52 <= rsi_15m <= 72: bullish_points += 3
                         elif 28 <= rsi_15m <= 48: bearish_points += 3
@@ -320,7 +319,6 @@ def run_scanner_background():
                         bullish_points += 5
                         bearish_points += 5
 
-                    # 2. Allineamento Dinamico delle Medie Mobili (EMA)
                     if bot_settings["use_multi_ema"] == 1:
                         if ema_9 > ema_21 > ema_50: bullish_points += 4
                         elif ema_9 < ema_21 < ema_50: bearish_points += 4
@@ -330,7 +328,6 @@ def run_scanner_background():
                         bullish_points += 3
                         bearish_points += 3
 
-                    # 3. Analisi Price Action & Trend-Following Multi-TF
                     if bot_settings["use_trend_following"] == 1:
                         if closes_1h[-1] > closes_1h[-2] and closes_1h[-2] > closes_1h[-3]: bullish_points += 2
                         elif closes_1h[-1] < closes_1h[-2] and closes_1h[-2] < closes_1h[-3]: bearish_points += 2
@@ -340,7 +337,6 @@ def run_scanner_background():
                         bullish_points += 2
                         bearish_points += 2
 
-                    # 4. Whale Tracker & Volumi Istituzionali
                     if bot_settings["use_whale_tracker"] == 1:
                         if whale_score_val == 3: bullish_points += 3
                         elif whale_score_val == -3: bearish_points += 3
@@ -350,24 +346,24 @@ def run_scanner_background():
 
                     action, score, rating, passed_indicators = "NEUTRAL", 50, "NEUTRAL", 0
 
-                    if bullish_points >= 12 and rsi_1h >= 52:
+                    if bullish_points >= 13 and rsi_1h >= 52:
                         action = "LONG"
                         passed_indicators = bullish_points
-                        score = min(99, max(65, int((bullish_points / total_indicators) * 100)))
+                        score = min(99, max(68, int((bullish_points / total_indicators) * 100)))
                         rating = "ALPHA BUY" if score >= 88 else "QUANTUM BUY"
-                    elif bearish_points >= 12 and rsi_1h <= 48:
+                    elif bearish_points >= 13 and rsi_1h <= 48:
                         action = "SHORT"
                         passed_indicators = bearish_points
-                        score = min(99, max(65, int((bearish_points / total_indicators) * 100)))
+                        score = min(99, max(68, int((bearish_points / total_indicators) * 100)))
                         rating = "ALPHA SELL" if score >= 88 else "QUANTUM SELL"
 
                     if score >= 90:
-                        ai_grade = "A+ (Elite Precision)"
+                        ai_grade = "A+ (Elite Quantum MAX)"
                     elif score >= 82:
                         ai_grade = "A (High Probability)"
                     elif score >= 75:
                         ai_grade = "B+ (Stable Setup)"
-                    elif score >= 65:
+                    elif score >= 68:
                         ai_grade = "B (Moderate Setup)"
                     else:
                         ai_grade = "C (Standby)"
@@ -434,10 +430,10 @@ def run_scanner_background():
                             if telegram_token and channel_id:
                                 pair_name = symbol.replace("-USDT", " / USDT")
                                 decimals = 5 if current_price < 1 else 2
-                                dir_text = "🟢 LONG PRECISION" if action == "LONG" else "🔴 SHORT PRECISION"
+                                dir_text = "🟢 LONG MAX" if action == "LONG" else "🔴 SHORT MAX"
 
                                 message = (
-                                    f"👑 **SCANNER TRADING VIP [PRECISION]** 👑\n"
+                                    f"👑 **SCANNER TRADING VIP [MAX POWER]** 👑\n"
                                     f"⏰ **Orario:** {signal_time_str}\n\n"
                                     f"🔹 **Asset:** {pair_name}\n"
                                     f"📊 **Direzione:** {dir_text}\n"
@@ -535,7 +531,7 @@ def home():
         if active_signals:
             signals_html += (
                 '<div class="signal-box">'
-                '<h3 style="color: #00ff66; font-size: 15px; margin-bottom: 10px;">🔥 Segnali ad Alta Precisione Attivi</h3>'
+                '<h3 style="color: #00ff66; font-size: 15px; margin-bottom: 10px;">🔥 Segnali MAX Power Attivi</h3>'
                 '<div style="display: flex; flex-direction: column; gap: 8px;">'
             )
             for sym, dat in active_signals.items():
@@ -570,7 +566,7 @@ def home():
 
         toggles_html = f"""
         <div class="panel" style="border: 1px solid #333333;">
-            <h3 style="color: #ffffff; font-size: 14px; margin-bottom: 10px;">⚙️ Pannello Admin: Motore IA Autonomo di Precisione</h3>
+            <h3 style="color: #ffffff; font-size: 14px; margin-bottom: 10px;">⚙️ Pannello Admin: Motore IA MAX POWER</h3>
             <form action="/toggle-settings" method="POST" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; font-size: 13px;">
                 <label style="color: #ffffff;"><input type="checkbox" name="use_trend_following" {"checked" if bot_settings["use_trend_following"]==1 else ""}> Trend-Following</label>
                 <label style="color: #ffffff;"><input type="checkbox" name="use_multi_ema" {"checked" if bot_settings["use_multi_ema"]==1 else ""}> Multi-EMA</label>
@@ -585,7 +581,7 @@ def home():
         content = """
         <div class="panel" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
             <div>
-                <h3 style="color: #ffffff; font-size: 16px; margin-bottom: 3px;">Scanner Universale Multi-Timeframe ad Alta Precisione</h3>
+                <h3 style="color: #ffffff; font-size: 16px; margin-bottom: 3px;">Scanner Universale Multi-Timeframe MAX POWER</h3>
                 <p style="font-size: 12px; color: #aaaaaa;">Asset Monitorati: <strong style="color: #00ff66;">{total_assets}</strong> | Soglia Minima IA: <strong style="color: #00ff66;">{threshold}%</strong></p>
             </div>
             {threshold_control}
