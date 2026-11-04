@@ -293,9 +293,7 @@ def check_tp_sl_hits(symbol, current_price, telegram_token, channel_id):
         return "SEARCHING"
     trade = active_trades[symbol]
     action, sl, tp1, tp2, tp3 = trade["action"], trade["sl"], trade["tp1"], trade["tp2"], trade["tp3"]
-    pair_name = symbol.replace("-USDT", " / USDT")
-    decimals = 5 if current_price < 1 else 2
-
+    
     if action == "LONG":
         if current_price <= sl and "SL" not in trade["hits"]:
             trade["hits"].append("SL"); trade["status"] = "🛑 STOP LOSS HIT"
@@ -592,54 +590,54 @@ def home():
         
         <h3 style="margin-bottom: 12px; color: #ffffff; font-size: 16px; font-weight: bold; border-left: 3px solid #00ff66; padding-left: 8px;">📊 Monitoraggio Mercato Live & Tachimetri Analogici IA</h3>
         <div class="grid">
-            {{% for symbol, data in market_data.items() %}}
+            {% for symbol, data in market_data.items() %}
             <div class="card">
                 <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1a1a1a; padding-bottom: 8px; margin-bottom: 6px;">
                     <div>
-                        <span style="font-weight: bold; color: #ffffff; font-size: 14px;">{{{{ data.symbol }}}}</span> <span class="badge-type">{{{{ data.asset_type }}}}</span>
-                        <div style="font-size: 11px; color: {{{{ '#00ff66' if data.action == 'LONG' else '#ff3333' if data.action == 'SHORT' else '#aaaaaa' }}}}; font-weight: bold;">
-                            Direzione: {{{{ data.action }}}} <span style="color: #aaaaaa; font-weight: normal;">({{{{ data.signal_time }}}})</span>
+                        <span style="font-weight: bold; color: #ffffff; font-size: 14px;">{{ data.symbol }}</span> <span class="badge-type">{{ data.asset_type }}</span>
+                        <div style="font-size: 11px; color: {{ '#00ff66' if data.action == 'LONG' else '#ff3333' if data.action == 'SHORT' else '#aaaaaa' }}; font-weight: bold;">
+                            Direzione: {{ data.action }} <span style="color: #aaaaaa; font-weight: normal;">({{ data.signal_time }})</span>
                         </div>
                     </div>
                     <div style="text-align: right;">
                         <span style="font-size: 11px; color: #00ff66; font-weight: bold;">Grado IA:</span>
-                        <div style="font-size: 11px; font-weight: bold; color: #ffffff;">{{{{ data.ai_grade }}}}</div>
+                        <div style="font-size: 11px; font-weight: bold; color: #ffffff;">{{ data.ai_grade }}</div>
                     </div>
                 </div>
 
                 <div class="analog-gauge">
                     <div class="gauge-center"></div>
-                    <div class="gauge-needle" style="transform: rotate({{{{ (data.score * 1.8) - 90 }}}}deg);"></div>
-                    <div class="gauge-value-text">{{{{ data.score }}}}%</div>
+                    <div class="gauge-needle" style="transform: rotate({{ (data.score * 1.8) - 90 }}deg);"></div>
+                    <div class="gauge-value-text">{{ data.score }}%</div>
                 </div>
 
                 <div style="font-size: 11px; color: #aaaaaa; display: flex; justify-content: space-between; margin-top: 4px;">
                     <span>⚡ POTENZA & INDICATORI</span>
-                    <span style="color: #00ff66; font-weight: bold;">{{{{ data.indicators_passed }}}}/{{{{ data.indicators_total }}}}</span>
+                    <span style="color: #00ff66; font-weight: bold;">{{ data.indicators_passed }}/{{ data.indicators_total }}</span>
                 </div>
                 <div class="power-bar-bg">
-                    <div class="power-bar-fill" style="width: {{{{ (data.indicators_passed / data.indicators_total * 100)|int }}}}%;"></div>
+                    <div class="power-bar-fill" style="width: {{ (data.indicators_passed / data.indicators_total * 100)|int }}%;"></div>
                 </div>
                 
                 <div style="font-size: 11px; color: #aaaaaa; display: flex; flex-direction: column; gap: 4px; margin-top: 8px;">
-                    <div style="display: flex; justify-content: space-between;"><span>Timeframe Ottimale A.I.:</span><strong style="color: #00ff66; background: #111; padding: 2px 6px; border-radius: 4px; border: 1px solid #00ff66;">Grafico {{{{ data.recommended_tf.upper() }}}}</strong></div>
-                    <div style="display: flex; justify-content: space-between;"><span>Prezzo Live:</span><strong style="color: #ffffff;">${{{{ "%.4f"|format(data.price) if data.price < 1 else "%.2f"|format(data.price) }}}}</strong></div>
-                    <div style="display: flex; justify-content: space-between;"><span>RSI (15m / 1H / 4H):</span><span><strong style="color: #aaaaaa;">{{{{ data.rsi_15m }}}}</strong> / <strong style="color: #ffffff;">{{{{ data.rsi_1h }}}}</strong> / <strong style="color: #aaaaaa;">{{{{ data.rsi_4h }}}}</strong></span></div>
-                    <div style="display: flex; justify-content: space-between;"><span>Status Operazione:</span><strong style="color: #00ff66;">{{{{ data.trade_status }}}}</strong></div>
+                    <div style="display: flex; justify-content: space-between;"><span>Timeframe Ottimale A.I.:</span><strong style="color: #00ff66; background: #111; padding: 2px 6px; border-radius: 4px; border: 1px solid #00ff66;">Grafico {{ data.recommended_tf.upper() }}</strong></div>
+                    <div style="display: flex; justify-content: space-between;"><span>Prezzo Live:</span><strong style="color: #ffffff;">${{ "%.4f"|format(data.price) if data.price < 1 else "%.2f"|format(data.price) }}</strong></div>
+                    <div style="display: flex; justify-content: space-between;"><span>RSI (15m / 1H / 4H):</span><span><strong style="color: #aaaaaa;">{{ data.rsi_15m }}</strong> / <strong style="color: #ffffff;">{{ data.rsi_1h }}</strong> / <strong style="color: #aaaaaa;">{{ data.rsi_4h }}</strong></span></div>
+                    <div style="display: flex; justify-content: space-between;"><span>Status Operazione:</span><strong style="color: #00ff66;">{{ data.trade_status }}</strong></div>
                     
                     <div style="display: flex; justify-content: space-between; border-top: 1px dashed #222222; padding-top: 4px; margin-top: 2px;">
                         <span style="color: #ff3333;">Stop Loss:</span>
-                        <strong style="color: #ff3333;">${{{{ "%.4f"|format(data.sl) if data.price < 1 else "%.2f"|format(data.sl) }}}} ({{{{ data.sl_pct }}}% )</strong>
+                        <strong style="color: #ff3333;">${{ "%.4f"|format(data.sl) if data.price < 1 else "%.2f"|format(data.sl) }} ({{ data.sl_pct }}%)</strong>
                     </div>
                     <div style="display: flex; justify-content: space-between;">
                         <span style="color: #00ff66;">Take Profit 1:</span>
-                        <strong style="color: #00ff66;">${{{{ "%.4f"|format(data.tp1) if data.price < 1 else "%.2f"|format(data.tp1) }}}} (+{{{{ data.tp1_pct }}}% )</strong>
+                        <strong style="color: #00ff66;">${{ "%.4f"|format(data.tp1) if data.price < 1 else "%.2f"|format(data.tp1) }} (+{{ data.tp1_pct }}%)</strong>
                     </div>
                 </div>
 
-                <a href="https://www.tradingview.com/chart/?symbol=BINGX:{{{{ data.symbol }}}}USDT" target="_blank" class="chart-btn">📈 Apri Grafico Live ({{{{ data.symbol }}}})</a>
+                <a href="https://www.tradingview.com/chart/?symbol=BINGX:{{ data.symbol }}USDT" target="_blank" class="chart-btn">📈 Apri Grafico Live ({{ data.symbol }})</a>
             </div>
-            {{% endfor %}}
+            {% endfor %}
         </div>
         """
 
