@@ -87,6 +87,7 @@ def place_bingx_order(api_key, secret_key, symbol, side, position_side, quantity
         print(f"Errore esecuzione ordine BingX: {e}")
         return {"code": -1, "msg": str(e)}
 
+# Panieri Reali
 CRYPTO_FUTURES_ASSETS = [
     {"sym": "BTCUSDT", "name": "Bitcoin Futures"},
     {"sym": "ETHUSDT", "name": "Ethereum Futures"},
@@ -110,21 +111,41 @@ COMMODITIES_ASSETS = [
 live_market_data = {}
 commodities_market_data = {}
 
-def calculate_crypto_indicators(closes):
-    n = len(closes)
-    if n < 50:
+def calculate_advanced_indicators(klines):
+    if len(klines) < 50:
         return None
+    closes = [float(k[4]) for k in klines]
+    highs = [float(k[2]) for k in klines]
+    lows = [float(k[3]) for k in klines]
+    
+    current_price = closes[-1]
     ema20 = sum(closes[-20:]) / 20
     ema50 = sum(closes[-50:]) / 50
-    current_price = closes[-1]
+    
+    # Calcolo volatilità (ATR approssimato a 14 periodi) per TP e SL intelligenti
+    true_ranges = [max(highs[i] - lows[i], abs(highs[i] - closes[i-1]), abs(lows[i] - closes[i-1])) for i in range(1, len(klines))]
+    atr = sum(true_ranges[-14:]) / 14 if len(true_ranges) >= 14 else (highs[-1] - lows[-1])
+    
     is_long = current_price > ema20 and ema20 > ema50
     is_short = current_price < ema20 and ema20 < ema50
+    
+    # Sentiment basato su forza del trend e distanza dalle EMA
+    sentiment = "BULLISH FORTE" if is_long and (current_price - ema20) > (atr * 0.5) else ("BEARISH FORTE" if is_short else "NEUTRAL / CONSOLIDAMENTO")
+    
+    # Livelli Dinamici basati su ATR (Rapporto Rischio/Rendimento 1:2)
+    sl = current_price - (atr * 1.5) if is_long else current_price + (atr * 1.5)
+    tp1 = current_price + (atr * 3.0) if is_long else current_price - (atr * 3.0)
+    
     return {
         "current_price": current_price,
         "ema20": ema20,
         "ema50": ema50,
+        "atr": atr,
+        "sl": sl,
+        "tp1": tp1,
         "is_long": is_long,
-        "is_short": is_short
+        "is_short": is_short,
+        "sentiment": sentiment
     }
 
 def background_real_market_scanner():
@@ -138,14 +159,13 @@ def background_real_market_scanner():
             api_key = bot_settings.get("bingx_api_key")
             secret_key = bot_settings.get("bingx_secret_key")
             
-            # Scansione Cripto Futures Reali
+            # Scansione Cripto Futures Reali con Intelligenza Avanzata
             for asset in CRYPTO_FUTURES_ASSETS:
                 symbol = asset["sym"]
                 res = requests.get(f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=15m&limit=60", timeout=5)
                 if res.status_code == 200:
                     klines = res.json()
-                    closes = [float(k[4]) for k in klines]
-                    ind = calculate_crypto_indicators(closes)
+                    ind = calculate_advanced_indicators(klines)
                     if not ind:
                         continue
                     live_market_data[symbol] = ind
@@ -154,13 +174,15 @@ def background_real_market_scanner():
                     
                     if ind["is_long"] and (symbol not in last_alerts or now - last_alerts[symbol] > 1800):
                         msg = (
-                            f"🚀 *SEGNALE FUTURES REALE*\n\n"
+                            f"🧠 *SEGNALE IA AVANZATO (REALE)*\n\n"
                             f"✦ *Asset:* #{symbol}\n"
                             f"✦ *Direzione:* LONG 🟢\n"
+                            f"✦ *Sentiment:* {ind['sentiment']}\n"
                             f"✦ *Prezzo Reale:* ${current_price:,.4f}\n\n"
-                            f"🎯 *TP1:* ${current_price * 1.015:,.4f}\n"
-                            f"🛑 *Stop Loss:* ${current_price * 0.985:,.4f}\n\n"
-                            f"⚡ _Dati Futures reali al 100%_"
+                            f"🎯 *Take Profit (TP):* ${ind['tp1']:,.4f}\n"
+                            f"🛑 *Stop Loss (SL):* ${ind['sl']:,.4f}\n"
+                            f"⚖️ *Rischio/Rendimento:* 1:2 Dinamico\n\n"
+                            f"⚡ _Elaborazione basata su ATR e Volatilità Reale_"
                         )
                         if token and chat_id:
                             send_telegram_alert(token, chat_id, msg)
@@ -189,7 +211,7 @@ def background_real_market_scanner():
                             "change": change
                         }
         except Exception as e:
-            print(f"Errore scanner: {e}")
+            print(f"Errore scanner avanzato: {e}")
         time.sleep(30)
 
 scanner_thread = threading.Thread(target=background_real_market_scanner, daemon=True)
@@ -200,7 +222,7 @@ DASHBOARD_HTML = '''
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<title>Dashboard Mercato Reale</title>
+<title>Dashboard IA & Mercato Reale</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 body{background:#06080c;color:#ece8dc;font-family:sans-serif;margin:0;padding:20px;}
@@ -220,7 +242,7 @@ button{background:#d6b04c;color:#06080c;border:none;padding:10px 20px;font-weigh
 <body>
 <div class="wrap">
   <div class="panel">
-    <h1>🚀 Dashboard Mercato Reale al 100%</h1>
+    <h1>🚀 IA Trading Dashboard (Analisi Avanzata Reale)</h1>
     <div>
       <span class="chip">Balance Reale: <b style="color:#d6b04c">${{ "%.2f"|format(account.balance) }}</b></span>
       <span class="chip">Equity Reale: <b style="color:#2ee6a6">${{ "%.2f"|format(account.equity) }}</b></span>
@@ -284,10 +306,10 @@ button{background:#d6b04c;color:#06080c;border:none;padding:10px 20px;font-weigh
   </section>
 
   <section class="panel">
-    <h2>📊 Cripto Futures (Prezzi e Trend Reali)</h2>
+    <h2>📊 Cripto Futures (Analisi IA & Livelli Dinamici)</h2>
     <table>
       <thead>
-        <tr><th>Asset</th><th>Prezzo Reale (USD)</th><th>EMA 20</th><th>EMA 50</th><th>Trend</th></tr>
+        <tr><th>Asset</th><th>Prezzo Reale</th><th>Sentiment IA</th><th>TP Stimato</th><th>SL Stimato</th><th>Trend</th></tr>
       </thead>
       <tbody>
         {% for asset in assets %}
@@ -295,8 +317,9 @@ button{background:#d6b04c;color:#06080c;border:none;padding:10px 20px;font-weigh
           <tr>
             <td><b>{{ asset.sym }}</b></td>
             <td>{% if data %}${{ "%.4f"|format(data.current_price) }}{% else %}Caricamento...{% endif %}</td>
-            <td>{% if data %}${{ "%.4f"|format(data.ema20) }}{% else %}—{% endif %}</td>
-            <td>{% if data %}${{ "%.4f"|format(data.ema50) }}{% else %}—{% endif %}</td>
+            <td><span style="color:#d6b04c">{% if data %}{{ data.sentiment }}{% else %}—{% endif %}</span></td>
+            <td class="up">{% if data %}${{ "%.4f"|format(data.tp1) }}{% else %}—{% endif %}</td>
+            <td class="dn">{% if data %}${{ "%.4f"|format(data.sl) }}{% else %}—{% endif %}</td>
             <td>
               {% if data %}
                 {% if data.is_long %}<span class="up">▲ LONG</span>
@@ -346,7 +369,7 @@ def home():
         commodities=commodities_market_data
     )
 
-@app.route('/login', methods=['GET', 'POST'])
+@app.route('/login', methods=['GET', 'PORT'])
 def login():
     if request.method == 'POST':
         username = request.form.get('username')
@@ -362,12 +385,12 @@ def login():
             return redirect(url_for('home'))
         flash('Credenziali non valide.')
     content = '''
-    <div style="max-width:380px;margin:50px auto;background:#0c1017;padding:20px;border:1px solid #2a3750;color:#fff;">
+    <div style="max-width:380px;margin:50px auto;background:#0c1017;padding:25px;border:1px solid #2a3750;color:#fff;">
         <h3 style="color:#d6b04c;text-align:center;">ACCESSO</h3>
         <form method="POST">
-            <p><label>Username</label><br><input type="text" name="username" required style="width:100%;padding:8px;background:#111722;border:1px solid #2a3750;color:#fff;"></p>
-            <p><label>Password</label><br><input type="password" name="password" required style="width:100%;padding:8px;background:#111722;border:1px solid #2a3750;color:#fff;"></p>
-            <button type="submit" style="width:100%;padding:10px;background:#d6b04c;color:#06080c;border:none;font-weight:bold;">Accedi</button>
+            <p><label>Username</label><br><input type="text" name="username" required style="width:100%;padding:8px;background:#111722;border:1px solid #2a3750;color:#fff;margin-top:5px;"></p>
+            <p><label>Password</label><br><input type="password" name="password" required style="width:100%;padding:8px;background:#111722;border:1px solid #2a3750;color:#fff;margin-top:5px;"></p>
+            <button type="submit" style="width:100%;padding:10px;background:#d6b04c;color:#06080c;border:none;font-weight:bold;margin-top:10px;cursor:pointer;">Accedi</button>
         </form>
     </div>
     '''
