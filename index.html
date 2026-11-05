@@ -8,6 +8,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Sora:wght@300;400;600&display=swap" rel="stylesheet">
 <style>
+/* Layout: signal desk. Banner of TOP entries, then three columns (active asset gauge + validity,
+   news + flows, execution plan), chart + timeframe table, full-parameter scanner table, market overview. */
 :root{
   color-scheme:dark;
   --bg:#06080c; --panel:#0c1017; --panel2:#111722; --line:#1b2433; --line2:#2a3750;
@@ -189,7 +191,8 @@ footer{margin-top:18px;font:400 10.5px var(--font-mono);color:var(--mute);letter
 @media (max-width:760px){.brand h1{font-size:15px}#chart{height:320px}.kv{grid-template-columns:1fr}.banner .tops{margin-left:0}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
-
+</head>
+<body>
 <div class="wrap">
   <header class="top">
     <div class="brand">
@@ -549,4 +552,215 @@ function drawChart(){
     prev=g}
   const lp=a.price,ly=Math.round(y(lp))+.5,up=lp>=cs[n-1].o;
   ctx.setLineDash([3,3]);ctx.strokeStyle=up?C.up:C.dn;ctx.beginPath();ctx.moveTo(padL,ly);ctx.lineTo(w-padR,ly);ctx.stroke();ctx.setLineDash([]);
-  ctx.fillStyle=up?C.up:C.dn;ctx.fillRect(w-padR+2,ly-9,padR-4,1
+  ctx.fillStyle=up?C.up:C.dn;ctx.fillRect(w-padR+2,ly-9,padR-4,18);ctx.fillStyle=C.bg;ctx.textAlign='left';ctx.font='700 10px "JetBrains Mono",monospace';ctx.textBaseline='middle';ctx.fillText(fp(lp),w-padR+6,ly);
+  if(sig)[[sig.entry,C.dia,'ENTRY'],[sig.sl,C.dn,'SL'],[sig.tp1,C.up,'TP1'],[sig.tp2,C.up,'TP2']].forEach(([v,col,l])=>{if(v>lo&&v<hi){const yy=Math.round(y(v))+.5;
+    ctx.setLineDash([2,4]);ctx.strokeStyle=col;ctx.globalAlpha=.85;ctx.beginPath();ctx.moveTo(padL,yy);ctx.lineTo(w-padR,yy);ctx.stroke();ctx.globalAlpha=1;ctx.setLineDash([]);
+    ctx.fillStyle=col;ctx.font='700 9.5px "JetBrains Mono",monospace';ctx.textAlign='left';ctx.textBaseline='bottom';ctx.fillText(l,padL+4,yy-2)}});
+  ctx.font='10px "JetBrains Mono",monospace';ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillStyle=C.mute;ctx.fillText('RSI 14',padL+2,rT+6);
+  const ry=v=>rT+(1-v/100)*rH;
+  ctx.fillStyle='rgba(214,176,76,.06)';ctx.fillRect(padL,ry(70),pw,ry(30)-ry(70));
+  [30,50,70].forEach(v=>{const yy=Math.round(ry(v))+.5;ctx.strokeStyle=C.line;ctx.beginPath();ctx.moveTo(padL,yy);ctx.lineTo(w-padR,yy);ctx.stroke();ctx.fillStyle=C.mute;ctx.textAlign='left';ctx.fillText(v,w-padR+6,yy)});
+  ctx.beginPath();ctx.strokeStyle=C.gold;ctx.lineWidth=1.5;for(let i=st;i<n;i++){const X=xi(i),Y=ry(S.rsi[i]);i===st?ctx.moveTo(X,Y):ctx.lineTo(X,Y)}ctx.stroke();
+  ctx.fillStyle=C.gold;ctx.beginPath();ctx.arc(xi(n-1),ry(S.rsi[n-1]),3,0,7);ctx.fill();
+  ctx.fillStyle=C.mute;ctx.textAlign='center';ctx.textBaseline='top';
+  for(let i=st+8;i<n;i+=15)ctx.fillText(hhmm(cs[i].t),xi(i),h-axB+5);
+  if(chartHover>=st&&chartHover<n){const i=chartHover,X=xi(i),c=cs[i];ctx.strokeStyle=C.line2;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(Math.round(X)+.5,padT);ctx.lineTo(Math.round(X)+.5,h-axB);ctx.stroke();
+    tip(ctx,w,X,padT+6,[new Date(c.t).toLocaleString('it-IT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}),`O ${fp(c.o)}  H ${fp(c.h)}`,`L ${fp(c.l)}  C ${fp(c.c)}`,`Vol ${compact(c.v)}  RSI ${fmtN(S.rsi[i],1)}`,`Score ${sg(sc[i]||0)}`])}
+}
+function chartPointer(e){const r=chartCv.getBoundingClientRect(),T=bySym[sel].ai.tf[tfSel],n=T.cs.length,N=Math.min(90,n),st=n-N,pw=r.width-6-72;
+  const i=st+Math.floor((e.clientX-r.left-6)/(pw/N));chartHover=(i>=st&&i<n)?i:-1;requestAnimationFrame(drawChart)}
+chartCv.addEventListener('pointermove',chartPointer);
+chartCv.addEventListener('pointerleave',()=>{chartHover=-1;requestAnimationFrame(drawChart)});
+
+function mkLine(id,o){const cv=$(id),st={cv,hover:-1,o};
+  cv.addEventListener('pointermove',e=>{const r=cv.getBoundingClientRect(),n=o.data().length,pw=r.width-6-52;st.hover=clamp(Math.round((e.clientX-r.left-6)/pw*(n-1)),0,n-1);requestAnimationFrame(()=>drawLine(st))});
+  cv.addEventListener('pointerleave',()=>{st.hover=-1;requestAnimationFrame(()=>drawLine(st))});return st}
+function drawLine(st){
+  const{ctx,w,h}=setup(st.cv),o=st.o,d=o.data(),n=d.length;if(n<2)return;
+  const padL=6,padR=52,padT=10,padB=20,pw=w-padL-padR,ph=h-padT-padB,ns=d[0].v.length,lo=0,hi=100;
+  const x=i=>padL+i/(n-1)*pw,y=v=>padT+(1-(v-lo)/(hi-lo))*ph;
+  ctx.font='10px "JetBrains Mono",monospace';
+  for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4,yy=Math.round(y(v))+.5;ctx.strokeStyle=C.line;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(padL,yy);ctx.lineTo(w-padR,yy);ctx.stroke();ctx.fillStyle=C.mute;ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(v,w-padR+6,yy)}
+  const yy=Math.round(y(50))+.5;ctx.setLineDash([4,4]);ctx.strokeStyle=C.line2;ctx.beginPath();ctx.moveTo(padL,yy);ctx.lineTo(w-padR,yy);ctx.stroke();ctx.setLineDash([]);
+  for(let s=0;s<ns;s++){const col=C[o.colors[s]];ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=2;ctx.lineJoin='round';d.forEach((p,i)=>i?ctx.lineTo(x(i),y(p.v[s])):ctx.moveTo(x(i),y(p.v[s])));ctx.stroke();
+    ctx.fillStyle=col;ctx.beginPath();ctx.arc(x(n-1),y(d[n-1].v[s]),3.5,0,7);ctx.fill();ctx.strokeStyle=C.panel;ctx.lineWidth=2;ctx.stroke()}
+  ctx.fillStyle=C.mute;ctx.textBaseline='top';ctx.textAlign='left';ctx.fillText(hhmm(d[0].t),padL,h-padB+6);ctx.textAlign='right';ctx.fillText(hhmm(d[n-1].t),w-padR,h-padB+6);
+  if(st.hover>=0&&st.hover<n){const i=st.hover,X=x(i);ctx.strokeStyle=C.line2;ctx.beginPath();ctx.moveTo(Math.round(X)+.5,padT);ctx.lineTo(Math.round(X)+.5,padT+ph);ctx.stroke();
+    for(let s=0;s<ns;s++){ctx.fillStyle=C[o.colors[s]];ctx.beginPath();ctx.arc(X,y(d[i].v[s]),4,0,7);ctx.fill();ctx.strokeStyle=C.panel;ctx.lineWidth=2;ctx.stroke()}
+    tip(ctx,w,X,padT+4,[hhmm(d[i].t),...d[i].v.map((v,s)=>`${o.names[s]}: ${fmtN(v,0)}`)])}
+}
+const lcSent=mkLine('#lcSent',{data:()=>H.sent,colors:['gold','c2','c3'],names:['Cripto','Azioni','Mat. prime']});
+
+/* ---------- rendering ---------- */
+const ui={f:'all',cls:'all',q:'',sort:'conf',dir:-1};
+let lastTick=performance.now(),paused=false,pausedAt=0,feed='sim';
+const frac=()=>clamp(((paused?pausedAt:performance.now())-lastTick)/TICK,0,1);
+const simNow=()=>SIM+frac()*60;
+const remain=a=>active(a)?VALID-(simNow()-a.sig.since):0;
+const tfCls=s=>s>=15?'u':s<=-15?'d':'z';
+const tfArrow=s=>s>=15?'▲':s<=-15?'▼':'●';
+const divBar=(v,max)=>{const p=clamp(Math.abs(v)/max,0,1)*50;return v>=0?`<i style="left:50%;width:${p}%;background:var(--up)"></i>`:`<i style="right:50%;width:${p}%;background:var(--dn)"></i>`};
+const stateTxt={ACTIVE:'ATTIVO',EXPIRED:'SCADUTO',STOPPED:'STOP COLPITO',TARGET:'TP1 RAGGIUNTO'};
+function entryPill(a){
+  if(active(a)){const L=a.sig.dir>0;return`<span class="pill ${L?'LONG':'SHORT'}">${L?'▲ ENTRA LONG':'▼ ENTRA SHORT'}</span><span class="n">@ ${money(a,a.sig.entry)}</span>`}
+  const s=a.sig&&a.sig.state!=='ACTIVE'?stateTxt[a.sig.state]:'IN ATTESA';return`<span class="pill WAIT">● ATTENDI</span><span class="n">${s.toLowerCase()}</span>`}
+const lastPx={};
+function visible(){
+  return assets.filter(a=>{
+    if(ui.cls!=='all'&&a.cls!==ui.cls)return false;
+    if(ui.q&&!(a.sym+a.name).toLowerCase().includes(ui.q))return false;
+    switch(ui.f){case'top':return isTop(a);case'buy':return active(a)&&a.sig.dir>0;case'sell':return active(a)&&a.sig.dir<0;case'npos':return a.ns>.25;case'nneg':return a.ns<-.25;case'anom':return !!a.ai.anom}
+    return true});
+}
+function renderTable(){
+  const l=visible();
+  const key={sym:a=>a.sym,price:a=>a.price,ch24:a=>a.ai.ch24,conf:a=>(active(a)?1000:0)+a.ai.conf}[ui.sort];
+  l.sort((x,y)=>{const A=key(x),B=key(y);return(typeof A==='string'?A.localeCompare(B):A-B)*ui.dir});
+  $('#cnt').textContent=l.length+' di '+assets.length+' asset';
+  $('#tbody').innerHTML=l.map(a=>{const ai=a.ai,pr=lastPx[a.sym],f=pr==null||pr===a.price?'':(a.price>pr?'fu':'fd'),g=(ai.comb>=0?1:-1)*ai.conf,act=active(a),top=isTop(a),s=a.sig;
+    const sentL=nsLab(a),news=ai.anom?`<span class="pill warn">ANOMALIA</span><small>${ai.anom}</small>`:`<span class="pill ${a.ns>.25?'LONG':a.ns<-.25?'SHORT':'N'}">${sentL}</span><small>${a.head}</small>`;
+    return`<tr class="r${a.sym===sel?' sel':''}${top?' topr':''}" data-sym="${a.sym}" tabindex="0">
+<td><span class="cdot" style="background:var(${CLS[a.cls].color})"></span><span class="s">${a.sym}</span><span class="n">${a.name}</span></td>
+<td>${entryPill(a)}</td>
+<td>${act?`<span class="pill" style="color:var(--warn)">${s.lev[0]}x – ${s.lev[1]}x</span>`:'<span class="mu">—</span>'}</td>
+<td class="${f}">${money(a,a.price)}</td>
+<td>${miniG(g)}</td>
+<td>${top?dia(14,true)+' ':''}<span class="pill ${top?'TOP':'N'}">${ai.conf}%${top?' TOP':''}</span></td>
+<td>${act?`<span class="cdn" data-s="${a.sym}">${mmss(remain(a))}</span>`:`<span class="mu">${s&&s.state!=='ACTIVE'?stateTxt[s.state]:'—'}</span>`}</td>
+<td><span class="tfs">${[15,60,240].map(k=>{const sc=ai.tf[k].score;return`<span class="${tfCls(sc)}" title="${k===240?'4H':k===60?'1H':'15M'} ${sg(sc)}">${k===240?'4H':k===60?'1H':'15M'}${tfArrow(sc)}</span>`}).join('')}</span></td>
+<td style="text-align:left"><div class="nw">${news}</div></td>
+<td class="${ai.ch24>=0?'up':'dn'}">${pc(ai.ch24)}</td>
+<td>${act?`<span class="up">${pc(s.dir*(s.tp1/s.entry-1))}</span><span class="n">${money(a,s.tp1)}</span>`:'<span class="mu">—</span>'}</td>
+<td>${act?`<span class="dn">${pc(-s.slPct)}</span><span class="n">${money(a,s.sl)}</span>`:'<span class="mu">—</span>'}</td></tr>`}).join('')||'<tr><td colspan="12" class="empty" style="text-align:center">Nessun asset corrisponde ai filtri.</td></tr>';
+  assets.forEach(a=>lastPx[a.sym]=a.price);
+  document.querySelectorAll('#thead th[data-k]').forEach(th=>{if(th.dataset.k===ui.sort)th.setAttribute('aria-sort',ui.dir>0?'ascending':'descending');else th.removeAttribute('aria-sort')});
+}
+function renderBanner(){
+  const tops=assets.filter(isTop).sort((x,y)=>y.ai.conf-x.ai.conf),b=$('#banner');
+  if(tops.length){b.className='banner';b.innerHTML=`${dia(18,true)}<span>TOP ENTRY &gt;80%: DIAMANTE GIALLO LAMPEGGIANTE ATTIVO</span><span class="tops">${tops.slice(0,8).map(a=>`<button type="button" data-sym="${a.sym}">${a.sym} ${a.ai.conf}%</button>`).join('')}</span>`}
+  else{b.className='banner idle';b.innerHTML=`${dia(18,false)}<span>Nessuna TOP Entry attiva: in attesa di una confluenza superiore all'80%</span>`}
+}
+function renderMain(){
+  const a=bySym[sel],ai=a.ai,act=active(a),s=a.sig,top=isTop(a);
+  $('#gSub').textContent=a.sym===a.name?a.sym:`${a.sym} · ${a.name}`;
+  $('#pGauge').classList.toggle('hot',top);
+  const g=(ai.comb>=0?1:-1)*ai.conf,z=gMain((g+100)/2);
+  $('#gNum').textContent=(g>0?'+':g<0?'−':'')+Math.abs(g)+'%';$('#gNum').style.color=zcol(z);
+  $('#gLab').textContent=act?(s.dir>0?'ENTRA LONG':'ENTRA SHORT'):'ATTENDI SETUP';$('#gLab').style.color=act?zcol(z):'var(--mute)';
+  $('#tfp').innerHTML=[15,60,240].map(k=>{const sc=ai.tf[k].score;return`<div><span class="mu">${k===240?'4H':k===60?'1H':'15M'}</span><span class="${sc>=15?'up':sc<=-15?'dn':'mu'}">${tfArrow(sc)} ${sg(sc)}</span></div>`}).join('');
+  const r=remain(a);
+  $('#vState').innerHTML=act?`<span class="pill ${top?'TOP':s.dir>0?'LONG':'SHORT'}">${top?'TOP · ':''}ATTIVO</span>`:`<span class="pill WAIT">${s&&s.state!=='ACTIVE'?stateTxt[s.state]:'NESSUN SEGNALE'}</span>`;
+  // news
+  $('#nHead').textContent=`${a.sym}: ${a.head}`;
+  $('#nSrc').textContent=`Fonte: feed demo · ${Math.max(1,Math.floor((SIM-a.newsT)/60))}m fa`;
+  $('#nBadge').innerHTML=`<span class="pill ${a.ns>.25?'LONG':a.ns<-.25?'SHORT':'N'}">${nsLab(a)}</span>`;
+  $('#nBar').innerHTML=divBar(a.ns*100,100);$('#nVal').textContent=sg(a.ns*100);
+  // flows
+  const bull=a.bull,wst=a.wh>2?'ACCUMULO':a.wh<-2?'DISTRIBUZIONE':'NEUTRO',lsr=a.ls,lp=lsr/(1+lsr)*100;
+  const crypto=a.cls==='cry';
+  $('#flows').innerHTML=`
+   <div class="r"><div class="l"><span>Rapporto Orsi / Tori</span><b>${fmtN(100-bull,0)}% · ${fmtN(bull,0)}%</b></div><div class="bar2"><i style="left:0;width:${100-bull}%;background:var(--dn)"></i><i style="right:0;width:${bull}%;background:var(--up)"></i></div><div class="l"><span class="dn">ORSI</span><span class="up">TORI</span></div></div>
+   <div class="r"><div class="l"><span>Stato balene</span><b class="${a.wh>2?'up':a.wh<-2?'dn':''}">${wst}</b></div><div class="bar2 dv">${divBar(a.wh,12)}</div><div class="l"><span>Flusso netto</span><b>${a.wh>=0?'+':'−'}${fmtN(Math.abs(a.wh),1)} M $</b></div></div>
+   <div class="r"><div class="l"><span>Rapporto Long / Short</span><b>${fmtN(lsr,2)}</b></div><div class="bar2"><i style="left:0;width:${lp}%;background:var(--up)"></i><i style="right:0;width:${100-lp}%;background:var(--dn)"></i></div><div class="l"><span class="up">LONG ${fmtN(lp,0)}%</span><span class="dn">SHORT ${fmtN(100-lp,0)}%</span></div></div>`;
+  // execution
+  const none=!act,col=(c)=>`style="--c:var(${c})"`;
+  const dirTxt=act?(s.dir>0?'LONG':'SHORT'):'';
+  const rows=[['Entrata istantanea (Market)',none?'—':`${dirTxt} @ ${money(a,s.entry)}`,'--dia'],['Leva raccomandata',none?'—':`${s.lev[0]}x – ${s.lev[1]}x`,'--warn'],
+   ['Take Profit 1',none?'—':`${money(a,s.tp1)} (${pc(s.dir*(s.tp1/s.entry-1))})`,'--up'],['Take Profit 2',none?'—':`${money(a,s.tp2)} (${pc(s.dir*(s.tp2/s.entry-1))})`,'--up'],
+   ['Stop Loss',none?'—':`${money(a,s.sl)} (${pc(-s.slPct)})`,'--dn'],['Rapporto R:R',none?'—':'1 : 1,5 (TP1) · 1 : 3 (TP2)','--c2']];
+  $('#exe').innerHTML=rows.map(([k,v,c])=>`<div><span ${col(c)}>${k}</span><b>${v}</b></div>`).join('');
+  $('#exSub').textContent=act?`Prezzo attuale ${money(a,a.price)}`:'';
+  const tb=$('#topbox');
+  if(top){tb.className='topbox';tb.innerHTML=`<h3>${dia(14,true)} TOP CONFLUENZA (&gt;80%) CON DIAMANTE LAMPEGGIANTE</h3><ul>
+    <li>Finestra di esecuzione: il segnale è valido per 45 minuti (TF 15m/1h). Restano <b class="cdn-top" id="cdTop">${mmss(r)}</b>.</li>
+    <li>Entrata istantanea: posizione MARKET ${s.dir>0?'BUY':'SELL'} @ ${money(a,s.entry)}.</li>
+    <li>TP1: ${money(a,s.tp1)} (${pc(s.dir*(s.tp1/s.entry-1))}) | TP2: ${money(a,s.tp2)} (${pc(s.dir*(s.tp2/s.entry-1))}).</li>
+    <li>Stop loss rigido: ${money(a,s.sl)} (${pc(-s.slPct)}).</li></ul>`}
+  else{tb.className='topbox idle';tb.innerHTML=`<h3>NESSUNA TOP CONFLUENZA SU ${a.sym}</h3><ul><li>${act?`Segnale attivo ma con confidenza ${ai.conf}%: sotto la soglia dell'80% per il diamante.`:'Nessun segnale operativo valido: i tre timeframe non sono allineati.'}</li><li>Scegli un asset con il diamante dalla tabella o dal banner in alto.</li></ul>`}
+  // chart head
+  $('#cSym').textContent=a.sym;$('#cName').textContent=a.name;$('#cPx').textContent=money(a,a.price);
+  $('#cCh').innerHTML=`<span class="mono ${ai.ch24>=0?'up':'dn'}">${pc(ai.ch24)}</span>`;
+  // tf table
+  const rowsT=[['Score',k=>sg(ai.tf[k].score)],['Segnale',k=>{const sc=ai.tf[k].score;return`<span class="${sc>=28?'up':sc<=-28?'dn':'mu'}">${sc>=28?'BUY':sc<=-28?'SELL':'NEUTRO'}</span>`}],
+    ['RSI 14',k=>fmtN(ai.tf[k].S.rsi.at(-1),1)],['MACD',k=>{const T=ai.tf[k],h=T.S.hist.at(-1);return`<span class="${h>=0?'up':'dn'}">${h>=0?'▲':'▼'}</span>`}],
+    ['EMA 20/50',k=>{const S=ai.tf[k].S;return pc(S.e20.at(-1)/S.e50.at(-1)-1)}],['Bollinger %B',k=>fmtN(ai.tf[k].S.pb.at(-1),2)],
+    ['Volumi',k=>fmtN(ai.tf[k].S.vr.at(-1),2)+'x'],['ATR %',k=>fmtN(ai.tf[k].S.atr.at(-1)/a.price*100,2)+'%']];
+  $('#tft').innerHTML=rowsT.map(([n,f])=>`<tr><td>${n}</td>${[15,60,240].map(k=>`<td>${f(k)}</td>`).join('')}</tr>`).join('');
+  $('#tfSub').textContent=`${a.sym} · peso 30 / 40 / 30`;
+  const ex=[['Confluenza',ai.conf+'%'],['Allineamento TF',fmtN(ai.agree*100,0)+'%'],['Score combinato',sg(ai.comb)],['Volume 24h',(IDX.has(a.sym)?'':'$')+compact(ai.vol24)],
+    ['Funding rate',crypto?(a.fund>=0?'+':'')+fmtN(a.fund,4)+'%':'—'],['Open interest 24h',crypto?(a.oi>=0?'+':'')+fmtN(a.oi,1)+'%':'—'],
+    ['Volatilità (stop)',fmtN(ai.slPct*100,2)+'%'],['Anomalia',ai.anom?'<span style="color:var(--warn)">SÌ</span>':'No']];
+  $('#extra').innerHTML=ex.map(([k,v])=>`<div><span>${k}</span><b style="font-weight:500">${v}</b></div>`).join('');
+}
+function renderOverview(){
+  setG(gCry,$('#nCry'),$('#lCry'),toGauge(avgComb('cry')));setG(gStk,$('#nStk'),$('#lStk'),toGauge(avgComb('stk')));setG(gCom,$('#nCom'),$('#lCom'),toGauge(avgComb('com')));
+  const act=assets.filter(active).sort((x,y)=>y.ai.conf-x.ai.conf).slice(0,7);
+  $('#opps').innerHTML=act.map(a=>`<div class="dvr" role="button" tabindex="0" data-sym="${a.sym}"><b>${a.sym}</b><span class="bar2 dv">${divBar(a.sig.dir*a.ai.conf,100)}</span><span style="text-align:right">${a.sig.dir>0?'+':'−'}${a.ai.conf}</span></div>`).join('')||'<div class="empty">Nessun segnale attivo.</div>';
+  const cap={cry:.04,stk:.02,com:.015};
+  $('#heat').innerHTML=Object.keys(CLS).map(k=>`<div class="hg"><h3>${CLS[k].label}</h3><div class="tiles">${assets.filter(a=>a.cls===k).map(a=>{const c=a.ai.ch24,al=.12+clamp(Math.abs(c)/cap[k],0,1)*.6;
+    return`<button type="button" class="tile" data-sym="${a.sym}" style="background:${c>=0?`rgba(46,230,166,${al})`:`rgba(255,90,118,${al})`}" aria-label="${a.name} ${pc(c)}">${a.sym}<small>${pc(c)}</small></button>`}).join('')}</div></div>`).join('');
+  const cl={TOP:'var(--dia)',LONG:'var(--up)',SHORT:'var(--dn)',STOP:'var(--dn)',TP:'var(--up)'};
+  $('#log').innerHTML=logs.slice(0,14).map(e=>`<li><time>${hhmm(e.t)}</time><span style="font-weight:700;color:${cl[e.type]||'var(--ink2)'}">${e.type}</span><span>${e.txt}</span></li>`).join('')||'<li class="empty">In attesa di segnali…</li>';
+}
+function renderFeed(){
+  $('#feedTxt').textContent=feed==='live'?'LIVE · CRIPTO REALI, ALTRI SIMULATI':'DEMO · DATI SIMULATI';
+  $('#feedDot').className='dot'+(feed==='live'?'':' off');
+  $('#foot').innerHTML=(feed==='live'?'Prezzi cripto reali (candele 15m). Azioni, materie prime, notizie, flussi e balene sono simulati.':'Prezzi, notizie, flussi e balene di questa pagina sono simulati a scopo dimostrativo. Aprendo il file in locale le cripto passano ai prezzi reali.')+
+   ' Il tempo scorre accelerato (1 tick = 1 minuto di mercato) per mostrare i conti alla rovescia.<br>Il punteggio AI combina EMA, RSI, MACD, Bollinger e volumi su 15m, 1h e 4h (pesi 30/40/30). Il segnale è operativo con confidenza ≥ 60% e TOP sopra l\'80%. Non è consulenza finanziaria.';
+}
+function renderAll(){
+  renderBanner();renderMain();renderTable();drawChart();renderOverview();drawLine(lcSent);
+  $('#clock').textContent=hhmmss(Date.now());
+}
+function tickCountdowns(){
+  document.querySelectorAll('.cdn').forEach(el=>{const a=bySym[el.dataset.s];if(a)el.textContent=mmss(remain(a))});
+  const a=bySym[sel],r=remain(a),cd=$('#cdMain');
+  cd.textContent=active(a)?mmss(r):'--:--';cd.className='cdbig'+(!active(a)?' dead':r<300?' low':'');
+  $('#cdBar').style.width=(active(a)?clamp(r/VALID,0,1)*100:0)+'%';
+  const t=$('#cdTop');if(t)t.textContent=mmss(r);
+  const rs=paused?0:Math.max(0,Math.ceil((TICK-(performance.now()-lastTick))/1000));$('#refresh').textContent='00:'+pad2(rs);
+}
+
+/* ---------- events ---------- */
+function pick(sym){if(!bySym[sym])return;sel=sym;chartHover=-1;renderMain();renderTable();drawChart();tickCountdowns()}
+document.addEventListener('click',e=>{const t=e.target.closest('[data-sym]');if(t)pick(t.dataset.sym)});
+document.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){const t=e.target.closest&&e.target.closest('tr[data-sym],.dvr[data-sym]');if(t){e.preventDefault();pick(t.dataset.sym)}}});
+$('#filters').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;ui.f=b.dataset.f;$('#filters').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b));renderTable()});
+function seg(id,cb){$(id).addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;$(id).querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b));cb(b.dataset.v)})}
+seg('#fCls',v=>{ui.cls=v;renderTable()});seg('#tfSeg',v=>{tfSel=v;chartHover=-1;drawChart()});
+$('#q').addEventListener('input',e=>{ui.q=e.target.value.trim().toLowerCase();renderTable()});
+$('#thead').addEventListener('click',e=>{const th=e.target.closest('th[data-k]');if(!th)return;const k=th.dataset.k;if(ui.sort===k)ui.dir*=-1;else{ui.sort=k;ui.dir=k==='sym'?1:-1}renderTable()});
+$('#pauseBtn').addEventListener('click',()=>{paused=!paused;if(paused)pausedAt=performance.now();else lastTick+=performance.now()-pausedAt;$('#pauseBtn').textContent=paused?'Riprendi':'Pausa'});
+let rz;window.addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>{drawChart();drawLine(lcSent)},80)});
+
+/* ---------- optional live crypto (works when opened outside the sandbox) ---------- */
+const mapK=k=>k.map(x=>({t:x[0],o:+x[1],h:+x[2],l:+x[3],c:+x[4],v:+x[5]}));
+async function tryLive(){
+  const cr=assets.filter(a=>a.bn);
+  try{
+    const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),3500);
+    const res=await Promise.all(cr.map(a=>fetch(`https://api.binance.com/api/v3/klines?symbol=${a.bn}&interval=15m&limit=1000`,{signal:ctl.signal}).then(r=>{if(!r.ok)throw 0;return r.json()})));
+    clearTimeout(to);
+    res.forEach((k,i)=>{const a=cr[i];a.candles=mapK(k);a.price=a.candles[a.candles.length-1].c;a.live=true});
+    feed='live';
+    setInterval(async()=>{try{await Promise.all(cr.map(async a=>{const k=mapK(await fetch(`https://api.binance.com/api/v3/klines?symbol=${a.bn}&interval=15m&limit=3`).then(r=>r.json()));
+      for(const c of k){const L=a.candles[a.candles.length-1];if(c.t===L.t)Object.assign(L,c);else if(c.t>L.t){a.candles.push(c);a.candles.shift()}}a.price=a.candles[a.candles.length-1].c}))}catch(e){}},8000);
+  }catch(e){feed='sim'}
+}
+
+/* ---------- boot ---------- */
+async function boot(){
+  readColors();
+  try{await tryLive()}catch(e){}
+  const WARM=420;
+  for(let i=0;i<WARM;i++){SIM+=60;simTick();tickCount++;scanAll();record()}
+  const best=assets.filter(active).sort((x,y)=>y.ai.conf-x.ai.conf)[0]||assets.slice().sort((x,y)=>y.ai.conf-x.ai.conf)[0];sel=best.sym;
+  renderFeed();renderAll();tickCountdowns();lastTick=performance.now();
+  setInterval(()=>{if(paused)return;step();lastTick=performance.now();renderAll();tickCountdowns()},TICK);
+  setInterval(tickCountdowns,250);
+}
+window.__ready=boot();
+})();
+</script>
+</body>
+</html>
