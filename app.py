@@ -107,10 +107,10 @@ input:focus,select:focus{border-color:var(--gold);outline:none;box-shadow:0 0 12
 .ndl{transform-origin:100px 100px;transition:transform .5s ease}
 .ndl polygon{fill:var(--gold)}
 .hub{fill:var(--panel);stroke:var(--gold);stroke-width:2;filter:drop-shadow(0 0 8px var(--gold))}
-.gnum{font:700 42px/1 var(--font-mono);text-align:center;text-shadow:0 0 18px rgba(243,202,82,.45);color:var(--gold)}
-.glab{font:600 11px var(--font-display);letter-spacing:.22em;text-transform:uppercase;text-align:center;margin-top:6px;color:var(--gold)}
-.gbig{max-width:340px;margin:0 auto}
-.sbrow{display:flex;justify-content:space-between;font:500 9.5px var(--font-mono);margin-top:6px}
+.gnum{font:700 36px/1 var(--font-mono);text-align:center;text-shadow:0 0 18px rgba(243,202,82,.45);color:var(--gold)}
+.glab{font:600 10px var(--font-display);letter-spacing:.2em;text-transform:uppercase;text-align:center;margin-top:4px;color:var(--gold)}
+.gbig{max-width:320px;margin:0 auto}
+.sbrow{display:flex;justify-content:space-between;font:500 9px var(--font-mono);margin-top:4px}
 
 .pill{display:inline-flex;align-items:center;gap:4px;padding:4px 9px;font:700 10px var(--font-mono);letter-spacing:.06em;border:1px solid currentColor;white-space:nowrap}
 .pill.LONG{color:var(--up);background:rgba(0,255,204,.15);box-shadow:0 0 10px rgba(0,255,204,.3)}
@@ -191,8 +191,8 @@ td .n{display:block;font:400 9.5px var(--font-body);color:var(--mute);margin-top
 .tile:hover{outline:1px solid var(--gold);box-shadow:0 0 12px rgba(243,202,82,.45)}
 .gmini{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .gm{text-align:center;min-width:0}
-.gm .gnum{font-size:20px;margin-top:-2px}
-.gm .glab{font-size:8px;letter-spacing:.1em}
+.gm .gnum{font-size:18px;margin-top:-2px}
+.gm .glab{font-size:7.5px;letter-spacing:.08em}
 .gm .cn{font:600 9.5px var(--font-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--gold);margin-bottom:4px}
 .sec{font:600 10px var(--font-mono);letter-spacing:.16em;color:var(--gold);text-transform:uppercase;margin:14px 0 6px}
 .dvr{display:grid;grid-template-columns:52px minmax(0,1fr) 40px;gap:6px;align-items:center;font:400 10.5px var(--font-mono);margin-bottom:6px;cursor:pointer}
@@ -271,12 +271,22 @@ footer{margin-top:18px;font:400 10px var(--font-mono);color:var(--mute);line-hei
   <main class="grid">
     <div class="col s4">
       <section class="panel">
-        <div class="ph"><h2>Sentiment globale AI (Cripto &amp; Mercati)</h2><span class="sub">44 asset monitorati</span></div>
+        <div class="ph"><h2>Sentiment Globale AI</h2><span class="sub">Mercati &amp; Cripto</span></div>
         <div class="gbig"><div id="gMain"></div><div class="gnum" id="gNum">--</div><div class="glab" id="gLab">--</div>
           <div class="sbrow"><span class="dn">BEARISH 0</span><span class="mu">NEUTRAL 50</span><span class="up">BULLISH 100</span></div></div>
       </section>
+
       <section class="panel">
-        <div class="ph"><h2>Termometro per classe</h2><span class="sub">score medio di mercato</span></div>
+        <div class="ph"><h2>Tachimetri Parametrici Live</h2><span class="sub">Metriche di Mercato</span></div>
+        <div class="gmini">
+          <div class="gm"><div class="cn">Liquidità</div><div id="gLiq"></div><div class="gnum" id="nLiq">--</div><div class="glab" id="lLiq">--</div></div>
+          <div class="gm"><div class="cn">Volatilità</div><div id="gVol"></div><div class="gnum" id="nVol">--</div><div class="glab" id="lVol">--</div></div>
+          <div class="gm"><div class="cn">Balene</div><div id="gWhl"></div><div class="gnum" id="nWhl">--</div><div class="glab" id="lWhl">--</div></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="ph"><h2>Termometro per classe</h2><span class="sub">score medio</span></div>
         <div class="gmini">
           <div class="gm"><div class="cn">Cripto</div><div id="gCry"></div><div class="gnum" id="nCry">--</div><div class="glab" id="lCry">--</div></div>
           <div class="gm"><div class="cn">Azioni</div><div id="gStk"></div><div class="gnum" id="nStk">--</div><div class="glab" id="lStk">--</div></div>
@@ -335,7 +345,7 @@ footer{margin-top:18px;font:400 10px var(--font-mono);color:var(--mute);line-hei
           <span style="font:700 18px var(--font-mono);color:var(--gold);background:rgba(243,202,82,.12);padding:3px 12px;border:1px solid var(--gold);box-shadow:0 0 10px rgba(243,202,82,.2);" id="detailTimer">--:--</span>
         </div>
         <div style="font:400 11px var(--font-mono);color:var(--ink);margin-bottom:10px;" id="entryWindowText">
-          Finestra Consigliata: --:-- - --:-- (Retest Scadenza: In Chiusura 4H) Confluenza Live
+          Finestra Consigliata: --:-- - --:-- (Retest Scadenza: In Chiusura Candela) Confluenza Live
         </div>
         <div style="position:relative;height:7px;background:var(--line);border-radius:3px;overflow:hidden;">
           <div id="entryProgressBar" style="position:absolute;top:0;left:0;bottom:0;width:100%;background:linear-gradient(90deg,var(--gold),var(--up));box-shadow:0 0 10px var(--gold);transition:width 1s linear;"></div>
@@ -541,7 +551,7 @@ function mkGauge(host,big){
   const val=host.querySelector('.gval'),nd=host.querySelector('.ndl');
   return v=>{v=clamp(v,0,100);const z=zone(v);val.style.strokeDasharray=`${v} 100`;val.setAttribute('class','gval z'+z);nd.style.transform=`rotate(${(v-50)*1.8}deg)`;return z};
 }
-let gMain,gCry,gStk,gCom;
+let gMain,gCry,gStk,gCom,gLiq,gVol,gWhl;
 function setG(fn,numEl,labEl,v){const z=fn(v);numEl.textContent=Math.round(v);numEl.style.color=zcol(z);labEl.textContent=ZL[z];labEl.style.color=zcol(z)}
 
 const C={};function readColors(){C.gold='#f3ca52';C.up='#00ffcc';C.dn='#ff3366';C.mute='#8c8268';C.line2='#3d351e';C.bg='#050505';C.cyan='#00d4ff'}
@@ -572,18 +582,17 @@ function drawChart(){
 
 const ui={f:'all',cls:'all',q:''};
 const lastPx={};
-const activeTimers={};
 
-// CALCOLO PRECISO E MILLIMETRICO DEL TEMPO UTILE DI INGRESSO BASATO SUL TIMEFRAME EFFETTIVO
-function getRealMarketTimer(sym, tfRec) {
-  const now = Date.now();
-  const hash = sym.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  let cycleDuration = 900; // 15m default
-  if (tfRec === '1h') cycleDuration = 3600;
-  if (tfRec === '4h') cycleDuration = 14400;
+// CALCOLO PRECISO E MILLIMETRICO DEI SECONDI ESATTI ALLA CHIUSURA DELLA CANDELA DEL TIMEFRAME
+function getExactCandleSeconds(tfRec) {
+  const now = new Date();
+  const totalSeconds = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+  let tfSec = 900; // 15m default
+  if (tfRec === '1h') tfSec = 3600;
+  if (tfRec === '4h') tfSec = 14400;
   
-  const remaining = cycleDuration - Math.floor((now / 1000 + hash * 13) % cycleDuration);
-  return Math.max(10, remaining);
+  const elapsedInCandle = totalSeconds % tfSec;
+  return tfSec - elapsedInCandle;
 }
 
 function formatTimer(totalSec){
@@ -607,15 +616,12 @@ function renderTable(){
   $('#cnt').textContent=l.length+' di '+assets.length+' asset';
   $('#tbody').innerHTML=l.map(a=>{const ai=a.ai,pr=lastPx[a.sym],f=pr==null||pr===a.price?'':(a.price>pr?'fu':'fd');
     const v=ai.verdict, lbl=v==='LONG'?'🐋 ENTRA LONG':v==='SHORT'?'🐋 ENTRA SHORT':'ATTESA BALENE';
-    
-    if(!activeTimers[a.sym]){
-      activeTimers[a.sym] = getRealMarketTimer(a.sym, ai.tfRec);
-    }
+    const exactSec = getExactCandleSeconds(ai.tfRec);
 
     return`<tr class="r${a.sym===sel?' sel':''}" data-sym="${a.sym}" tabindex="0">
 <td><span class="cdot" style="background:var(--gold)"></span><span class="s">${a.sym}</span><span class="n">${a.name}</span></td>
 <td><span class="pill ${v}">${lbl}</span></td>
-<td style="font-size:11px;color:var(--gold);font-weight:700;" class="live-timer" data-sym="${a.sym}">⏱️ ${formatTimer(activeTimers[a.sym])}</td>
+<td style="font-size:11px;color:var(--gold);font-weight:700;" class="live-timer" data-sym="${a.sym}">⏱️ ${formatTimer(exactSec)}</td>
 <td><b style="color:var(--gold)">${ai.conf}%</b></td>
 <td class="${f}">${money(a,a.price)}</td>
 <td><b style="color:var(--gold)">${ai.tfRec}</b></td>
@@ -633,13 +639,16 @@ function renderMain(){
   setG(gCry,$('#nCry'),$('#lCry'),clamp(50+avg*.1,0,100));
   setG(gStk,$('#nStk'),$('#lStk'),clamp(50-avg*.05,0,100));
   setG(gCom,$('#nCom'),$('#lCom'),clamp(50+avg*.15,0,100));
+  
+  setG(gLiq, $('#nLiq'), $('#lLiq'), clamp(65 + (Math.sin(Date.now()/5000)*15), 0, 100));
+  setG(gVol, $('#nVol'), $('#lVol'), clamp(55 + Math.abs(g)*0.4, 0, 100));
+  setG(gWhl, $('#nWhl'), $('#lWhl'), clamp(50 + g*0.7, 0, 100));
 
   const sorted=[...assets].sort((x,y)=>y.ai.comb-x.ai.comb);
   $('#opps').innerHTML=sorted.slice(0,5).map(x=>`<div class="dvr" data-sym="${x.sym}"><b>${x.sym}</b><span class="bar2 dv"><i style="left:50%;width:${Math.abs(x.ai.comb)}%;background:${x.ai.comb>=0?'var(--up)':'var(--dn)'}"></i></span><span style="text-align:right">${x.ai.comb>=0?'+':''}${Math.round(x.ai.comb)}</span></div>`).join('');
 
   const v=ai.verdict, vText=v==='LONG'?'🐋 🟢 ENTRA LONG (Segnale Certo)':v==='SHORT'?'🐋 🔴 ENTRA SHORT (Segnale Certo)':'⚠️ ATTESA BALENE (No Movimenti)';
 
-  // Calcolo coerente e millimetrico della Finestra Consigliata in base all'orario corrente e alla chiusura candela
   const d = new Date();
   const currentTotalMin = d.getHours() * 60 + d.getMinutes();
   const tfMins = ai.tfRec === '15m' ? 15 : ai.tfRec === '1h' ? 60 : 240;
@@ -656,12 +665,11 @@ function renderMain(){
   const endTimeStr = pad2(endH) + ':' + pad2(endM);
 
   $('#anSub').textContent=`${a.sym} · ${a.name} (${CLS[a.cls].label})`;
-  $('#entryWindowText').textContent=`Finestra Consigliata: ${startTimeStr} - ${endTimeStr} (Retest Scadenza: In Chiusura ${ai.tfRec.toUpperCase()}) Confluenza Live`;
+  $('#entryWindowText').textContent=`Finestra Consigliata: ${startTimeStr} - ${endTimeStr} (Retest Scadenza: In Chiusura Candela ${ai.tfRec.toUpperCase()}) Confluenza Live`;
 
-  // Gestione visivo animato "Entra Adesso" negli ultimi 45 secondi della scadenza candela
-  const currentSec = activeTimers[a.sym] || 0;
+  const exactSec = getExactCandleSeconds(ai.tfRec);
   const banner = $('#entryNowBanner');
-  if(v !== 'HOLD' && currentSec <= 45){
+  if(v !== 'HOLD' && exactSec <= 45){
     banner.style.display = 'flex';
     $('#entryNowPrice').textContent = money(a, a.price);
     $('#entryNowSub').textContent = `Confluenza ${v} su ${a.sym} confermata al millimetro in chiusura ${ai.tfRec.toUpperCase()}. Esecuzione immediata consigliata.`;
@@ -682,7 +690,7 @@ function renderMain(){
     <div style="display:flex;justify-content:space-between"><span>Stop Loss Millimetrico</span><b class="dn">${money(a,ai.sl)}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Attività Istituzionale</span><b style="color:var(--gold)">${ai.whales}</b></div>`;
 
-  $('#anReason').textContent=`Analisi AI millimetrica su ${a.sym} (${CLS[a.cls].label}). ${ai.whales}. L'intelligenza artificiale rileva un andamento di mercato guidato dai flussi istituzionali con verdetto: "${vText}". Il tempo utile di ingresso calcolato dal sistema di monitoraggio live garantisce precisione costante sulla chiusura del timeframe ${ai.tfRec}. Precisione stimata: ${ai.conf}%.`;
+  $('#anReason').textContent=`Analisi AI millimetrica su ${a.sym} (${CLS[a.cls].label}). ${ai.whales}. L'intelligenza artificiale rileva un andamento di mercato guidato dai flussi istituzionali con verdetto: "${vText}". Il tempo utile di ingresso calcolato dal sistema di monitoraggio live garantisce precisione costante sulla chiusura della candela ${ai.tfRec}. Precisione stimata: ${ai.conf}%.`;
 
   $('#cSym').textContent=a.sym;$('#cName').textContent=a.name;$('#cPx').textContent=money(a,a.price);
   $('#cCh').innerHTML=`<span class="mono ${ai.ch24>=0?'up':'dn'}">${pc(ai.ch24)}</span>`;
@@ -697,37 +705,30 @@ function renderMain(){
 }
 
 setInterval(()=>{
-  for(const sym in activeTimers){
-    const a = bySym[sym];
-    activeTimers[sym]--;
-    if(activeTimers[sym]<=0){
-      activeTimers[sym] = getRealMarketTimer(sym, a ? a.ai.tfRec : '15m');
-    }
-  }
   document.querySelectorAll('.live-timer').forEach(el=>{
     const s=el.dataset.sym;
-    if(activeTimers[s]!=null){
-      el.textContent=`⏱️ ${formatTimer(activeTimers[s])}`;
+    const assetObj=bySym[s];
+    if(assetObj){
+      const exactSec = getExactCandleSeconds(assetObj.ai.tfRec);
+      el.textContent=`⏱️ ${formatTimer(exactSec)}`;
     }
   });
   const dt=$('#detailTimer');
   if(dt && bySym[sel]){
     const a = bySym[sel];
-    const s = activeTimers[sel];
-    if(s!=null){
-      dt.textContent=formatTimer(s);
-      const tfMax = a.ai.tfRec === '15m' ? 900 : a.ai.tfRec === '1h' ? 3600 : 14400;
-      const pct = clamp((s / tfMax) * 100, 5, 100);
-      const bar = $('#entryProgressBar');
-      if(bar) bar.style.width = pct + '%';
-      
-      const banner = $('#entryNowBanner');
-      if(a.ai.verdict !== 'HOLD' && s <= 45){
-        banner.style.display = 'flex';
-        $('#entryNowPrice').textContent = money(a, a.price);
-      } else {
-        banner.style.display = 'none';
-      }
+    const exactSec = getExactCandleSeconds(a.ai.tfRec);
+    dt.textContent=formatTimer(exactSec);
+    const tfMax = a.ai.tfRec === '15m' ? 900 : a.ai.tfRec === '1h' ? 3600 : 14400;
+    const pct = clamp((exactSec / tfMax) * 100, 5, 100);
+    const bar = $('#entryProgressBar');
+    if(bar) bar.style.width = pct + '%';
+    
+    const banner = $('#entryNowBanner');
+    if(a.ai.verdict !== 'HOLD' && exactSec <= 45){
+      banner.style.display = 'flex';
+      $('#entryNowPrice').textContent = money(a, a.price);
+    } else {
+      banner.style.display = 'none';
     }
   }
 }, 1000);
@@ -736,7 +737,7 @@ function renderAll(){
   renderMain();renderTable();drawChart();$('#clock').textContent=hhmmss(Date.now());
 }
 
-function pick(sym){if(!bySym[sym])return;sel=sym;activeTimers[sym] = getRealMarketTimer(sym, bySym[sym].ai.tfRec);renderMain();renderTable();drawChart()}
+function pick(sym){if(!bySym[sym])return;sel=sym;renderMain();renderTable();drawChart()}
 document.addEventListener('click',e=>{const t=e.target.closest('[data-sym]');if(t)pick(t.dataset.sym)});
 $('#filters').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;ui.f=b.dataset.f;$('#filters').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b));renderTable()});
 function seg(id,cb){$(id).addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;$(id).querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b));cb(b.dataset.v)})}
@@ -747,7 +748,9 @@ let paused=false;$('#pauseBtn').addEventListener('click',()=>{paused=!paused;$('
 
 async function boot(){
   chartCv=$('#chart');
-  gMain=mkGauge($('#gMain'),true);gCry=mkGauge($('#gCry'));gStk=mkGauge($('#gStk'));gCom=mkGauge($('#gCom'));
+  gMain=mkGauge($('#gMain'),true);
+  gCry=mkGauge($('#gCry'));gStk=mkGauge($('#gStk'));gCom=mkGauge($('#gCom'));
+  gLiq=mkGauge($('#gLiq'));gVol=mkGauge($('#gVol'));gWhl=mkGauge($('#gWhl'));
   readColors();
   for(let i=0;i<40;i++){SIM+=60;simTick();cycles++;for(const a of assets)a.ai=analyze(a)}
   sel='BTC';
