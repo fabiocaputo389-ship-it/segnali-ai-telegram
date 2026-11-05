@@ -174,7 +174,7 @@ footer{margin-top:18px;font:400 10.5px var(--font-mono);color:var(--mute);letter
         <div class="ph"><h2>Validità segnale operativo</h2><span id="vState"></span></div>
         <div class="cdbig" id="cdMain">45:00</div>
         <div class="prog"><i id="cdBar" style="width:100%"></i></div>
-        <p class="note">Livelli di TP e Stop Loss calcolati in tempo reale sulla volatilità[span_2](start_span)[span_2](end_span).</p>
+        <p class="note">Livelli di TP e Stop Loss calcolati in tempo reale sulla volatilità[span_0](start_span)[span_0](end_span).</p>
       </section>
     </div>
 
@@ -182,7 +182,7 @@ footer{margin-top:18px;font:400 10.5px var(--font-mono);color:var(--mute);letter
       <section class="panel">
         <div class="ph"><h2>Notizie &amp; Sentiment di Mercato</h2></div>
         <div class="head" id="nHead">Analisi order book reale in corso...</div>
-        <div class="src" id="nSrc">Binance Data Feed[span_3](start_span)[span_3](end_span)</div>
+        <div class="src" id="nSrc">Binance Data Feed[span_1](start_span)[span_1](end_span)</div>
       </section>
       <section class="panel">
         <div class="ph"><h2>Flussi &amp; Balene (On-chain Est.)</h2></div>
@@ -236,7 +236,7 @@ footer{margin-top:18px;font:400 10.5px var(--font-mono);color:var(--mute);letter
       <ul class="log" id="log"></ul>
     </section>
   </main>
-  <footer id="foot">Scanner connesso alle API di Binance in tempo reale[span_4](start_span)[span_4](end_span).</footer>
+  <footer id="foot">Scanner connesso alle API di Binance in tempo reale[span_2](start_span)[span_2](end_span).</footer>
 </div>
 
 <script>
@@ -305,7 +305,6 @@ function analyzeAsset(a){
   const atr=tfData['15m'].S.atr[tfData['15m'].S.atr.length-1]||p*0.01;
   const slPct=clamp(1.5*atr/p,0.004,0.03);
   
-  // Calcolo preciso di SL, TP1, TP2 basato sulla volatilità reale (ATR)
   const sig=raw!==0?{
     dir:raw,
     entry:p,
@@ -316,8 +315,7 @@ function analyzeAsset(a){
     state:'ACTIVE'
   }:null;
 
-  // Metricole flussi balene e sentiment basate sui dati reali delle candele
-  const whaleFlow = comb * 1.5; // Stima reale basata sulla spinta del volume
+  const whaleFlow = comb * 1.5;
   const bullPower = clamp(50 + comb * 0.5, 10, 90);
   const longShortRatio = 1 + (comb / 100);
 
@@ -332,7 +330,7 @@ function mkGauge(host){
   s+=`<g class="ndl" style="transform:rotate(0deg)"><polygon points="97.5,100 100,30 102.5,100"/></g><circle class="hub" cx="100" cy="100" r="7"/>`;
   host.innerHTML=`<svg class="gsvg" viewBox="0 0 200 112">${s}</svg>`;
   const val=host.querySelector('.gval'),nd=host.querySelector('.ndl');
-  return v=>{v=clamp(v,0,100);const z=v<20?0:v<40?1:v<60?2:v<80?3:4;val.style.strokeDasharray=`${v} 100`;val.setAttribute('class','gval z'+z);nd.style.transform=`rotate(${(v-50)*1.8}deg)`(v);return z};
+  return v=>{v=clamp(v,0,100);const z=v<20?0:v<40?1:v<60?2:v<80?3:4;val.style.strokeDasharray=`${v} 100`;val.setAttribute('class','gval z'+z);nd.style.transform=`rotate(${(v-50)*1.8}deg)`;return z};
 }
 const gMain=mkGauge($('#gMain'));
 const ZL=['Vendi forte','Vendi','Neutrale','Compra','Compra forte'];
@@ -463,7 +461,6 @@ function renderMain(){
   
   $('#nHead').textContent=`${a.sym}: Analisi dei volumi reali e order book Binance in tempo reale.`;
   
-  // Rendering Flussi & Balene Reali
   const bp=ai.bullPower;
   const wst=ai.whaleFlow>1?'ACCUMULO ISTANTANEO':ai.whaleFlow<-1?'DISTRIBUZIONE':'NEUTRO';
   const lsr=ai.longShortRatio;
@@ -524,9 +521,9 @@ document.querySelectorAll('#tfSeg button').forEach(btn=>{
 async function boot(){
   $('#feedDot').className='dot';
   $('#feedTxt').textContent='MERCATO LIVE REALE';
-  pushLog('INIT','Connessione attiva alle API di Binance[span_5](start_span)[span_5](end_span). Calcolo TP e SL reali avviato.');
+  pushLog('INIT','Connessione attiva alle API di Binance[span_3](start_span)[span_3](end_span). Calcolo TP e SL reali avviato.');
   await fetchBinanceData();
-  setInterval(fetchBinanceData, 6000); // Aggiornamento automatico live ogni 6 secondi
+  setInterval(fetchBinanceData, 6000);
   setInterval(()=>{ $('#clock').textContent=hhmmss(Date.now()); }, 1000);
 }
 
