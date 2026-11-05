@@ -117,6 +117,35 @@ input:focus,select:focus{border-color:var(--gold);outline:none;box-shadow:0 0 12
 .pill.SHORT{color:var(--dn);background:rgba(255,51,102,.15);box-shadow:0 0 10px rgba(255,51,102,.3)}
 .pill.HOLD{color:var(--gold);background:rgba(243,202,82,.15);box-shadow:0 0 10px rgba(243,202,82,.3)}
 
+/* ANIMAZIONE SEGNALE ENTRA ADESSO PRECISO */
+.entry-now-banner {
+  background: linear-gradient(135deg, rgba(243,202,82,0.2), rgba(0,255,204,0.2));
+  border: 2px solid var(--gold);
+  padding: 12px 18px;
+  border-radius: 6px;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 0 20px rgba(243,202,82,0.4);
+  animation: borderGlow 1.2s infinite alternate;
+}
+@keyframes borderGlow {
+  0% { border-color: var(--gold); box-shadow: 0 0 10px rgba(243,202,82,0.3); }
+  100% { border-color: var(--up); box-shadow: 0 0 25px rgba(0,255,204,0.6); }
+}
+.blink-text {
+  font: 700 13px var(--font-mono);
+  color: var(--up);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  animation: textBlink 0.8s infinite alternate;
+}
+@keyframes textBlink {
+  0% { opacity: 0.4; text-shadow: none; }
+  100% { opacity: 1; text-shadow: 0 0 12px var(--up); }
+}
+
 .bar2{position:relative;height:8px;background:var(--line)}
 .bar2 i{position:absolute;top:0;bottom:0}
 .bar2.dv::after{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--gold)}
@@ -281,10 +310,25 @@ footer{margin-top:18px;font:400 10px var(--font-mono);color:var(--mute);line-hei
       </ul>
     </section>
 
-    <!-- SEZIONE TEMPO UTILE INGRESSO & FINESTRA CONSIGLIATA -->
+    <!-- SEZIONE TEMPO UTILE INGRESSO & SEGNALE ENTRA ADESSO ANIMATO -->
     <section class="panel s8">
       <div class="ph"><h2>Verdetto Balene Certificato &amp; Tempo Utile Ingresso</h2><span class="sub" id="anSub">Seleziona un asset</span></div>
       
+      <!-- BANNER ANIMATO ENTRA ADESSO -->
+      <div class="entry-now-banner" id="entryNowBanner" style="display:none;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:20px;">⚡</span>
+          <div>
+            <div class="blink-text">SEGNALE ATTIVO: ENTRA ADESSO!</div>
+            <div style="font:10px var(--font-mono);color:var(--ink2);" id="entryNowSub">Momento esatto di retest e massima confluenza istituzionale</div>
+          </div>
+        </div>
+        <div style="text-align:right;">
+          <span style="font:700 12px var(--font-mono);color:var(--gold);" id="entryNowPrice">--</span>
+          <div style="font:9px var(--font-mono);color:var(--mute);">Esecuzione Immediata BingX</div>
+        </div>
+      </div>
+
       <div style="background:rgba(243,202,82,.04);border:1px solid var(--line2);padding:14px;margin-bottom:14px;border-radius:4px;box-shadow:inset 0 0 15px rgba(243,202,82,.03);">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px;">
           <span style="font:600 11px var(--font-mono);color:var(--gold);">⏱️ TEMPO UTILE INGRESSO (Monitoraggio Live):</span>
@@ -495,7 +539,7 @@ function mkGauge(host,big){
   s+=`<g class="ndl" style="transform:rotate(0deg)"><polygon points="97.5,100 100,30 102.5,100"/></g><circle class="hub" cx="100" cy="100" r="7"/>`;
   host.innerHTML=`<svg class="gsvg" viewBox="0 0 200 112" role="img" aria-label="Tachimetro">${s}</svg>`;
   const val=host.querySelector('.gval'),nd=host.querySelector('.ndl');
-  return v=>{v=clamp(v,0,100);const z=zone(v);val.style.strokeDasharray=`${v} 100`;val.setAttribute('class','gval z'+z);nd.style.transform=`rotate(${(v-50)*1.8}deg)`;return z};
+  return v=>{v=clamp(v,0,100);const z=zone(v);val.style.strokeDasharray=`${v} 100`;val.setAttribute('class','gval z'+z);nd.style.transform=`rotate(${(v-50)*1.8}deg)` ;return z};
 }
 let gMain,gCry,gStk,gCom;
 function setG(fn,numEl,labEl,v){const z=fn(v);numEl.textContent=Math.round(v);numEl.style.color=zcol(z);labEl.textContent=ZL[z];labEl.style.color=zcol(z)}
@@ -602,6 +646,17 @@ function renderMain(){
   $('#anSub').textContent=`${a.sym} · ${a.name} (${CLS[a.cls].label})`;
   $('#entryWindowText').textContent=`Finestra Consigliata: ${startTimeStr} - ${endTimeStr} (Retest Scadenza: In Chiusura ${ai.tfRec.toUpperCase()}) Confluenza Live`;
 
+  // Gestione visivo animato "Entra Adesso" quando il timer si trova negli ultimi 30 secondi della finestra o in retest esatto
+  const currentSec = activeTimers[a.sym] || 0;
+  const banner = $('#entryNowBanner');
+  if(v !== 'HOLD' && currentSec <= 30){
+    banner.style.display = 'flex';
+    $('#entryNowPrice').textContent = money(a, a.price);
+    $('#entryNowSub').textContent = `Confluenza ${v} su ${a.sym} confermata al millimetro. Esecuzione immediata consigliata.`;
+  } else {
+    banner.style.display = 'none';
+  }
+
   $('#anPlan').innerHTML=`
     <div style="display:flex;justify-content:space-between"><span>Verdetto Balene</span><b style="color:${v==='HOLD'?'var(--gold)':'var(--up)'}">${vText}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Timeframe Analisi</span><b style="color:var(--gold)">${ai.tfRec}</b></div>
@@ -650,6 +705,16 @@ setInterval(()=>{
       const pct = clamp((s / 900) * 100, 5, 100);
       const bar = $('#entryProgressBar');
       if(bar) bar.style.width = pct + '%';
+      
+      // Aggiornamento live del banner animato "Entra Adesso" se attivo sul timing
+      const a = bySym[sel];
+      const banner = $('#entryNowBanner');
+      if(a.ai.verdict !== 'HOLD' && s <= 30){
+        banner.style.display = 'flex';
+        $('#entryNowPrice').textContent = money(a, a.price);
+      } else {
+        banner.style.display = 'none';
+      }
     }
   }
 }, 1000);
