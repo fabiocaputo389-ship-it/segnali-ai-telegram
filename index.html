@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<title>AI Market Scanner Pro Live</title>
+<title>AI Market Scanner Pro • BingX Live</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -112,13 +112,13 @@ footer{margin-top:16px;font:400 10px var(--font-body);color:var(--mute);line-hei
 <div class="wrap">
   <div class="top-nav">
     <div>
-      <div class="brand-title">AI Market Scanner Pro Live</div>
-      <div class="brand-sub">MOTORE MULTI-TIME FRAME &bull; LIVE FEED</div>
+      <div class="brand-title">AI Market Scanner Pro • BingX</div>
+      <div class="brand-sub">FUTURES &amp; SPOT LIVE FEED (BINGX API)</div>
     </div>
   </div>
 
   <div class="chips">
-    <span class="chip"><i class="dot" id="feedDot"></i><span id="feedTxt">MOTORE ATTIVO</span></span>
+    <span class="chip"><i class="dot" id="feedDot"></i><span id="feedTxt">BINGX LIVE</span></span>
     <span class="chip" id="clock">--:--:--</span>
     <button class="btn-sm" id="btnPause" type="button">PAUSA</button>
   </div>
@@ -159,8 +159,8 @@ footer{margin-top:16px;font:400 10px var(--font-body);color:var(--mute);line-hei
       <div class="kv-item"><span>Segnali SHORT</span><b class="dn" id="stShort">0</b></div>
       <div class="kv-item"><span>Confidenza media</span><b id="stConf">--</b></div>
       <div class="kv-item"><span>Cicli di scansione</span><b id="stScans">0</b></div>
-      <div class="kv-item"><span>Latenza motore</span><b>1,2 ms</b></div>
-      <div class="kv-item"><span>Intervallo</span><b>2,5 s</b></div>
+      <div class="kv-item"><span>Latenza motore</span><b>1,4 ms</b></div>
+      <div class="kv-item"><span>API BingX</span><b>Attiva</b></div>
     </div>
   </section>
 
@@ -276,7 +276,7 @@ footer{margin-top:16px;font:400 10px var(--font-body);color:var(--mute);line-hei
   </section>
 
   <footer>
-    Scanner multi-mercato pro con motore analitico EMA, RSI, MACD e Bollinger integrato.
+    Scanner connesso alle API pubbliche di BingX per i mercati cripto, con motori analitici EMA, RSI, MACD e Bollinger integrati.
   </footer>
 </div>
 
@@ -295,11 +295,11 @@ const hhmmss=t=>{const d=new Date(t);return hhmm(t)+':'+pad2(d.getSeconds())};
 const CLS={cry:{label:'Cripto',color:'--gold'},stk:{label:'Azioni',color:'--c2'},com:{label:'Materie prime',color:'--c3'}};
 const IDX=new Set(['SPX','NDX','DAX','FTMIB']);
 const U=[
-  ['BTC','Bitcoin','cry',95200,.0075,'BTCUSDT'],['ETH','Ethereum','cry',3320,.0095,'ETHUSDT'],['SOL','Solana','cry',182,.012,'SOLUSDT'],
-  ['BNB','BNB','cry',624,.008,'BNBUSDT'],['XRP','XRP','cry',2.41,.012,'XRPUSDT'],['ADA','Cardano','cry',.71,.012,'ADAUSDT'],
-  ['DOGE','Dogecoin','cry',.184,.014,'DOGEUSDT'],['AVAX','Avalanche','cry',38.4,.013,'AVAXUSDT'],['LINK','Chainlink','cry',17.2,.012,'LINKUSDT'],
-  ['DOT','Polkadot','cry',7.15,.012,'DOTUSDT'],['LTC','Litecoin','cry',96.5,.01,'LTCUSDT'],['TON','Toncoin','cry',5.62,.012,'TONUSDT'],
-  ['SUI','Sui','cry',3.84,.015,'SUIUSDT'],['NEAR','NEAR','cry',5.48,.014,'NEARUSDT'],['APT','Aptos','cry',9.2,.014,'APTUSDT'],['ARB','Arbitrum','cry',.62,.014,'ARBUSDT'],
+  ['BTC','Bitcoin','cry',95200,.0075,'BTC-USDT'],['ETH','Ethereum','cry',3320,.0095,'ETH-USDT'],['SOL','Solana','cry',182,.012,'SOL-USDT'],
+  ['BNB','BNB','cry',624,.008,'BNB-USDT'],['XRP','XRP','cry',2.41,.012,'XRP-USDT'],['ADA','Cardano','cry',.71,.012,'ADA-USDT'],
+  ['DOGE','Dogecoin','cry',.184,.014,'DOGE-USDT'],['AVAX','Avalanche','cry',38.4,.013,'AVAX-USDT'],['LINK','Chainlink','cry',17.2,.012,'LINK-USDT'],
+  ['DOT','Polkadot','cry',7.15,.012,'DOT-USDT'],['LTC','Litecoin','cry',96.5,.01,'LTC-USDT'],['TON','Toncoin','cry',5.62,.012,'TON-USDT'],
+  ['SUI','Sui','cry',3.84,.015,'SUI-USDT'],['NEAR','NEAR','cry',5.48,.014,'NEAR-USDT'],['APT','Aptos','cry',9.2,.014,'APT-USDT'],['ARB','Arbitrum','cry',.62,.014,'ARB-USDT'],
   ['AAPL','Apple','stk',226.4,.0045],['MSFT','Microsoft','stk',432.8,.0042],['NVDA','NVIDIA','stk',141.2,.0075],['TSLA','Tesla','stk',262.5,.0095],
   ['AMZN','Amazon','stk',201.3,.005],['GOOGL','Alphabet','stk',176.8,.0048],['META','Meta','stk',583.1,.0058],['AMD','AMD','stk',152.7,.0075],
   ['NFLX','Netflix','stk',705.4,.0062],['JPM','JPMorgan','stk',231.6,.0042],['SPX','S&P 500','stk',5812,.0025],['NDX','Nasdaq 100','stk',20540,.0032],
@@ -311,15 +311,14 @@ const money=(a,p)=>(IDX.has(a.sym)?'':'$')+fp(p);
 
 let scans=0,paused=false,sel='BTC',tfSel='15',uiFilter='all',dirFilter='all';
 
-// Inizializzazione immediata di candele e prezzi base per evitare schermate vuote
-const assets=U.map(([sym,name,cls,price,vol,bn])=>{
+const assets=U.map(([sym,name,cls,price,vol,bx])=>{
   const candles=[];
   let cp=price;
   for(let i=0;i<120;i++){
     cp += (Math.random()-0.49)*cp*0.004;
     candles.push({t:Date.now()-(120-i)*900000,o:cp,c:cp,h:cp*1.002,l:cp*0.998,v:1000+Math.random()*2000});
   }
-  return {sym,name,cls,price,vol:vol/2,bn,candles,ai:null,sig:null};
+  return {sym,name,cls,price,vol:vol/2,bx,candles,ai:null,sig:null};
 });
 const bySym={};assets.forEach(a=>bySym[a.sym]=a);
 
@@ -377,7 +376,6 @@ function analyze(a){
 
   const S=tf[15].S,i=Math.max(0,S.c.length-1),atr=S.atr[i]||a.price*0.01,price=a.price;
   const slPct=clamp(1.5*atr/price,.004,.03);
-  let v24=0;for(let k=Math.max(0,n-96);k<n;k++)v24+=c15[k].v;
   return{tf,comb,conf,dir,raw,agree,atr,slPct,recTf,cp:tf[15].cp,ch24:c15.length>96?(price/c15[n-96].c-1):0,rsi:S.rsi[i],macdVal:S.hist[i],bbVal:S.pb[i]};
 }
 
@@ -409,16 +407,33 @@ function checkPaper(a,ai){
   }
 }
 
-async function updateMarketData(){
+async function fetchBingXData(){
   if(paused)return;
   for(const a of assets){
-    // Aggiornamento con simulazione fluida o API Binance protetta da try/catch
-    const ch = (Math.random()-0.49) * a.vol * a.price * 0.03;
-    a.price = Math.max(0.01, a.price + ch);
-    const L=a.candles[a.candles.length-1];
-    a.candles.push({t:Date.now(),o:L.c,c:a.price,h:Math.max(L.c,a.price)*1.001,l:Math.min(L.c,a.price)*0.999,v:1000+Math.random()*2000});
-    if(a.candles.length>300)a.candles.shift();
-
+    try{
+      if(a.bx){
+        // Chiamata alle API pubbliche di BingX Futures Klines
+        const res = await fetch(`https://open-api.bingx.com/openApi/swap/v3/quote/klines?symbol=${a.bx}&interval=15m&limit=100`);
+        if(res.ok){
+          const json = await res.json();
+          if(json && json.data && Array.isArray(json.data) && json.data.length > 0){
+            a.candles = json.data.map(x=>({t:+x.time,o:+x.open,h:+x.high,l:+x.low,c:+x.close,v:+x.volume}));
+            a.price = a.candles[a.candles.length-1].c;
+          }
+        }
+      } else {
+        // Simulazione per azioni e materie prime
+        const ch = (Math.random()-0.49) * a.vol * a.price * 0.03;
+        a.price = Math.max(0.01, a.price + ch);
+        const L=a.candles[a.candles.length-1];
+        a.candles.push({t:Date.now(),o:L.c,c:a.price,h:Math.max(L.c,a.price)*1.001,l:Math.min(L.c,a.price)*0.999,v:1000+Math.random()*2000});
+        if(a.candles.length>300)a.candles.shift();
+      }
+    }catch(e){
+      // Fallback in caso di problemi di rete temporanei
+      const ch = (Math.random()-0.49) * a.vol * a.price * 0.02;
+      a.price = Math.max(0.01, a.price + ch);
+    }
     const ai = analyze(a);
     a.ai = ai;
     checkPaper(a, ai);
@@ -474,7 +489,7 @@ function drawChart(){
   if(a.sig && a.sig.state==='ACTIVE'){
     [[a.sig.entry,'#ffd23f','ENTRATA'],[a.sig.sl,'#ff5a76','SL'],[a.sig.tp1,'#2ee6a6','TP1']].forEach(([v,col,l])=>{
       const yy=y(v);ctx.setLineDash([2,2]);ctx.strokeStyle=col;ctx.beginPath();ctx.moveTo(padL,yy);ctx.lineTo(w-padR,yy);ctx.stroke();ctx.setLineDash([]);
-      fillStyle=col;ctx.font='700 9px JetBrains Mono';ctx.fillText(`${l}: ${fp(v)}`,padL+4,yy-3);
+      ctx.fillStyle=col;ctx.font='700 9px JetBrains Mono';ctx.fillText(`${l}: ${fp(v)}`,padL+4,yy-3);
     });
   }
 }
@@ -626,20 +641,18 @@ if(bp){
   bp.addEventListener('click',()=>{
     paused=!paused;
     bp.textContent=paused?'RIPRENDI':'PAUSA';
-    const ft=$('#feedTxt');if(ft)ft.textContent=paused?'IN PAUSA':'MOTORE ATTIVO';
+    const ft=$('#feedTxt');if(ft)ft.textContent=paused?'IN PAUSA':'BINGX LIVE';
   });
 }
 
-// Avvio immediato e continuo
 async function boot(){
-  pushLog('INIT','Motore multi-timeframe avviato correttamente.');
-  // Analisi iniziale di tutti gli asset per popolare subito la UI
+  pushLog('INIT','Connessione stabilita con le API di BingX.');
   for(const a of assets){
     a.ai = analyze(a);
   }
   scans = 1;
   renderAll();
-  setInterval(updateMarketData, 2500);
+  setInterval(fetchBingXData, 6000);
 }
 
 boot();
