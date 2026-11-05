@@ -8,6 +8,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Sora:wght@300;400;600&display=swap" rel="stylesheet">
 <style>
+/* Layout: signal desk. Banner of TOP entries, then three columns (active asset gauge + validity,
+   news + flows, execution plan), chart + timeframe table, full-parameter scanner table, market overview. */
 :root{
   color-scheme:dark;
   --bg:#06080c; --panel:#0c1017; --panel2:#111722; --line:#1b2433; --line2:#2a3750;
@@ -195,7 +197,7 @@ footer{margin-top:18px;font:400 10.5px var(--font-mono);color:var(--mute);letter
   <header class="top">
     <div class="brand">
       <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><polygon points="20,3 36,15 20,37 4,15" fill="none" stroke="#ffd23f" stroke-width="1.6"/><polygon points="20,3 28,15 20,37 12,15" fill="rgba(255,210,63,.18)" stroke="#ffd23f" stroke-width="1"/></svg>
-      <div><h1>Scanner · Segnali TOP Entry</h1><p>Confidenza &gt; 80% · diamante giallo lampeggiante · conto alla rovescia di validità (Real Data)</p></div>
+      <div><h1>Scanner · Segnali TOP Entry</h1><p>Confidenza &gt; 80% · diamante giallo lampeggiante · dati di mercato reali</p></div>
     </div>
     <div class="chips">
       <span class="chip"><i class="dot" id="feedDot"></i><span id="feedTxt">CONNESSO LIVE</span></span>
@@ -218,7 +220,7 @@ footer{margin-top:18px;font:400 10.5px var(--font-mono);color:var(--mute);letter
         <div class="ph"><h2>Validità segnale operativo</h2><span id="vState"></span></div>
         <div class="cdbig" id="cdMain">--:--</div>
         <div class="prog"><i id="cdBar" style="width:0"></i></div>
-        <p class="note">Il segnale resta valido in base alle candele reali correnti. Si aggiorna spunta per spunta all'arrivo dei dati di mercato.</p>
+        <p class="note">Il segnale viene calcolato in tempo reale sulle candele effettive di mercato.</p>
       </section>
     </div>
 
@@ -257,7 +259,7 @@ footer{margin-top:18px;font:400 10.5px var(--font-mono);color:var(--mute);letter
     <section class="panel s4">
       <div class="ph"><h2>Indicatori per timeframe</h2><span class="sub" id="tfSub"></span></div>
       <table class="tft"><thead><tr><th></th><th>15M</th><th>1H</th><th>4H</th></tr></thead><tbody id="tft"></tbody></table>
-      <div class="sec">Altri parametri reali</div>
+      <div class="sec">Parametri di mercato reali</div>
       <div class="kv" id="extra"></div>
     </section>
 
@@ -268,8 +270,8 @@ footer{margin-top:18px;font:400 10.5px var(--font-mono);color:var(--mute);letter
           <button type="button" class="fb t" data-f="top" aria-pressed="false">TOP confluenze (&gt;80%)</button>
           <button type="button" class="fb g" data-f="buy" aria-pressed="false">Solo BUY</button>
           <button type="button" class="fb r" data-f="sell" aria-pressed="false">Solo SELL</button>
-          <button type="button" class="fb g" data-f="npos" aria-pressed="false">News positive</button>
-          <button type="button" class="fb r" data-f="nneg" aria-pressed="false">News negative</button>
+          <button type="button" class="fb g" data-f="npos" aria-pressed="false">Trend positivo</button>
+          <button type="button" class="fb r" data-f="nneg" aria-pressed="false">Trend negativo</button>
         </div>
       </div>
       <div class="filters" style="margin-bottom:10px">
@@ -280,7 +282,7 @@ footer{margin-top:18px;font:400 10.5px var(--font-mono);color:var(--mute);letter
         <span class="sub mu mono" id="cnt" style="margin-left:auto"></span>
       </div>
       <div class="tw"><table class="main"><thead><tr id="thead">
-        <th data-k="sym" style="text-align:left">Coin / Asset</th><th>Entrata istantanea</th><th>Leva consigliata</th><th data-k="price">Prezzo attuale</th><th>Tachimetro</th><th data-k="conf">Confidenza</th><th>Validità segnale</th><th>15m / 1h / 4h</th><th>Notizie &amp; mercato</th><th data-k="ch24">Var 24h</th><th>TP1</th><th>Stop Loss</th>
+        <th data-k="sym" style="text-align:left">Coin / Asset</th><th>Entrata istantanea</th><th>Leva consigliata</th><th data-k="price">Prezzo attuale</th><th>Tachimetro</th><th data-k="conf">Confidenza</th><th>Validità segnale</th><th>15m / 1h / 4h</th><th>Mercato &amp; Trend</th><th data-k="ch24">Var 24h</th><th>TP1</th><th>Stop Loss</th>
       </tr></thead><tbody id="tbody"></tbody></table></div>
     </section>
 
@@ -331,7 +333,7 @@ const mmss=s=>{s=Math.max(0,Math.floor(s));return pad2(Math.floor(s/60))+':'+pad
 const CLS={cry:{label:'Cripto',color:'--gold'},stk:{label:'Azioni',color:'--c2'},com:{label:'Materie prime',color:'--c3'}};
 const IDX=new Set(['SPX','NDX','DAX','FTMIB']);
 
-// Lista asset con endpoint reali Binance o simboli Yahoo Finance
+// Lista asset con simboli ufficiali Binance o Yahoo Finance
 const U=[
   ['BTC','Bitcoin','cry',95000,'BTCUSDT'],['ETH','Ethereum','cry',3300,'ETHUSDT'],['SOL','Solana','cry',180,'SOLUSDT'],
   ['BNB','BNB','cry',620,'BNBUSDT'],['XRP','XRP','cry',2.4,'XRPUSDT'],['ADA','Cardano','cry',0.7,'ADAUSDT'],
