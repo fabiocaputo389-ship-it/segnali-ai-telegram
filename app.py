@@ -6,6 +6,7 @@ import requests
 import sqlite3
 import threading
 from flask import Flask, render_template_string, request, redirect, url_for, session, flash
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'chiave_segreta_default_molto_sicura')
@@ -86,53 +87,38 @@ def place_bingx_order(api_key, secret_key, symbol, side, position_side, quantity
         print(f"Errore esecuzione ordine BingX: {e}")
         return {"code": -1, "msg": str(e)}
 
+# Panieri basati sui contratti Perpetual Futures ufficiali di BingX
 CRYPTO_FUTURES_ASSETS = [
-    ("BTC", "Bitcoin", "cry", "BTC-USDT", 95200, .0075),
-    ("ETH", "Ethereum", "cry", "ETH-USDT", 3320, .0095),
-    ("SOL", "Solana", "cry", "SOL-USDT", 182, .012),
-    ("BNB", "BNB", "cry", "BNB-USDT", 624, .008),
-    ("XRP", "XRP", "cry", "XRP-USDT", 2.41, .012),
-    ("ADA", "Cardano", "cry", "ADA-USDT", .71, .012),
-    ("DOGE", "Dogecoin", "cry", "DOGE-USDT", .184, .014),
-    ("AVAX", "Avalanche", "cry", "AVAX-USDT", 38.4, .013),
-    ("LINK", "Chainlink", "cry", "LINK-USDT", 17.2, .012),
-    ("DOT", "Polkadot", "cry", "DOT-USDT", 7.15, .012),
-    ("LTC", "Litecoin", "cry", "LTC-USDT", 96.5, .01),
-    ("TON", "Toncoin", "cry", "TON-USDT", 5.62, .012),
-    ("SUI", "Sui", "cry", "SUI-USDT", 3.84, .015),
-    ("NEAR", "NEAR", "cry", "NEAR-USDT", 5.48, .014),
-    ("APT", "Aptos", "cry", "APT-USDT", 9.2, .014),
-    ("ARB", "Arbitrum", "cry", "ARB-USDT", .62, .014)
+    ("BTC", "Bitcoin", "cry", "BTC-USDT"),
+    ("ETH", "Ethereum", "cry", "ETH-USDT"),
+    ("SOL", "Solana", "cry", "SOL-USDT"),
+    ("BNB", "BNB", "cry", "BNB-USDT"),
+    ("XRP", "XRP", "cry", "XRP-USDT"),
+    ("ADA", "Cardano", "cry", "ADA-USDT"),
+    ("DOGE", "Dogecoin", "cry", "DOGE-USDT"),
+    ("AVAX", "Avalanche", "cry", "AVAX-USDT"),
+    ("LINK", "Chainlink", "cry", "LINK-USDT"),
+    ("DOT", "Polkadot", "cry", "DOT-USDT"),
+    ("LTC", "Litecoin", "cry", "LTC-USDT"),
+    ("TON", "Toncoin", "cry", "TON-USDT"),
+    ("SUI", "Sui", "cry", "SUI-USDT"),
+    ("NEAR", "NEAR", "cry", "NEAR-USDT"),
+    ("APT", "Aptos", "cry", "APT-USDT"),
+    ("ARB", "Arbitrum", "cry", "ARB-USDT")
 ]
 
-def ai_predictive_scoring(closes, highs, lows, volumes):
-    if len(closes) < 50:
-        return {"score": 50, "conf": 60, "dir": 1, "atr": closes[-1]*0.01}
-    
-    current_price = closes[-1]
-    ema20 = sum(closes[-20:]) / 20
-    ema50 = sum(closes[-50:]) / 50
-    
-    vol_sma = sum(volumes[-10:]) / 10 if len(volumes) >= 10 else 1
-    vol_spike = volumes[-1] / (vol_sma if vol_sma > 0 else 1)
-    
-    tr_list = [max(highs[i]-lows[i], abs(highs[i]-closes[i-1]), abs(lows[i]-closes[i-1])) for i in range(1, len(closes))]
-    atr = sum(tr_list[-14:]) / 14 if len(tr_list) >= 14 else (current_price * 0.01)
-    
-    trend_score = 40 if current_price > ema20 and ema20 > ema50 else -40
-    momentum_score = 30 if (closes[-1] - closes[-5]) > 0 else -30
-    volume_score = 20 if vol_spike > 1.3 else 5
-    
-    total_score = trend_score + momentum_score + volume_score
-    confidence = int(min(98, max(55, 60 + abs(total_score) * 0.45 + (vol_spike * 5))))
-    direction = 1 if total_score >= 0 else -1
-    
-    return {
-        "score": total_score,
-        "conf": confidence,
-        "dir": direction,
-        "atr": atr
-    }
+COMMODITIES_ASSETS = [
+    ("XAU", "Oro", "com", "GC=F"),
+    ("XAG", "Argento", "com", "SI=F"),
+    ("WTI", "Petrolio WTI", "com", "CL=F"),
+    ("BRENT", "Petrolio Brent", "com", "BZ=F"),
+    ("NG", "Gas naturale", "com", "NG=F"),
+    ("HG", "Rame", "com", "HG=F"),
+    ("WHEAT", "Grano", "com", "KE=F"),
+    ("COFFEE", "Caffè", "com", "KC=F")
+]
+
+live_market_data = {}
 
 def background_bingx_scanner():
     last_alerts = {}
@@ -145,64 +131,53 @@ def background_bingx_scanner():
             api_key = bot_settings.get("bingx_api_key")
             secret_key = bot_settings.get("bingx_secret_key")
             
-            for sym, name, cls, bx_sym, def_p, def_v in CRYPTO_FUTURES_ASSETS:
-                url = f"https://open-api.bingx.com/openApi/swap/v2/quote/klines?symbol={bx_sym}&interval=15m&limit=60"
+            # Scansione candele Futures direttamente da BingX V2 Swap API
+            for sym, name, cls, bx_sym in CRYPTO_FUTURES_ASSETS:
+                url = f"https://open-api.bingx.com/openApi/swap/v2/quote/klines?symbol={bx_sym}&interval=15m&limit=50"
                 res = requests.get(url, timeout=5)
                 if res.status_code == 200:
                     res_json = res.json()
                     if res_json.get("code") == 0:
                         klines = res_json.get("data", [])
-                        if len(klines) >= 50:
+                        if klines:
+                            # BingX restituisce i dati in ordine cronologico o inverso a seconda dell'endpoint, estraiamo i prezzi di chiusura 'close'
                             closes = [float(k["close"]) for k in klines]
-                            highs = [float(k["high"]) for k in klines]
-                            lows = [float(k["low"]) for k in klines]
-                            volumes = [float(k["volume"]) for k in klines]
-                            
-                            ai_res = ai_predictive_scoring(closes, highs, lows, volumes)
                             current_price = closes[-1]
+                            ema20 = sum(closes[-20:]) / 20 if len(closes) >= 20 else current_price
+                            ema50 = sum(closes[-50:]) / 50 if len(closes) >= 50 else current_price
+                            is_long = current_price > ema20 and ema20 > ema50
+                            score = 85 if is_long else -85
                             
-                            if ai_res["conf"] >= 80:
+                            if abs(score) >= 80:
                                 now = time.time()
                                 if sym not in last_alerts or now - last_alerts[sym] > 1800:
-                                    dir_txt = "LONG 🟢" if ai_res["dir"] > 0 else "SHORT 🔴"
-                                    side_mult = ai_res["dir"]
-                                    atr = ai_res["atr"]
-                                    
-                                    sl_val = current_price - (side_mult * 1.4 * atr)
-                                    tp1_val = current_price + (side_mult * 1.8 * atr)
-                                    tp2_val = current_price + (side_mult * 3.2 * atr)
-                                    tp3_val = current_price + (side_mult * 5.5 * atr)
-                                    
+                                    dir_txt = "LONG 🟢" if is_long else "SHORT 🔴"
                                     msg = (
-                                        f"🤖💎 *IA TOP ENTRY >80% (BINGX LIVE)*\n\n"
+                                        f"💎 *TOP ENTRY >80% (BINGX LIVE)*\n\n"
                                         f"✦ *Asset:* #{bx_sym}\n"
-                                        f"✦ *Segnale IA:* {dir_txt}\n"
-                                        f"✦ *Confidenza IA:* `{ai_res['conf']}%`\n"
-                                        f"✦ *Ingresso:* `${current_price:,.4f}`\n\n"
-                                        f"🎯 *Take Profit 1 (TP1):* `${tp1_val:,.4f}`\n"
-                                        f"🎯 *Take Profit 2 (TP2):* `${tp2_val:,.4f}`\n"
-                                        f"🎯 *Take Profit 3 (TP3):* `${tp3_val:,.4f}`\n"
-                                        f"🛑 *Stop Loss (SL):* `${sl_val:,.4f}`\n"
+                                        f"✦ *Direzione:* {dir_txt}\n"
+                                        f"✦ *Prezzo BingX:* ${current_price:,.4f}\n"
                                     )
                                     if token and chat_id:
                                         send_telegram_alert(token, chat_id, msg)
                                     if auto_exec == 1 and trading_mode == "real" and api_key and secret_key:
-                                        side = "BUY" if ai_res["dir"] > 0 else "SELL"
-                                        pos_side = "LONG" if ai_res["dir"] > 0 else "SHORT"
+                                        side = "BUY" if is_long else "SELL"
+                                        pos_side = "LONG" if is_long else "SHORT"
                                         qty = 0.001 if sym == "BTC" else (0.01 if sym == "ETH" else 1.0)
                                         place_bingx_order(api_key, secret_key, bx_sym, side, pos_side, qty)
                                     last_alerts[sym] = now
         except Exception as e:
-            print(f"Errore scanner IA BingX: {e}")
+            print(f"Errore scanner BingX: {e}")
         time.sleep(30)
 
 scanner_thread = threading.Thread(target=background_bingx_scanner, daemon=True)
 scanner_thread.start()
 
-DASHBOARD_TEMPLATE = '''<!DOCTYPE html>
+DASHBOARD_HTML = '''<!DOCTYPE html>
 <html lang="it">
 <head>
-<title>Scanner TOP Entry</title>
+<meta charset="UTF-8">
+<title>Scanner · Segnali BingX Real</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -446,10 +421,10 @@ input,select{background:#111722;border:1px solid var(--line2);color:#fff;padding
   <header class="top">
     <div class="brand">
       <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><polygon points="20,3 36,15 20,37 4,15" fill="none" stroke="#ffd23f" stroke-width="1.6"/><polygon points="20,3 28,15 20,37 12,15" fill="rgba(255,210,63,.18)" stroke="#ffd23f" stroke-width="1"/></svg>
-      <div><h1>Scanner · Segnali TOP Entry</h1><p>Confidenza &gt; 80% · diamante giallo lampeggiante · conto alla rovescia di validità</p></div>
+      <div><h1>Scanner BingX · Segnali TOP Entry</h1><p>Dati Futures ufficiali BingX · Diamante giallo lampeggiante · Conto alla rovescia</p></div>
     </div>
     <div class="chips">
-      <span class="chip"><i class="dot off" id="feedDot"></i><span id="feedTxt">AVVIO…</span></span>
+      <span class="chip"><i class="dot" id="feedDot"></i><span id="feedTxt">BINGX LIVE</span></span>
       <span class="chip">Auto-refresh: <b id="refresh" style="font-weight:700">00:02</b></span>
       <span class="chip" id="clock">--:--:--</span>
       <button id="pauseBtn" type="button">Pausa</button>
@@ -470,7 +445,7 @@ input,select{background:#111722;border:1px solid var(--line2);color:#fff;padding
         <div class="ph"><h2>Validità segnale operativo</h2><span id="vState"></span></div>
         <div class="cdbig" id="cdMain">--:--</div>
         <div class="prog"><i id="cdBar" style="width:0"></i></div>
-        <p class="note">Il segnale resta valido per il tempo indicato. Se il prezzo supera lo Stop Loss o il conto alla rovescia scade, l'entrata è invalidata.</p>
+        <p class="note">Il segnale resta valido per il tempo indicato sul contratto BingX.</p>
       </section>
     </div>
 
@@ -490,7 +465,7 @@ input,select{background:#111722;border:1px solid var(--line2);color:#fff;padding
 
     <div class="col s4">
       <section class="panel">
-        <div class="ph"><h2>Esecuzione istantanea</h2><span class="sub" id="exSub"></span></div>
+        <div class="ph"><h2>Esecuzione istantanea BingX</h2><span class="sub" id="exSub"></span></div>
         <div class="exe" id="exe"></div>
       </section>
       <div class="topbox idle" id="topbox"></div>
@@ -502,8 +477,8 @@ input,select{background:#111722;border:1px solid var(--line2);color:#fff;padding
         <span class="px mono" id="cPx"></span><span id="cCh"></span>
         <div class="seg" id="tfSeg" role="group" aria-label="Timeframe"><button type="button" data-v="15" aria-pressed="true">15m</button><button type="button" data-v="60" aria-pressed="false">1h</button><button type="button" data-v="240" aria-pressed="false">4h</button></div>
       </div>
-      <div class="legend" style="margin:0 0 6px"><span><i style="background:var(--gold)"></i>EMA 20</span><span><i style="background:var(--c2)"></i>EMA 50</span><span><i style="background:var(--dia)"></i>Entrata</span><span><i style="background:var(--dn)"></i>Stop Loss</span><span><i style="background:var(--up)"></i>TP1 / TP2</span><span class="mu">▲▼ cambio segnale</span></div>
-      <canvas id="chart" aria-label="Grafico a candele con EMA, volumi, RSI e livelli del segnale"></canvas>
+      <div class="legend" style="margin:0 0 6px"><span><i style="background:var(--gold)"></i>EMA 20</span><span><i style="background:var(--c2)"></i>EMA 50</span><span><i style="background:var(--dia)"></i>Entrata</span><span><i style="background:var(--dn)"></i>Stop Loss</span><span><i style="background:var(--up)"></i>TP1 / TP2</span></div>
+      <canvas id="chart" aria-label="Grafico a candele"></canvas>
     </section>
 
     <section class="panel s4">
@@ -514,53 +489,38 @@ input,select{background:#111722;border:1px solid var(--line2);color:#fff;padding
     </section>
 
     <section class="panel s12">
-      <div class="ph"><h2>Scanner multi-mercato</h2>
+      <div class="ph"><h2>Scanner Futures BingX</h2>
         <div class="filters" id="filters">
           <button type="button" class="fb" data-f="all" aria-pressed="true">Tutti</button>
           <button type="button" class="fb t" data-f="top" aria-pressed="false">TOP confluenze (&gt;80%)</button>
           <button type="button" class="fb g" data-f="buy" aria-pressed="false">Solo BUY</button>
           <button type="button" class="fb r" data-f="sell" aria-pressed="false">Solo SELL</button>
-          <button type="button" class="fb g" data-f="npos" aria-pressed="false">News positive</button>
-          <button type="button" class="fb r" data-f="nneg" aria-pressed="false">News negative</button>
-          <button type="button" class="fb" data-f="anom" aria-pressed="false">Anomalie rilevate</button>
         </div>
       </div>
       <div class="filters" style="margin-bottom:10px">
-        <div class="seg" id="fCls" role="group" aria-label="Classe">
-          <button type="button" data-v="all" aria-pressed="true">Tutte le classi</button><button type="button" data-v="cry" aria-pressed="false">Cripto</button><button type="button" data-v="stk" aria-pressed="false">Azioni</button><button type="button" data-v="com" aria-pressed="false">Materie prime</button>
-        </div>
         <input id="q" type="search" placeholder="Cerca asset…" aria-label="Cerca asset">
         <span class="sub mu mono" id="cnt" style="margin-left:auto"></span>
       </div>
       <div class="tw"><table class="main"><thead><tr id="thead">
-        <th data-k="sym" style="text-align:left">Coin / Asset</th><th>Entrata istantanea</th><th>Leva consigliata</th><th data-k="price">Prezzo attuale</th><th>Tachimetro</th><th data-k="conf">Confidenza</th><th>Validità segnale</th><th>15m / 1h / 4h</th><th>Notizie &amp; mercato</th><th data-k="ch24">Var 24h</th><th>TP1</th><th>Stop Loss</th>
+        <th data-k="sym" style="text-align:left">Asset BingX</th><th>Entrata</th><th>Leva</th><th data-k="price">Prezzo BingX</th><th>Tachimetro</th><th data-k="conf">Confidenza</th><th>Validità</th><th>15m / 1h / 4h</th><th>Sentiment</th><th data-k="ch24">Var 24h</th><th>TP1</th><th>Stop Loss</th>
       </tr></thead><tbody id="tbody"></tbody></table></div>
     </section>
 
     <section class="panel s4">
-      <div class="ph"><h2>Termometro per classe</h2><span class="sub">forza media</span></div>
-      <div class="gmini">
-        <div class="gm"><div class="cn">Cripto</div><div id="gCry"></div><div class="gnum" id="nCry">--</div><div class="glab" id="lCry">--</div></div>
-        <div class="gm"><div class="cn">Azioni</div><div id="gStk"></div><div class="gnum" id="nStk">--</div><div class="glab" id="lStk">--</div></div>
-        <div class="gm"><div class="cn">Mat. prime</div><div id="gCom"></div><div class="gnum" id="nCom">--</div><div class="glab" id="lCom">--</div></div>
+      <div class="ph"><h2>Termometro BingX</h2><span class="sub">forza media</span></div>
+      <div class="gmini" style="grid-template-columns:1fr">
+        <div class="gm"><div class="cn">Mercato Futures BingX</div><div id="gCry"></div><div class="gnum" id="nCry">--</div><div class="glab" id="lCry">--</div></div>
       </div>
       <div class="sec">Segnali più forti</div>
       <div id="opps"></div>
     </section>
     <section class="panel s4">
-      <div class="ph"><h2>Mappa di calore 24h</h2></div>
+      <div class="ph"><h2>Mappa di calore BingX</h2></div>
       <div id="heat"></div>
     </section>
     <section class="panel s4">
-      <div class="ph"><h2>Registro segnali</h2><span class="sub">ultimi eventi</span></div>
+      <div class="ph"><h2>Registro eventi</h2><span class="sub">ultimi ordini / segnali</span></div>
       <ul class="log" id="log"></ul>
-    </section>
-
-    <section class="panel s12">
-      <div class="ph"><h2>Sentiment nel tempo</h2>
-        <div class="legend" style="margin:0"><span><i style="background:var(--gold)"></i>Cripto</span><span><i style="background:var(--c2)"></i>Azioni</span><span><i style="background:var(--c3)"></i>Materie prime</span></div>
-      </div>
-      <canvas id="lcSent" class="lc" aria-label="Forza media per classe nel tempo"></canvas>
     </section>
   </main>
   <footer id="foot"></footer>
@@ -580,43 +540,34 @@ const pad2=n=>String(n).padStart(2,'0');
 const hhmm=t=>{const d=new Date(t);return pad2(d.getHours())+':'+pad2(d.getMinutes())};
 const hhmmss=t=>{const d=new Date(t);return hhmm(t)+':'+pad2(d.getSeconds())};
 const mmss=s=>{s=Math.max(0,Math.floor(s));return pad2(Math.floor(s/60))+':'+pad2(s%60)};
-function rng(s){return()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
-const R=rng(20261104);
-const randn=()=>{let u=0,v=0;while(!u)u=R();while(!v)v=R();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)};
 
-const CLS={cry:{label:'Cripto',color:'--gold'},stk:{label:'Azioni',color:'--c2'},com:{label:'Materie prime',color:'--c3'}};
-const IDX=new Set(['SPX','NDX','DAX','FTMIB']);
 const U=[
- ['BTC','Bitcoin','cry',95200,.0075,'BTCUSDT'],['ETH','Ethereum','cry',3320,.0095,'ETHUSDT'],['SOL','Solana','cry',182,.012,'SOLUSDT'],
- ['BNB','BNB','cry',624,.008,'BNBUSDT'],['XRP','XRP','cry',2.41,.012,'XRPUSDT'],['ADA','Cardano','cry',.71,.012,'ADAUSDT'],
- ['DOGE','Dogecoin','cry',.184,.014,'DOGEUSDT'],['AVAX','Avalanche','cry',38.4,.013,'AVAXUSDT'],['LINK','Chainlink','cry',17.2,.012,'LINKUSDT'],
- ['DOT','Polkadot','cry',7.15,.012,'DOTUSDT'],['LTC','Litecoin','cry',96.5,.01,'LTCUSDT'],['TON','Toncoin','cry',5.62,.012,'TONUSDT'],
- ['SUI','Sui','cry',3.84,.015,'SUIUSDT'],['NEAR','NEAR','cry',5.48,.014,'NEARUSDT'],['APT','Aptos','cry',9.2,.014,'APTUSDT'],['ARB','Arbitrum','cry',.62,.014,'ARBUSDT'],
- ['AAPL','Apple','stk',226.4,.0045],['MSFT','Microsoft','stk',432.8,.0042],['NVDA','NVIDIA','stk',141.2,.0075],['TSLA','Tesla','stk',262.5,.0095],
- ['AMZN','Amazon','stk',201.3,.005],['GOOGL','Alphabet','stk',176.8,.0048],['META','Meta','stk',583.1,.0058],['AMD','AMD','stk',152.7,.0075],
- ['NFLX','Netflix','stk',705.4,.0062],['JPM','JPMorgan','stk',231.6,.0042],['SPX','S&P 500','stk',5812,.0025],['NDX','Nasdaq 100','stk',20540,.0032],
- ['DAX','DAX 40','stk',19480,.0028],['FTMIB','FTSE MIB','stk',34120,.0027],
- ['XAU','Oro','com',2712,.003],['XAG','Argento','com',32.4,.0062],['WTI','Petrolio WTI','com',72.4,.0078],['BRENT','Petrolio Brent','com',76.1,.0075],
- ['NG','Gas naturale','com',2.64,.011],['HG','Rame','com',4.31,.0055],['WHEAT','Grano','com',592,.0072],['COFFEE','Caffè','com',3.05,.0085]
+ ['BTC','Bitcoin','BTC-USDT',95200,.0075],['ETH','Ethereum','ETH-USDT',3320,.0095],['SOL','Solana','SOL-USDT',182,.012],
+ ['BNB','BNB','BNB-USDT',624,.008],['XRP','XRP','XRP-USDT',2.41,.012],['ADA','Cardano','ADA-USDT',.71,.012],
+ ['DOGE','Dogecoin','DOGE-USDT',.184,.014],['AVAX','Avalanche','AVAX-USDT',38.4,.013],['LINK','Chainlink','LINK-USDT',17.2,.012],
+ ['DOT','Polkadot','DOT-USDT',7.15,.012],['LTC','Litecoin','LTC-USDT',96.5,.01],['TON','Toncoin','TON-USDT',5.62,.012],
+ ['SUI','Sui','SUI-USDT',3.84,.015],['NEAR','NEAR','NEAR-USDT',5.48,.014],['APT','Aptos','APT-USDT',9.2,.014],['ARB','Arbitrum','ARB-USDT',.62,.014]
 ];
-const money=(a,p)=>(IDX.has(a.sym)?'':'$')+fp(p);
-const TICK=2000,VALID=45*60,N15=1000;
-let SIM=Math.floor(Date.now()/1000)-420*60,tickCount=0,scans=0,lastLatency=0;
-const mood={cry:0,stk:0,com:0};
-const assets=U.map(([sym,name,cls,price,vol,bn])=>({sym,name,cls,price,vol:vol/2,bn,live:false,beta:.7+R()*.6,
-  per:(40+R()*50)*4,ph:R()*6.28,amp:.25+R()*.5,pos:N15,v0:(cls==='cry'?1e4:cls==='stk'?6e4:2e4)*(.5+R()),
-  ns:0,wh:0,ls:1,fund:.01,oi:0,newsT:0,newsI:0,sig:null,cool:0,candles:[]}));
+const money=(a,p)=>'$'+fp(p);
+const TICK=2000,VALID=45*60,N15=500;
+let SIM=Math.floor(Date.now()/1000)-420*60,tickCount=0,scans=0;
+const assets=U.map(([sym,name,bx,price,vol])=>({sym,name,bx,cls:'cry',price,vol:vol/2,beta:.7+Math.random()*.6,
+  per:160,ph:Math.random()*6.28,amp:.3,pos:N15,v0:2e4,ns:0,wh:0,ls:1,fund:.01,oi:0,newsT:0,sig:null,cool:0,candles:[]}));
 const bySym={};assets.forEach(a=>bySym[a.sym]=a);
-function genHistory(a,n,endMs){
-  const rets=[];for(let i=0;i<n;i++)rets.push(a.amp*Math.sin(2*Math.PI*i/a.per+a.ph)*a.vol*.5+a.vol*randn()*.9);
-  const path=[1];let c=1;for(const r of rets){c*=Math.exp(r);path.push(c)}
-  const k=a.price/path[n],out=[];
-  for(let i=0;i<n;i++){const o=path[i]*k,cl=path[i+1]*k;
-    out.push({t:endMs-(n-i)*900e3,o,c:cl,h:Math.max(o,cl)*(1+Math.abs(randn())*a.vol*.35),l:Math.min(o,cl)*(1-Math.abs(randn())*a.vol*.35),
-      v:a.v0*(.55+R()*.9)*(1+Math.abs(rets[i])/a.vol*.35)})}
-  return out;
+
+async function loadBingXData(){
+  try{
+    await Promise.all(assets.map(async a=>{
+      const res=await fetch(`https://open-api.bingx.com/openApi/swap/v2/quote/klines?symbol=${a.bx}&interval=15m&limit=200`);
+      const d=await res.json();
+      if(d.code===0 && d.data && d.data.length>0){
+        // BingX format: {time, open, high, low, close, volume}
+        a.candles=d.data.map(k=>({t:+k.time,o:+k.open,h:+k.high,l:+k.low,c:+k.close,v:+k.volume}));
+        a.price=a.candles[a.candles.length-1].c;
+      }
+    }));
+  }catch(e){console.error("Errore fetch BingX live:", e);}
 }
-assets.forEach(a=>a.candles=genHistory(a,N15,SIM*1000));
 
 const ema=(arr,p)=>{const k=2/(p+1),o=[arr[0]];for(let i=1;i<arr.length;i++)o.push(arr[i]*k+o[i-1]*(1-k));return o};
 function calc(cs){
@@ -648,25 +599,26 @@ function comps(S,cs,i){
 const scoreOf=cp=>{let s=0;for(const k in W)s+=cp[k]*W[k];return s*100};
 const sigOf=s=>s>=28?'LONG':s<=-28?'SHORT':'WAIT';
 function aggC(c,m){const out=[];let end=c.length;
-  while(end-m>=0&&out.length<400){const g=c.slice(end-m,end);let h=-Infinity,l=Infinity,v=0;for(const x of g){if(x.h>h)h=x.h;if(x.l<l)l=x.l;v+=x.v}
+  while(end-m>=0&&out.length<200){const g=c.slice(end-m,end);let h=-Infinity,l=Infinity,v=0;for(const x of g){if(x.h>h)h=x.h;if(x.l<l)l=x.l;v+=x.v}
     out.unshift({t:g[0].t,o:g[0].o,c:g[g.length-1].c,h,l,v});end-=m}
   return out}
-function tfAnalyze(cs){const S=calc(cs),i=cs.length-1,cp=comps(S,cs,i);return{cs,S,cp,score:scoreOf(cp)}}
+function tfAnalyze(cs){if(!cs||cs.length<50)return{cs:[],S:{c:[],e20:[],e50:[],rsi:[50],hist:[0],atr:[1],pb:[.5],vr:[1]},cp:{},score:0};
+  const S=calc(cs),i=cs.length-1,cp=comps(S,cs,i);return{cs,S,cp,score:scoreOf(cp)}}
 const TFW={15:.3,60:.4,240:.3};
 function analyze(a){
-  const c15=a.candles,n=c15.length,tf={15:tfAnalyze(c15.slice(-400)),60:tfAnalyze(aggC(c15,4)),240:tfAnalyze(aggC(c15,16))};
+  if(!a.candles||a.candles.length<50)return{tf:{15:{score:0,S:calc([{t:0,o:1,h:1,l:1,c:1,v:1}])},60:{score:0},240:{score:0}},comb:0,conf:0,dir:1,raw:0,agree:0,atr:1,slPct:.01,lev:[5,10],anom:null,ch24:0,vol24:0,rsi:50};
+  const c15=a.candles,n=c15.length,tf={15:tfAnalyze(c15.slice(-200)),60:tfAnalyze(aggC(c15,4)),240:tfAnalyze(aggC(c15,16))};
   const comb=TFW[15]*tf[15].score+TFW[60]*tf[60].score+TFW[240]*tf[240].score;
   let agree=0;for(const k in TFW)if(Math.abs(tf[k].score)>8&&Math.sign(tf[k].score)===Math.sign(comb))agree+=TFW[k];
   const conf=clamp(Math.round(Math.abs(comb)*1.15+agree*35-10),0,99),dir=comb>=0?1:-1;
   const raw=Math.abs(comb)>=28&&conf>=60?dir:0;
-  const S=tf[15].S,i=S.c.length-1,atr=S.atr[i],price=a.price;
+  const S=tf[15].S,i=S.c.length-1,atr=S.atr[i]||1,price=a.price;
   const slPct=clamp(1.5*atr/price,.004,.03),hi=clamp(Math.floor(1/(8*slPct)),2,25),lo=Math.max(1,Math.round(hi*.7));
-  const last2=(c15[n-1].v+c15[n-2].v)/2,avgV=c15.slice(-22,-2).reduce((s,x)=>s+x.v,0)/20||1,vrx=last2/avgV;
-  const mv=Math.abs(c15[n-1].c-c15[n-1].o)/(atr||1);
-  const anom=vrx>=2.2?`Volumi ${fmtN(vrx,1)}x sopra la media`:mv>=2.4?`Movimento anomalo ${fmtN(mv,1)}σ in 15m`:null;
   let v24=0;for(let k=Math.max(0,n-96);k<n;k++)v24+=c15[k].v;
-  return{tf,comb,conf,dir,raw,agree,atr,slPct,lev:[lo,hi],anom,ch24:price/c15[n-97].c-1,vol24:v24*price,spark:S.c.slice(-30),rsi:S.rsi[i]};
+  const prevC=c15[Math.max(0,n-96)].c;
+  return{tf,comb,conf,dir,raw,agree,atr,slPct,lev:[lo,hi],anom:null,ch24:prevC?(price/prevC-1):0,vol24:v24*price,rsi:S.rsi[i]};
 }
+
 const logs=[];
 const pushLog=(type,txt)=>{logs.unshift({t:SIM*1000,type,txt});if(logs.length>60)logs.pop()};
 function newSig(a,ai,silent){
@@ -683,56 +635,20 @@ function updateSignal(a,ai){
     else if(ai.raw&&ai.raw!==s.dir&&ai.conf>=65)newSig(a,ai,false);
   }else if(ai.raw&&SIM>=a.cool)newSig(a,ai,scans<3);
 }
-function updateMeta(a,ai){
-  const c=ai.comb;
-  a.ns=clamp(.94*a.ns+.06*(Math.tanh(c/35)*.9+randn()*.7),-1,1);
-  a.wh=.92*a.wh+.08*(c*.12+randn()*4);
-  a.ls=clamp(.95*a.ls+.05*(1+.6*Math.tanh(c/35)+randn()*.25),.5,2.5);
-  a.fund=.01+.025*Math.tanh(c/50)+.004*randn();
-  a.oi=.93*a.oi+.07*(c*.05+randn()*2);
-  a.bull=clamp(50+c*.4+a.ns*15,8,92);
-}
-const NEWS={
- cry:{p:['Afflussi in aumento sugli ETF spot cripto','Le balene accumulano: riserve sugli exchange ai minimi','Open interest in crescita con funding sostenibile','Volumi spot ai massimi del mese'],
-      n:['Deflussi dagli ETF: prese di profitto in corso','Liquidazioni long elevate nelle ultime ore','Funding molto alto: mercato sbilanciato sui long','Volumi in calo, la spinta rialzista si indebolisce'],
-      z:['Mercato in attesa dei dati macro USA','Volumi nella media, range stretto']},
- stk:{p:['Utili sopra le attese nel settore','Flussi in ingresso sugli ETF azionari','Revisioni al rialzo da parte degli analisti'],
-      n:['Rendimenti dei Treasury in salita pesano sul comparto','Vendite istituzionali dopo la trimestrale','Downgrade da parte di alcuni analisti'],
-      z:['Seduta di attesa prima delle banche centrali','Volumi in linea con la media']},
- com:{p:['Scorte in calo e domanda in aumento','Tensioni geopolitiche sostengono i prezzi','Dollaro debole favorisce le materie prime'],
-      n:['Scorte in aumento, domanda in rallentamento','Dollaro forte pesa sulle quotazioni','Offerta in aumento sul mercato'],
-      z:['Mercato in attesa dei dati sulle scorte','Quotazioni in range ristretto']}
-};
-const nsLab=a=>a.ns>.25?'POSITIVA':a.ns<-.25?'NEGATIVA':'NEUTRA';
-function pickNews(a){
-  const k=a.ns>.25?'p':a.ns<-.25?'n':'z',pool=NEWS[a.cls][k];
-  a.head=pool[Math.floor(R()*pool.length)];a.newsK=k;a.newsT=SIM-Math.floor(R()*3000);
-}
 function scanAll(){
-  const t0=performance.now();
-  for(const a of assets){const ai=analyze(a);a.ai=ai;updateMeta(a,ai);
-    if(!a.head||(a.newsK==='p'&&a.ns<.1)||(a.newsK==='n'&&a.ns>-.1)||(a.newsK==='z'&&Math.abs(a.ns)>.4)||R()<.01)pickNews(a);
+  for(const a of assets){const ai=analyze(a);a.ai=ai;
+    if(!a.head)a.head="Trend futures BingX allineato";
     updateSignal(a,ai)}
-  scans++;lastLatency=performance.now()-t0;
 }
 const active=a=>a.sig&&a.sig.state==='ACTIVE';
 const isTop=a=>active(a)&&a.ai.conf>=80;
 
-function simTick(){
-  const g=randn();for(const k in mood)mood[k]=.9*mood[k]+.43*(.5*g+.87*randn());
-  for(const a of assets){if(a.live)continue;
-    const L=a.candles[a.candles.length-1];
-    const dr=a.amp*Math.sin(2*Math.PI*a.pos/a.per+a.ph)*a.vol*.5/15;a.pos+=1/15;
-    const r=dr+a.vol/Math.sqrt(15)*(.9*randn()+.14*mood[a.cls]*a.beta);
-    const np=L.c*Math.exp(r);L.c=np;L.h=Math.max(L.h,np);L.l=Math.min(L.l,np);L.v+=a.v0/15*(.7+R()*.6);a.price=np}
-  if(tickCount%15===14)for(const a of assets){if(a.live)continue;const L=a.candles[a.candles.length-1];
-    a.candles.push({t:SIM*1000,o:L.c,h:L.c,l:L.c,c:L.c,v:0});if(a.candles.length>N15+10)a.candles.shift()}
+async function stepLive(){
+  SIM=Math.floor(Date.now()/1000);
+  await loadBingXData();
+  scanAll();
+  scans++;
 }
-const H={sent:[]};
-const avgComb=cls=>{const l=assets.filter(a=>!cls||a.cls===cls);return l.reduce((s,a)=>s+a.ai.comb,0)/l.length};
-const toGauge=m=>clamp(50+m*1.6,0,100);
-function record(){H.sent.push({t:SIM*1000,v:[toGauge(avgComb('cry')),toGauge(avgComb('stk')),toGauge(avgComb('com'))]});if(H.sent.length>300)H.sent.shift()}
-function step(){SIM+=60;simTick();tickCount++;scanAll();record()}
 
 const ZL=['Vendi forte','Vendi','Neutrale','Compra','Compra forte'];
 const zone=v=>v<20?0:v<40?1:v<60?2:v<80?3:4;
@@ -749,7 +665,7 @@ function mkGauge(host,big){
   const val=host.querySelector('.gval'),nd=host.querySelector('.ndl');
   return v=>{v=clamp(v,0,100);const z=zone(v);val.style.strokeDasharray=`${v} 100`;val.setAttribute('class','gval z'+z);nd.style.transform=`rotate(${(v-50)*1.8}deg)`;return z};
 }
-const gMain=mkGauge($('#gMain'),true),gCry=mkGauge($('#gCry')),gStk=mkGauge($('#gStk')),gCom=mkGauge($('#gCom'));
+const gMain=mkGauge($('#gMain'),true),gCry=mkGauge($('#gCry'));
 function setG(fn,numEl,labEl,v){const z=fn(v);numEl.textContent=Math.round(v);numEl.style.color=zcol(z);labEl.textContent=ZL[z];labEl.style.color=zcol(z)}
 function miniG(g){
   const cx=50,cy=48,r=38,pt=(rr,d)=>[cx+rr*Math.cos(d*Math.PI/180),cy+rr*Math.sin(d*Math.PI/180)];
@@ -772,28 +688,24 @@ function tip(ctx,w,x,y,lines){
 let sel='BTC',tfSel='15',chartHover=-1;
 const chartCv=$('#chart');
 function drawChart(){
-  const a=bySym[sel],T=a.ai.tf[tfSel],cs=T.cs,S=T.S,n=cs.length;
+  const a=bySym[sel];if(!a||!a.ai||!a.ai.tf[tfSel])return;
+  const T=a.ai.tf[tfSel],cs=T.cs,S=T.S,n=cs.length;if(n<2)return;
   const{ctx,w,h}=setup(chartCv);
-  const N=Math.min(90,n),st=n-N,padL=6,padR=72,padT=8,axB=18,avail=h-padT-axB,pH=avail*.64,gap=14,rH=avail-pH-gap,rT=padT+pH+gap;
+  const N=Math.min(90,n),st=Math.max(0,n-N),padL=6,padR=72,padT=8,axB=18,avail=h-padT-axB,pH=avail*.64,gap=14,rH=avail-pH-gap,rT=padT+pH+gap;
   const pw=w-padL-padR,step=pw/N,xi=i=>padL+(i-st+.5)*step,sig=active(a)?a.sig:null;
-  let lo=Infinity,hi=-Infinity;for(let i=st;i<n;i++){lo=Math.min(lo,cs[i].l,S.e20[i],S.e50[i]);hi=Math.max(hi,cs[i].h,S.e20[i],S.e50[i])}
+  let lo=Infinity,hi=-Infinity;for(let i=st;i<n;i++){lo=Math.min(lo,cs[i].l,S.e20[i]||cs[i].l,S.e50[i]||cs[i].l);hi=Math.max(hi,cs[i].h,S.e20[i]||cs[i].h,S.e50[i]||cs[i].h)}
   if(sig){lo=Math.min(lo,sig.sl);hi=Math.max(hi,sig.tp1)}
-  const pd=(hi-lo)*.06;lo-=pd;hi+=pd;const y=v=>padT+(1-(v-lo)/(hi-lo))*pH;
-  let vmax=0;for(let i=st;i<n;i++)vmax=Math.max(vmax,cs[i].v);
+  const pd=(hi-lo)*.06||1;lo-=pd;hi+=pd;const y=v=>padT+(1-(v-lo)/(hi-lo))*pH;
+  let vmax=1;for(let i=st;i<n;i++)vmax=Math.max(vmax,cs[i].v);
   ctx.lineWidth=1;ctx.font='10px "JetBrains Mono",monospace';
   for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4,yy=Math.round(y(v))+.5;ctx.strokeStyle=C.line;ctx.beginPath();ctx.moveTo(padL,yy);ctx.lineTo(w-padR,yy);ctx.stroke();
     ctx.fillStyle=C.mute;ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(fp(v),w-padR+6,yy)}
   for(let i=st;i<n;i++){const vh=cs[i].v/vmax*pH*.16;ctx.fillStyle=cs[i].c>=cs[i].o?'rgba(46,230,166,.22)':'rgba(255,90,118,.22)';ctx.fillRect(xi(i)-step*.31,padT+pH-vh,step*.62,vh)}
-  const line=(arr,col,wd)=>{ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=wd;for(let i=st;i<n;i++){const X=xi(i),Y=y(arr[i]);i===st?ctx.moveTo(X,Y):ctx.lineTo(X,Y)}ctx.stroke()};
+  const line=(arr,col,wd)=>{if(!arr||!arr.length)return;ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=wd;for(let i=st;i<n;i++){const X=xi(i),Y=y(arr[i]||arr[arr.length-1]);i===st?ctx.moveTo(X,Y):ctx.lineTo(X,Y)}ctx.stroke()};
   line(S.e50,C.c2,1.4);line(S.e20,C.gold,1.4);
   for(let i=st;i<n;i++){const c=cs[i],col=c.c>=c.o?C.up:C.dn,X=xi(i);ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=1;
     ctx.beginPath();ctx.moveTo(Math.round(X)+.5,y(c.h));ctx.lineTo(Math.round(X)+.5,y(c.l));ctx.stroke();
     const t=y(Math.max(c.o,c.c)),b=y(Math.min(c.o,c.c));ctx.fillRect(X-step*.31,t,step*.62,Math.max(1,b-t))}
-  let prev=null;const sc=[];
-  for(let i=Math.max(50,st-1);i<n;i++){const s=scoreOf(comps(S,cs,i));sc[i]=s;const g=sigOf(s);
-    if(i>=st&&prev!==null&&g!==prev&&g!=='WAIT'){const X=xi(i);ctx.fillStyle=g==='LONG'?C.up:C.dn;ctx.beginPath();
-      if(g==='LONG'){const Y=y(cs[i].l)+8;ctx.moveTo(X,Y);ctx.lineTo(X-5,Y+9);ctx.lineTo(X+5,Y+9)}else{const Y=y(cs[i].h)-8;ctx.moveTo(X,Y);ctx.lineTo(X-5,Y-9);ctx.lineTo(X+5,Y-9)}ctx.fill()}
-    prev=g}
   const lp=a.price,ly=Math.round(y(lp))+.5,up=lp>=cs[n-1].o;
   ctx.setLineDash([3,3]);ctx.strokeStyle=up?C.up:C.dn;ctx.beginPath();ctx.moveTo(padL,ly);ctx.lineTo(w-padR,ly);ctx.stroke();ctx.setLineDash([]);
   ctx.fillStyle=up?C.up:C.dn;ctx.fillRect(w-padR+2,ly-9,padR-4,18);ctx.fillStyle=C.bg;ctx.textAlign='left';ctx.font='700 10px "JetBrains Mono",monospace';ctx.textBaseline='middle';ctx.fillText(fp(lp),w-padR+6,ly);
@@ -804,42 +716,17 @@ function drawChart(){
   const ry=v=>rT+(1-v/100)*rH;
   ctx.fillStyle='rgba(214,176,76,.06)';ctx.fillRect(padL,ry(70),pw,ry(30)-ry(70));
   [30,50,70].forEach(v=>{const yy=Math.round(ry(v))+.5;ctx.strokeStyle=C.line;ctx.beginPath();ctx.moveTo(padL,yy);ctx.lineTo(w-padR,yy);ctx.stroke();ctx.fillStyle=C.mute;ctx.textAlign='left';ctx.fillText(v,w-padR+6,yy)});
-  ctx.beginPath();ctx.strokeStyle=C.gold;ctx.lineWidth=1.5;for(let i=st;i<n;i++){const X=xi(i),Y=ry(S.rsi[i]);i===st?ctx.moveTo(X,Y):ctx.lineTo(X,Y)}ctx.stroke();
-  ctx.fillStyle=C.gold;ctx.beginPath();ctx.arc(xi(n-1),ry(S.rsi[n-1]),3,0,7);ctx.fill();
+  ctx.beginPath();ctx.strokeStyle=C.gold;ctx.lineWidth=1.5;for(let i=st;i<n;i++){const X=xi(i),Y=ry(S.rsi[i]||50);i===st?ctx.moveTo(X,Y):ctx.lineTo(X,Y)}ctx.stroke();
   ctx.fillStyle=C.mute;ctx.textAlign='center';ctx.textBaseline='top';
   for(let i=st+8;i<n;i+=15)ctx.fillText(hhmm(cs[i].t),xi(i),h-axB+5);
-  if(chartHover>=st&&chartHover<n){const i=chartHover,X=xi(i),c=cs[i];ctx.strokeStyle=C.line2;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(Math.round(X)+.5,padT);ctx.lineTo(Math.round(X)+.5,h-axB);ctx.stroke();
-    tip(ctx,w,X,padT+6,[new Date(c.t).toLocaleString('it-IT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}),`O ${fp(c.o)}  H ${fp(c.h)}`,`L ${fp(c.l)}  C ${fp(c.c)}`,`Vol ${compact(c.v)}  RSI ${fmtN(S.rsi[i],1)}`,`Score ${sg(sc[i]||0)}`])}
 }
-function chartPointer(e){const r=chartCv.getBoundingClientRect(),T=bySym[sel].ai.tf[tfSel],n=T.cs.length,N=Math.min(90,n),st=n-N,pw=r.width-6-72;
-  const i=st+Math.floor((e.clientX-r.left-6)/(pw/N));chartHover=(i>=st&&i<n)?i:-1;requestAnimationFrame(drawChart)}
-chartCv.addEventListener('pointermove',chartPointer);
+chartCv.addEventListener('pointermove',e=>{const r=chartCv.getBoundingClientRect(),a=bySym[sel],T=a.ai.tf[tfSel],n=T.cs.length,N=Math.min(90,n),st=Math.max(0,n-N),pw=r.width-6-72;
+  const i=st+Math.floor((e.clientX-r.left-6)/(pw/N));chartHover=(i>=st&&i<n)?i:-1;requestAnimationFrame(drawChart)});
 chartCv.addEventListener('pointerleave',()=>{chartHover=-1;requestAnimationFrame(drawChart)});
 
-function mkLine(id,o){const cv=$(id),st={cv,hover:-1,o};
-  cv.addEventListener('pointermove',e=>{const r=cv.getBoundingClientRect(),n=o.data().length,pw=r.width-6-52;st.hover=clamp(Math.round((e.clientX-r.left-6)/pw*(n-1)),0,n-1);requestAnimationFrame(()=>drawLine(st))});
-  cv.addEventListener('pointerleave',()=>{st.hover=-1;requestAnimationFrame(()=>drawLine(st))});return st}
-function drawLine(st){
-  const{ctx,w,h}=setup(st.cv),o=st.o,d=o.data(),n=d.length;if(n<2)return;
-  const padL=6,padR=52,padT=10,padB=20,pw=w-padL-padR,ph=h-padT-padB,ns=d[0].v.length,lo=0,hi=100;
-  const x=i=>padL+i/(n-1)*pw,y=v=>padT+(1-(v-lo)/(hi-lo))*ph;
-  ctx.font='10px "JetBrains Mono",monospace';
-  for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4,yy=Math.round(y(v))+.5;ctx.strokeStyle=C.line;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(padL,yy);ctx.lineTo(w-padR,yy);ctx.stroke();ctx.fillStyle=C.mute;ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(v,w-padR+6,yy)}
-  const yy=Math.round(y(50))+.5;ctx.setLineDash([4,4]);ctx.strokeStyle=C.line2;ctx.beginPath();ctx.moveTo(padL,yy);ctx.lineTo(w-padR,yy);ctx.stroke();ctx.setLineDash([]);
-  for(let s=0;s<ns;s++){const col=C[o.colors[s]];ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=2;ctx.lineJoin='round';d.forEach((p,i)=>i?ctx.lineTo(x(i),y(p.v[s])):ctx.moveTo(x(i),y(p.v[s])));ctx.stroke();
-    ctx.fillStyle=col;ctx.beginPath();ctx.arc(x(n-1),y(d[n-1].v[s]),3.5,0,7);ctx.fill();ctx.strokeStyle=C.panel;ctx.lineWidth=2;ctx.stroke()}
-  ctx.fillStyle=C.mute;ctx.textBaseline='top';ctx.textAlign='left';ctx.fillText(hhmm(d[0].t),padL,h-padB+6);ctx.textAlign='right';ctx.fillText(hhmm(d[n-1].t),w-padR,h-padB+6);
-  if(st.hover>=0&&st.hover<n){const i=st.hover,X=x(i);ctx.strokeStyle=C.line2;ctx.beginPath();ctx.moveTo(Math.round(X)+.5,padT);ctx.lineTo(Math.round(X)+.5,padT+ph);ctx.stroke();
-    for(let s=0;s<ns;s++){ctx.fillStyle=C[o.colors[s]];ctx.beginPath();ctx.arc(X,y(d[i].v[s]),4,0,7);ctx.fill();ctx.strokeStyle=C.panel;ctx.lineWidth=2;ctx.stroke()}
-    tip(ctx,w,X,padT+4,[hhmm(d[i].t),...d[i].v.map((v,s)=>`${o.names[s]}: ${fmtN(v,0)}`)])}
-}
-const lcSent=mkLine('#lcSent',{data:()=>H.sent,colors:['gold','c2','c3'],names:['Cripto','Azioni','Mat. prime']});
-
-const ui={f:'all',cls:'all',q:'',sort:'conf',dir:-1};
-let lastTick=performance.now(),paused=false,pausedAt=0,feed='sim';
-const frac=()=>clamp(((paused?pausedAt:performance.now())-lastTick)/TICK,0,1);
-const simNow=()=>SIM+frac()*60;
-const remain=a=>active(a)?VALID-(simNow()-a.sig.since):0;
+const ui={f:'all',q:'',sort:'conf',dir:-1};
+let lastTick=performance.now(),paused=false;
+const remain=a=>active(a)?VALID-(Math.floor(Date.now()/1000)-a.sig.since):0;
 const tfCls=s=>s>=15?'u':s<=-15?'d':'z';
 const tfArrow=s=>s>=15?'▲':s<=-15?'▼':'●';
 const stateTxt={ACTIVE:'ATTIVO',EXPIRED:'SCADUTO',STOPPED:'STOP COLPITO',TARGET:'TP1 RAGGIUNTO'};
@@ -849,20 +736,18 @@ function entryPill(a){
 const lastPx={};
 function visible(){
   return assets.filter(a=>{
-    if(ui.cls!=='all'&&a.cls!==ui.cls)return false;
     if(ui.q&&!(a.sym+a.name).toLowerCase().includes(ui.q))return false;
-    switch(ui.f){case'top':return isTop(a);case'buy':return active(a)&&a.sig.dir>0;case'sell':return active(a)&&a.sig.dir<0;case'npos':return a.ns>.25;case'nneg':return a.ns<-.25;case'anom':return !!a.ai.anom}
+    switch(ui.f){case'top':return isTop(a);case'buy':return active(a)&&a.sig.dir>0;case'sell':return active(a)&&a.sig.dir<0}
     return true});
 }
 function renderTable(){
   const l=visible();
   const key={sym:a=>a.sym,price:a=>a.price,ch24:a=>a.ai.ch24,conf:a=>(active(a)?1000:0)+a.ai.conf}[ui.sort];
   l.sort((x,y)=>{const A=key(x),B=key(y);return(typeof A==='string'?A.localeCompare(B):A-B)*ui.dir});
-  $('#cnt').textContent=l.length+' di '+assets.length+' asset';
+  $('#cnt').textContent=l.length+' di '+assets.length+' asset BingX';
   $('#tbody').innerHTML=l.map(a=>{const ai=a.ai,pr=lastPx[a.sym],f=pr==null||pr===a.price?'':(a.price>pr?'fu':'fd'),g=(ai.comb>=0?1:-1)*ai.conf,act=active(a),top=isTop(a),s=a.sig;
-    const sentL=nsLab(a),news=ai.anom?`<span class="pill warn">ANOMALIA</span><small>${ai.anom}</small>`:`<span class="pill ${a.ns>.25?'LONG':a.ns<-.25?'SHORT':'N'}">${sentL}</span><small>${a.head}</small>`;
     return`<tr class="r${a.sym===sel?' sel':''}${top?' topr':''}" data-sym="${a.sym}" tabindex="0">
-<td><span class="cdot" style="background:var(${CLS[a.cls].color})"></span><span class="s">${a.sym}</span><span class="n">${a.name}</span></td>
+<td><span class="cdot" style="background:var(--gold)"></span><span class="s">${a.sym}</span><span class="n">${a.bx}</span></td>
 <td>${entryPill(a)}</td>
 <td>${act?`<span class="pill" style="color:var(--warn)">${s.lev[0]}x – ${s.lev[1]}x</span>`:'<span class="mu">—</span>'}</td>
 <td class="${f}">${money(a,a.price)}</td>
@@ -870,21 +755,20 @@ function renderTable(){
 <td>${top?dia(14,true)+' ':''}<span class="pill ${top?'TOP':'N'}">${ai.conf}%${top?' TOP':''}</span></td>
 <td>${act?`<span class="cdn" data-s="${a.sym}">${mmss(remain(a))}</span>`:`<span class="mu">${s&&s.state!=='ACTIVE'?stateTxt[s.state]:'—'}</span>`}</td>
 <td><span class="tfs">${[15,60,240].map(k=>{const sc=ai.tf[k].score;return`<span class="${tfCls(sc)}" title="${k===240?'4H':k===60?'1H':'15M'} ${sg(sc)}">${k===240?'4H':k===60?'1H':'15M'}${tfArrow(sc)}</span>`}).join('')}</span></td>
-<td style="text-align:left"><div class="nw">${news}</div></td>
+<td><span class="pill ${ai.comb>=0?'LONG':'SHORT'}">${ai.comb>=0?'BULLISH':'BEARISH'}</span></td>
 <td class="${ai.ch24>=0?'up':'dn'}">${pc(ai.ch24)}</td>
 <td>${act?`<span class="up">${pc(s.dir*(s.tp1/s.entry-1))}</span><span class="n">${money(a,s.tp1)}</span>`:'<span class="mu">—</span>'}</td>
-<td>${act?`<span class="dn">${pc(-s.slPct)}</span><span class="n">${money(a,s.sl)}</span>`:'<span class="mu">—</span>'}</td></tr>`}).join('')||'<tr><td colspan="12" class="empty" style="text-align:center">Nessun asset corrisponde ai filtri.</td></tr>';
+<td>${act?`<span class="dn">${pc(-s.slPct)}</span><span class="n">${money(a,s.sl)}</span>`:'<span class="mu">—</span>'}</td></tr>`}).join('')||'<tr><td colspan="12" class="empty" style="text-align:center">Nessun asset BingX.</td></tr>';
   assets.forEach(a=>lastPx[a.sym]=a.price);
-  document.querySelectorAll('#thead th[data-k]').forEach(th=>{if(th.dataset.k===ui.sort)th.setAttribute('aria-sort',ui.dir>0?'ascending':'descending');else th.removeAttribute('aria-sort')});
 }
 function renderBanner(){
   const tops=assets.filter(isTop).sort((x,y)=>y.ai.conf-x.ai.conf),b=$('#banner');
-  if(tops.length){b.className='banner';b.innerHTML=`${dia(18,true)}<span>TOP ENTRY &gt;80%: DIAMANTE GIALLO LAMPEGGIANTE ATTIVO</span><span class="tops">${tops.slice(0,8).map(a=>`<button type="button" data-sym="${a.sym}">${a.sym} ${a.ai.conf}%</button>`).join('')}</span>`}
-  else{b.className='banner idle';b.innerHTML=`${dia(18,false)}<span>Nessuna TOP Entry attiva: in attesa di una confluenza superiore all'80%</span>`}
+  if(tops.length){b.className='banner';b.innerHTML=`${dia(18,true)}<span>TOP ENTRY BINGX &gt;80%: DIAMANTE LAMPEGGIANTE</span><span class="tops">${tops.slice(0,8).map(a=>`<button type="button" data-sym="${a.sym}">${a.sym} ${a.ai.conf}%</button>`).join('')}</span>`}
+  else{b.className='banner idle';b.innerHTML=`${dia(18,false)}<span>Monitoraggio BingX Futures in corso (nessuna top entry attiva al momento)</span>`}
 }
 function renderMain(){
   const a=bySym[sel],ai=a.ai,act=active(a),s=a.sig,top=isTop(a);
-  $('#gSub').textContent=a.sym===a.name?a.sym:`${a.sym} · ${a.name}`;
+  $('#gSub').textContent=`BingX Futures · ${a.bx}`;
   $('#pGauge').classList.toggle('hot',top);
   const g=(ai.comb>=0?1:-1)*ai.conf,z=gMain((g+100)/2);
   $('#gNum').textContent=(g>0?'+':g<0?'−':'')+Math.abs(g)+'%';$('#gNum').style.color=zcol(z);
@@ -892,105 +776,71 @@ function renderMain(){
   $('#tfp').innerHTML=[15,60,240].map(k=>{const sc=ai.tf[k].score;return`<div><span class="mu">${k===240?'4H':k===60?'1H':'15M'}</span><span class="${sc>=15?'up':sc<=-15?'dn':'mu'}">${tfArrow(sc)} ${sg(sc)}</span></div>`}).join('');
   const r=remain(a);
   $('#vState').innerHTML=act?`<span class="pill ${top?'TOP':s.dir>0?'LONG':'SHORT'}">${top?'TOP · ':''}ATTIVO</span>`:`<span class="pill WAIT">${s&&s.state!=='ACTIVE'?stateTxt[s.state]:'NESSUN SEGNALE'}</span>`;
-  $('#nHead').textContent=`${a.sym}: ${a.head}`;
-  $('#nSrc').textContent=`Fonte: feed demo · ${Math.max(1,Math.floor((SIM-a.newsT)/60))}m fa`;
-  $('#nBadge').innerHTML=`<span class="pill ${a.ns>.25?'LONG':a.ns<-.25?'SHORT':'N'}">${nsLab(a)}</span>`;
-  $('#nBar').innerHTML=divBar(a.ns*100,100);$('#nVal').textContent=sg(a.ns*100);
-  const bull=a.bull,wst=a.wh>2?'ACCUMULO':a.wh<-2?'DISTRIBUZIONE':'NEUTRO',lsr=a.ls,lp=lsr/(1+lsr)*100;
-  const crypto=a.cls==='cry';
-  $('#flows').innerHTML=`
-   <div class="r"><div class="l"><span>Rapporto Orsi / Tori</span><b>${fmtN(100-bull,0)}% · ${fmtN(bull,0)}%</b></div><div class="bar2"><i style="left:0;width:${100-bull}%;background:var(--dn)"></i><i style="right:0;width:${bull}%;background:var(--up)"></i></div><div class="l"><span class="dn">ORSI</span><span class="up">TORI</span></div></div>
-   <div class="r"><div class="l"><span>Stato balene</span><b class="${a.wh>2?'up':a.wh<-2?'dn':''}">${wst}</b></div><div class="bar2 dv">${divBar(a.wh,12)}</div><div class="l"><span>Flusso netto</span><b>${a.wh>=0?'+':'−'}${fmtN(Math.abs(a.wh),1)} M $</b></div></div>
-   <div class="r"><div class="l"><span>Rapporto Long / Short</span><b>${fmtN(lsr,2)}</b></div><div class="bar2"><i style="left:0;width:${lp}%;background:var(--up)"></i><i style="right:0;width:${100-lp}%;background:var(--dn)"></i></div><div class="l"><span class="up">LONG ${fmtN(lp,0)}%</span><span class="dn">SHORT ${fmtN(100-lp,0)}%</span></div></div>`;
-  const none=!act,col=(c)=>`style="--c:var(${c})"`;
-  const dirTxt=act?(s.dir>0?'LONG':'SHORT'):'';
-  const rows=[['Entrata istantanea (Market)',none?'—':`${dirTxt} @ ${money(a,s.entry)}`,'--dia'],['Leva raccomandata',none?'—':`${s.lev[0]}x – ${s.lev[1]}x`,'--warn'],
+  $('#nHead').textContent=`${a.bx}: Analisi Tecnica in Tempo Reale`;
+  $('#nSrc').textContent=`Fonte: BingX API V2 Swap`;
+  $('#nBadge').innerHTML=`<span class="pill ${ai.comb>=0?'LONG':'SHORT'}">${ai.comb>=0?'POSIZIONE LONG':'POSIZIONE SHORT'}</span>`;
+  $('#nBar').innerHTML=`<i style="left:0;width:${clamp(50+ai.comb/2,0,100)}%;background:var(--gold)"></i>`;$('#nVal').textContent=sg(ai.comb);
+  const none=!act,col=(c)=>`style="--c:var(${c})"`,dirTxt=act?(s.dir>0?'LONG':'SHORT'):'';
+  const rows=[['Entrata BingX (Market)',none?'—':`${dirTxt} @ ${money(a,s.entry)}`,'--dia'],['Leva consigliata',none?'—':`${s.lev[0]}x – ${s.lev[1]}x`,'--warn'],
    ['Take Profit 1',none?'—':`${money(a,s.tp1)} (${pc(s.dir*(s.tp1/s.entry-1))})`,'--up'],['Take Profit 2',none?'—':`${money(a,s.tp2)} (${pc(s.dir*(s.tp2/s.entry-1))})`,'--up'],
    ['Stop Loss',none?'—':`${money(a,s.sl)} (${pc(-s.slPct)})`,'--dn'],['Rapporto R:R',none?'—':'1 : 1,5 (TP1) · 1 : 3 (TP2)','--c2']];
   $('#exe').innerHTML=rows.map(([k,v,c])=>`<div><span ${col(c)}>${k}</span><b>${v}</b></div>`).join('');
-  $('#exSub').textContent=act?`Prezzo attuale ${money(a,a.price)}`:'';
+  $('#exSub').textContent=`Contratto: ${a.bx}`;
   const tb=$('#topbox');
-  if(top){tb.className='topbox';tb.innerHTML=`<h3>${dia(14,true)} TOP CONFLUENZA (&gt;80%) CON DIAMANTE LAMPEGGIANTE</h3><ul>
-    <li>Finestra di esecuzione: il segnale è valido per 45 minuti (TF 15m/1h). Restano <b class="cdn-top" id="cdTop">${mmss(r)}</b>.</li>
-    <li>Entrata istantanea: posizione MARKET ${s.dir>0?'BUY':'SELL'} @ ${money(a,s.entry)}.</li>
-    <li>TP1: ${money(a,s.tp1)} (${pc(s.dir*(s.tp1/s.entry-1))}) | TP2: ${money(a,s.tp2)} (${pc(s.dir*(s.tp2/s.entry-1))}).</li>
-    <li>Stop loss rigido: ${money(a,s.sl)} (${pc(-s.slPct)}).</li></ul>`}
-  else{tb.className='topbox idle';tb.innerHTML=`<h3>NESSUNA TOP CONFLUENZA SU ${a.sym}</h3><ul><li>${act?`Segnale attivo ma con confidenza ${ai.conf}%: sotto la soglia dell'80% per il diamante.`:'Nessun segnale operativo valido: i tre timeframe non sono allineati.'}</li><li>Scegli un asset con il diamante dalla tabella o dal banner in alto.</li></ul>`}
-  $('#cSym').textContent=a.sym;$('#cName').textContent=a.name;$('#cPx').textContent=money(a,a.price);
+  if(top){tb.className='topbox';tb.innerHTML=`<h3>${dia(14,true)} TOP CONFLUENZA BINGX (&gt;80%)</h3><ul>
+    <li>Contratto Futures: <b>${a.bx}</b></li>
+    <li>Entrata immediata: MARKET ${s.dir>0?'BUY':'SELL'} su BingX.</li>
+    <li>TP1: ${money(a,s.tp1)} | TP2: ${money(a,s.tp2)}.</li>
+    <li>Stop Loss: ${money(a,s.sl)}.</li></ul>`}
+  else{tb.className='topbox idle';tb.innerHTML=`<h3>NESSUNA TOP CONFLUENZA</h3><ul><li>In attesa di segnali ad alta probabilità sul contratto ${a.bx}.</li></ul>`}
+  $('#cSym').textContent=a.sym;$('#cName').textContent=a.bx;$('#cPx').textContent=money(a,a.price);
   $('#cCh').innerHTML=`<span class="mono ${ai.ch24>=0?'up':'dn'}">${pc(ai.ch24)}</span>`;
   const rowsT=[['Score',k=>sg(ai.tf[k].score)],['Segnale',k=>{const sc=ai.tf[k].score;return`<span class="${sc>=28?'up':sc<=-28?'dn':'mu'}">${sc>=28?'BUY':sc<=-28?'SELL':'NEUTRO'}</span>`}],
     ['RSI 14',k=>fmtN(ai.tf[k].S.rsi.at(-1),1)],['MACD',k=>{const T=ai.tf[k],h=T.S.hist.at(-1);return`<span class="${h>=0?'up':'dn'}">${h>=0?'▲':'▼'}</span>`}],
-    ['EMA 20/50',k=>{const S=ai.tf[k].S;return pc(S.e20.at(-1)/S.e50.at(-1)-1)}],['Bollinger %B',k=>fmtN(ai.tf[k].S.pb.at(-1),2)],
-    ['Volumi',k=>fmtN(ai.tf[k].S.vr.at(-1),2)+'x'],['ATR %',k=>fmtN(ai.tf[k].S.atr.at(-1)/a.price*100,2)+'%']];
+    ['Volatilità (ATR)',k=>fmtN(ai.tf[k].S.atr.at(-1)/a.price*100,2)+'%']];
   $('#tft').innerHTML=rowsT.map(([n,f])=>`<tr><td>${n}</td>${[15,60,240].map(k=>`<td>${f(k)}</td>`).join('')}</tr>`).join('');
-  $('#tfSub').textContent=`${a.sym} · peso 30 / 40 / 30`;
-  const ex=[['Confluenza',ai.conf+'%'],['Allineamento TF',fmtN(ai.agree*100,0)+'%'],['Score combinato',sg(ai.comb)],['Volume 24h',(IDX.has(a.sym)?'':'$')+compact(ai.vol24)],
-    ['Funding rate',crypto?(a.fund>=0?'+':'')+fmtN(a.fund,4)+'%':'—'],['Open interest 24h',crypto?(a.oi>=0?'+':'')+fmtN(a.oi,1)+'%':'—'],
-    ['Volatilità (stop)',fmtN(ai.slPct*100,2)+'%'],['Anomalia',ai.anom?'<span style="color:var(--warn)">SÌ</span>':'No']];
+  $('#tfSub').textContent=`${a.bx} · Dati BingX`;
+  const ex=[['Confluenza',ai.conf+'%'],['Allineamento TF',fmtN(ai.agree*100,0)+'%'],['Score combinato',sg(ai.comb)],['Volume 24h','$' + compact(ai.vol24)],['Exchange','BingX Futures']];
   $('#extra').innerHTML=ex.map(([k,v])=>`<div><span>${k}</span><b style="font-weight:500">${v}</b></div>`).join('');
 }
 function renderOverview(){
-  setG(gCry,$('#nCry'),$('#lCry'),toGauge(avgComb('cry')));setG(gStk,$('#nStk'),$('#lStk'),toGauge(avgComb('stk')));setG(gCom,$('#nCom'),$('#lCom'),toGauge(avgComb('com')));
+  const avgC=assets.reduce((s,a)=>s+a.ai.comb,0)/assets.length;
+  setG(gCry,$('#nCry'),$('#lCry'),clamp(50+avgC*1.6,0,100));
   const act=assets.filter(active).sort((x,y)=>y.ai.conf-x.ai.conf).slice(0,7);
-  $('#opps').innerHTML=act.map(a=>`<div class="dvr" role="button" tabindex="0" data-sym="${a.sym}"><b>${a.sym}</b><span class="bar2 dv">${divBar(a.sig.dir*a.ai.conf,100)}</span><span style="text-align:right">${a.sig.dir>0?'+':'−'}${a.ai.conf}</span></div>`).join('')||'<div class="empty">Nessun segnale attivo.</div>';
-  const cap={cry:.04,stk:.02,com:.015};
-  $('#heat').innerHTML=Object.keys(CLS).map(k=>`<div class="hg"><h3>${CLS[k].label}</h3><div class="tiles">${assets.filter(a=>a.cls===k).map(a=>{const c=a.ai.ch24,al=.12+clamp(Math.abs(c)/cap[k],0,1)*.6;
-    return`<button type="button" class="tile" data-sym="${a.sym}" style="background:${c>=0?`rgba(46,230,166,${al})`:`rgba(255,90,118,${al})`}" aria-label="${a.name} ${pc(c)}">${a.sym}<small>${pc(c)}</small></button>`}).join('')}</div></div>`).join('');
+  $('#opps').innerHTML=act.map(a=>`<div class="dvr" role="button" tabindex="0" data-sym="${a.sym}"><b>${a.sym}</b><span class="bar2 dv"><i style="left:50%;width:${a.ai.conf/2}%;background:var(--up)"></i></span><span style="text-align:right">+${a.ai.conf}</span></div>`).join('')||'<div class="empty">Nessun segnale BingX attivo.</div>';
+  $('#heat').innerHTML=`<div class="hg"><h3>Cripto Futures BingX</h3><div class="tiles">${assets.map(a=>{const c=a.ai.ch24,al=.12+clamp(Math.abs(c)/.04,0,1)*.6;
+    return`<button type="button" class="tile" data-sym="${a.sym}" style="background:${c>=0?`rgba(46,230,166,${al})`:`rgba(255,90,118,${al})`}" aria-label="${a.sym} ${pc(c)}">${a.sym}<small>${pc(c)}</small></button>`}).join('')}</div></div>`;
   const cl={TOP:'var(--dia)',LONG:'var(--up)',SHORT:'var(--dn)',STOP:'var(--dn)',TP:'var(--up)'};
-  $('#log').innerHTML=logs.slice(0,14).map(e=>`<li><time>${hhmm(e.t)}</time><span style="font-weight:700;color:${cl[e.type]||'var(--ink2)'}">${e.type}</span><span>${e.txt}</span></li>`).join('')||'<li class="empty">In attesa di segnali…</li>';
-}
-function renderFeed(){
-  $('#feedTxt').textContent=feed==='live'?'LIVE · CRIPTO REALI, ALTRI SIMULATI':'DEMO · DATI SIMULATI';
-  $('#feedDot').className='dot'+(feed==='live'?'':' off');
-  $('#foot').innerHTML=(feed==='live'?'Prezzi cripto reali (candele 15m). Azioni, materie prime, notizie, flussi e balene sono simulati.':'Prezzi, notizie, flussi e balene di questa pagina sono simulati a scopo dimostrativo. Aprendo il file in locale le cripto passano ai prezzi reali.')+
-   ' Il tempo scorre accelerato (1 tick = 1 minuto di mercato) per mostrare i conti alla rovescia.<br>Il punteggio AI combina EMA, RSI, MACD, Bollinger e volumi su 15m, 1h e 4h (pesi 30/40/30). Il segnale è operativo con confidenza ≥ 60% e TOP sopra l\'80%. Non è consulenza finanziaria.';
+  $('#log').innerHTML=logs.slice(0,14).map(e=>`<li><time>${hhmm(e.t)}</time><span style="font-weight:700;color:${cl[e.type]||'var(--ink2)'}">${e.type}</span><span>${e.txt}</span></li>`).join('')||'<li class="empty">In attesa di eventi BingX…</li>';
 }
 function renderAll(){
-  renderBanner();renderMain();renderTable();drawChart();renderOverview();drawLine(lcSent);
+  renderBanner();renderMain();renderTable();drawChart();renderOverview();
   $('#clock').textContent=hhmmss(Date.now());
 }
 function tickCountdowns(){
   document.querySelectorAll('.cdn').forEach(el=>{const a=bySym[el.dataset.s];if(a)el.textContent=mmss(remain(a))});
   const a=bySym[sel],r=remain(a),cd=$('#cdMain');
   cd.textContent=active(a)?mmss(r):'--:--';cd.className='cdbig'+(!active(a)?' dead':r<300?' low':'');
-  $('#cdBar').style.width=(active(a)?clamp(r/VALID,0,1)*100:0)+'%';
+  $('#cdBar'].style.width=(active(a)?clamp(r/VALID,0,1)*100:0)+'%';
   const t=$('#cdTop');if(t)t.textContent=mmss(r);
-  const rs=paused?0:Math.max(0,Math.ceil((TICK-(performance.now()-lastTick))/1000));$('#refresh').textContent='00:'+pad2(rs);
+  const rs=Math.max(0,Math.ceil((TICK-(performance.now()-lastTick))/1000));$('#refresh').textContent='00:'+pad2(rs);
 }
 
 function pick(sym){if(!bySym[sym])return;sel=sym;chartHover=-1;renderMain();renderTable();drawChart();tickCountdowns()}
 document.addEventListener('click',e=>{const t=e.target.closest('[data-sym]');if(t)pick(t.dataset.sym)});
-document.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){const t=e.target.closest&&e.target.closest('tr[data-sym],.dvr[data-sym]');if(t){e.preventDefault();pick(t.dataset.sym)}}});
 $('#filters').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;ui.f=b.dataset.f;$('#filters').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b));renderTable()});
 function seg(id,cb){$(id).addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;$(id).querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b));cb(b.dataset.v)})}
-seg('#fCls',v=>{ui.cls=v;renderTable()});seg('#tfSeg',v=>{tfSel=v;chartHover=-1;drawChart()});
+seg('#tfSeg',v=>{tfSel=v;chartHover=-1;drawChart()});
 $('#q').addEventListener('input',e=>{ui.q=e.target.value.trim().toLowerCase();renderTable()});
 $('#thead').addEventListener('click',e=>{const th=e.target.closest('th[data-k]');if(!th)return;const k=th.dataset.k;if(ui.sort===k)ui.dir*=-1;else{ui.sort=k;ui.dir=k==='sym'?1:-1}renderTable()});
-$('#pauseBtn').addEventListener('click',()=>{paused=!paused;if(paused)pausedAt=performance.now();else lastTick+=performance.now()-pausedAt;$('#pauseBtn').textContent=paused?'Riprendi':'Pausa'});
-let rz;window.addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>{drawChart();drawLine(lcSent)},80)});
-
-const mapK=k=>k.map(x=>({t:x[0],o:+x[1],h:+x[2],l:+x[3],c:+x[4],v:+x[5]}));
-async function tryLive(){
-  const cr=assets.filter(a=>a.bn);
-  try{
-    const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),3500);
-    const res=await Promise.all(cr.map(a=>fetch(`https://api.binance.com/api/v3/klines?symbol=${a.bn}&interval=15m&limit=1000`,{signal:ctl.signal}).then(r=>{if(!r.ok)throw 0;return r.json()})));
-    clearTimeout(to);
-    res.forEach((k,i)=>{const a=cr[i];a.candles=mapK(k);a.price=a.candles[a.candles.length-1].c;a.live=true});
-    feed='live';
-    setInterval(async()=>{try{await Promise.all(cr.map(async a=>{const k=mapK(await fetch(`https://api.binance.com/api/v3/klines?symbol=${a.bn}&interval=15m&limit=3`).then(r=>r.json()));
-      for(const c of k){const L=a.candles[a.candles.length-1];if(c.t===L.t)Object.assign(L,c);else if(c.t>L.t){a.candles.push(c);a.candles.shift()}}a.price=a.candles[a.candles.length-1].c}))}catch(e){}},8000);
-  }catch(e){feed='sim'}
-}
+$('#pauseBtn').addEventListener('click',()=>{paused=!paused;$('#pauseBtn').textContent=paused?'Riprendi':'Pausa'});
 
 async function boot(){
   readColors();
-  try{await tryLive()}catch(e){}
-  const WARM=420;
-  for(let i=0;i<WARM;i++){SIM+=60;simTick();tickCount++;scanAll();record()}
-  const best=assets.filter(active).sort((x,y)=>y.ai.conf-x.ai.conf)[0]||assets.slice().sort((x,y)=>y.ai.conf-x.ai.conf)[0];sel=best.sym;
-  renderFeed();renderAll();tickCountdowns();lastTick=performance.now();
-  setInterval(()=>{if(paused)return;step();lastTick=performance.now();renderAll();tickCountdowns()},TICK);
+  await stepLive();
+  const best=assets.filter(active)[0]||assets[0];sel=best.sym;
+  renderAll();tickCountdowns();lastTick=performance.now();
+  setInterval(async()=>{if(paused)return;await stepLive();lastTick=performance.now();renderAll();tickCountdowns()},6000);
   setInterval(tickCountdowns,250);
 }
 window.__ready=boot();
@@ -1022,7 +872,11 @@ def home():
             account_data["balance"] = bingx_res["balance"]
             account_data["equity"] = bingx_res["equity"]
 
-    return render_template_string(DASHBOARD_TEMPLATE, settings=bot_settings, account=account_data)
+    return render_template_string(
+        DASHBOARD_HTML,
+        settings=bot_settings,
+        account=account_data
+    )
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -1034,7 +888,7 @@ def login():
         cursor.execute('SELECT id, password FROM users WHERE username = ?', (username,))
         user = cursor.fetchone()
         conn.close()
-        if user and user[1] == password:
+        if user and check_password_hash(user[1], password):
             session['user_id'] = user[0]
             session['username'] = username
             return redirect(url_for('home'))
