@@ -1,12 +1,4 @@
 ```javascript
-/* 
-===================================================================
-  RACE CRYPTO SCANNER - WEB SERVICE (Node.js + Express)
-  Backend per Scansione Crypto e Generazione Segnali
-  Eseguibile su Render & GitHub
-===================================================================
-*/
-
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
@@ -32,7 +24,7 @@ const SYMBOLS = [
     { symbol: 'NEARUSDT', name: 'NEAR (Near Protocol)', isBig: false, top: false }
 ];
 
-// Helper per Calcolo Indicatori Tecnici (RSI, EMA, ATR)
+// Helper Calcolo RSI
 function calculateRSI(prices, period = 14) {
     let gains = 0, losses = 0;
     for (let i = 1; i <= period; i++) {
@@ -47,6 +39,7 @@ function calculateRSI(prices, period = 14) {
     return Math.round(100 - (100 / (1 + rs)));
 }
 
+// Helper Calcolo EMA
 function calculateEMA(prices, period) {
     const k = 2 / (period + 1);
     let ema = prices[0];
@@ -56,6 +49,7 @@ function calculateEMA(prices, period) {
     return ema;
 }
 
+// Helper Calcolo ATR
 function calculateATR(highs, lows, closes, period = 14) {
     let trSum = 0;
     for (let i = closes.length - period; i < closes.length; i++) {
@@ -75,7 +69,7 @@ function getDecimals(price) {
     return 6;
 }
 
-// Rotta Principale API Segnali
+// API Segnali Live
 app.get('/api/signals', async (req, res) => {
     try {
         const signalPromises = SYMBOLS.map(async (item) => {
@@ -99,7 +93,6 @@ app.get('/api/signals', async (req, res) => {
             let signalType = 'LONG';
             let score = 50;
 
-            // Algoritmo di Confluenza
             if (currentPrice > ema20) score += 15;
             if (ema20 > ema50) score += 15;
             if (rsi > 45 && rsi < 68) score += 10;
@@ -165,17 +158,17 @@ app.get('/api/signals', async (req, res) => {
     }
 });
 
-// Rotta per verificare se il servizio è online (Health Check)
+// Health check
 app.get('/health', (req, res) => {
     res.json({ status: 'OK', uptime: process.uptime() });
 });
 
-// Pagina di Benvenuto
+// Benvenuto
 app.get('/', (req, res) => {
-    res.send('<h1>Crypto Race Scanner Web Service Active 🚀</h1><p>Usa l endpoint <code>/api/signals</code> per i dati live.</p>');
+    res.send('<h1>Crypto Race Backend Service Active 🚀</h1><p>API Endpoint: <code>/api/signals</code></p>');
 });
 
 app.listen(PORT, () => {
-    console.log(`Web Service avviato sulla porta ${PORT}`);
+    console.log(`Server attivo sulla porta ${PORT}`);
 });
 ```
