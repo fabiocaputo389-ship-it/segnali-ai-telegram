@@ -18,9 +18,6 @@ bot_settings = {
     "auto_telegram": int(os.environ.get("AUTO_TELEGRAM", 1))
 }
 
-# Dizionario globale dei prezzi reali sincronizzati da BingX
-bingx_live_prices = {}
-
 def init_db():
     try:
         conn = sqlite3.connect('trading_bot.db', timeout=10)
@@ -53,33 +50,6 @@ def init_db():
         print("DB Init Error:", e)
 
 init_db()
-
-def sync_bingx_market():
-    """Sincronizzazione in tempo reale con il mercato di BingX Futures"""
-    while True:
-        try:
-            url = "https://open-api.bingx.com/openApi/swap/v2/quote/ticker"
-            response = requests.get(url, timeout=5)
-            if response.status_code == 200:
-                result = response.json()
-                if result.get("code") == 0:
-                    for ticker in result.get("data", []):
-                        # Formato BingX es. "BTC-USDT" -> "BTC"
-                        symbol = ticker.get("symbol", "").replace("-USDT", "").replace("-", "")
-                        last_price = float(ticker.get("lastPrice", 0))
-                        price_change = float(ticker.get("priceChangePercent", 0))
-                        if last_price > 0:
-                            bingx_live_prices[symbol] = {
-                                "price": last_price,
-                                "ch24": price_change / 100.0
-                            }
-        except Exception as e:
-            print("Errore sync BingX API:", e)
-        time.sleep(2)
-
-# Avvio del thread di sincronizzazione live BingX
-sync_thread = threading.Thread(target=sync_bingx_market, daemon=True)
-sync_thread.start()
 
 def invia_messaggio_telegram(testo):
     token = os.environ.get('TELEGRAM_TOKEN', '')
@@ -626,7 +596,6 @@ async function fetchLiveBingXPrices() {
         if (liveMap[a.sym]) {
           a.price = liveMap[a.sym].price;
           a.ch24 = liveMap[a.sym].ch24;
-          // Aggiorna l'ultima candela attiva con il prezzo reale BingX
           const lastCandle = a.candles[a.candles.length - 1];
           if (lastCandle) {
             lastCandle.c = a.price;
@@ -797,7 +766,6 @@ function renderMain(){
     <div style="display:flex;justify-content:space-between"><span>Stop Loss Millimetrico</span><b class="dn">${money(a,ai.sl)}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Attività Istituzionale</span><b style="color:var(--gold)">${ai.whales}</b></div>`;
 
-  // CALCOLO DEI PARAMETRI ESATTI BINGX IN BASE AL PREZZO REALE LIVE
   const roiTP = Math.round(ai.slPct * 1.2 * ai.lev * 100);
   const roiSL = Math.round(ai.slPct * ai.lev * 100);
   const pnlTP = (10 * (roiTP / 100)).toFixed(2);
@@ -869,6 +837,27 @@ $('#q').addEventListener('input',e=>{ui.q=e.target.value.trim().toLowerCase();re
 $('#thead').addEventListener('click',e=>{const th=e.target.closest('th[data-k]');if(!th)return;const k=th.dataset.k;assets.sort((x,y)=>(x[k]>y[k]?1:-1));renderTable()});
 let paused=false;$('#pauseBtn').addEventListener('click',()=>{paused=!paused;$('#pauseBtn').textContent=paused?'Riprendi':'Pausa'});
 
+// GESTIONE INTELLIGENTE PER EVITARE IL CONGELAMENTO SU MOBILE
+let mainInterval = null;
+
+async function startLoop() {
+  if (mainInterval) clearInterval(mainInterval);
+  mainInterval = setInterval(async () => {
+    if (paused) return;
+    await step();
+    renderAll();
+  }, TICK);
+}
+
+// Se l'utente torna sulla pagina dopo aver sbloccato il telefono, forza subito il refresh dei dati live
+document.addEventListener("visibilitychange", async () => {
+  if (!document.hidden) {
+    await fetchLiveBingXPrices();
+    for(const a of assets) a.ai = analyze(a);
+    renderAll();
+  }
+});
+
 async function boot(){
   chartCv=$('#chart');
   gMain=mkGauge($('#gMain'),true);
@@ -876,13 +865,12 @@ async function boot(){
   gLiq=mkGauge($('#gLiq'));gVol=mkGauge($('#gVol'));gWhl=mkGauge($('#gWhl'));
   readColors();
   
-  // Prima chiamata immediata ai prezzi reali BingX
   await fetchLiveBingXPrices();
   for(let i=0;i<40;i++){SIM+=60;for(const a of assets)a.ai=analyze(a)}
   sel='BTC';
   renderAll();
   
-  setInterval(async()=>{if(paused)return;await step();renderAll()},TICK);
+  startLoop();
 }
 window.addEventListener('DOMContentLoaded', boot);
 })();
@@ -1016,7 +1004,7 @@ def register():
         <p style="font-size:10.5px;color:#8c8268;text-align:center;margin-bottom:20px;">Crea il tuo account abbonato</p>
         ''' + (f'<p style="color:#ff3366;font-size:11.5px;text-align:center;">{error}</p>' if error else '') + '''
         <form method="POST">
-            <p><label style="font-size:11px;color:#8c8268;">Username</label><br><input type="text" name="username" required style="width:100%;padding:9px;background:#12100a;border:1px solid #3d351e;color:#f3ca52;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
+            <p><label style="png-size:11px;color:#8c8268;">Username</label><br><input type="text" name="username" required style="width:100%;padding:9px;background:#12100a;border:1px solid #3d351e;color:#f3ca52;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
             <p><label style="font-size:11px;color:#8c8268;">Password</label><br><input type="password" name="password" required style="width:100%;padding:9px;background:#12100a;border:1px solid #3d351e;color:#f3ca52;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
             <button type="submit" style="width:100%;padding:10px;background:#00ffcc;color:#050505;border:none;font-weight:bold;margin-top:10px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;box-shadow:0 0 12px rgba(0,255,204,.4);">Registrati</button>
         </form>
