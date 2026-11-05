@@ -568,9 +568,16 @@ function analyze(a){
 
   const tfRec=Math.abs(comb)>50?'15m':Math.abs(comb)>25?'1h':'4h';
   
-  let verdict='HOLD';
-  if(comb>=15) verdict='LONG';
-  else if(comb<=-15) verdict='SHORT';
+  // LOGICA DI SELETTIVITÀ RIGIDA (CON ISTERESI PER EVITARE CONTINUI RIMBALZI)
+  let verdict = a.ai && a.ai.verdict ? a.ai.verdict : 'HOLD';
+  if (verdict === 'LONG') {
+    if (comb < 8) verdict = 'HOLD'; // Richiede che scenda sotto 8 per togliere il LONG
+  } else if (verdict === 'SHORT') {
+    if (comb > -8) verdict = 'HOLD'; // Richiede che salga sopra -8 per togliere lo SHORT
+  } else {
+    if (comb >= 22) verdict = 'LONG';    // Scatta LONG solo se supera fermamente 22
+    else if (comb <= -22) verdict = 'SHORT'; // Scatta SHORT solo se scende sotto -22
+  }
 
   const strengthFactor = Math.max(1, Math.round(Math.abs(comb) / 20));
   const cTP1 = Math.max(1, Math.round(2 / strengthFactor));
