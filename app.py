@@ -18,6 +18,9 @@ bot_settings = {
     "auto_telegram": int(os.environ.get("AUTO_TELEGRAM", 1))
 }
 
+# Dizionario globale dei prezzi reali sincronizzati da BingX
+bingx_live_prices = {}
+
 def init_db():
     try:
         conn = sqlite3.connect('trading_bot.db', timeout=10)
@@ -51,12 +54,35 @@ def init_db():
 
 init_db()
 
+def sync_bingx_market():
+    while True:
+        try:
+            url = "https://open-api.bingx.com/openApi/swap/v2/quote/ticker"
+            response = requests.get(url, timeout=5)
+            if response.status_code == 200:
+                result = response.json()
+                if result.get("code") == 0:
+                    for ticker in result.get("data", []):
+                        symbol = ticker.get("symbol", "").replace("-USDT", "").replace("-", "")
+                        last_price = float(ticker.get("lastPrice", 0))
+                        price_change = float(ticker.get("priceChangePercent", 0))
+                        if last_price > 0:
+                            bingx_live_prices[symbol] = {
+                                "price": last_price,
+                                "ch24": price_change / 100.0
+                            }
+        except Exception as e:
+            print("Errore sync BingX API:", e)
+        time.sleep(2)
+
+sync_thread = threading.Thread(target=sync_bingx_market, daemon=True)
+sync_thread.start()
+
 def invia_messaggio_telegram(testo):
     token = os.environ.get('TELEGRAM_TOKEN', '')
     chat_id = os.environ.get('CHAT_ID', '')
     
     if not token or not chat_id:
-        print("Telegram non configurato: Token o Chat ID mancanti nelle variabili d'ambiente di Render.")
         return False
         
     url = f"https://api.telegram.org/bot{token}/sendMessage"
@@ -68,27 +94,20 @@ def invia_messaggio_telegram(testo):
     
     try:
         response = requests.post(url, json=payload, timeout=10)
-        if response.status_code == 200:
-            print("Segnale inviato con successo su Telegram!")
-            return True
-        else:
-            print(f"Errore invio Telegram ({response.status_code}): {response.text}")
-            return False
+        return response.status_code == 200
     except Exception as e:
-        print(f"Eccezione durante l'invio su Telegram: {e}")
+        print(f"Eccezione Telegram: {e}")
         return False
 
 def background_scanner():
     time.sleep(10)
-    print("Background Scanner e modulo Telegram attivati...")
-    invia_messaggio_telegram("🤖 **SCANNER TRADING VIP BOT**\n\n🟢 Sistema online e attivo per la sincronizzazione live con BingX e invio segnali istituzionali!")
-    
+    invia_messaggio_telegram("🤖 **SCANNER TRADING VIP BOT**\n\n🟢 Sincronizzazione live con BingX attiva!")
     while True:
         try:
             if bot_settings.get("auto_telegram") == 1:
                 pass
         except Exception as e:
-            print("Errore nel background scanner:", e)
+            print("Errore background scanner:", e)
         time.sleep(120)
 
 scanner_thread = threading.Thread(target=background_scanner, daemon=True)
@@ -154,7 +173,7 @@ input:focus,select:focus{border-color:var(--gold);outline:none;box-shadow:0 0 12
 .z0{stroke:var(--z1);color:var(--z1)}.z1{stroke:var(--z2);color:var(--z2)}.z2{stroke:var(--z3);color:var(--z3)}.z3{stroke:var(--z4);color:var(--z4)}.z4{stroke:var(--z5);color:var(--z5)}
 .tk{stroke:var(--line2);stroke-width:1}.tk.maj{stroke:var(--gold);stroke-width:1.4}
 .tl{fill:var(--mute);font:500 6.5px var(--font-mono)}
-.ndl{transform-origin:100px 100px;transition:transform .5s ease}
+.ndl{transform-origin:100px 100px;transition:transform .5s cubic-bezier(0.4, 0, 0.2, 1)}
 .ndl polygon{fill:var(--gold)}
 .hub{fill:var(--panel);stroke:var(--gold);stroke-width:2;filter:drop-shadow(0 0 8px var(--gold))}
 .gnum{font:700 36px/1 var(--font-mono);text-align:center;text-shadow:0 0 18px rgba(243,202,82,.45);color:var(--gold)}
@@ -242,7 +261,6 @@ td .n{display:block;font:400 9.5px var(--font-body);color:var(--mute);margin-top
 .news-item a:hover{text-decoration:underline}
 footer{margin-top:18px;font:400 10px var(--font-mono);color:var(--mute);line-height:1.6}
 
-/* Tabella Guida Parametri BingX */
 .bingx-table{width:100%;border-collapse:collapse;margin-top:10px;font-family:var(--font-mono);font-size:11px}
 .bingx-table th{background:rgba(243,202,82,.1);color:var(--gold);border:1px solid var(--line2);padding:6px;text-align:left}
 .bingx-table td{border:1px solid var(--line2);padding:6px;color:var(--ink2)}
@@ -394,7 +412,6 @@ footer{margin-top:18px;font:400 10px var(--font-mono);color:var(--mute);line-hei
         </div>
       </div>
 
-      <!-- TABELLA GUIDA PARAMETRI DA INSERIRE SU BINGX -->
       <div class="sec" style="margin-top:16px;">📲 PARAMETRI ESATTI DA INSERIRE SU BINGX (MERCATO REALE)</div>
       <table class="bingx-table">
         <thead>
@@ -404,9 +421,7 @@ footer{margin-top:18px;font:400 10px var(--font-mono);color:var(--mute);line-hei
             <th>Trigger SL (Stop Loss)</th>
           </tr>
         </thead>
-        <tbody id="bingxParamsBody">
-          <!-- Inserito dinamicamente in JS -->
-        </tbody>
+        <tbody id="bingxParamsBody"></tbody>
       </table>
 
       <div class="sec" style="margin-top:14px;">Analisi AI dell'Andamento Istituzionale &amp; Mercato</div>
@@ -482,7 +497,7 @@ const U=[
  ['PL','Platino','com',980,.0045],['SOY','Soia','com',1020,.006]
 ];
 const money=(a,p)=>(IDX.has(a.sym)?'':'$')+fp(p);
-const TICK=2000,N15=120;
+const N15=120;
 let SIM=Math.floor(Date.now()/1000)-120*60,cycles=0;
 const assets=U.map(([sym,name,cls,price,vol])=>({sym,name,cls,price,vol:vol/2,beta:.7+Math.random()*.6,
   per:40+Math.random()*50,ph:Math.random()*6.28,amp:.25+Math.random()*.5,
@@ -837,21 +852,24 @@ $('#q').addEventListener('input',e=>{ui.q=e.target.value.trim().toLowerCase();re
 $('#thead').addEventListener('click',e=>{const th=e.target.closest('th[data-k]');if(!th)return;const k=th.dataset.k;assets.sort((x,y)=>(x[k]>y[k]?1:-1));renderTable()});
 let paused=false;$('#pauseBtn').addEventListener('click',()=>{paused=!paused;$('#pauseBtn').textContent=paused?'Riprendi':'Pausa'});
 
-// AGGIORNAMENTO FORZATO OGNI 2 SECONDI (RICARICA AUTOMATICA DELLA PAGINA)
+// AGGIORNAMENTO FLUIDO IN BACKGROUND OGNI 2 SECONDI (SENZA MAI RICARICARE LA PAGINA)
 let mainInterval = null;
 
 async function startLoop() {
   if (mainInterval) clearInterval(mainInterval);
-  mainInterval = setInterval(() => {
+  mainInterval = setInterval(async () => {
     if (paused) return;
-    // Ricarica la pagina ogni 2 secondi esatti per garantire dati freschi su mobile
-    window.location.reload();
+    await step();
+    renderAll();
   }, 2000);
 }
 
+// Se l'utente torna sulla pagina dopo aver sbloccato il telefono, aggiorna subito senza ricaricare
 document.addEventListener("visibilitychange", async () => {
   if (!document.hidden) {
-    window.location.reload();
+    await fetchLiveBingXPrices();
+    for(const a of assets) a.ai = analyze(a);
+    renderAll();
   }
 });
 
