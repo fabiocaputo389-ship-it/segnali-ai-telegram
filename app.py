@@ -10,9 +10,10 @@ from flask import Flask, render_template_string, request, redirect, url_for, ses
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'chiave_segreta_trading_ai_2026_saas')
+# Genera una Secret Key dinamica se non presente su Render per invalidare vecchie sessioni se il server si riavvia
+app.secret_key = os.environ.get('SECRET_KEY', 'chiave_segreta_trading_ai_2026_saas_secure')
 
-# Configurazioni globali lette esclusivamente da Render Environment Variables
+# Configurazioni globali di sistema (lette esclusivamente da Render ENV)
 bot_settings = {
     "exchange": "bingx",
     "mode": os.environ.get("TRADING_MODE", "automatico"),
@@ -34,7 +35,6 @@ def init_db():
             )
         ''')
         
-        # Aggiunge le colonne se il database esiste già ma ne è sprovvisto
         cursor.execute("PRAGMA table_info(users)")
         columns = [col[1] for col in cursor.fetchall()]
         if 'api_key' not in columns:
@@ -54,7 +54,7 @@ def init_db():
 
 init_db()
 
-# Funzione per l'invio dei messaggi su Telegram leggendo i dati da Render ENV
+# Funzione per l'invio dei messaggi su Telegram da Render ENV
 def invia_messaggio_telegram(testo):
     token = os.environ.get('TELEGRAM_TOKEN', '')
     chat_id = os.environ.get('CHAT_ID', '')
@@ -85,7 +85,7 @@ def invia_messaggio_telegram(testo):
 def background_scanner():
     time.sleep(10)
     print("Background Scanner e modulo Telegram attivati...")
-    invia_messaggio_telegram("🤖 **SCANNER TRADING VIP BOT**\n\n🟢 Sistema online e collegato correttamente alle variabili di Render!")
+    invia_messaggio_telegram("🤖 **SCANNER TRADING VIP BOT**\n\n🟢 Sistema online e attivo per la scansione dei mercati!")
     
     while True:
         try:
@@ -784,9 +784,11 @@ window.addEventListener('DOMContentLoaded', boot);
 
 @app.route('/', methods=['GET', 'POST'])
 def home():
-    if 'username' not in session:
+    # CONTROLLO AUTENTICAZIONE RIGIDO: obbliga l'accesso se la sessione non esiste
+    if 'user_id' not in session or 'username' not in session:
         return redirect(url_for('login'))
     
+    user_id = session['user_id']
     username = session['username']
     
     if request.method == 'POST':
@@ -806,8 +808,8 @@ def home():
             cursor.execute('''
                 UPDATE users 
                 SET api_key = ?, secret_key = ? 
-                WHERE username = ?
-            ''', (new_api_key, new_secret_key, username))
+                WHERE id = ?
+            ''', (new_api_key, new_secret_key, user_id))
             conn.commit()
             conn.close()
         except Exception as e:
@@ -816,17 +818,18 @@ def home():
         flash("Preferenze e chiavi API salvate con successo!")
         return redirect(url_for('home'))
 
-    # Recupera le chiavi salvate dell'utente dal database
+    # Legge unicamente le API Key dell'utente corrente dal database
     user_api_key = ""
     user_secret_key = ""
     try:
         conn = sqlite3.connect('trading_bot.db', timeout=10)
         cursor = conn.cursor()
-        cursor.execute('SELECT api_key, secret_key FROM users WHERE username = ?', (username,))
+        cursor.execute('SELECT api_key, secret_key FROM users WHERE id = ?', (user_id,))
         row = cursor.fetchone()
         conn.close()
         if row:
-            user_api_key, user_secret_key = row[0], row[1]
+            user_api_key = row[0] or ""
+            user_secret_key = row[1] or ""
     except Exception as e:
         print("Errore lettura chiavi utente:", e)
 
@@ -865,7 +868,7 @@ def login():
     <body style="background:#050505;color:#fdfbf7;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;">
     <div style="background:#0a0906;padding:30px;border:1px solid #f3ca52;width:360px;border-radius:6px;box-shadow:0 0 30px rgba(243,202,82,.25);">
         <h3 style="color:#f3ca52;margin-top:0;text-align:center;letter-spacing:2px;font-family:Cinzel,serif;">GOLD ELITE ACCESS</h3>
-        <p style="font-size:10.5px;color:#8c8268;text-align:center;margin-bottom:20px;">Accedi con il tuo account in abbonamento</p>
+        <p style="font-size:10.5px;color:#8c8268;text-align:center;margin-bottom:20px;">Accedi con il tuo account abbonato</p>
         ''' + (f'<p style="color:#ff3366;font-size:11.5px;text-align:center;">{error}</p>' if error else '') + '''
         <form method="POST">
             <p><label style="font-size:11px;color:#8c8268;">Username</label><br><input type="text" name="username" required style="width:100%;padding:9px;background:#12100a;border:1px solid #3d351e;color:#f3ca52;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
@@ -886,7 +889,8 @@ def register():
                 conn = sqlite3.connect('trading_bot.db', timeout=10)
                 cursor = conn.cursor()
                 hashed_pw = generate_password_hash(password)
-                cursor.execute('INSERT INTO users (username, password) VALUES (?, ?)', (username, hashed_pw))
+                cursor.execute('INSERT INTO users (username, password, api_key, secret_key) VALUES (?, ?, ?, ?)', 
+                               (username, hashed_pw, '', ''))
                 conn.commit()
                 conn.close()
                 return redirect(url_for('login'))
