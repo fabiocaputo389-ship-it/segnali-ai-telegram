@@ -96,7 +96,7 @@ DASHBOARD_HTML = '''<!DOCTYPE html>
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<title>AI Market Scanner &amp; BingX Pro - Tricolore Edition</title>
+<title>AI Market Scanner &amp; BingX Pro - Tricolore Pro Edition</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -116,7 +116,7 @@ DASHBOARD_HTML = '''<!DOCTYPE html>
 body{background-color:var(--bg);color:var(--ink);font:400 13px/1.45 var(--font-body);
   background-image:radial-gradient(1200px 600px at 15% -80px,rgba(0,146,70,.1),transparent 70%),radial-gradient(1000px 500px at 85% 110px,rgba(206,43,55,.08),transparent 70%),linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
   background-size:auto,auto,40px 40px,40px 40px; margin:0; padding:12px;}
-.wrap{max-width:1640px;margin:0 auto;padding-bottom:35px}
+.wrap{max-width:1680px;margin:0 auto;padding-bottom:35px}
 h1,h2,h3,p{margin:0}
 .up{color:var(--up)}.dn{color:var(--dn)}.mu{color:var(--mute)}
 
@@ -164,6 +164,7 @@ input:focus,select:focus{border-color:var(--up);outline:none;box-shadow:0 0 8px 
 .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;font:700 9.5px var(--font-mono);letter-spacing:.06em;border:1px solid currentColor;white-space:nowrap}
 .pill.LONG{color:var(--up);background:rgba(0,146,70,.15);box-shadow:0 0 6px rgba(0,146,70,.3)}
 .pill.SHORT{color:var(--dn);background:rgba(206,43,55,.15);box-shadow:0 0 6px rgba(206,43,55,.3)}
+.pill.HOLD{color:var(--warn);background:rgba(243,156,18,.15);box-shadow:0 0 6px rgba(243,156,18,.3)}
 
 .bar2{position:relative;height:8px;background:var(--line)}
 .bar2 i{position:absolute;top:0;bottom:0}
@@ -189,8 +190,8 @@ canvas{display:block;width:100%;touch-action:pan-y}
 .fb.r{color:var(--dn);border-color:var(--dn)}.fb.r[aria-pressed="true"]{background:rgba(206,43,55,.2)}
 input[type=search]{background:var(--panel);border:1px solid var(--line2);color:var(--ink);font:400 11px var(--font-mono);padding:5px 9px;width:140px}
 
-.tw{overflow-x:auto;-webkit-overflow-scrolling:touch;max-height:540px;border:1px solid var(--line2)}
-table.main{border-collapse:collapse;width:100%;min-width:1300px}
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch;max-height:560px;border:1px solid var(--line2)}
+table.main{border-collapse:collapse;width:100%;min-width:1400px}
 .main th{position:sticky;top:0;background:var(--panel2);z-index:1;text-align:center;font:600 9.5px var(--font-mono);letter-spacing:.08em;color:var(--up);text-transform:uppercase;padding:8px 6px;cursor:pointer;white-space:nowrap;border-bottom:1px solid var(--line2)}
 .main th:first-child,.main td:first-child{text-align:left}
 .main th[aria-sort]{color:#fff}
@@ -240,15 +241,15 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
   </div>
 
   <section class="config-panel">
-    <div class="ph"><h2>⚙️ Configurazione API BingX &amp; Esecuzione Automatica Reale</h2></div>
+    <div class="ph"><h2>⚙️ Configurazione API BingX &amp; Esecuzione Sicura</h2></div>
     <form method="POST">
       <div class="form-grid">
         <div>
           <label class="mu" style="font-size:10.5px">Exchange</label>
           <select name="exchange">
             <option value="bingx" {% if settings.exchange == 'bingx' %}selected{% endif %}>BingX Futures Pro</option>
-            <option value="binance" {% if settings.binance == 'binance' %}selected{% endif %}>Binance Futures</option>
-            <option value="bybit" {% if settings.bybit == 'bybit' %}selected{% endif %}>Bybit Futures</option>
+            <option value="binance" {% if settings.exchange == 'binance' %}selected{% endif %}>Binance Futures</option>
+            <option value="bybit" {% if settings.exchange == 'bybit' %}selected{% endif %}>Bybit Futures</option>
           </select>
         </div>
         <div>
@@ -265,7 +266,7 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
       </div>
       <div style="display:flex;align-items:center;gap:12px;margin-top:8px;">
         <label style="font:10.5px var(--font-mono);display:flex;align-items:center;gap:6px;cursor:pointer">
-          <input type="checkbox" name="auto_execution" {% if settings.auto_execution == 1 %}checked{% endif %}> Abilita invio ordini automatici su BingX API
+          <input type="checkbox" name="auto_execution" {% if settings.auto_execution == 1 %}checked{% endif %}> Abilita invio ordini automatici su BingX API solo su Segnali Certi
         </label>
         <button type="submit">Salva Configurazione</button>
       </div>
@@ -275,7 +276,7 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
   <header class="top">
     <div class="brand">
       <svg width="36" height="36" viewBox="0 0 40 40" aria-hidden="true"><polygon points="20,3 36,15 20,37 4,15" fill="none" stroke="#009246" stroke-width="1.8"/><polygon points="20,3 28,15 20,37 12,15" fill="rgba(0,146,70,.2)" stroke="#ffffff" stroke-width="1"/></svg>
-      <div><h1>AI Market Scanner · Tricolore Pro</h1><p>Analisi predittiva &amp; Esecuzione API millimetrica 24/7 su tutti i mercati</p></div>
+      <div><h1>AI Market Scanner · Tricolore Pro</h1><p>Verdetto Certo d'Ingresso, Scadenza Segnale &amp; Esecuzione API BingX 24/7</p></div>
     </div>
     <div class="chips">
       <span class="chip"><i class="dot"></i><span id="feedTxt">BINGX SYNC ACTIVE</span></span>
@@ -318,9 +319,9 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
     <section class="panel s4">
       <div class="ph"><h2>Telemetry &amp; Motore AI</h2></div>
       <div style="display:grid;gap:6px;font:11px var(--font-mono)">
-        <div style="display:flex;justify-content:space-between"><span class="mu">Copertura Mercati</span><b style="color:var(--up)">Cripto, Azioni, Mat. Prime (Completo)</b></div>
-        <div style="display:flex;justify-content:space-between"><span class="mu">Segnali LONG attivi</span><b class="up" id="stLong">0</b></div>
-        <div style="display:flex;justify-content:space-between"><span class="mu">Segnali SHORT attivi</span><b class="dn" id="stShort">0</b></div>
+        <div style="display:flex;justify-content:space-between"><span class="mu">Copertura Mercati</span><b style="color:var(--up)">Cripto, Azioni, Mat. Prime</b></div>
+        <div style="display:flex;justify-content:space-between"><span class="mu">Segnali Certi Operativi</span><b class="up" id="stLong">0</b></div>
+        <div style="display:flex;justify-content:space-between"><span class="mu">Stato "Non Entrare"</span><b class="dn" id="stHold">0</b></div>
         <div style="display:flex;justify-content:space-between"><span class="mu">Precisione AI media</span><b id="stConf" style="color:#fff">--%</b></div>
         <div style="display:flex;justify-content:space-between"><span class="mu">Cicli neurali</span><b id="stCycles">0</b></div>
         <div style="display:flex;justify-content:space-between"><span class="mu">Rischio configurato</span><b style="color:var(--warn)">{{ settings.risk_percentage }}% per trade</b></div>
@@ -329,18 +330,18 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
     </section>
 
     <section class="panel s8">
-      <div class="ph"><h2>Piano Operativo Millimetrico (TP1, TP2, TP3 &amp; SL)</h2><span class="sub" id="anSub">Seleziona un asset</span></div>
+      <div class="ph"><h2>Verdetto Certificato &amp; Timing d'Ingresso</h2><span class="sub" id="anSub">Seleziona un asset</span></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div>
-          <div class="sec">Parametri di Esecuzione &amp; Tachimetro Rischio</div>
+          <div class="sec">Consiglio Operativo &amp; Validità Temporale</div>
           <div id="anPlan" style="display:grid;gap:5px;font:10.5px var(--font-mono)"></div>
         </div>
         <div>
-          <div class="sec">Target Millimetrici (TP1, TP2, TP3)</div>
+          <div class="sec">Target Millimetrici (TP1, TP2, TP3 &amp; SL)</div>
           <div id="anTargets" style="display:grid;gap:5px;font:10.5px var(--font-mono)"></div>
         </div>
       </div>
-      <div class="sec">Intelligence &amp; Dinamica Balene</div>
+      <div class="sec">Analisi di Mercato &amp; Motivo del Verdetto</div>
       <p id="anReason" class="mu" style="font-size:11.5px;line-height:1.45"></p>
     </section>
 
@@ -348,8 +349,8 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
       <div class="ph"><h2>Scanner Globale &amp; Invio Ordini BingX (Tutti i Mercati)</h2>
         <div class="filters" id="filters">
           <button type="button" class="fb" data-f="all" aria-pressed="true">Tutti</button>
-          <button type="button" class="fb g" data-f="buy" aria-pressed="false">Solo BUY (Long)</button>
-          <button type="button" class="fb r" data-f="sell" aria-pressed="false">Solo SELL (Short)</button>
+          <button type="button" class="fb g" data-f="buy" aria-pressed="false">Solo Entrate Certe</button>
+          <button type="button" class="fb r" data-f="hold" aria-pressed="false">Da Evitare (Non Entrare)</button>
         </div>
       </div>
       <div class="filters" style="margin-bottom:8px">
@@ -363,7 +364,7 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
         <span class="sub mu mono" id="cnt" style="margin-left:auto"></span>
       </div>
       <div class="tw"><table class="main"><thead><tr id="thead">
-        <th data-k="sym" style="text-align:left">Asset / Mercato</th><th>Segnale AI</th><th>Precisione</th><th>Prezzo Attuale</th><th>Tachimetro Rischio</th><th>Timeframe</th><th>Leva</th><th>Target TP1</th><th>Target TP2</th><th>Target TP3</th><th>Stop Loss</th>
+        <th data-k="sym" style="text-align:left">Asset / Mercato</th><th>Verdetto IA</th><th>Scadenza Segnale</th><th>Precisione</th><th>Prezzo Ingresso</th><th>Timeframe</th><th>Leva</th><th>Target TP1</th><th>Target TP2</th><th>Target TP3</th><th>Stop Loss</th>
       </tr></thead><tbody id="tbody"></tbody></table></div>
     </section>
 
@@ -372,7 +373,7 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
       <div id="heat"></div>
     </section>
     <section class="panel s4">
-      <div class="ph"><h2>Distribuzione Segnali</h2></div>
+      <div class="ph"><h2>Distribuzione Verdetto</h2></div>
       <div id="dist"></div>
     </section>
     <section class="panel s4">
@@ -380,7 +381,7 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
       <ul class="log" id="log"></ul>
     </section>
   </main>
-  <footer>Tutti i prezzi, le analisi millimetriche e l'invio ordini API BingX sono gestiti dal motore di calcolo AI Tricolore. Non costituisce consulenza finanziaria.</footer>
+  <footer>Tutti i prezzi, i verdetti certi, la durata e l'invio ordini API BingX sono gestiti dal motore AI Tricolore. Non costituisce consulenza finanziaria.</footer>
 </div>
 
 <script>
@@ -391,7 +392,6 @@ const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const fmtN=(n,d=2)=>n.toLocaleString('it-IT',{minimumFractionDigits:d,maximumFractionDigits:d});
 const fp=p=>fmtN(p,p>=100?2:p>=1?3:5);
 const pc=x=>(x>=0?'+':'')+fmtN(x*100,2)+'%';
-const sg=x=>(x>0?'+':x<0?'−':'')+Math.abs(Math.round(x));
 const pad2=n=>String(n).padStart(2,'0');
 const hhmm=t=>{const d=new Date(t);return pad2(d.getHours())+':'+pad2(d.getMinutes())};
 const hhmmss=t=>{const d=new Date(t);return hhmm(t)+':'+pad2(d.getSeconds())};
@@ -399,19 +399,16 @@ const hhmmss=t=>{const d=new Date(t);return hhmm(t)+':'+pad2(d.getSeconds())};
 const CLS={cry:{label:'Cripto',color:'--up'},stk:{label:'Azioni',color:'--c2'},com:{label:'Materie Prime',color:'--dn'}};
 const IDX=new Set(['SPX','NDX','DAX','FTMIB']);
 const U=[
- // Cripto completo
  ['BTC','Bitcoin','cry',95200,.0075],['ETH','Ethereum','cry',3320,.0095],['SOL','Solana','cry',182,.012],
  ['BNB','BNB','cry',624,.008],['XRP','XRP','cry',2.41,.012],['ADA','Cardano','cry',.71,.012],
  ['DOGE','Dogecoin','cry',.184,.014],['AVAX','Avalanche','cry',38.4,.013],['LINK','Chainlink','cry',17.2,.012],
  ['DOT','Polkadot','cry',7.15,.012],['LTC','Litecoin','cry',96.5,.01],['TON','Toncoin','cry',5.62,.012],
  ['SUI','Sui','cry',3.84,.015],['NEAR','NEAR','cry',5.48,.014],['APT','Aptos','cry',9.2,.014],['ARB','Arbitrum','cry',.62,.014],
  ['PEPE','Pepe','cry',.000019,.02],['SHIB','Shiba Inu','cry',.000024,.018],['MATIC','Polygon','cry',.54,.015],['UNI','Uniswap','cry',11.4,.013],
- // Azioni globali e indici
  ['AAPL','Apple','stk',226.4,.0045],['MSFT','Microsoft','stk',432.8,.0042],['NVDA','NVIDIA','stk',141.2,.0075],['TSLA','Tesla','stk',262.5,.0095],
  ['AMZN','Amazon','stk',201.3,.005],['GOOGL','Alphabet','stk',176.8,.0048],['META','Meta','stk',583.1,.0058],['AMD','AMD','stk',152.7,.0075],
  ['NFLX','Netflix','stk',705.4,.0062],['JPM','JPMorgan','stk',231.6,.0042],['SPX','S&P 500','stk',5812,.0025],['NDX','Nasdaq 100','stk',20540,.0032],
  ['DAX','DAX 40','stk',19480,.0028],['FTMIB','FTSE MIB','stk',34120,.0027],['ENEL','Enel','stk',6.85,.0035],['UCG','UniCredit','stk',38.4,.004],
- // Materie prime complete
  ['XAU','Oro','com',2712,.003],['XAG','Argento','com',32.4,.0062],['WTI','Petrolio WTI','com',72.4,.0078],['BRENT','Petrolio Brent','com',76.1,.0075],
  ['NG','Gas naturale','com',2.64,.011],['HG','Rame','com',4.31,.0055],['WHEAT','Grano','com',592,.0072],['COFFEE','Caffè','com',3.05,.0085],
  ['PL','Platino','com',980,.0045],['SOY','Soia','com',1020,.006]
@@ -477,7 +474,14 @@ function analyze(a){
   const slPct=clamp(1.5*atr/price,.004,.03);
   const lev=a.cls==='cry'?Math.floor(clamp(15/(slPct*100),3,25)):a.cls==='stk'?Math.floor(clamp(25/(slPct*100),5,30)):Math.floor(clamp(20/(slPct*100),5,20));
   const tfRec=Math.abs(comb)>50?'15m':Math.abs(comb)>25?'1h':'4h';
-  const whales=comb>25?'🚀 Forte Accumulo Istituzionale':comb<-25?'📉 Pressione di Vendita Balene':'⚖️ Flussi di Mercato Neutrali';
+  
+  # Determinazione verdetto certo: se la forza del segnale è bassa (tra -15 e +15), il sistema consiglia "NON ENTRARE"
+  let verdict='HOLD';
+  if(comb>=15) verdict='LONG';
+  else if(comb<=-15) verdict='SHORT';
+
+  const expiry=tfRec==='15m'?'45 min (Valido fino a chiusura candela 3x)':tfRec==='1h'?'3 ore (Scadenza test livello chiave)':'12 ore (Trend multisesione)';
+  const whales=comb>25?'🚀 Forte Accumulo Istituzionale':comb<-25?'📉 Pressione di Vendita Balene':'⚖️ Mercato Laterale / Congestione';
   
   const sl=price*(1-dir*slPct);
   const tp1=price*(1+dir*slPct*1.2);
@@ -485,7 +489,7 @@ function analyze(a){
   const tp3=price*(1+dir*slPct*3.5);
   const riskGauge=Math.round(clamp(slPct*100*35 + (100-conf)*0.3, 10, 95));
 
-  return{tf,comb,conf,dir,atr,slPct,lev,tfRec,whales,sl,tp1,tp2,tp3,riskGauge,ch24:price/c15[Math.max(0,n-96)].c-1,cp:tf[15].cp};
+  return{tf,comb,conf,dir,atr,slPct,lev,tfRec,verdict,expiry,whales,sl,tp1,tp2,tp3,riskGauge,ch24:price/c15[Math.max(0,n-96)].c-1,cp:tf[15].cp};
 }
 
 const logs=[];
@@ -512,7 +516,7 @@ function mkGauge(host,big){
   s+=`<g class="ndl" style="transform:rotate(0deg)"><polygon points="97.5,100 100,30 102.5,100"/></g><circle class="hub" cx="100" cy="100" r="7"/>`;
   host.innerHTML=`<svg class="gsvg" viewBox="0 0 200 112" role="img" aria-label="Tachimetro">${s}</svg>`;
   const val=host.querySelector('.gval'),nd=host.querySelector('.ndl');
-  return v=>{v=clamp(v,0,100);const z=zone(v);val.style.strokeDasharray=`${v} 100`;val.setAttribute('class','gval z'+z);nd.style.transform=`rotate(${(v-50)*1.8}deg)`;return z};
+  return v=>{v=clamp(v,0,100);const z=zone(v);val.style.strokeDasharray=`${v} 100`;val.setAttribute('class','gval z'+z);nd.style.transform=`rotate(${(v-50)*1.8}deg);return z};
 }
 let gMain,gCry,gStk,gCom;
 function setG(fn,numEl,labEl,v){const z=fn(v);numEl.textContent=Math.round(v);numEl.style.color=zcol(z);labEl.textContent=ZL[z];labEl.style.color=zcol(z)}
@@ -555,22 +559,22 @@ function visible(){
   return assets.filter(a=>{
     if(ui.cls!=='all'&&a.cls!==ui.cls)return false;
     if(ui.q&&!(a.sym+a.name).toLowerCase().includes(ui.q))return false;
-    if(ui.f==='buy'&&a.ai.comb<15)return false;
-    if(ui.f==='sell'&&a.ai.comb>-15)return false;
+    if(ui.f==='buy'&&a.ai.verdict==='HOLD')return false;
+    if(ui.f==='hold'&&a.ai.verdict!=='HOLD')return false;
     return true});
 }
 
 function renderTable(){
   const l=visible();
   $('#cnt').textContent=l.length+' di '+assets.length+' asset';
-  $('#tbody').innerHTML=l.map(a=>{const ai=a.ai,pr=lastPx[a.sym],f=pr==null||pr===a.price?'':(a.price>pr?'fu':'fd'),g=ai.comb;
-    const isBuy=g>=15,side=isBuy?'LONG':'SHORT';
+  $('#tbody').innerHTML=l.map(a=>{const ai=a.ai,pr=lastPx[a.sym],f=pr==null||pr===a.price?'':(a.price>pr?'fu':'fd');
+    const v=ai.verdict, lbl=v==='LONG'?'ENTRA LONG':v==='SHORT'?'ENTRA SHORT':'NON ENTRARE';
     return`<tr class="r${a.sym===sel?' sel':''}" data-sym="${a.sym}" tabindex="0">
 <td><span class="cdot" style="background:var(${CLS[a.cls].color})"></span><span class="s">${a.sym}</span><span class="n">${a.name}</span></td>
-<td><span class="pill ${side}">${side}</span></td>
+<td><span class="pill ${v}">${lbl}</span></td>
+<td style="font-size:10px;color:var(--warn)">${ai.expiry}</td>
 <td><b style="color:var(--up)">${ai.conf}%</b></td>
 <td class="${f}">${money(a,a.price)}</td>
-<td>${miniG(ai.riskGauge)}</td>
 <td><b style="color:#fff">${ai.tfRec}</b></td>
 <td><b style="color:var(--warn)">${ai.lev}x</b></td>
 <td><span class="up">${money(a,ai.tp1)}</span></td>
@@ -590,38 +594,40 @@ function renderMain(){
   const sorted=[...assets].sort((x,y)=>y.ai.comb-x.ai.comb);
   $('#opps').innerHTML=sorted.slice(0,5).map(x=>`<div class="dvr" data-sym="${x.sym}"><b>${x.sym}</b><span class="bar2 dv"><i style="left:50%;width:${Math.abs(x.ai.comb)}%;background:${x.ai.comb>=0?'var(--up)':'var(--dn)'}"></i></span><span style="text-align:right">${x.ai.comb>=0?'+':''}${Math.round(x.ai.comb)}</span></div>`).join('');
 
-  $('#stLong').textContent=assets.filter(x=>x.ai.comb>=15).length;
-  $('#stShort').textContent=assets.filter(x=>x.ai.comb<=-15).length;
+  $('#stLong').textContent=assets.filter(x=>x.ai.verdict!=='HOLD').length;
+  $('#stHold').textContent=assets.filter(x=>x.ai.verdict==='HOLD').length;
   $('#stConf').textContent=Math.round(assets.reduce((s,x)=>s+x.ai.conf,0)/assets.length)+'%';
   $('#stCycles').textContent=cycles;
 
+  const v=ai.verdict, vText=v==='LONG'?'🟢 ENTRA LONG (Segnale Certo)':v==='SHORT'?'🔴 ENTRA SHORT (Segnale Certo)':'⚠️ NON ENTRARE (Attesa / Rischio Elevato)';
+
   $('#anSub').textContent=`${a.sym} · ${a.name} (${CLS[a.cls].label})`;
   $('#anPlan').innerHTML=`
-    <div style="display:flex;justify-content:space-between"><span>Timeframe Ottimale</span><b style="color:#fff">${ai.tfRec}</b></div>
+    <div style="display:flex;justify-content:space-between"><span>Verdetto IA</span><b style="color:${v==='HOLD'?'var(--warn)':'var(--up)'}">${vText}</b></div>
+    <div style="display:flex;justify-content:space-between"><span>Timeframe Consigliato</span><b style="color:#fff">${ai.tfRec}</b></div>
+    <div style="display:flex;justify-content:space-between"><span>Durata / Scadenza Segnale</span><b style="color:var(--warn)">${ai.expiry}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Leva BingX</span><b style="color:var(--warn)">${ai.lev}x</b></div>
-    <div style="display:flex;justify-content:space-between"><span>Ingresso Attuale</span><b style="color:var(--up)">${money(a,a.price)}</b></div>
-    <div style="display:flex;justify-content:space-between"><span>Tachimetro Rischio Asset</span><b style="color:var(--warn)">${ai.riskGauge} / 100</b></div>
-    <div style="display:flex;justify-content:space-between"><span>Stop Loss Millimetrico</span><b class="dn">${money(a,ai.sl)}</b></div>`;
+    <div style="display:flex;justify-content:space-between"><span>Prezzo d'Ingresso</span><b style="color:var(--up)">${money(a,a.price)}</b></div>`;
   
   $('#anTargets').innerHTML=`
     <div style="display:flex;justify-content:space-between"><span>Target TP1 (Conservativo)</span><b class="up">${money(a,ai.tp1)}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Target TP2 (Bilanciato)</span><b class="up">${money(a,ai.tp2)}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Target TP3 (Esteso Trend)</span><b class="up">${money(a,ai.tp3)}</b></div>
-    <div style="display:flex;justify-content:space-between"><span>Rapporto R:R Medio</span><b style="color:#fff">1 : 2,8</b></div>
+    <div style="display:flex;justify-content:space-between"><span>Stop Loss Millimetrico</span><b class="dn">${money(a,ai.sl)}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Flusso Mercato</span><b style="color:var(--up)">${ai.whales}</b></div>`;
 
-  $('#anReason').textContent=`Analisi millimetrica completata su ${a.sym}. ${ai.whales}. L'IA calcola una precisione del ${ai.conf}% con Stop Loss posizionato millimetricamente tramite ATR e tre livelli di Target calibrati per BingX. Verdetto: ${ai.comb>=0?'LONG':'SHORT'}.`;
+  $('#anReason').textContent=`Analisi completata su ${a.sym}. ${ai.whales}. L'intelligenza artificiale emette il verdetto: "${vText}". Il segnale rimane valido per la durata stimata di ${ai.expiry} sul timeframe ${ai.tfRec}. Precisione stimata: ${ai.conf}%.`;
 
   $('#cSym').textContent=a.sym;$('#cName').textContent=a.name;$('#cPx').textContent=money(a,a.price);
   $('#cCh').innerHTML=`<span class="mono ${ai.ch24>=0?'up':'dn'}">${pc(ai.ch24)}</span>`;
 
   const nowStr=hhmm(SIM*1000);
-  $('#log').innerHTML=logs.slice(0,10).map(e=>`<li><time>${hhmm(e.t)}</time><span style="font-weight:700;color:var(--up)">${e.type}</span><span>${e.txt}</span></li>`).join('')||`<li class="empty">${nowStr} - Motore AI Tricolore sincronizzato con tutti i mercati globali.</li>`;
+  $('#log').innerHTML=logs.slice(0,10).map(e=>`<li><time>${hhmm(e.t)}</time><span style="font-weight:700;color:var(--up)">${e.type}</span><span>${e.txt}</span></li>`).join('')||`<li class="empty">${nowStr} - Motore AI Tricolore operativo con verdetti certi e scadenze.</li>`;
 
   $('#heat').innerHTML=Object.keys(CLS).map(k=>`<div class="hg"><h3>${CLS[k].label}</h3><div class="tiles">${assets.filter(a=>a.cls===k).map(a=>{const c=a.ai.ch24,bg=c>=0?'rgba(0,146,70,.18)':'rgba(206,43,55,.18)';return`<button type="button" class="tile" data-sym="${a.sym}" style="background:${bg}">${a.sym}<small>${pc(c)}</small></button>`}).join('')}</div></div>`).join('');
   
-  const lC=assets.filter(x=>x.ai.comb>=15).length,wZ=assets.filter(x=>Math.abs(x.ai.comb)<15).length,sC=assets.filter(x=>x.ai.comb<=-15).length;
-  $('#dist').innerHTML=`<div style="display:grid;gap:6px;font:11px var(--font-mono)"><div style="display:flex;justify-content:space-between"><span>Long / Buy</span><b class="up">${lC} asset</b></div><div style="display:flex;justify-content:space-between"><span>Attesa / Neutrali</span><b class="mu">${wZ} asset</b></div><div style="display:flex;justify-content:space-between"><span>Short / Sell</span><b class="dn">${sC} asset</b></div></div>`;
+  const lC=assets.filter(x=>x.ai.verdict!=='HOLD').length,wZ=assets.filter(x=>x.ai.verdict==='HOLD').length;
+  $('#dist').innerHTML=`<div style="display:grid;gap:6px;font:11px var(--font-mono)"><div style="display:flex;justify-content:space-between"><span>Entrate Certe (Long/Short)</span><b class="up">${lC} asset</b></div><div style="display:flex;justify-content:space-between"><span>Da Evitare (Non Entrare)</span><b class="dn">${wZ} asset</b></div></div>`;
 }
 
 function renderAll(){
@@ -699,7 +705,7 @@ def login():
             <p><label style="font-size:11px;color:#a3b8aa;">Username</label><br><input type="text" name="username" required style="width:100%;padding:9px;background:#0e1a12;border:1px solid #274d34;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
             <p><label style="font-size:11px;color:#a3b8aa;">Password</label><br><input type="password" name="password" required style="width:100%;padding:9px;background:#0e1a12;border:1px solid #274d34;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
             <button type="submit" style="width:100%;padding:10px;background:#009246;color:#ffffff;border:none;font-weight:bold;margin-top:10px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;box-shadow:0 0 10px rgba(0,146,70,.4);">Connetti</button>
-        </main>
+        </form>
     </div></body></html>'''
 
 @app.route('/logout')
