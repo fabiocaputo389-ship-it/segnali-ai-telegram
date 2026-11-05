@@ -87,29 +87,29 @@ def place_bingx_order(api_key, secret_key, symbol, side, position_side, quantity
         print(f"Errore esecuzione ordine BingX: {e}")
         return {"code": -1, "msg": str(e)}
 
-# Panieri Reali
 CRYPTO_FUTURES_ASSETS = [
-    {"sym": "BTCUSDT", "name": "Bitcoin Futures"},
-    {"sym": "ETHUSDT", "name": "Ethereum Futures"},
-    {"sym": "SOLUSDT", "name": "Solana Futures"},
-    {"sym": "BNBUSDT", "name": "BNB Futures"},
-    {"sym": "XRPUSDT", "name": "XRP Futures"},
-    {"sym": "ADAUSDT", "name": "Cardano Futures"},
-    {"sym": "DOGEUSDT", "name": "Dogecoin Futures"},
-    {"sym": "AVAXUSDT", "name": "Avalanche Futures"},
-    {"sym": "LINKUSDT", "name": "Chainlink Futures"},
-    {"sym": "SUIUSDT", "name": "Sui Futures"}
+    {"sym": "BTCUSDT", "name": "Bitcoin", "class": "crip"},
+    {"sym": "ETHUSDT", "name": "Ethereum", "class": "crip"},
+    {"sym": "SOLUSDT", "name": "Solana", "class": "crip"},
+    {"sym": "BNBUSDT", "name": "BNB", "class": "crip"},
+    {"sym": "XRPUSDT", "name": "XRP", "class": "crip"},
+    {"sym": "ADAUSDT", "name": "Cardano", "class": "crip"},
+    {"sym": "DOGEUSDT", "name": "Dogecoin", "class": "crip"},
+    {"sym": "AVAXUSDT", "name": "Avalanche", "class": "crip"},
+    {"sym": "LINKUSDT", "name": "Chainlink", "class": "crip"},
+    {"sym": "NEARUSDT", "name": "NEAR", "class": "crip"}
 ]
 
 COMMODITIES_ASSETS = [
-    {"sym": "GC=F", "name": "Oro (Gold)"},
-    {"sym": "CL=F", "name": "Petrolio WTI"},
-    {"sym": "SI=F", "name": "Argento (Silver)"},
-    {"sym": "NG=F", "name": "Gas Naturale"}
+    {"sym": "GC=F", "name": "Oro (Gold)", "class": "mat"},
+    {"sym": "CL=F", "name": "Petrolio WTI", "class": "mat"},
+    {"sym": "SI=F", "name": "Argento (Silver)", "class": "mat"},
+    {"sym": "NG=F", "name": "Gas Naturale", "class": "mat"}
 ]
 
 live_market_data = {}
 commodities_market_data = {}
+market_gauge = {"crip": 50, "mat": 50}
 
 def calculate_advanced_indicators(klines):
     if len(klines) < 50:
@@ -119,33 +119,35 @@ def calculate_advanced_indicators(klines):
     lows = [float(k[3]) for k in klines]
     
     current_price = closes[-1]
+    prev_price = closes[-2]
+    change_24h = ((current_price - closes[0]) / closes[0]) * 100
+    
     ema20 = sum(closes[-20:]) / 20
     ema50 = sum(closes[-50:]) / 50
     
-    # Calcolo volatilità (ATR approssimato a 14 periodi) per TP e SL intelligenti
     true_ranges = [max(highs[i] - lows[i], abs(highs[i] - closes[i-1]), abs(lows[i] - closes[i-1])) for i in range(1, len(klines))]
     atr = sum(true_ranges[-14:]) / 14 if len(true_ranges) >= 14 else (highs[-1] - lows[-1])
     
     is_long = current_price > ema20 and ema20 > ema50
     is_short = current_price < ema20 and ema20 < ema50
     
-    # Sentiment basato su forza del trend e distanza dalle EMA
-    sentiment = "BULLISH FORTE" if is_long and (current_price - ema20) > (atr * 0.5) else ("BEARISH FORTE" if is_short else "NEUTRAL / CONSOLIDAMENTO")
+    score = 85 if is_long else (-85 if is_short else 0)
+    sentiment = "BULLISH" if is_long else ("BEARISH" if is_short else "NEUTRO")
     
-    # Livelli Dinamici basati su ATR (Rapporto Rischio/Rendimento 1:2)
     sl = current_price - (atr * 1.5) if is_long else current_price + (atr * 1.5)
     tp1 = current_price + (atr * 3.0) if is_long else current_price - (atr * 3.0)
     
     return {
         "current_price": current_price,
+        "change_24h": change_24h,
         "ema20": ema20,
         "ema50": ema50,
-        "atr": atr,
-        "sl": sl,
-        "tp1": tp1,
+        "score": score,
         "is_long": is_long,
         "is_short": is_short,
-        "sentiment": sentiment
+        "sentiment": sentiment,
+        "sl": sl,
+        "tp1": tp1
     }
 
 def background_real_market_scanner():
@@ -159,7 +161,7 @@ def background_real_market_scanner():
             api_key = bot_settings.get("bingx_api_key")
             secret_key = bot_settings.get("bingx_secret_key")
             
-            # Scansione Cripto Futures Reali con Intelligenza Avanzata
+            crip_scores = []
             for asset in CRYPTO_FUTURES_ASSETS:
                 symbol = asset["sym"]
                 res = requests.get(f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=15m&limit=60", timeout=5)
@@ -169,30 +171,35 @@ def background_real_market_scanner():
                     if not ind:
                         continue
                     live_market_data[symbol] = ind
-                    current_price = ind["current_price"]
-                    now = time.time()
+                    crip_scores.append(ind["score"])
                     
-                    if ind["is_long"] and (symbol not in last_alerts or now - last_alerts[symbol] > 1800):
+                    now = time.time()
+                    if abs(ind["score"]) >= 80 and (symbol not in last_alerts or now - last_alerts[symbol] > 1800):
+                        dir_txt = "LONG 🟢" if ind["is_long"] else "SHORT 🔴"
                         msg = (
-                            f"🧠 *SEGNALE IA AVANZATO (REALE)*\n\n"
+                            f"💎 *TOP ENTRY >80% (DIAMANTE LAMPEGGIANTE)*\n\n"
                             f"✦ *Asset:* #{symbol}\n"
-                            f"✦ *Direzione:* LONG 🟢\n"
-                            f"✦ *Sentiment:* {ind['sentiment']}\n"
-                            f"✦ *Prezzo Reale:* ${current_price:,.4f}\n\n"
-                            f"🎯 *Take Profit (TP):* ${ind['tp1']:,.4f}\n"
-                            f"🛑 *Stop Loss (SL):* ${ind['sl']:,.4f}\n"
-                            f"⚖️ *Rischio/Rendimento:* 1:2 Dinamico\n\n"
-                            f"⚡ _Elaborazione basata su ATR e Volatilità Reale_"
+                            f"✦ *Direzione:* {dir_txt}\n"
+                            f"✦ *Prezzo Reale:* ${ind['current_price']:,.4f}\n"
+                            f"✦ *Score Confluenza:* {ind['score']}%\n\n"
+                            f"🎯 *TP1:* ${ind['tp1']:,.4f}\n"
+                            f"🛑 *Stop Loss:* ${ind['sl']:,.4f}\n"
                         )
                         if token and chat_id:
                             send_telegram_alert(token, chat_id, msg)
                         if auto_exec == 1 and trading_mode == "real" and api_key and secret_key:
+                            side = "BUY" if ind["is_long"] else "SELL"
+                            pos_side = "LONG" if ind["is_long"] else "SHORT"
                             qty = 0.001 if "BTC" in symbol else (0.01 if "ETH" in symbol else 1.0)
-                            place_bingx_order(api_key, secret_key, symbol, "BUY", "LONG", qty)
+                            place_bingx_order(api_key, secret_key, symbol, side, pos_side, qty)
                         last_alerts[symbol] = now
+            
+            if crip_scores:
+                market_gauge["crip"] = int(sum(crip_scores) / len(crip_scores))
 
-            # Scansione Materie Prime Reali
+            # Materie Prime Reali
             headers = {'User-Agent': 'Mozilla/5.0'}
+            mat_scores = []
             for comm in COMMODITIES_ASSETS:
                 sym = comm["sym"]
                 url = f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}?interval=1d&range=5d"
@@ -205,13 +212,20 @@ def background_real_market_scanner():
                         price = meta.get("regularMarketPrice", 0.0)
                         prev_close = meta.get("chartPreviousClose", price)
                         change = ((price - prev_close) / prev_close) * 100 if prev_close else 0.0
+                        score = int(change * 20)
+                        score = max(-100, min(100, score))
+                        mat_scores.append(score)
                         commodities_market_data[sym] = {
                             "name": comm["name"],
                             "price": price,
-                            "change": change
+                            "change": change,
+                            "score": score
                         }
+            if mat_scores:
+                market_gauge["mat"] = int(sum(mat_scores) / len(mat_scores))
+
         except Exception as e:
-            print(f"Errore scanner avanzato: {e}")
+            print(f"Errore scanner grafico: {e}")
         time.sleep(30)
 
 scanner_thread = threading.Thread(target=background_real_market_scanner, daemon=True)
@@ -222,27 +236,34 @@ DASHBOARD_HTML = '''
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<title>Dashboard IA & Mercato Reale</title>
+<title>Dashboard Reale Avanzata</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-body{background:#06080c;color:#ece8dc;font-family:sans-serif;margin:0;padding:20px;}
+body{background:#06080c;color:#ece8dc;font-family:sans-serif;margin:0;padding:15px;}
 .wrap{max-width:1200px;margin:0 auto;}
-.panel{background:#0c1017;border:1px solid #1b2433;padding:20px;margin-bottom:20px;}
-h1,h2{color:#d6b04c;}
-table{width:100%;border-collapse:collapse;margin-top:10px;}
-th,td{padding:10px;text-align:left;border-bottom:1px solid #1b2433;font-size:14px;}
-th{color:#6b7689;font-size:12px;text-transform:uppercase;}
-.up{color:#2ee6a6;}.dn{color:#ff5a76;}
-.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:15px;}
-input,select{background:#111722;border:1px solid #2a3750;color:#fff;padding:8px;width:100%;}
-button{background:#d6b04c;color:#06080c;border:none;padding:10px 20px;font-weight:bold;cursor:pointer;}
+.panel{background:#0c1017;border:1px solid #1b2433;padding:15px;margin-bottom:15px;border-radius:4px;}
+h1,h2{color:#d6b04c;margin-top:0;}
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:15px;}
+input,select{background:#111722;border:1px solid #2a3750;color:#fff;padding:8px;width:100%;box-sizing:border-box;}
+button{background:#d6b04c;color:#06080c;border:none;padding:10px 20px;font-weight:bold;cursor:pointer;width:100%;}
 .chip{display:inline-block;padding:5px 10px;background:#111722;border:1px solid #2a3750;margin-right:10px;font-size:12px;}
+.diamond-box{border:1px solid #d6b04c;padding:12px;background:#0f141f;margin-bottom:15px;}
+.gauge-box{display:flex;justify-content:space-around;text-align:center;flex-wrap:wrap;gap:15px;}
+.gauge{background:#111722;border:1px solid #2a3750;padding:10px;border-radius:50%;width:110px;height:110px;display:flex;flex-direction:column;justify-content:center;align-items:center;margin:0 auto;}
+.heatmap-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-top:10px;}
+.heat-card{padding:10px;text-align:center;border-radius:3px;font-weight:bold;}
+.up-bg{background:#0e3b2c;border:1px solid #2ee6a6;color:#2ee6a6;}
+.dn-bg{background:#3b0e16;border:1px solid #ff5a76;color:#ff5a76;}
+table{width:100%;border-collapse:collapse;margin-top:10px;}
+th,td{padding:8px;text-align:left;border-bottom:1px solid #1b2433;font-size:13px;}
+th{color:#6b7689;font-size:11px;text-transform:uppercase;}
+.up{color:#2ee6a6;}.dn{color:#ff5a76;}
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="panel">
-    <h1>🚀 IA Trading Dashboard (Analisi Avanzata Reale)</h1>
+    <h1>🚀 Terminale Trading Reale (100% Live)</h1>
     <div>
       <span class="chip">Balance Reale: <b style="color:#d6b04c">${{ "%.2f"|format(account.balance) }}</b></span>
       <span class="chip">Equity Reale: <b style="color:#2ee6a6">${{ "%.2f"|format(account.equity) }}</b></span>
@@ -250,6 +271,42 @@ button{background:#d6b04c;color:#06080c;border:none;padding:10px 20px;font-weigh
     </div>
   </div>
 
+  <!-- DIAMANTE LAMPEGGIANTE (TOP ENTRY >80%) -->
+  <div class="diamond-box">
+    <div style="color:#d6b04c;font-weight:bold;margin-bottom:8px;">💎 TOP ENTRY >80%: DIAMANTE LAMPEGGIANTE ATTIVO</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      {% for sym, data in market_data.items() %}
+        {% if data.score|abs >= 80 %}
+          <div style="background:#111722;border:1px solid #d6b04c;padding:5px 12px;font-size:13px;">
+            <b>{{ sym.replace('USDT','') }}</b> <span style="color:#2ee6a6">{{ data.score }}%</span>
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- TACHIMETRI / TERMOMETRO PER CLASSE -->
+  <div class="panel">
+    <h2>🌡️ Termometro per Classe (Media Mercato Reale)</h2>
+    <div class="gauge-box">
+      <div>
+        <div class="gauge">
+          <span style="font-size:18px;font-weight:bold;color:#d6b04c;">{{ gauge.crip }}%</span>
+          <small style="font-size:10px;color:#6b7689;">CRIPTO</small>
+        </div>
+        <p style="margin-top:5px;font-size:12px;">Cripto Futures</p>
+      </div>
+      <div>
+        <div class="gauge">
+          <span style="font-size:18px;font-weight:bold;color:#d6b04c;">{{ gauge.mat }}%</span>
+          <small style="font-size:10px;color:#6b7689;">MAT. PRIME</small>
+        </div>
+        <p style="margin-top:5px;font-size:12px;">Commodities</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONFIGURAZIONE IMPOSTAZIONI -->
   <section class="panel">
     <h2>⚙️ Configurazione Account & Bot</h2>
     <form method="POST">
@@ -278,46 +335,48 @@ button{background:#d6b04c;color:#06080c;border:none;padding:10px 20px;font-weigh
           <input type="text" name="chat_id" value="{{ settings.chat_id }}">
         </div>
       </div>
-      <div style="display:flex;align-items:center;gap:15px;">
-        <label><input type="checkbox" name="auto_execution" {% if settings.auto_execution == 1 %}checked{% endif %}> Esecuzione Automatica Reale</label>
-        <button type="submit">Salva Impostazioni</button>
+      <div style="display:flex;align-items:center;gap:15px;margin-top:10px;">
+        <label><input type="checkbox" name="auto_execution" {% if settings.auto_execution == 1 %}checked{% endif %}> Esecuzione Automatica BingX</label>
+        <button type="submit" style="width:auto;">Salva Impostazioni</button>
       </div>
     </form>
   </section>
 
-  <section class="panel">
-    <h2>🛢️ Materie Prime (Prezzi Reali)</h2>
-    <table>
-      <thead>
-        <tr><th>Materia Prima</th><th>Prezzo (USD)</th><th>Var. 24h</th></tr>
-      </thead>
-      <tbody>
-        {% for sym, data in commodities.items() %}
-          <tr>
-            <td><b>{{ data.name }}</b></td>
-            <td>${{ "%.2f"|format(data.price) }}</td>
-            <td class="{{ 'up' if data.change >= 0 else 'dn' }}">{{ "%.2f"|format(data.change) }}%</td>
-          </tr>
-        {% else %}
-          <tr><td colspan="3" style="color:#6b7689">Caricamento in corso...</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </section>
+  <!-- MAPPA DI CALORE 24H -->
+  <div class="panel">
+    <h2>🔥 Mappa di Calore Reale</h2>
+    <div class="heatmap-grid">
+      {% for asset in assets %}
+        {% set data = market_data.get(asset.sym) %}
+        {% set chg = data.change_24h if data else 0.0 %}
+        <div class="heat-card {{ 'up-bg' if chg >= 0 else 'dn-bg' }}">
+          <div style="font-size:12px;">{{ asset.sym.replace('USDT','') }}</div>
+          <div style="font-size:14px;">{{ "%.2f"|format(chg) }}%</div>
+        </div>
+      {% endfor %}
+      {% for sym, comm in commodities.items() %}
+        <div class="heat-card {{ 'up-bg' if comm.change >= 0 else 'dn-bg' }}">
+          <div style="font-size:12px;">{{ comm.name.split(' ')[0] }}</div>
+          <div style="font-size:14px;">{{ "%.2f"|format(comm.change) }}%</div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
 
+  <!-- TABELLA DETTAGLIATA SCANNER -->
   <section class="panel">
-    <h2>📊 Cripto Futures (Analisi IA & Livelli Dinamici)</h2>
+    <h2>📊 Scanner Multi-Asset (Dati Reali)</h2>
     <table>
       <thead>
-        <tr><th>Asset</th><th>Prezzo Reale</th><th>Sentiment IA</th><th>TP Stimato</th><th>SL Stimato</th><th>Trend</th></tr>
+        <tr><th>Asset</th><th>Prezzo Reale</th><th>Score IA</th><th>TP Dinamico</th><th>SL Dinamico</th><th>Trend</th></tr>
       </thead>
       <tbody>
         {% for asset in assets %}
           {% set data = market_data.get(asset.sym) %}
           <tr>
-            <td><b>{{ asset.sym }}</b></td>
+            <td><b>{{ asset.sym }}</b><br><small style="color:#6b7689">{{ asset.name }}</small></td>
             <td>{% if data %}${{ "%.4f"|format(data.current_price) }}{% else %}Caricamento...{% endif %}</td>
-            <td><span style="color:#d6b04c">{% if data %}{{ data.sentiment }}{% else %}—{% endif %}</span></td>
+            <td><b style="color:#d6b04c">{% if data %}{{ data.score }}%{% else %}—{% endif %}</b></td>
             <td class="up">{% if data %}${{ "%.4f"|format(data.tp1) }}{% else %}—{% endif %}</td>
             <td class="dn">{% if data %}${{ "%.4f"|format(data.sl) }}{% else %}—{% endif %}</td>
             <td>
@@ -366,10 +425,11 @@ def home():
         account=account_data,
         assets=CRYPTO_FUTURES_ASSETS,
         market_data=live_market_data,
-        commodities=commodities_market_data
+        commodities=commodities_market_data,
+        gauge=market_gauge
     )
 
-@app.route('/login', methods=['GET', 'PORT'])
+@app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         username = request.form.get('username')
@@ -385,7 +445,7 @@ def login():
             return redirect(url_for('home'))
         flash('Credenziali non valide.')
     content = '''
-    <div style="max-width:380px;margin:50px auto;background:#0c1017;padding:25px;border:1px solid #2a3750;color:#fff;">
+    <div style="max-width:380px;margin:50px auto;background:#0c1017;padding:25px;border:1px solid #2a3750;color:#fff;border-radius:4px;">
         <h3 style="color:#d6b04c;text-align:center;">ACCESSO</h3>
         <form method="POST">
             <p><label>Username</label><br><input type="text" name="username" required style="width:100%;padding:8px;background:#111722;border:1px solid #2a3750;color:#fff;margin-top:5px;"></p>
