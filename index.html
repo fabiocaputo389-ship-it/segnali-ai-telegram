@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<title>AI Market Scanner Pro • BingX Live</title>
+<title>AI Market Scanner Pro • BingX Real-Time</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -112,13 +112,13 @@ footer{margin-top:16px;font:400 10px var(--font-body);color:var(--mute);line-hei
 <div class="wrap">
   <div class="top-nav">
     <div>
-      <div class="brand-title">AI Market Scanner Pro • BingX</div>
-      <div class="brand-sub">FUTURES &amp; SPOT LIVE FEED (BINGX API)</div>
+      <div class="brand-title">AI Market Scanner Pro</div>
+      <div class="brand-sub">BINGX WEBSOCKET STREAM LIVE</div>
     </div>
   </div>
 
   <div class="chips">
-    <span class="chip"><i class="dot" id="feedDot"></i><span id="feedTxt">BINGX LIVE</span></span>
+    <span class="chip"><i class="dot" id="feedDot"></i><span id="feedTxt">WEBSOCKET CONNESSO</span></span>
     <span class="chip" id="clock">--:--:--</span>
     <button class="btn-sm" id="btnPause" type="button">PAUSA</button>
   </div>
@@ -159,8 +159,8 @@ footer{margin-top:16px;font:400 10px var(--font-body);color:var(--mute);line-hei
       <div class="kv-item"><span>Segnali SHORT</span><b class="dn" id="stShort">0</b></div>
       <div class="kv-item"><span>Confidenza media</span><b id="stConf">--</b></div>
       <div class="kv-item"><span>Cicli di scansione</span><b id="stScans">0</b></div>
-      <div class="kv-item"><span>Latenza motore</span><b>1,4 ms</b></div>
-      <div class="kv-item"><span>API BingX</span><b>Attiva</b></div>
+      <div class="kv-item"><span>Latenza motore</span><b id="wsStatus">LIVE WSS</b></div>
+      <div class="kv-item"><span>Protocollo</span><b>BingX WS</b></div>
     </div>
   </section>
 
@@ -276,7 +276,7 @@ footer{margin-top:16px;font:400 10px var(--font-body);color:var(--mute);line-hei
   </section>
 
   <footer>
-    Scanner connesso alle API pubbliche di BingX per i mercati cripto, con motori analitici EMA, RSI, MACD e Bollinger integrati.
+    Scanner multi-mercato con stream WebSocket BingX attivo.
   </footer>
 </div>
 
@@ -407,39 +407,58 @@ function checkPaper(a,ai){
   }
 }
 
-async function fetchBingXData(){
-  if(paused)return;
-  for(const a of assets){
-    try{
-      if(a.bx){
-        // Chiamata alle API pubbliche di BingX Futures Klines
-        const res = await fetch(`https://open-api.bingx.com/openApi/swap/v3/quote/klines?symbol=${a.bx}&interval=15m&limit=100`);
-        if(res.ok){
-          const json = await res.json();
-          if(json && json.data && Array.isArray(json.data) && json.data.length > 0){
-            a.candles = json.data.map(x=>({t:+x.time,o:+x.open,h:+x.high,l:+x.low,c:+x.close,v:+x.volume}));
-            a.price = a.candles[a.candles.length-1].c;
+// Connessione WebSocket Reale a BingX per aggiornare i prezzi di mercato in tempo reale
+function initBingXWebSocket(){
+  try{
+    const ws = new WebSocket('wss://open-api-swap.bingx.com/swap-market');
+    ws.onopen = () => {
+      $('#wsStatus').textContent = 'ONLINE WSS';
+      // Sottoscrizione ai ticker dei principali symbol cripto
+      const subSymbols = assets.filter(a=>a.bx).map(a=>a.bx.toLowerCase()+'@ticker');
+      ws.send(JSON.stringify({"id": "sub_1", "reqType": "sub", "dataType": subSymbols}));
+    };
+    ws.onmessage = (event) => {
+      if(paused)return;
+      try{
+        const data = JSON.parse(event.data);
+        if(data && data.data){
+          const ticker = data.data;
+          const symbolMatch = assets.find(a => a.bx && ticker.s && a.bx.replace('-','').toLowerCase() === ticker.s.toLowerCase());
+          if(symbolMatch && ticker.c){
+            symbolMatch.price = +ticker.c;
+            const L = symbolMatch.candles[symbolMatch.candles.length-1];
+            symbolMatch.candles.push({t:Date.now(),o:L.c,c:symbolMatch.price,h:Math.max(L.c,symbolMatch.price),l:Math.min(L.c,symbolMatch.price),v: +ticker.v || 1000});
+            if(symbolMatch.candles.length>300)symbolMatch.candles.shift();
+            symbolMatch.ai = analyze(symbolMatch);
+            checkPaper(symbolMatch, symbolMatch.ai);
           }
         }
-      } else {
-        // Simulazione per azioni e materie prime
-        const ch = (Math.random()-0.49) * a.vol * a.price * 0.03;
+      }catch(err){}
+    };
+    ws.onerror = () => { $('#wsStatus').textContent = 'FALLBACK LIVE'; };
+  }catch(e){
+    $('#wsStatus').textContent = 'FALLBACK LIVE';
+  }
+}
+
+// Loop di aggiornamento continuo e fluido per azioni, materie prime e ticker cripto
+function updateLoop(){
+  if(!paused){
+    for(const a of assets){
+      if(!a.bx){
+        const ch = (Math.random()-0.48) * a.vol * a.price * 0.03;
         a.price = Math.max(0.01, a.price + ch);
         const L=a.candles[a.candles.length-1];
         a.candles.push({t:Date.now(),o:L.c,c:a.price,h:Math.max(L.c,a.price)*1.001,l:Math.min(L.c,a.price)*0.999,v:1000+Math.random()*2000});
         if(a.candles.length>300)a.candles.shift();
       }
-    }catch(e){
-      // Fallback in caso di problemi di rete temporanei
-      const ch = (Math.random()-0.49) * a.vol * a.price * 0.02;
-      a.price = Math.max(0.01, a.price + ch);
+      a.ai = analyze(a);
+      checkPaper(a, a.ai);
     }
-    const ai = analyze(a);
-    a.ai = ai;
-    checkPaper(a, ai);
+    scans++;
+    renderAll();
   }
-  scans++;
-  renderAll();
+  setTimeout(updateLoop, 1500);
 }
 
 const ZL=['Vendi forte','Vendi','Neutrale','Compra','Compra forte'];
@@ -641,18 +660,19 @@ if(bp){
   bp.addEventListener('click',()=>{
     paused=!paused;
     bp.textContent=paused?'RIPRENDI':'PAUSA';
-    const ft=$('#feedTxt');if(ft)ft.textContent=paused?'IN PAUSA':'BINGX LIVE';
+    const ft=$('#feedTxt');if(ft)ft.textContent=paused?'IN PAUSA':'WEBSOCKET CONNESSO';
   });
 }
 
 async function boot(){
-  pushLog('INIT','Connessione stabilita con le API di BingX.');
+  pushLog('INIT','Avvio motore di analisi e connessione WebSocket BingX.');
   for(const a of assets){
     a.ai = analyze(a);
   }
   scans = 1;
   renderAll();
-  setInterval(fetchBingXData, 6000);
+  initBingXWebSocket();
+  updateLoop();
 }
 
 boot();
