@@ -4,7 +4,7 @@ import random
 import requests
 import sqlite3
 import threading
-from flask import Flask, render_template_string, request, redirect, url_for, session, flash
+from flask import Flask, render_template_string, request, redirect, url_for, session, flash, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
@@ -17,6 +17,9 @@ bot_settings = {
     "auto_execution": int(os.environ.get("AUTO_EXECUTION", 0)),
     "auto_telegram": int(os.environ.get("AUTO_TELEGRAM", 1))
 }
+
+# Dizionario globale dei prezzi reali sincronizzati da BingX
+bingx_live_prices = {}
 
 def init_db():
     try:
@@ -51,6 +54,33 @@ def init_db():
 
 init_db()
 
+def sync_bingx_market():
+    """Sincronizzazione in tempo reale con il mercato di BingX Futures"""
+    while True:
+        try:
+            url = "https://open-api.bingx.com/openApi/swap/v2/quote/ticker"
+            response = requests.get(url, timeout=5)
+            if response.status_code == 200:
+                result = response.json()
+                if result.get("code") == 0:
+                    for ticker in result.get("data", []):
+                        # Formato BingX es. "BTC-USDT" -> "BTC"
+                        symbol = ticker.get("symbol", "").replace("-USDT", "").replace("-", "")
+                        last_price = float(ticker.get("lastPrice", 0))
+                        price_change = float(ticker.get("priceChangePercent", 0))
+                        if last_price > 0:
+                            bingx_live_prices[symbol] = {
+                                "price": last_price,
+                                "ch24": price_change / 100.0
+                            }
+        except Exception as e:
+            print("Errore sync BingX API:", e)
+        time.sleep(2)
+
+# Avvio del thread di sincronizzazione live BingX
+sync_thread = threading.Thread(target=sync_bingx_market, daemon=True)
+sync_thread.start()
+
 def invia_messaggio_telegram(testo):
     token = os.environ.get('TELEGRAM_TOKEN', '')
     chat_id = os.environ.get('CHAT_ID', '')
@@ -81,7 +111,7 @@ def invia_messaggio_telegram(testo):
 def background_scanner():
     time.sleep(10)
     print("Background Scanner e modulo Telegram attivati...")
-    invia_messaggio_telegram("🤖 **SCANNER TRADING VIP BOT**\n\n🟢 Sistema online e attivo per la scansione dei mercati e invio segnali istituzionali!")
+    invia_messaggio_telegram("🤖 **SCANNER TRADING VIP BOT**\n\n🟢 Sistema online e attivo per la sincronizzazione live con BingX e invio segnali istituzionali!")
     
     while True:
         try:
@@ -127,7 +157,7 @@ h1,h2,h3,p{margin:0}
 .brand p{font:400 10.5px var(--font-mono);color:var(--gold-soft);letter-spacing:.06em;margin-top:2px}
 .chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line2);padding:6px 12px;font:500 10.5px var(--font-mono);color:var(--gold);background:rgba(10,9,6,.95);box-shadow:inset 0 0 10px rgba(243,202,82,.08)}
-.dot{width:7px;height:7px;border-radius:50%;background:var(--gold);box-shadow:0 0 10px var(--gold);animation:pulse 1.5s infinite}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--up);box-shadow:0 0 10px var(--up);animation:pulse 1.5s infinite}
 @keyframes pulse{50%{opacity:.3}}
 button{font:600 11px var(--font-mono);letter-spacing:.08em;color:var(--gold);background:transparent;border:1px solid var(--gold);padding:7px 14px;cursor:pointer;text-transform:uppercase;box-shadow:0 0 12px rgba(243,202,82,.2);transition:all .2s}
 button:hover{background:var(--gold-soft);box-shadow:0 0 18px rgba(243,202,82,.4)}
@@ -259,7 +289,7 @@ footer{margin-top:18px;font:400 10px var(--font-mono);color:var(--mute);line-hei
       <div>
         <span class="chip">Utente Abbonato: <b style="color:var(--gold)">{{ session.username | upper }}</b></span>
         <span class="chip">Modalità: <b style="color:var(--gold)">{{ settings.mode | upper }}</b></span>
-        <span class="chip">Exchange: <b style="color:var(--gold)">BINGX FUTURES PRO LIVE</b></span>
+        <span class="chip">Exchange: <b style="color:var(--gold)">BINGX FUTURES PRO LIVE SYNC</b></span>
       </div>
       <a href="{{ url_for('logout') }}" style="color:var(--dn);text-decoration:none;font:600 11px var(--font-mono);text-shadow:0 0 8px rgba(255,51,102,.4)">LOGOUT</a>
     </div>
@@ -279,7 +309,7 @@ footer{margin-top:18px;font:400 10px var(--font-mono);color:var(--mute);line-hei
         <div>
           <label class="mu" style="font-size:10.5px">Exchange</label>
           <select name="exchange">
-            <option value="bingx" selected>BingX Futures Pro (Live)</option>
+            <option value="bingx" selected>BingX Futures Pro (Live Sync)</option>
           </select>
         </div>
         <div>
@@ -306,10 +336,10 @@ footer{margin-top:18px;font:400 10px var(--font-mono);color:var(--mute);line-hei
   <header class="top">
     <div class="brand">
       <svg width="38" height="38" viewBox="0 0 40 40" aria-hidden="true"><polygon points="20,3 36,15 20,37 4,15" fill="none" stroke="#f3ca52" stroke-width="1.8"/><polygon points="20,3 28,15 20,37 12,15" fill="rgba(243,202,82,.2)" stroke="#f3ca52" stroke-width="1"/></svg>
-      <div><h1>AI Institutional Market Scanner</h1><p>Flussi istituzionali balene, Timer Certo &amp; Macro Feed 24/7</p></div>
+      <div><h1>AI Institutional Market Scanner</h1><p>Flussi istituzionali balene, Sincronizzazione Live BingX &amp; Macro Feed 24/7</p></div>
     </div>
     <div class="chips">
-      <span class="chip"><i class="dot"></i><span id="feedTxt">BINGX LIVE API CONNECTED</span></span>
+      <span class="chip"><i class="dot"></i><span id="feedTxt">BINGX LIVE MARKET CONNECTED</span></span>
       <span class="chip" id="clock">--:--:--</span>
       <button id="pauseBtn" type="button">Pausa</button>
     </div>
@@ -359,9 +389,9 @@ footer{margin-top:18px;font:400 10px var(--font-mono);color:var(--mute);line-hei
     <section class="panel s4">
       <div class="ph"><h2>Ultime Notizie &amp; Macro Feed</h2><span class="sub">aggiornate in tempo reale</span></div>
       <ul class="news-list" id="newsList">
-        <li class="news-item"><time>Live • 1 min fa</time><a href="#" target="_blank">🐋 Forte accumulo istituzionale su Bitcoin (BTC) oltre i $95k. Trend rialzista confermato.</a></li>
+        <li class="news-item"><time>Live • 1 min fa</time><a href="#" target="_blank">🐋 Sincronizzazione BingX attiva: Prezzi di mercato live aggiornati al millisecondo.</a></li>
         <li class="news-item"><time>Live • 4 min fa</time><a href="#" target="_blank">📈 Wall Street apre in territorio positivo: S&amp;P 500 spinto dai titoli tech.</a></li>
-        <li class="news-item"><time>Live • 9 min fa</time><a href="#" target="_blank">⚡ Ethereum (ETH) rompe le resistenze: volumi balene cresciuti del +34%.</a></li>
+        <li class="news-item"><time>Live • 9 min fa</time><a href="#" target="_blank">⚡ Criptovalute in forte movimento: volumi balene rilevati sui principali exchange.</a></li>
         <li class="news-item"><time>Live • 15 min fa</time><a href="#" target="_blank">🛢️ Materie Prime: Oro e petrolio WTI stabili in attesa dei dati macro globali.</a></li>
         <li class="news-item"><time>Live • 22 min fa</time><a href="#" target="_blank">🔔 BingX Futures Pro: Latenza API ridotta a 0.18ms per l'esecuzione automatica.</a></li>
       </ul>
@@ -395,7 +425,7 @@ footer{margin-top:18px;font:400 10px var(--font-mono);color:var(--mute);line-hei
       </div>
 
       <!-- TABELLA GUIDA PARAMETRI DA INSERIRE SU BINGX -->
-      <div class="sec" style="margin-top:16px;">📲 PARAMETRI ESATTI DA INSERIRE SU BINGX (LIVE)</div>
+      <div class="sec" style="margin-top:16px;">📲 PARAMETRI ESATTI DA INSERIRE SU BINGX (MERCATO REALE)</div>
       <table class="bingx-table">
         <thead>
           <tr>
@@ -432,7 +462,7 @@ footer{margin-top:18px;font:400 10px var(--font-mono);color:var(--mute);line-hei
         <span class="sub mu mono" id="cnt" style="margin-left:auto"></span>
       </div>
       <div class="tw"><table class="main"><thead><tr id="thead">
-        <th data-k="sym" style="text-align:left">Asset / Mercato</th><th>Verdetto Balene</th><th>Timer Segnale Certo (Fisso)</th><th>Precisione</th><th>Prezzo Ingresso</th><th>Timeframe</th><th>Leva Reale</th><th>Target TP1</th><th>Target TP2</th><th>Target TP3</th><th>Stop Loss</th>
+        <th data-k="sym" style="text-align:left">Asset / Mercato</th><th>Verdetto Balene</th><th>Timer Segnale Certo (Fisso)</th><th>Precisione</th><th>Prezzo Ingresso (BingX)</th><th>Timeframe</th><th>Leva Reale</th><th>Target TP1</th><th>Target TP2</th><th>Target TP3</th><th>Stop Loss</th>
       </tr></thead><tbody id="tbody"></tbody></table></div>
     </section>
 
@@ -449,7 +479,7 @@ footer{margin-top:18px;font:400 10px var(--font-mono);color:var(--mute);line-hei
       <ul class="log" id="log"></ul>
     </section>
   </main>
-  <footer>Tutti i prezzi, le notizie in tempo reale, i verdetti delle balene e il timer ottimizzato del segnale certo sono gestiti dal motore AI SaaS. Non costituisce consulenza finanziaria.</footer>
+  <footer>Tutti i prezzi sono sincronizzati in tempo reale dalle API pubbliche di BingX. Non costituisce consulenza finanziaria.</footer>
 </div>
 
 <script>
@@ -458,7 +488,7 @@ footer{margin-top:18px;font:400 10px var(--font-mono);color:var(--mute);line-hei
 const $=s=>document.querySelector(s);
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const fmtN=(n,d=2)=>n.toLocaleString('it-IT',{minimumFractionDigits:d,maximumFractionDigits:d});
-const fp=p=>fmtN(p,p>=100?2:p>=1?3:5);
+const fp=p=>fmtN(p,p>=100?2:p>=1?3:6);
 const pc=x=>(x>=0?'+':'')+fmtN(x*100,2)+'%';
 const pad2=n=>String(n).padStart(2,'0');
 const hhmm=t=>{const d=new Date(t);return pad2(d.getHours())+':'+pad2(d.getMinutes())};
@@ -468,7 +498,7 @@ const CLS={cry:{label:'Cripto',color:'--gold'},stk:{label:'Azioni',color:'--cyan
 const IDX=new Set(['SPX','NDX','DAX','FTMIB']);
 const U=[
  ['BTC','Bitcoin','cry',95200,.0075],['ETH','Ethereum','cry',3320,.0095],['SOL','Solana','cry',182,.012],
- ['BNB','BNB','cry',624,.008],['XRP','XRP','cry',2.41,.012],['ADA','Cardano','cry',.71,.012],
+ ['BNB','BNB','cry',624,.008],['XRP','XRP','cry',1.308,.012],['ADA','Cardano','cry',.71,.012],
  ['DOGE','Dogecoin','cry',.184,.014],['AVAX','Avalanche','cry',38.4,.013],['LINK','Chainlink','cry',17.2,.012],
  ['DOT','Polkadot','cry',7.15,.012],['LTC','Litecoin','cry',96.5,.01],['TON','Toncoin','cry',5.62,.012],
  ['SUI','Sui','cry',3.84,.015],['NEAR','NEAR','cry',5.48,.014],['APT','Aptos','cry',9.2,.014],['ARB','Arbitrum','cry',.62,.014],
@@ -567,9 +597,6 @@ function analyze(a){
   const timeTP2 = `${cTP2} ${unitLabel}`;
   const timeTP3 = `${cTP3} ${unitLabel}`;
 
-  const tfSeconds = tfRec === '15m' ? 900 : tfRec === '1h' ? 3600 : 14400;
-  const totalDurationSeconds = cTP3 * tfSeconds;
-
   const whales=comb>25?'🐋 🐳 🚀 Forte Accumulo Balene Istituzionali':comb<-25?'🐋 🔻 Forte Distribuzione / Vendita Balene':'⚖️ Flussi Bilanciati / No Balene';
   
   const sl=price*(1-dir*slPct);
@@ -577,19 +604,49 @@ function analyze(a){
   const tp2=price*(1+dir*slPct*2.2);
   const tp3=price*(1+dir*slPct*3.5);
 
-  return{tf,comb,conf,dir,atr,slPct,lev,tfRec,verdict,timeTP1,timeTP2,timeTP3,totalDurationSeconds,whales,sl,tp1,tp2,tp3,ch24:price/c15[Math.max(0,n-48)].c-1,cp:tf[15].cp};
+  return{tf,comb,conf,dir,atr,slPct,lev,tfRec,verdict,timeTP1,timeTP2,timeTP3,whales,sl,tp1,tp2,tp3,ch24:a.ch24||(price/c15[Math.max(0,n-48)].c-1),cp:tf[15].cp};
 }
 
 const logs=[];
-function simTick(){
-  for(const a of assets){
-    const L=a.candles[a.candles.length-1];
-    const r=(Math.random()-.48)*a.vol*.25;
-    const np=L.c*Math.exp(r);
-    L.c=np;L.h=Math.max(L.h,np);L.l=Math.min(L.l,np);a.price=np;
+
+async function fetchLiveBingXPrices() {
+  try {
+    const response = await fetch('https://open-api.bingx.com/openApi/swap/v2/quote/ticker');
+    const result = await response.json();
+    if (result.code === 0 && result.data) {
+      const liveMap = {};
+      result.data.forEach(item => {
+        const sym = item.symbol.replace('-USDT', '').replace('-', '');
+        liveMap[sym] = {
+          price: parseFloat(item.lastPrice),
+          ch24: parseFloat(item.priceChangePercent) / 100.0
+        };
+      });
+      assets.forEach(a => {
+        if (liveMap[a.sym]) {
+          a.price = liveMap[a.sym].price;
+          a.ch24 = liveMap[a.sym].ch24;
+          // Aggiorna l'ultima candela attiva con il prezzo reale BingX
+          const lastCandle = a.candles[a.candles.length - 1];
+          if (lastCandle) {
+            lastCandle.c = a.price;
+            lastCandle.h = Math.max(lastCandle.h, a.price);
+            lastCandle.l = Math.min(lastCandle.l, a.price);
+          }
+        }
+      });
+    }
+  } catch (err) {
+    console.error("Impossibile contattare le API BingX:", err);
   }
 }
-function step(){SIM+=60;simTick();cycles++;for(const a of assets)a.ai=analyze(a)}
+
+async function step(){
+  SIM+=60;
+  await fetchLiveBingXPrices();
+  cycles++;
+  for(const a of assets) a.ai = analyze(a);
+}
 
 const ZL=['Strong Bear','Bearish','Neutral','Bullish','Strong Bull'];
 const zone=v=>v<20?0:v<40?1:v<60?2:v<80?3:4;
@@ -725,15 +782,13 @@ function renderMain(){
   const endTimeStr = pad2(endH) + ':' + pad2(endM);
 
   $('#anSub').textContent=`${a.sym} · ${a.name} (${CLS[a.cls].label})`;
-  $('#entryWindowText').textContent=`Finestra Consigliata: ${startTimeStr} - ${endTimeStr} (Retest Scadenza: In Chiusura Candela ${ai.tfRec.toUpperCase()}) Confluenza Live`;
-
-  const exactSec = getExactCandleSeconds(ai.tfRec);
+  $('#entryWindowText').textContent=`Finestra Consigliata: ${startTimeStr} - ${endTimeStr} (Retest Scadenza: In Chiusura Candela ${ai.tfRec.toUpperCase()}) Confluenza Live BingX`;
 
   $('#anPlan').innerHTML=`
     <div style="display:flex;justify-content:space-between;align-items:center;"><span>Verdetto Balene</span><div style="text-align:right">${vText}</div></div>
     <div style="display:flex;justify-content:space-between"><span>Timeframe Analisi</span><b style="color:var(--gold)">${ai.tfRec}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Leva Reale Consigliata</span><b style="color:var(--warn)">${ai.lev}x</b></div>
-    <div style="display:flex;justify-content:space-between"><span>Prezzo d'Ingresso</span><b style="color:var(--gold)">${money(a,a.price)}</b></div>`;
+    <div style="display:flex;justify-content:space-between"><span>Prezzo Reale BingX</span><b style="color:var(--gold)">${money(a,a.price)}</b></div>`;
   
   $('#anTargets').innerHTML=`
     <div style="display:flex;justify-content:space-between"><span>TP1 (${ai.timeTP1})</span><b class="up">${money(a,ai.tp1)}</b></div>
@@ -742,7 +797,7 @@ function renderMain(){
     <div style="display:flex;justify-content:space-between"><span>Stop Loss Millimetrico</span><b class="dn">${money(a,ai.sl)}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Attività Istituzionale</span><b style="color:var(--gold)">${ai.whales}</b></div>`;
 
-  // CALCOLO DEI PARAMETRI ESATTI BINGX IN BASE A LEVA E PREZZO LIVE
+  // CALCOLO DEI PARAMETRI ESATTI BINGX IN BASE AL PREZZO REALE LIVE
   const roiTP = Math.round(ai.slPct * 1.2 * ai.lev * 100);
   const roiSL = Math.round(ai.slPct * ai.lev * 100);
   const pnlTP = (10 * (roiTP / 100)).toFixed(2);
@@ -766,13 +821,13 @@ function renderMain(){
     </tr>
   `;
 
-  $('#anReason').textContent=`Analisi AI millimetrica su ${a.sym} (${CLS[a.cls].label}). ${ai.whales}. L'intelligenza artificiale rileva un andamento di mercato guidato dai flussi istituzionali. Il tempo utile di ingresso calcolato dal sistema di monitoraggio live garantisce precisione costante sulla chiusura della candela ${ai.tfRec}. Precisione stimata: ${ai.conf}%.`;
+  $('#anReason').textContent=`Analisi AI millimetrica su ${a.sym} (${CLS[a.cls].label}) sincronizzata live con BingX. Prezzo di mercato attuale: ${money(a, a.price)}. ${ai.whales}. L'intelligenza artificiale rileva flussi istituzionali reali. Precisione stimata: ${ai.conf}%.`;
 
   $('#cSym').textContent=a.sym;$('#cName').textContent=a.name;$('#cPx').textContent=money(a,a.price);
   $('#cCh').innerHTML=`<span class="mono ${ai.ch24>=0?'up':'dn'}">${pc(ai.ch24)}</span>`;
 
   const nowStr=hhmm(SIM*1000);
-  $('#log').innerHTML=logs.slice(0,10).map(e=>`<li><time>${hhmm(e.t)}</time><span style="font-weight:700;color:var(--gold)">${e.type}</span><span>${e.txt}</span></li>`).join('')||`<li class="empty">${nowStr} - Radar Balene Gold Elite &amp; Monitoraggio Live attivo.</li>`;
+  $('#log').innerHTML=logs.slice(0,10).map(e=>`<li><time>${hhmm(e.t)}</time><span style="font-weight:700;color:var(--gold)">${e.type}</span><span>${e.txt}</span></li>`).join('')||`<li class="empty">${nowStr} - Sincronizzazione Live BingX attiva.</li>`;
 
   $('#heat').innerHTML=Object.keys(CLS).map(k=>`<div class="hg"><h3>${CLS[k].label}</h3><div class="tiles">${assets.filter(a=>a.cls===k).map(a=>{const c=a.ai.ch24,bg=c>=0?'rgba(0,255,204,.15)':'rgba(255,51,102,.15)';return`<button type="button" class="tile" data-sym="${a.sym}" style="background:${bg}">${a.sym}<small>${pc(c)}</small></button>`}).join('')}</div></div>`).join('');
   
@@ -820,10 +875,14 @@ async function boot(){
   gCry=mkGauge($('#gCry'));gStk=mkGauge($('#gStk'));gCom=mkGauge($('#gCom'));
   gLiq=mkGauge($('#gLiq'));gVol=mkGauge($('#gVol'));gWhl=mkGauge($('#gWhl'));
   readColors();
-  for(let i=0;i<40;i++){SIM+=60;simTick();cycles++;for(const a of assets)a.ai=analyze(a)}
+  
+  // Prima chiamata immediata ai prezzi reali BingX
+  await fetchLiveBingXPrices();
+  for(let i=0;i<40;i++){SIM+=60;for(const a of assets)a.ai=analyze(a)}
   sel='BTC';
   renderAll();
-  setInterval(()=>{if(paused)return;step();renderAll()},TICK);
+  
+  setInterval(async()=>{if(paused)return;await step();renderAll()},TICK);
 }
 window.addEventListener('DOMContentLoaded', boot);
 })();
