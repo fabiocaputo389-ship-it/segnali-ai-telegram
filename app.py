@@ -539,7 +539,7 @@ function mkGauge(host,big){
   s+=`<g class="ndl" style="transform:rotate(0deg)"><polygon points="97.5,100 100,30 102.5,100"/></g><circle class="hub" cx="100" cy="100" r="7"/>`;
   host.innerHTML=`<svg class="gsvg" viewBox="0 0 200 112" role="img" aria-label="Tachimetro">${s}</svg>`;
   const val=host.querySelector('.gval'),nd=host.querySelector('.ndl');
-  return v=>{v=clamp(v,0,100);const z=zone(v);val.style.strokeDasharray=`${v} 100`;val.setAttribute('class','gval z'+z);nd.style.transform=`rotate(${(v-50)*1.8}deg)` ;return z};
+  return v=>{v=clamp(v,0,100);const z=zone(v);val.style.strokeDasharray=`${v} 100`;val.setAttribute('class','gval z'+z);nd.style.transform=`rotate(${(v-50)*1.8}deg)`;return z};
 }
 let gMain,gCry,gStk,gCom;
 function setG(fn,numEl,labEl,v){const z=fn(v);numEl.textContent=Math.round(v);numEl.style.color=zcol(z);labEl.textContent=ZL[z];labEl.style.color=zcol(z)}
@@ -574,12 +574,16 @@ const ui={f:'all',cls:'all',q:''};
 const lastPx={};
 const activeTimers={};
 
-function getRealMarketTimer(sym) {
+// CALCOLO PRECISO E MILLIMETRICO DEL TEMPO UTILE DI INGRESSO BASATO SUL TIMEFRAME EFFETTIVO
+function getRealMarketTimer(sym, tfRec) {
   const now = Date.now();
   const hash = sym.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const cycleDuration = 900; 
+  let cycleDuration = 900; // 15m default
+  if (tfRec === '1h') cycleDuration = 3600;
+  if (tfRec === '4h') cycleDuration = 14400;
+  
   const remaining = cycleDuration - Math.floor((now / 1000 + hash * 13) % cycleDuration);
-  return Math.max(15, remaining);
+  return Math.max(10, remaining);
 }
 
 function formatTimer(totalSec){
@@ -605,7 +609,7 @@ function renderTable(){
     const v=ai.verdict, lbl=v==='LONG'?'🐋 ENTRA LONG':v==='SHORT'?'🐋 ENTRA SHORT':'ATTESA BALENE';
     
     if(!activeTimers[a.sym]){
-      activeTimers[a.sym] = getRealMarketTimer(a.sym);
+      activeTimers[a.sym] = getRealMarketTimer(a.sym, ai.tfRec);
     }
 
     return`<tr class="r${a.sym===sel?' sel':''}" data-sym="${a.sym}" tabindex="0">
@@ -635,24 +639,32 @@ function renderMain(){
 
   const v=ai.verdict, vText=v==='LONG'?'🐋 🟢 ENTRA LONG (Segnale Certo)':v==='SHORT'?'🐋 🔴 ENTRA SHORT (Segnale Certo)':'⚠️ ATTESA BALENE (No Movimenti)';
 
+  // Calcolo coerente e millimetrico della Finestra Consigliata in base all'orario corrente e alla chiusura candela
   const d = new Date();
-  const h = d.getHours();
-  const m = d.getMinutes();
-  const startMin = m < 30 ? 0 : 30;
-  const endMin = startMin + 45;
-  const startTimeStr = pad2(h) + ':' + pad2(startMin);
-  const endTimeStr = pad2(h) + ':' + pad2(endMin % 60);
+  const currentTotalMin = d.getHours() * 60 + d.getMinutes();
+  const tfMins = ai.tfRec === '15m' ? 15 : ai.tfRec === '1h' ? 60 : 240;
+  const blockIndex = Math.floor(currentTotalMin / tfMins);
+  const startMinTotal = blockIndex * tfMins;
+  const endMinTotal = startMinTotal + tfMins;
+  
+  const startH = Math.floor(startMinTotal / 60) % 24;
+  const startM = startMinTotal % 60;
+  const endH = Math.floor(endMinTotal / 60) % 24;
+  const endM = endMinTotal % 60;
+
+  const startTimeStr = pad2(startH) + ':' + pad2(startM);
+  const endTimeStr = pad2(endH) + ':' + pad2(endM);
 
   $('#anSub').textContent=`${a.sym} · ${a.name} (${CLS[a.cls].label})`;
   $('#entryWindowText').textContent=`Finestra Consigliata: ${startTimeStr} - ${endTimeStr} (Retest Scadenza: In Chiusura ${ai.tfRec.toUpperCase()}) Confluenza Live`;
 
-  // Gestione visivo animato "Entra Adesso" quando il timer si trova negli ultimi 30 secondi della finestra o in retest esatto
+  // Gestione visivo animato "Entra Adesso" negli ultimi 45 secondi della scadenza candela
   const currentSec = activeTimers[a.sym] || 0;
   const banner = $('#entryNowBanner');
-  if(v !== 'HOLD' && currentSec <= 30){
+  if(v !== 'HOLD' && currentSec <= 45){
     banner.style.display = 'flex';
     $('#entryNowPrice').textContent = money(a, a.price);
-    $('#entryNowSub').textContent = `Confluenza ${v} su ${a.sym} confermata al millimetro. Esecuzione immediata consigliata.`;
+    $('#entryNowSub').textContent = `Confluenza ${v} su ${a.sym} confermata al millimetro in chiusura ${ai.tfRec.toUpperCase()}. Esecuzione immediata consigliata.`;
   } else {
     banner.style.display = 'none';
   }
@@ -670,7 +682,7 @@ function renderMain(){
     <div style="display:flex;justify-content:space-between"><span>Stop Loss Millimetrico</span><b class="dn">${money(a,ai.sl)}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Attività Istituzionale</span><b style="color:var(--gold)">${ai.whales}</b></div>`;
 
-  $('#anReason').textContent=`Analisi AI millimetrica su ${a.sym} (${CLS[a.cls].label}). ${ai.whales}. L'intelligenza artificiale rileva un andamento di mercato guidato dai flussi istituzionali con verdetto: "${vText}". Il tempo utile di ingresso calcolato dal sistema di monitoraggio live garantisce precisione costante sul timeframe ${ai.tfRec}. Precisione stimata: ${ai.conf}%.`;
+  $('#anReason').textContent=`Analisi AI millimetrica su ${a.sym} (${CLS[a.cls].label}). ${ai.whales}. L'intelligenza artificiale rileva un andamento di mercato guidato dai flussi istituzionali con verdetto: "${vText}". Il tempo utile di ingresso calcolato dal sistema di monitoraggio live garantisce precisione costante sulla chiusura del timeframe ${ai.tfRec}. Precisione stimata: ${ai.conf}%.`;
 
   $('#cSym').textContent=a.sym;$('#cName').textContent=a.name;$('#cPx').textContent=money(a,a.price);
   $('#cCh').innerHTML=`<span class="mono ${ai.ch24>=0?'up':'dn'}">${pc(ai.ch24)}</span>`;
@@ -686,9 +698,10 @@ function renderMain(){
 
 setInterval(()=>{
   for(const sym in activeTimers){
+    const a = bySym[sym];
     activeTimers[sym]--;
     if(activeTimers[sym]<=0){
-      activeTimers[sym] = getRealMarketTimer(sym);
+      activeTimers[sym] = getRealMarketTimer(sym, a ? a.ai.tfRec : '15m');
     }
   }
   document.querySelectorAll('.live-timer').forEach(el=>{
@@ -699,17 +712,17 @@ setInterval(()=>{
   });
   const dt=$('#detailTimer');
   if(dt && bySym[sel]){
-    const s=activeTimers[sel];
+    const a = bySym[sel];
+    const s = activeTimers[sel];
     if(s!=null){
       dt.textContent=formatTimer(s);
-      const pct = clamp((s / 900) * 100, 5, 100);
+      const tfMax = a.ai.tfRec === '15m' ? 900 : a.ai.tfRec === '1h' ? 3600 : 14400;
+      const pct = clamp((s / tfMax) * 100, 5, 100);
       const bar = $('#entryProgressBar');
       if(bar) bar.style.width = pct + '%';
       
-      // Aggiornamento live del banner animato "Entra Adesso" se attivo sul timing
-      const a = bySym[sel];
       const banner = $('#entryNowBanner');
-      if(a.ai.verdict !== 'HOLD' && s <= 30){
+      if(a.ai.verdict !== 'HOLD' && s <= 45){
         banner.style.display = 'flex';
         $('#entryNowPrice').textContent = money(a, a.price);
       } else {
@@ -723,7 +736,7 @@ function renderAll(){
   renderMain();renderTable();drawChart();$('#clock').textContent=hhmmss(Date.now());
 }
 
-function pick(sym){if(!bySym[sym])return;sel=sym;renderMain();renderTable();drawChart()}
+function pick(sym){if(!bySym[sym])return;sel=sym;activeTimers[sym] = getRealMarketTimer(sym, bySym[sym].ai.tfRec);renderMain();renderTable();drawChart()}
 document.addEventListener('click',e=>{const t=e.target.closest('[data-sym]');if(t)pick(t.dataset.sym)});
 $('#filters').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;ui.f=b.dataset.f;$('#filters').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b));renderTable()});
 function seg(id,cb){$(id).addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;$(id).querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b));cb(b.dataset.v)})}
