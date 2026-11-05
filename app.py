@@ -837,23 +837,21 @@ $('#q').addEventListener('input',e=>{ui.q=e.target.value.trim().toLowerCase();re
 $('#thead').addEventListener('click',e=>{const th=e.target.closest('th[data-k]');if(!th)return;const k=th.dataset.k;assets.sort((x,y)=>(x[k]>y[k]?1:-1));renderTable()});
 let paused=false;$('#pauseBtn').addEventListener('click',()=>{paused=!paused;$('#pauseBtn').textContent=paused?'Riprendi':'Pausa'});
 
-// GESTIONE INTELLIGENTE AGGIORNAMENTO LIVE OGNI 2 SECONDI ESATTI
+// AGGIORNAMENTO FORZATO OGNI 2 SECONDI (RICARICA AUTOMATICA DELLA PAGINA)
 let mainInterval = null;
 
 async function startLoop() {
   if (mainInterval) clearInterval(mainInterval);
-  mainInterval = setInterval(async () => {
+  mainInterval = setInterval(() => {
     if (paused) return;
-    await step();
-    renderAll();
+    // Ricarica la pagina ogni 2 secondi esatti per garantire dati freschi su mobile
+    window.location.reload();
   }, 2000);
 }
 
 document.addEventListener("visibilitychange", async () => {
   if (!document.hidden) {
-    await fetchLiveBingXPrices();
-    for(const a of assets) a.ai = analyze(a);
-    renderAll();
+    window.location.reload();
   }
 });
 
