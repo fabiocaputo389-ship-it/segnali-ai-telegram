@@ -837,7 +837,7 @@ $('#q').addEventListener('input',e=>{ui.q=e.target.value.trim().toLowerCase();re
 $('#thead').addEventListener('click',e=>{const th=e.target.closest('th[data-k]');if(!th)return;const k=th.dataset.k;assets.sort((x,y)=>(x[k]>y[k]?1:-1));renderTable()});
 let paused=false;$('#pauseBtn').addEventListener('click',()=>{paused=!paused;$('#pauseBtn').textContent=paused?'Riprendi':'Pausa'});
 
-// GESTIONE INTELLIGENTE PER EVITARE IL CONGELAMENTO SU MOBILE
+// GESTIONE INTELLIGENTE AGGIORNAMENTO LIVE OGNI 2 SECONDI ESATTI
 let mainInterval = null;
 
 async function startLoop() {
@@ -846,10 +846,9 @@ async function startLoop() {
     if (paused) return;
     await step();
     renderAll();
-  }, TICK);
+  }, 2000);
 }
 
-// Se l'utente torna sulla pagina dopo aver sbloccato il telefono, forza subito il refresh dei dati live
 document.addEventListener("visibilitychange", async () => {
   if (!document.hidden) {
     await fetchLiveBingXPrices();
