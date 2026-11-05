@@ -88,25 +88,27 @@ def place_bingx_order(api_key, secret_key, symbol, side, position_side, quantity
         return {"code": -1, "msg": str(e)}
 
 CRYPTO_FUTURES_ASSETS = [
-    ("BTC", "Bitcoin", "BTC-USDT"),
-    ("ETH", "Ethereum", "ETH-USDT"),
-    ("SOL", "Solana", "SOL-USDT"),
-    ("BNB", "BNB", "BNB-USDT"),
-    ("XRP", "XRP", "XRP-USDT"),
-    ("ADA", "Cardano", "ADA-USDT"),
-    ("DOGE", "Dogecoin", "DOGE-USDT"),
-    ("AVAX", "Avalanche", "AVAX-USDT"),
-    ("LINK", "Chainlink", "LINK-USDT"),
-    ("DOT", "Polkadot", "DOT-USDT"),
-    ("LTC", "Litecoin", "LTC-USDT"),
-    ("TON", "Toncoin", "TON-USDT"),
-    ("SUI", "Sui", "SUI-USDT"),
-    ("NEAR", "NEAR", "NEAR-USDT"),
-    ("APT", "Aptos", "APT-USDT"),
-    ("ARB", "Arbitrum", "ARB-USDT")
+    ("BTC", "Bitcoin", "cry", "BTC-USDT"),
+    ("ETH", "Ethereum", "cry", "ETH-USDT"),
+    ("SOL", "Solana", "cry", "SOL-USDT"),
+    ("BNB", "BNB", "cry", "BNB-USDT"),
+    ("XRP", "XRP", "cry", "XRP-USDT"),
+    ("ADA", "Cardano", "cry", "ADA-USDT"),
+    ("DOGE", "Dogecoin", "cry", "DOGE-USDT"),
+    ("AVAX", "Avalanche", "cry", "AVAX-USDT"),
+    ("LINK", "Chainlink", "cry", "LINK-USDT"),
+    ("DOT", "Polkadot", "cry", "DOT-USDT"),
+    ("LTC", "Litecoin", "cry", "LTC-USDT"),
+    ("TON", "Toncoin", "cry", "TON-USDT"),
+    ("SUI", "Sui", "cry", "SUI-USDT"),
+    ("NEAR", "NEAR", "cry", "NEAR-USDT"),
+    ("APT", "Aptos", "cry", "APT-USDT"),
+    ("ARB", "Arbitrum", "cry", "ARB-USDT")
 ]
 
-# Modulo IA per il calcolo della precisione e dei livelli di rischio
+live_market_data = {}
+
+# Modulo di Analisi Predittiva IA & Euristica
 def ai_predictive_scoring(closes, highs, lows, volumes):
     if len(closes) < 50:
         return {"score": 50, "conf": 60, "dir": 1, "atr": closes[-1]*0.01}
@@ -115,15 +117,12 @@ def ai_predictive_scoring(closes, highs, lows, volumes):
     ema20 = sum(closes[-20:]) / 20
     ema50 = sum(closes[-50:]) / 50
     
-    # Analisi dei volumi (Media mobile volumi)
-    vol_sma = sum(volumes[-10:]) / 10
+    vol_sma = sum(volumes[-10:]) / 10 if len(volumes) >= 10 else 1
     vol_spike = volumes[-1] / (vol_sma if vol_sma > 0 else 1)
     
-    # Calcolo ATR (Average True Range) per la volatilità
     tr_list = [max(highs[i]-lows[i], abs(highs[i]-closes[i-1]), abs(lows[i]-closes[i-1])) for i in range(1, len(closes))]
     atr = sum(tr_list[-14:]) / 14 if len(tr_list) >= 14 else (current_price * 0.01)
     
-    # Punteggioeuristico guidato da IA
     trend_score = 40 if current_price > ema20 and ema20 > ema50 else -40
     momentum_score = 30 if (closes[-1] - closes[-5]) > 0 else -30
     volume_score = 20 if vol_spike > 1.3 else 5
@@ -150,7 +149,7 @@ def background_bingx_scanner():
             api_key = bot_settings.get("bingx_api_key")
             secret_key = bot_settings.get("bingx_secret_key")
             
-            for sym, name, bx_sym in CRYPTO_FUTURES_ASSETS:
+            for sym, name, cls, bx_sym in CRYPTO_FUTURES_ASSETS:
                 url = f"https://open-api.bingx.com/openApi/swap/v2/quote/klines?symbol={bx_sym}&interval=15m&limit=60"
                 res = requests.get(url, timeout=5)
                 if res.status_code == 200:
@@ -173,7 +172,7 @@ def background_bingx_scanner():
                                     side_mult = ai_res["dir"]
                                     atr = ai_res["atr"]
                                     
-                                    # Livelli precisi con 3 Take Profit calcolati via IA
+                                    # Calcolo con 3 Take Profit e Stop Loss via ATR & IA
                                     sl_val = current_price - (side_mult * 1.4 * atr)
                                     tp1_val = current_price + (side_mult * 1.8 * atr)
                                     tp2_val = current_price + (side_mult * 3.2 * atr)
@@ -276,6 +275,11 @@ button:hover{background:var(--gold-soft)}
 .pill.SHORT{color:var(--dn);background:rgba(255,90,118,.08)}
 .pill.WAIT,.pill.N{color:var(--mute)}
 .pill.TOP{color:var(--dia);background:var(--dia-soft)}
+
+.cdbig{font:700 40px/1 var(--font-mono);color:var(--dia);letter-spacing:.02em}
+.cdbig.low{color:var(--warn)}.cdbig.dead{color:var(--mute)}
+.prog{height:6px;background:var(--line);margin:12px 0 10px;position:relative}
+.prog i{position:absolute;left:0;top:0;bottom:0;background:var(--dia)}
 
 .exe{display:grid;gap:0}
 .exe div{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)}
@@ -663,16 +667,23 @@ def login():
             session['username'] = username
             return redirect(url_for('home'))
         flash('Credenziali non valide.')
-    return render_template_string('''<!DOCTYPE html><html><head><title>Login IA</title></head>
-    <body style="background:#06080c;color:#ece8dc;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;">
-    <div style="background:#0c1017;padding:30px;border:1px solid #2a3750;border-radius:4px;width:320px;">
-        <h3 style="color:#d6b04c;text-align:center;">LOGIN BINGX IA</h3>
+    content = '''
+    <!DOCTYPE html>
+    <html lang="it">
+    <head><meta charset="UTF-8"><title>Login IA</title></head>
+    <body style="background:#06080c;color:#ece8dc;font-family:sans-serif;">
+    <div style="max-width:380px;margin:80px auto;background:#0c1017;padding:25px;border:1px solid #2a3750;border-radius:4px;">
+        <h3 style="color:#d6b04c;text-align:center;margin-top:0;">ACCESSO BINGX IA</h3>
         <form method="POST">
-            <p><label>Username</label><br><input type="text" name="username" required style="width:100%;padding:8px;background:#111722;border:1px solid #2a3750;color:#fff;"></p>
-            <p><label>Password</label><br><input type="password" name="password" required style="width:100%;padding:8px;background:#111722;border:1px solid #2a3750;color:#fff;"></p>
-            <button type="submit" style="width:100%;padding:10px;background:#d6b04c;color:#06080c;border:none;font-weight:bold;cursor:pointer;">Accedi</button>
+            <p><label>Username</label><br><input type="text" name="username" required style="width:100%;padding:8px;background:#111722;border:1px solid #2a3750;color:#fff;margin-top:5px;box-sizing:border-box;"></p>
+            <p><label>Password</label><br><input type="password" name="password" required style="width:100%;padding:8px;background:#111722;border:1px solid #2a3750;color:#fff;margin-top:5px;box-sizing:border-box;"></p>
+            <button type="submit" style="width:100%;padding:10px;background:#d6b04c;color:#06080c;border:none;font-weight:bold;margin-top:10px;cursor:pointer;">Accedi</button>
         </form>
-    </div></body></html>''')
+    </div>
+    </body>
+    </html>
+    '''
+    return render_template_string(content)
 
 @app.route('/logout')
 def logout():
