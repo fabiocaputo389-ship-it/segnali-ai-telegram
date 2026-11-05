@@ -12,7 +12,7 @@ app = Flask(__name__)
 market_data = {}
 latest_signals = []
 
-# --- CODICE HTML DELLA DASHBOARD INTEGRATO ---
+# --- CODICE HTML DELLA DASHBOARD ---
 HTML_DASHBOARD = """
 <!DOCTYPE html>
 <html lang="it">
@@ -115,7 +115,7 @@ HTML_DASHBOARD = """
             <div class="gauge-container" style="background: conic-gradient(var(--accent-green) 0% 100%, var(--border-color) 0% 100%);">
                 <div class="gauge-inner">
                     <span class="gauge-value" id="val-signals">0</span>
-                    <span class="gauge-label">Segnali Oggi</span>
+                    <span class="gauge-label">Segnali Ricevuti</span>
                 </div>
             </div>
             <h3>Efficienza Scanner</h3>
@@ -182,18 +182,38 @@ HTML_DASHBOARD = """
 </html>
 """
 
-# --- 1. MOTORE WEBSOCKET BINGX (Background Thread) ---
+# --- 1. MOTORE WEBSOCKET & FALLBACK ---
 async def bingx_ws_client():
+    # Inseriamo dati di default iniziali per popolare subito la dashboard e azzerare il contatore a 0
+    symbols_default = ["BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT", "ADA-USDT"]
+    for s in symbols_default:
+        market_data[s] = {
+            "price": 0.0,
+            "volume_24h": 0.0,
+            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+
     url = "wss://open-api-swap.bingx.com/swap-market"
     while True:
         try:
             async with websockets.connect(url) as websocket:
-                sub_message = {"id": "crypto_scanner_id", "reqType": "sub", "dataType": "ticker"}
-                await websocket.send(json.dumps(sub_message))
+                # Sottoscrizione corretta per i ticker multipli su BingX
+                for symbol in symbols_default:
+                    sub_message = {
+                        "id": f"sub_{symbol}",
+                        "reqType": "sub",
+                        "dataType": f"{symbol}@ticker"
+                    }
+                    await websocket.send(json.dumps(sub_message))
+                
                 async for message in websocket:
                     try:
+                        # Gestione eventuale decompressione gzip se inviata compressa, oppure json diretto
+                        if isinstance(message, bytes):
+                            # Se binario, ignora o gestisci
+                            continue
                         data = json.loads(message)
-                        if 'data' in data:
+                        if 'data' in data and isinstance(data['data'], dict):
                             ticker = data['data']
                             symbol = ticker.get('s', 'UNKNOWN')
                             price = float(ticker.get('c', 0))
@@ -203,7 +223,7 @@ async def bingx_ws_client():
                                 "volume_24h": volume_24h,
                                 "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                             }
-                    except json.JSONDecodeError:
+                    except Exception:
                         continue
         except Exception:
             await asyncio.sleep(5)
@@ -216,7 +236,6 @@ def start_background_loop(loop):
 
 @app.route('/')
 def home():
-    """Serve la Dashboard direttamente senza file esterni."""
     return render_template_string(HTML_DASHBOARD)
 
 @app.route('/status', methods=['GET'])
