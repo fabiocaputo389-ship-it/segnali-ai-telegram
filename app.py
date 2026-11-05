@@ -87,67 +87,38 @@ def place_bingx_order(api_key, secret_key, symbol, side, position_side, quantity
         print(f"Errore esecuzione ordine BingX: {e}")
         return {"code": -1, "msg": str(e)}
 
+# Panieri basati sui contratti Perpetual Futures ufficiali di BingX
 CRYPTO_FUTURES_ASSETS = [
-    ("BTC", "Bitcoin", "cry", "BTC-USDT", 95200, .0075),
-    ("ETH", "Ethereum", "cry", "ETH-USDT", 3320, .0095),
-    ("SOL", "Solana", "cry", "SOL-USDT", 182, .012),
-    ("BNB", "BNB", "cry", "BNB-USDT", 624, .008),
-    ("XRP", "XRP", "cry", "XRP-USDT", 2.41, .012),
-    ("ADA", "Cardano", "cry", "ADA-USDT", .71, .012),
-    ("DOGE", "Dogecoin", "cry", "DOGE-USDT", .184, .014),
-    ("AVAX", "Avalanche", "cry", "AVAX-USDT", 38.4, .013),
-    ("LINK", "Chainlink", "cry", "LINK-USDT", 17.2, .012),
-    ("DOT", "Polkadot", "cry", "DOT-USDT", 7.15, .012),
-    ("LTC", "Litecoin", "cry", "LTC-USDT", 96.5, .01),
-    ("TON", "Toncoin", "cry", "TON-USDT", 5.62, .012),
-    ("SUI", "Sui", "cry", "SUI-USDT", 3.84, .015),
-    ("NEAR", "NEAR", "cry", "NEAR-USDT", 5.48, .014),
-    ("APT", "Aptos", "cry", "APT-USDT", 9.2, .014),
-    ("ARB", "Arbitrum", "cry", "ARB-USDT", .62, .014)
+    ("BTC", "Bitcoin", "cry", "BTC-USDT"),
+    ("ETH", "Ethereum", "cry", "ETH-USDT"),
+    ("SOL", "Solana", "cry", "SOL-USDT"),
+    ("BNB", "BNB", "cry", "BNB-USDT"),
+    ("XRP", "XRP", "cry", "XRP-USDT"),
+    ("ADA", "Cardano", "cry", "ADA-USDT"),
+    ("DOGE", "Dogecoin", "cry", "DOGE-USDT"),
+    ("AVAX", "Avalanche", "cry", "AVAX-USDT"),
+    ("LINK", "Chainlink", "cry", "LINK-USDT"),
+    ("DOT", "Polkadot", "cry", "DOT-USDT"),
+    ("LTC", "Litecoin", "cry", "LTC-USDT"),
+    ("TON", "Toncoin", "cry", "TON-USDT"),
+    ("SUI", "Sui", "cry", "SUI-USDT"),
+    ("NEAR", "NEAR", "cry", "NEAR-USDT"),
+    ("APT", "Aptos", "cry", "APT-USDT"),
+    ("ARB", "Arbitrum", "cry", "ARB-USDT")
 ]
 
 COMMODITIES_ASSETS = [
-    ("XAU", "Oro", "com", "GC=F", 2650, .005),
-    ("XAG", "Argento", "com", "SI=F", 31, .008),
-    ("WTI", "Petrolio WTI", "com", "CL=F", 70, .01),
-    ("BRENT", "Petrolio Brent", "com", "BZ=F", 74, .01),
-    ("NG", "Gas naturale", "com", "NG=F", 3.2, .015),
-    ("HG", "Rame", "com", "HG=F", 4.1, .012),
-    ("WHEAT", "Grano", "com", "KE=F", 550, .01),
-    ("COFFEE", "Caffè", "com", "KC=F", 280, .012)
+    ("XAU", "Oro", "com", "GC=F"),
+    ("XAG", "Argento", "com", "SI=F"),
+    ("WTI", "Petrolio WTI", "com", "CL=F"),
+    ("BRENT", "Petrolio Brent", "com", "BZ=F"),
+    ("NG", "Gas naturale", "com", "NG=F"),
+    ("HG", "Rame", "com", "HG=F"),
+    ("WHEAT", "Grano", "com", "KE=F"),
+    ("COFFEE", "Caffè", "com", "KC=F")
 ]
 
 live_market_data = {}
-
-# Modulo di Analisi IA Predittiva & Calcolo 3 TP
-def ai_predictive_scoring(closes, highs, lows, volumes):
-    if len(closes) < 50:
-        return {"score": 50, "conf": 60, "dir": 1, "atr": closes[-1]*0.01}
-    
-    current_price = closes[-1]
-    ema20 = sum(closes[-20:]) / 20
-    ema50 = sum(closes[-50:]) / 50
-    
-    vol_sma = sum(volumes[-10:]) / 10 if len(volumes) >= 10 else 1
-    vol_spike = volumes[-1] / (vol_sma if vol_sma > 0 else 1)
-    
-    tr_list = [max(highs[i]-lows[i], abs(highs[i]-closes[i-1]), abs(lows[i]-closes[i-1])) for i in range(1, len(closes))]
-    atr = sum(tr_list[-14:]) / 14 if len(tr_list) >= 14 else (current_price * 0.01)
-    
-    trend_score = 40 if current_price > ema20 and ema20 > ema50 else -40
-    momentum_score = 30 if (closes[-1] - closes[-5]) > 0 else -30
-    volume_score = 20 if vol_spike > 1.3 else 5
-    
-    total_score = trend_score + momentum_score + volume_score
-    confidence = int(min(98, max(55, 60 + abs(total_score) * 0.45 + (vol_spike * 5))))
-    direction = 1 if total_score >= 0 else -1
-    
-    return {
-        "score": total_score,
-        "conf": confidence,
-        "dir": direction,
-        "atr": atr
-    }
 
 def background_bingx_scanner():
     last_alerts = {}
@@ -160,56 +131,43 @@ def background_bingx_scanner():
             api_key = bot_settings.get("bingx_api_key")
             secret_key = bot_settings.get("bingx_secret_key")
             
-            for sym, name, cls, bx_sym, def_p, def_v in CRYPTO_FUTURES_ASSETS:
-                url = f"https://open-api.bingx.com/openApi/swap/v2/quote/klines?symbol={bx_sym}&interval=15m&limit=60"
+            # Scansione candele Futures direttamente da BingX V2 Swap API
+            for sym, name, cls, bx_sym in CRYPTO_FUTURES_ASSETS:
+                url = f"https://open-api.bingx.com/openApi/swap/v2/quote/klines?symbol={bx_sym}&interval=15m&limit=50"
                 res = requests.get(url, timeout=5)
                 if res.status_code == 200:
                     res_json = res.json()
                     if res_json.get("code") == 0:
                         klines = res_json.get("data", [])
-                        if len(klines) >= 50:
+                        if klines:
+                            # BingX restituisce i dati in ordine cronologico o inverso a seconda dell'endpoint, estraiamo i prezzi di chiusura 'close'
                             closes = [float(k["close"]) for k in klines]
-                            highs = [float(k["high"]) for k in klines]
-                            lows = [float(k["low"]) for k in klines]
-                            volumes = [float(k["volume"]) for k in klines]
-                            
-                            ai_res = ai_predictive_scoring(closes, highs, lows, volumes)
                             current_price = closes[-1]
+                            ema20 = sum(closes[-20:]) / 20 if len(closes) >= 20 else current_price
+                            ema50 = sum(closes[-50:]) / 50 if len(closes) >= 50 else current_price
+                            is_long = current_price > ema20 and ema20 > ema50
+                            score = 85 if is_long else -85
                             
-                            if ai_res["conf"] >= 80:
+                            if abs(score) >= 80:
                                 now = time.time()
                                 if sym not in last_alerts or now - last_alerts[sym] > 1800:
-                                    dir_txt = "LONG 🟢" if ai_res["dir"] > 0 else "SHORT 🔴"
-                                    side_mult = ai_res["dir"]
-                                    atr = ai_res["atr"]
-                                    
-                                    # Calcolo con 3 Take Profit e Stop Loss via ATR & IA
-                                    sl_val = current_price - (side_mult * 1.4 * atr)
-                                    tp1_val = current_price + (side_mult * 1.8 * atr)
-                                    tp2_val = current_price + (side_mult * 3.2 * atr)
-                                    tp3_val = current_price + (side_mult * 5.5 * atr)
-                                    
+                                    dir_txt = "LONG 🟢" if is_long else "SHORT 🔴"
                                     msg = (
-                                        f"🤖💎 *IA TOP ENTRY >80% (BINGX LIVE)*\n\n"
+                                        f"💎 *TOP ENTRY >80% (BINGX LIVE)*\n\n"
                                         f"✦ *Asset:* #{bx_sym}\n"
-                                        f"✦ *Segnale IA:* {dir_txt}\n"
-                                        f"✦ *Confidenza IA:* `{ai_res['conf']}%`\n"
-                                        f"✦ *Ingresso:* `${current_price:,.4f}`\n\n"
-                                        f"🎯 *Take Profit 1 (TP1):* `${tp1_val:,.4f}`\n"
-                                        f"🎯 *Take Profit 2 (TP2):* `${tp2_val:,.4f}`\n"
-                                        f"🎯 *Take Profit 3 (TP3):* `${tp3_val:,.4f}`\n"
-                                        f"🛑 *Stop Loss (SL):* `${sl_val:,.4f}`\n"
+                                        f"✦ *Direzione:* {dir_txt}\n"
+                                        f"✦ *Prezzo BingX:* ${current_price:,.4f}\n"
                                     )
                                     if token and chat_id:
                                         send_telegram_alert(token, chat_id, msg)
                                     if auto_exec == 1 and trading_mode == "real" and api_key and secret_key:
-                                        side = "BUY" if ai_res["dir"] > 0 else "SELL"
-                                        pos_side = "LONG" if ai_res["dir"] > 0 else "SHORT"
+                                        side = "BUY" if is_long else "SELL"
+                                        pos_side = "LONG" if is_long else "SHORT"
                                         qty = 0.001 if sym == "BTC" else (0.01 if sym == "ETH" else 1.0)
                                         place_bingx_order(api_key, secret_key, bx_sym, side, pos_side, qty)
                                     last_alerts[sym] = now
         except Exception as e:
-            print(f"Errore scanner IA BingX: {e}")
+            print(f"Errore scanner BingX: {e}")
         time.sleep(30)
 
 scanner_thread = threading.Thread(target=background_bingx_scanner, daemon=True)
@@ -219,7 +177,7 @@ DASHBOARD_HTML = '''<!DOCTYPE html>
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<title>Scanner · Segnali BingX Real con IA &amp; 3 TP</title>
+<title>Scanner · Segnali BingX Real</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -340,6 +298,7 @@ button:hover{background:var(--gold-soft)}
 .legend i{display:inline-block;width:14px;height:2px;vertical-align:middle;margin-right:6px}
 canvas{display:block;width:100%;touch-action:pan-y}
 #chart{height:400px}
+.lc{height:200px}
 .seg{display:inline-flex;border:1px solid var(--line2)}
 .seg button{border:0;border-right:1px solid var(--line2);color:var(--ink2);padding:6px 10px}
 .seg button:last-child{border-right:0}
@@ -375,6 +334,8 @@ td .n{display:block;font:400 10px var(--font-body);color:var(--mute);margin-top:
 .tfs{display:inline-flex;gap:4px}
 .tfs span{font:700 9.5px var(--font-mono);padding:2px 5px;border:1px solid currentColor}
 .tfs .u{color:var(--up)}.tfs .d{color:var(--dn)}.tfs .z{color:var(--mute)}
+.nw{display:inline-flex;flex-direction:column;align-items:flex-start;gap:3px;max-width:230px;white-space:normal;text-align:left}
+.nw small{font:400 10px/1.3 var(--font-body);color:var(--ink2)}
 @keyframes fu{from{background:rgba(46,230,166,.28)}}
 @keyframes fd{from{background:rgba(255,90,118,.28)}}
 td.fu{animation:fu .9s}td.fd{animation:fd .9s}
@@ -421,7 +382,7 @@ input,select{background:#111722;border:1px solid var(--line2);color:#fff;padding
   </div>
 
   <section class="config-panel">
-    <div class="ph"><h2>⚙️ Configurazione Account &amp; BingX IA</h2></div>
+    <div class="ph"><h2>⚙️ Configurazione Account &amp; BingX</h2></div>
     <form method="POST">
       <div class="form-grid">
         <div>
@@ -460,11 +421,11 @@ input,select{background:#111722;border:1px solid var(--line2);color:#fff;padding
   <header class="top">
     <div class="brand">
       <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><polygon points="20,3 36,15 20,37 4,15" fill="none" stroke="#ffd23f" stroke-width="1.6"/><polygon points="20,3 28,15 20,37 12,15" fill="rgba(255,210,63,.18)" stroke="#ffd23f" stroke-width="1"/></svg>
-      <div><h1>Scanner IA BingX · Segnali TOP Entry con 3 TP</h1><p>Dati Futures ufficiali BingX con IA · Diamante giallo lampeggiante · Conto alla rovescia</p></div>
+      <div><h1>Scanner BingX · Segnali TOP Entry</h1><p>Dati Futures ufficiali BingX · Diamante giallo lampeggiante · Conto alla rovescia</p></div>
     </div>
     <div class="chips">
-      <span class="chip"><i class="dot" id="feedDot"></i><span id="feedTxt">BINGX IA LIVE</span></span>
-      <span class="chip">Auto-refresh: <b id="refresh" style="font-weight:700">00:06</b></span>
+      <span class="chip"><i class="dot" id="feedDot"></i><span id="feedTxt">BINGX LIVE</span></span>
+      <span class="chip">Auto-refresh: <b id="refresh" style="font-weight:700">00:02</b></span>
       <span class="chip" id="clock">--:--:--</span>
       <button id="pauseBtn" type="button">Pausa</button>
     </div>
@@ -475,7 +436,7 @@ input,select{background:#111722;border:1px solid var(--line2);color:#fff;padding
   <main class="grid">
     <div class="col s4">
       <section class="panel" id="pGauge">
-        <div class="ph"><h2>Asset attivo (IA)</h2><span class="sub" id="gSub"></span></div>
+        <div class="ph"><h2>Asset attivo</h2><span class="sub" id="gSub"></span></div>
         <div class="gbig"><div id="gMain"></div><div class="gnum" id="gNum">--</div><div class="glab" id="gLab">--</div>
           <div class="sbrow"><span class="dn">SELL (−100)</span><span class="up">BUY (+100)</span></div></div>
         <div class="tfp" id="tfp"></div>
@@ -484,13 +445,13 @@ input,select{background:#111722;border:1px solid var(--line2);color:#fff;padding
         <div class="ph"><h2>Validità segnale operativo</h2><span id="vState"></span></div>
         <div class="cdbig" id="cdMain">--:--</div>
         <div class="prog"><i id="cdBar" style="width:0"></i></div>
-        <p class="note">Il segnale IA resta valido per il tempo indicato sul contratto BingX.</p>
+        <p class="note">Il segnale resta valido per il tempo indicato sul contratto BingX.</p>
       </section>
     </div>
 
     <div class="col s4">
       <section class="panel">
-        <div class="ph"><h2>Notizie &amp; sentiment IA</h2><span id="nBadge"></span></div>
+        <div class="ph"><h2>Notizie &amp; sentiment</h2><span id="nBadge"></span></div>
         <div class="head" id="nHead">--</div>
         <div class="src" id="nSrc"></div>
         <div style="margin-top:12px"><div class="bar2 dv" id="nBar"></div>
@@ -504,7 +465,7 @@ input,select{background:#111722;border:1px solid var(--line2);color:#fff;padding
 
     <div class="col s4">
       <section class="panel">
-        <div class="ph"><h2>Esecuzione istantanea BingX (3 TP)</h2><span class="sub" id="exSub"></span></div>
+        <div class="ph"><h2>Esecuzione istantanea BingX</h2><span class="sub" id="exSub"></span></div>
         <div class="exe" id="exe"></div>
       </section>
       <div class="topbox idle" id="topbox"></div>
@@ -516,22 +477,22 @@ input,select{background:#111722;border:1px solid var(--line2);color:#fff;padding
         <span class="px mono" id="cPx"></span><span id="cCh"></span>
         <div class="seg" id="tfSeg" role="group" aria-label="Timeframe"><button type="button" data-v="15" aria-pressed="true">15m</button><button type="button" data-v="60" aria-pressed="false">1h</button><button type="button" data-v="240" aria-pressed="false">4h</button></div>
       </div>
-      <div class="legend" style="margin:0 0 6px"><span><i style="background:var(--gold)"></i>EMA 20</span><span><i style="background:var(--c2)"></i>EMA 50</span><span><i style="background:var(--dia)"></i>Entrata</span><span><i style="background:var(--dn)"></i>Stop Loss</span><span><i style="background:var(--up)"></i>TP1 / TP2 / TP3</span></div>
+      <div class="legend" style="margin:0 0 6px"><span><i style="background:var(--gold)"></i>EMA 20</span><span><i style="background:var(--c2)"></i>EMA 50</span><span><i style="background:var(--dia)"></i>Entrata</span><span><i style="background:var(--dn)"></i>Stop Loss</span><span><i style="background:var(--up)"></i>TP1 / TP2</span></div>
       <canvas id="chart" aria-label="Grafico a candele"></canvas>
     </section>
 
     <section class="panel s4">
-      <div class="ph"><h2>Indicatori per timeframe (IA)</h2><span class="sub" id="tfSub"></span></div>
+      <div class="ph"><h2>Indicatori per timeframe</h2><span class="sub" id="tfSub"></span></div>
       <table class="tft"><thead><tr><th></th><th>15M</th><th>1H</th><th>4H</th></tr></thead><tbody id="tft"></tbody></table>
-      <div class="sec">Altri parametri IA</div>
+      <div class="sec">Altri parametri</div>
       <div class="kv" id="extra"></div>
     </section>
 
     <section class="panel s12">
-      <div class="ph"><h2>Scanner Futures BingX con 3 TP</h2>
+      <div class="ph"><h2>Scanner Futures BingX</h2>
         <div class="filters" id="filters">
           <button type="button" class="fb" data-f="all" aria-pressed="true">Tutti</button>
-          <button type="button" class="fb t" data-f="top" aria-pressed="false">TOP confluenze IA (&gt;80%)</button>
+          <button type="button" class="fb t" data-f="top" aria-pressed="false">TOP confluenze (&gt;80%)</button>
           <button type="button" class="fb g" data-f="buy" aria-pressed="false">Solo BUY</button>
           <button type="button" class="fb r" data-f="sell" aria-pressed="false">Solo SELL</button>
         </div>
@@ -541,16 +502,16 @@ input,select{background:#111722;border:1px solid var(--line2);color:#fff;padding
         <span class="sub mu mono" id="cnt" style="margin-left:auto"></span>
       </div>
       <div class="tw"><table class="main"><thead><tr id="thead">
-        <th data-k="sym" style="text-align:left">Asset BingX</th><th>Entrata</th><th>Leva</th><th data-k="price">Prezzo BingX</th><th>Tachimetro</th><th data-k="conf">Confidenza IA</th><th>Validità</th><th>15m / 1h / 4h</th><th>Sentiment</th><th data-k="ch24">Var 24h</th><th>TP1</th><th>TP2</th><th>TP3</th><th>Stop Loss</th>
+        <th data-k="sym" style="text-align:left">Asset BingX</th><th>Entrata</th><th>Leva</th><th data-k="price">Prezzo BingX</th><th>Tachimetro</th><th data-k="conf">Confidenza</th><th>Validità</th><th>15m / 1h / 4h</th><th>Sentiment</th><th data-k="ch24">Var 24h</th><th>TP1</th><th>Stop Loss</th>
       </tr></thead><tbody id="tbody"></tbody></table></div>
     </section>
 
     <section class="panel s4">
-      <div class="ph"><h2>Termometro BingX</h2><span class="sub">forza media IA</span></div>
+      <div class="ph"><h2>Termometro BingX</h2><span class="sub">forza media</span></div>
       <div class="gmini" style="grid-template-columns:1fr">
         <div class="gm"><div class="cn">Mercato Futures BingX</div><div id="gCry"></div><div class="gnum" id="nCry">--</div><div class="glab" id="lCry">--</div></div>
       </div>
-      <div class="sec">Segnali IA più forti</div>
+      <div class="sec">Segnali più forti</div>
       <div id="opps"></div>
     </section>
     <section class="panel s4">
@@ -558,7 +519,7 @@ input,select{background:#111722;border:1px solid var(--line2);color:#fff;padding
       <div id="heat"></div>
     </section>
     <section class="panel s4">
-      <div class="ph"><h2>Registro eventi IA</h2><span class="sub">ultimi ordini / segnali</span></div>
+      <div class="ph"><h2>Registro eventi</h2><span class="sub">ultimi ordini / segnali</span></div>
       <ul class="log" id="log"></ul>
     </section>
   </main>
@@ -600,6 +561,7 @@ async function loadBingXData(){
       const res=await fetch(`https://open-api.bingx.com/openApi/swap/v2/quote/klines?symbol=${a.bx}&interval=15m&limit=200`);
       const d=await res.json();
       if(d.code===0 && d.data && d.data.length>0){
+        // BingX format: {time, open, high, low, close, volume}
         a.candles=d.data.map(k=>({t:+k.time,o:+k.open,h:+k.high,l:+k.low,c:+k.close,v:+k.volume}));
         a.price=a.candles[a.candles.length-1].c;
       }
@@ -635,6 +597,7 @@ function comps(S,cs,i){
   return{trend,rsi:rs,macd,bb,vol};
 }
 const scoreOf=cp=>{let s=0;for(const k in W)s+=cp[k]*W[k];return s*100};
+const sigOf=s=>s>=28?'LONG':s<=-28?'SHORT':'WAIT';
 function aggC(c,m){const out=[];let end=c.length;
   while(end-m>=0&&out.length<200){const g=c.slice(end-m,end);let h=-Infinity,l=Infinity,v=0;for(const x of g){if(x.h>h)h=x.h;if(x.l<l)l=x.l;v+=x.v}
     out.unshift({t:g[0].t,o:g[0].o,c:g[g.length-1].c,h,l,v});end-=m}
@@ -650,7 +613,7 @@ function analyze(a){
   const conf=clamp(Math.round(Math.abs(comb)*1.15+agree*35-10),0,99),dir=comb>=0?1:-1;
   const raw=Math.abs(comb)>=28&&conf>=60?dir:0;
   const S=tf[15].S,i=S.c.length-1,atr=S.atr[i]||1,price=a.price;
-  const slPct=clamp(1.4*atr/price,.004,.03),hi=clamp(Math.floor(1/(8*slPct)),2,25),lo=Math.max(1,Math.round(hi*.7));
+  const slPct=clamp(1.5*atr/price,.004,.03),hi=clamp(Math.floor(1/(8*slPct)),2,25),lo=Math.max(1,Math.round(hi*.7));
   let v24=0;for(let k=Math.max(0,n-96);k<n;k++)v24+=c15[k].v;
   const prevC=c15[Math.max(0,n-96)].c;
   return{tf,comb,conf,dir,raw,agree,atr,slPct,lev:[lo,hi],anom:null,ch24:prevC?(price/prevC-1):0,vol24:v24*price,rsi:S.rsi[i]};
@@ -660,8 +623,8 @@ const logs=[];
 const pushLog=(type,txt)=>{logs.unshift({t:SIM*1000,type,txt});if(logs.length>60)logs.pop()};
 function newSig(a,ai,silent){
   const d=ai.raw,p=a.price,sp=ai.slPct;
-  a.sig={dir:d,since:SIM,entry:p,sl:p*(1-d*sp),tp1:p*(1+d*1.8*sp),tp2:p*(1+d*3.2*sp),tp3:p*(1+d*5.5*sp),slPct:sp,lev:ai.lev,state:'ACTIVE'};
-  if(!silent&&ai.conf>=70)pushLog(ai.conf>=80?'TOP':(d>0?'LONG':'SHORT'),`${a.sym} ${d>0?'LONG':'SHORT'} · confidenza IA ${ai.conf}% · entrata ${money(a,p)}`);
+  a.sig={dir:d,since:SIM,entry:p,sl:p*(1-d*sp),tp1:p*(1+d*1.5*sp),tp2:p*(1+d*3*sp),slPct:sp,lev:ai.lev,state:'ACTIVE'};
+  if(!silent&&ai.conf>=70)pushLog(ai.conf>=80?'TOP':(d>0?'LONG':'SHORT'),`${a.sym} ${d>0?'LONG':'SHORT'} · confidenza ${ai.conf}% · entrata ${money(a,p)}`);
 }
 function updateSignal(a,ai){
   const s=a.sig,p=a.price;
@@ -674,7 +637,7 @@ function updateSignal(a,ai){
 }
 function scanAll(){
   for(const a of assets){const ai=analyze(a);a.ai=ai;
-    if(!a.head)a.head="Trend futures BingX allineato con IA";
+    if(!a.head)a.head="Trend futures BingX allineato";
     updateSignal(a,ai)}
 }
 const active=a=>a.sig&&a.sig.state==='ACTIVE';
@@ -698,7 +661,7 @@ function mkGauge(host,big){
   if(big)[[0,'-100'],[25,'-50'],[50,'0'],[75,'+50'],[100,'+100']].forEach(([v,t])=>{const p=pt(62,180+v*1.8);s+=`<text class="tl" x="${p[0].toFixed(1)}" y="${p[1].toFixed(1)}" text-anchor="middle" dominant-baseline="middle">${t}</text>`});
   s+=`<path class="gval z2" pathLength="100" d="${arc(r,180,359.9)}" style="stroke-dasharray:0 100"/>`;
   s+=`<g class="ndl" style="transform:rotate(0deg)"><polygon points="97.5,100 100,30 102.5,100"/></g><circle class="hub" cx="100" cy="100" r="7"/>`;
-  host.innerHTML=`<svg class="gsvg" viewBox="0 0 200 112" role="img" aria-label="Tachimetro IA">${s}</svg>`;
+  host.innerHTML=`<svg class="gsvg" viewBox="0 0 200 112" role="img" aria-label="Tachimetro">${s}</svg>`;
   const val=host.querySelector('.gval'),nd=host.querySelector('.ndl');
   return v=>{v=clamp(v,0,100);const z=zone(v);val.style.strokeDasharray=`${v} 100`;val.setAttribute('class','gval z'+z);nd.style.transform=`rotate(${(v-50)*1.8}deg)`;return z};
 }
@@ -716,6 +679,12 @@ const C={};function readColors(){const cs=getComputedStyle(document.documentElem
 function setup(cv){const dpr=Math.min(window.devicePixelRatio||1,2),r=cv.getBoundingClientRect(),w=Math.max(10,Math.round(r.width)),h=Math.max(10,Math.round(r.height));
   if(cv.width!==w*dpr||cv.height!==h*dpr){cv.width=w*dpr;cv.height=h*dpr}
   const ctx=cv.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);return{ctx,w,h}}
+function tip(ctx,w,x,y,lines){
+  ctx.font='11px "JetBrains Mono",monospace';const tw=Math.max(...lines.map(l=>ctx.measureText(l).width))+18,th=lines.length*16+10;
+  let bx=x+14;if(bx+tw>w-4)bx=x-14-tw;bx=Math.max(4,bx);const by=Math.max(4,y);
+  ctx.fillStyle=C.panel;ctx.strokeStyle=C.gold;ctx.lineWidth=1;ctx.fillRect(bx,by,tw,th);ctx.strokeRect(bx+.5,by+.5,tw,th);
+  ctx.fillStyle=C.ink;ctx.textAlign='left';ctx.textBaseline='middle';lines.forEach((l,i)=>ctx.fillText(l,bx+9,by+13+i*16));
+}
 let sel='BTC',tfSel='15',chartHover=-1;
 const chartCv=$('#chart');
 function drawChart(){
@@ -725,7 +694,7 @@ function drawChart(){
   const N=Math.min(90,n),st=Math.max(0,n-N),padL=6,padR=72,padT=8,axB=18,avail=h-padT-axB,pH=avail*.64,gap=14,rH=avail-pH-gap,rT=padT+pH+gap;
   const pw=w-padL-padR,step=pw/N,xi=i=>padL+(i-st+.5)*step,sig=active(a)?a.sig:null;
   let lo=Infinity,hi=-Infinity;for(let i=st;i<n;i++){lo=Math.min(lo,cs[i].l,S.e20[i]||cs[i].l,S.e50[i]||cs[i].l);hi=Math.max(hi,cs[i].h,S.e20[i]||cs[i].h,S.e50[i]||cs[i].h)}
-  if(sig){lo=Math.min(lo,sig.sl);hi=Math.max(hi,sig.tp3)}
+  if(sig){lo=Math.min(lo,sig.sl);hi=Math.max(hi,sig.tp1)}
   const pd=(hi-lo)*.06||1;lo-=pd;hi+=pd;const y=v=>padT+(1-(v-lo)/(hi-lo))*pH;
   let vmax=1;for(let i=st;i<n;i++)vmax=Math.max(vmax,cs[i].v);
   ctx.lineWidth=1;ctx.font='10px "JetBrains Mono",monospace';
@@ -740,7 +709,7 @@ function drawChart(){
   const lp=a.price,ly=Math.round(y(lp))+.5,up=lp>=cs[n-1].o;
   ctx.setLineDash([3,3]);ctx.strokeStyle=up?C.up:C.dn;ctx.beginPath();ctx.moveTo(padL,ly);ctx.lineTo(w-padR,ly);ctx.stroke();ctx.setLineDash([]);
   ctx.fillStyle=up?C.up:C.dn;ctx.fillRect(w-padR+2,ly-9,padR-4,18);ctx.fillStyle=C.bg;ctx.textAlign='left';ctx.font='700 10px "JetBrains Mono",monospace';ctx.textBaseline='middle';ctx.fillText(fp(lp),w-padR+6,ly);
-  if(sig)[[sig.entry,C.dia,'ENTRY'],[sig.sl,C.dn,'SL'],[sig.tp1,C.up,'TP1'],[sig.tp2,C.up,'TP2'],[sig.tp3,C.up,'TP3']].forEach(([v,col,l])=>{if(v>lo&&v<hi){const yy=Math.round(y(v))+.5;
+  if(sig)[[sig.entry,C.dia,'ENTRY'],[sig.sl,C.dn,'SL'],[sig.tp1,C.up,'TP1'],[sig.tp2,C.up,'TP2']].forEach(([v,col,l])=>{if(v>lo&&v<hi){const yy=Math.round(y(v))+.5;
     ctx.setLineDash([2,4]);ctx.strokeStyle=col;ctx.globalAlpha=.85;ctx.beginPath();ctx.moveTo(padL,yy);ctx.lineTo(w-padR,yy);ctx.stroke();ctx.globalAlpha=1;ctx.setLineDash([]);
     ctx.fillStyle=col;ctx.font='700 9.5px "JetBrains Mono",monospace';ctx.textAlign='left';ctx.textBaseline='bottom';ctx.fillText(l,padL+4,yy-2)}});
   ctx.font='10px "JetBrains Mono",monospace';ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillStyle=C.mute;ctx.fillText('RSI 14',padL+2,rT+6);
@@ -788,16 +757,14 @@ function renderTable(){
 <td><span class="tfs">${[15,60,240].map(k=>{const sc=ai.tf[k].score;return`<span class="${tfCls(sc)}" title="${k===240?'4H':k===60?'1H':'15M'} ${sg(sc)}">${k===240?'4H':k===60?'1H':'15M'}${tfArrow(sc)}</span>`}).join('')}</span></td>
 <td><span class="pill ${ai.comb>=0?'LONG':'SHORT'}">${ai.comb>=0?'BULLISH':'BEARISH'}</span></td>
 <td class="${ai.ch24>=0?'up':'dn'}">${pc(ai.ch24)}</td>
-<td>${act?`<span class="up">${money(a,s.tp1)}</span>`:'<span class="mu">—</span>'}</td>
-<td>${act?`<span class="up">${money(a,s.tp2)}</span>`:'<span class="mu">—</span>'}</td>
-<td>${act?`<span class="up">${money(a,s.tp3)}</span>`:'<span class="mu">—</span>'}</td>
-<td>${act?`<span class="dn">${money(a,s.sl)}</span>`:'<span class="mu">—</span>'}</td></tr>`}).join('')||'<tr><td colspan="14" class="empty" style="text-align:center">Nessun asset BingX.</td></tr>';
+<td>${act?`<span class="up">${pc(s.dir*(s.tp1/s.entry-1))}</span><span class="n">${money(a,s.tp1)}</span>`:'<span class="mu">—</span>'}</td>
+<td>${act?`<span class="dn">${pc(-s.slPct)}</span><span class="n">${money(a,s.sl)}</span>`:'<span class="mu">—</span>'}</td></tr>`}).join('')||'<tr><td colspan="12" class="empty" style="text-align:center">Nessun asset BingX.</td></tr>';
   assets.forEach(a=>lastPx[a.sym]=a.price);
 }
 function renderBanner(){
   const tops=assets.filter(isTop).sort((x,y)=>y.ai.conf-x.ai.conf),b=$('#banner');
-  if(tops.length){b.className='banner';b.innerHTML=`${dia(18,true)}<span>TOP ENTRY IA BINGX &gt;80%: DIAMANTE LAMPEGGIANTE</span><span class="tops">${tops.slice(0,8).map(a=>`<button type="button" data-sym="${a.sym}">${a.sym} ${a.ai.conf}%</button>`).join('')}</span>`}
-  else{b.className='banner idle';b.innerHTML=`${dia(18,false)}<span>Monitoraggio IA BingX Futures in corso (nessuna top entry attiva al momento)</span>`}
+  if(tops.length){b.className='banner';b.innerHTML=`${dia(18,true)}<span>TOP ENTRY BINGX &gt;80%: DIAMANTE LAMPEGGIANTE</span><span class="tops">${tops.slice(0,8).map(a=>`<button type="button" data-sym="${a.sym}">${a.sym} ${a.ai.conf}%</button>`).join('')}</span>`}
+  else{b.className='banner idle';b.innerHTML=`${dia(18,false)}<span>Monitoraggio BingX Futures in corso (nessuna top entry attiva al momento)</span>`}
 }
 function renderMain(){
   const a=bySym[sel],ai=a.ai,act=active(a),s=a.sig,top=isTop(a);
@@ -805,46 +772,46 @@ function renderMain(){
   $('#pGauge').classList.toggle('hot',top);
   const g=(ai.comb>=0?1:-1)*ai.conf,z=gMain((g+100)/2);
   $('#gNum').textContent=(g>0?'+':g<0?'−':'')+Math.abs(g)+'%';$('#gNum').style.color=zcol(z);
-  $('#gLab').textContent=act?(s.dir>0?'ENTRA LONG IA':'ENTRA SHORT IA'):'ATTENDI SETUP IA';$('#gLab').style.color=act?zcol(z):'var(--mute)';
+  $('#gLab').textContent=act?(s.dir>0?'ENTRA LONG':'ENTRA SHORT'):'ATTENDI SETUP';$('#gLab').style.color=act?zcol(z):'var(--mute)';
   $('#tfp').innerHTML=[15,60,240].map(k=>{const sc=ai.tf[k].score;return`<div><span class="mu">${k===240?'4H':k===60?'1H':'15M'}</span><span class="${sc>=15?'up':sc<=-15?'dn':'mu'}">${tfArrow(sc)} ${sg(sc)}</span></div>`}).join('');
   const r=remain(a);
   $('#vState').innerHTML=act?`<span class="pill ${top?'TOP':s.dir>0?'LONG':'SHORT'}">${top?'TOP · ':''}ATTIVO</span>`:`<span class="pill WAIT">${s&&s.state!=='ACTIVE'?stateTxt[s.state]:'NESSUN SEGNALE'}</span>`;
-  $('#nHead').textContent=`${a.bx}: Analisi IA &amp; Tecnica in Tempo Reale`;
-  $('#nSrc').textContent=`Fonte: BingX API V2 Swap + Modulo IA`;
+  $('#nHead').textContent=`${a.bx}: Analisi Tecnica in Tempo Reale`;
+  $('#nSrc').textContent=`Fonte: BingX API V2 Swap`;
   $('#nBadge').innerHTML=`<span class="pill ${ai.comb>=0?'LONG':'SHORT'}">${ai.comb>=0?'POSIZIONE LONG':'POSIZIONE SHORT'}</span>`;
   $('#nBar').innerHTML=`<i style="left:0;width:${clamp(50+ai.comb/2,0,100)}%;background:var(--gold)"></i>`;$('#nVal').textContent=sg(ai.comb);
   const none=!act,col=(c)=>`style="--c:var(${c})"`,dirTxt=act?(s.dir>0?'LONG':'SHORT'):'';
-  const rows=[['Entrata BingX (Market IA)',none?'—':`${dirTxt} @ ${money(a,s.entry)}`,'--dia'],['Leva consigliata IA',none?'—':`${s.lev[0]}x – ${s.lev[1]}x`,'--warn'],
-   ['Take Profit 1 (TP1)',none?'—':`${money(a,s.tp1)} (${pc(s.dir*(s.tp1/s.entry-1))})`,'--up'],['Take Profit 2 (TP2)',none?'—':`${money(a,s.tp2)} (${pc(s.dir*(s.tp2/s.entry-1))})`,'--up'],['Take Profit 3 (TP3)',none?'—':`${money(a,s.tp3)} (${pc(s.dir*(s.tp3/s.entry-1))})`,'--up'],
-   ['Stop Loss (SL)',none?'—':`${money(a,s.sl)} (${pc(-s.slPct)})`,'--dn'],['Rapporto R:R (TP2)',none?'—':'1 : 2.8','--c2']];
+  const rows=[['Entrata BingX (Market)',none?'—':`${dirTxt} @ ${money(a,s.entry)}`,'--dia'],['Leva consigliata',none?'—':`${s.lev[0]}x – ${s.lev[1]}x`,'--warn'],
+   ['Take Profit 1',none?'—':`${money(a,s.tp1)} (${pc(s.dir*(s.tp1/s.entry-1))})`,'--up'],['Take Profit 2',none?'—':`${money(a,s.tp2)} (${pc(s.dir*(s.tp2/s.entry-1))})`,'--up'],
+   ['Stop Loss',none?'—':`${money(a,s.sl)} (${pc(-s.slPct)})`,'--dn'],['Rapporto R:R',none?'—':'1 : 1,5 (TP1) · 1 : 3 (TP2)','--c2']];
   $('#exe').innerHTML=rows.map(([k,v,c])=>`<div><span ${col(c)}>${k}</span><b>${v}</b></div>`).join('');
   $('#exSub').textContent=`Contratto: ${a.bx}`;
   const tb=$('#topbox');
-  if(top){tb.className='topbox';tb.innerHTML=`<h3>${dia(14,true)} TOP CONFLUENZA IA BINGX (&gt;80%)</h3><ul>
+  if(top){tb.className='topbox';tb.innerHTML=`<h3>${dia(14,true)} TOP CONFLUENZA BINGX (&gt;80%)</h3><ul>
     <li>Contratto Futures: <b>${a.bx}</b></li>
     <li>Entrata immediata: MARKET ${s.dir>0?'BUY':'SELL'} su BingX.</li>
-    <li>TP1: ${money(a,s.tp1)} | TP2: ${money(a,s.tp2)} | TP3: ${money(a,s.tp3)}.</li>
+    <li>TP1: ${money(a,s.tp1)} | TP2: ${money(a,s.tp2)}.</li>
     <li>Stop Loss: ${money(a,s.sl)}.</li></ul>`}
-  else{tb.className='topbox idle';tb.innerHTML=`<h3>NESSUNA TOP CONFLUENZA IA</h3><ul><li>In attesa di segnali IA ad alta probabilità sul contratto ${a.bx}.</li></ul>`}
+  else{tb.className='topbox idle';tb.innerHTML=`<h3>NESSUNA TOP CONFLUENZA</h3><ul><li>In attesa di segnali ad alta probabilità sul contratto ${a.bx}.</li></ul>`}
   $('#cSym').textContent=a.sym;$('#cName').textContent=a.bx;$('#cPx').textContent=money(a,a.price);
   $('#cCh').innerHTML=`<span class="mono ${ai.ch24>=0?'up':'dn'}">${pc(ai.ch24)}</span>`;
-  const rowsT=[['Score IA',k=>sg(ai.tf[k].score)],['Segnale IA',k=>{const sc=ai.tf[k].score;return`<span class="${sc>=28?'up':sc<=-28?'dn':'mu'}">${sc>=28?'BUY':sc<=-28?'SELL':'NEUTRO'}</span>`}],
+  const rowsT=[['Score',k=>sg(ai.tf[k].score)],['Segnale',k=>{const sc=ai.tf[k].score;return`<span class="${sc>=28?'up':sc<=-28?'dn':'mu'}">${sc>=28?'BUY':sc<=-28?'SELL':'NEUTRO'}</span>`}],
     ['RSI 14',k=>fmtN(ai.tf[k].S.rsi.at(-1),1)],['MACD',k=>{const T=ai.tf[k],h=T.S.hist.at(-1);return`<span class="${h>=0?'up':'dn'}">${h>=0?'▲':'▼'}</span>`}],
-    ['Volatilità ATR (IA)',k=>fmtN(ai.tf[k].S.atr.at(-1)/a.price*100,2)+'%']];
+    ['Volatilità (ATR)',k=>fmtN(ai.tf[k].S.atr.at(-1)/a.price*100,2)+'%']];
   $('#tft').innerHTML=rowsT.map(([n,f])=>`<tr><td>${n}</td>${[15,60,240].map(k=>`<td>${f(k)}</td>`).join('')}</tr>`).join('');
-  $('#tfSub').textContent=`${a.bx} · Dati BingX IA`;
-  const ex=[['Confidenza IA',ai.conf+'%'],['Allineamento TF',fmtN(ai.agree*100,0)+'%'],['Score combinato',sg(ai.comb)],['Volume 24h','$' + compact(ai.vol24)],['Exchange','BingX Futures IA']];
+  $('#tfSub').textContent=`${a.bx} · Dati BingX`;
+  const ex=[['Confluenza',ai.conf+'%'],['Allineamento TF',fmtN(ai.agree*100,0)+'%'],['Score combinato',sg(ai.comb)],['Volume 24h','$' + compact(ai.vol24)],['Exchange','BingX Futures']];
   $('#extra').innerHTML=ex.map(([k,v])=>`<div><span>${k}</span><b style="font-weight:500">${v}</b></div>`).join('');
 }
 function renderOverview(){
   const avgC=assets.reduce((s,a)=>s+a.ai.comb,0)/assets.length;
   setG(gCry,$('#nCry'),$('#lCry'),clamp(50+avgC*1.6,0,100));
   const act=assets.filter(active).sort((x,y)=>y.ai.conf-x.ai.conf).slice(0,7);
-  $('#opps').innerHTML=act.map(a=>`<div class="dvr" role="button" tabindex="0" data-sym="${a.sym}"><b>${a.sym}</b><span class="bar2 dv"><i style="left:50%;width:${a.ai.conf/2}%;background:var(--up)"></i></span><span style="text-align:right">+${a.ai.conf}</span></div>`).join('')||'<div class="empty">Nessun segnale IA attivo.</div>';
+  $('#opps').innerHTML=act.map(a=>`<div class="dvr" role="button" tabindex="0" data-sym="${a.sym}"><b>${a.sym}</b><span class="bar2 dv"><i style="left:50%;width:${a.ai.conf/2}%;background:var(--up)"></i></span><span style="text-align:right">+${a.ai.conf}</span></div>`).join('')||'<div class="empty">Nessun segnale BingX attivo.</div>';
   $('#heat').innerHTML=`<div class="hg"><h3>Cripto Futures BingX</h3><div class="tiles">${assets.map(a=>{const c=a.ai.ch24,al=.12+clamp(Math.abs(c)/.04,0,1)*.6;
     return`<button type="button" class="tile" data-sym="${a.sym}" style="background:${c>=0?`rgba(46,230,166,${al})`:`rgba(255,90,118,${al})`}" aria-label="${a.sym} ${pc(c)}">${a.sym}<small>${pc(c)}</small></button>`}).join('')}</div></div>`;
   const cl={TOP:'var(--dia)',LONG:'var(--up)',SHORT:'var(--dn)',STOP:'var(--dn)',TP:'var(--up)'};
-  $('#log').innerHTML=logs.slice(0,14).map(e=>`<li><time>${hhmm(e.t)}</time><span style="font-weight:700;color:${cl[e.type]||'var(--ink2)'}">${e.type}</span><span>${e.txt}</span></li>`).join('')||'<li class="empty">In attesa di eventi IA BingX…</li>';
+  $('#log').innerHTML=logs.slice(0,14).map(e=>`<li><time>${hhmm(e.t)}</time><span style="font-weight:700;color:${cl[e.type]||'var(--ink2)'}">${e.type}</span><span>${e.txt}</span></li>`).join('')||'<li class="empty">In attesa di eventi BingX…</li>';
 }
 function renderAll(){
   renderBanner();renderMain();renderTable();drawChart();renderOverview();
@@ -929,10 +896,10 @@ def login():
     content = '''
     <!DOCTYPE html>
     <html lang="it">
-    <head><meta charset="UTF-8"><title>Login IA</title></head>
+    <head><meta charset="UTF-8"><title>Login</title></head>
     <body style="background:#06080c;color:#ece8dc;font-family:sans-serif;">
     <div style="max-width:380px;margin:80px auto;background:#0c1017;padding:25px;border:1px solid #2a3750;border-radius:4px;">
-        <h3 style="color:#d6b04c;text-align:center;margin-top:0;">ACCESSO BINGX IA</h3>
+        <h3 style="color:#d6b04c;text-align:center;margin-top:0;">ACCESSO BINGX</h3>
         <form method="POST">
             <p><label>Username</label><br><input type="text" name="username" required style="width:100%;padding:8px;background:#111722;border:1px solid #2a3750;color:#fff;margin-top:5px;box-sizing:border-box;"></p>
             <p><label>Password</label><br><input type="password" name="password" required style="width:100%;padding:8px;background:#111722;border:1px solid #2a3750;color:#fff;margin-top:5px;box-sizing:border-box;"></p>
