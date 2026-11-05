@@ -1,8 +1,6 @@
 import os
 import time
-import hmac
-import hashlib
-import urllib.parse
+import random
 import requests
 import sqlite3
 import threading
@@ -10,7 +8,6 @@ from flask import Flask, render_template_string, request, redirect, url_for, ses
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-# Genera una Secret Key dinamica se non presente su Render per invalidare vecchie sessioni se il server si riavvia
 app.secret_key = os.environ.get('SECRET_KEY', 'chiave_segreta_trading_ai_2026_saas_secure')
 
 # Configurazioni globali di sistema (lette esclusivamente da Render ENV)
@@ -54,7 +51,6 @@ def init_db():
 
 init_db()
 
-# Funzione per l'invio dei messaggi su Telegram da Render ENV
 def invia_messaggio_telegram(testo):
     token = os.environ.get('TELEGRAM_TOKEN', '')
     chat_id = os.environ.get('CHAT_ID', '')
@@ -85,7 +81,7 @@ def invia_messaggio_telegram(testo):
 def background_scanner():
     time.sleep(10)
     print("Background Scanner e modulo Telegram attivati...")
-    invia_messaggio_telegram("🤖 **SCANNER TRADING VIP BOT**\n\n🟢 Sistema online e attivo per la scansione dei mercati!")
+    invia_messaggio_telegram("🤖 **SCANNER TRADING VIP BOT**\n\n🟢 Sistema online e attivo per la scansione dei mercati e invio segnali istituzionali!")
     
     while True:
         try:
@@ -524,7 +520,16 @@ function analyze(a){
   const S=tf[15].S,i=S.c.length-1,atr=S.atr[i],price=a.price;
   const slPct=clamp(1.5*atr/price,.004,.03);
   
-  let lev = a.cls === 'cry' ? Math.floor(clamp(10 / (slPct * 100), 2, 10)) : Math.floor(clamp(5 / (slPct * 100), 2, 5));
+  // LEVA REALE CONSIGLIATA DINAMICA E PRECISA
+  let lev = 10;
+  if (a.cls === 'cry') {
+    lev = Math.round(clamp(12 / (slPct * 100), 2, 10));
+  } else if (a.cls === 'stk') {
+    lev = Math.round(clamp(6 / (slPct * 100), 2, 5));
+  } else {
+    lev = Math.round(clamp(8 / (slPct * 100), 2, 8));
+  }
+
   const tfRec=Math.abs(comb)>50?'15m':Math.abs(comb)>25?'1h':'4h';
   
   let verdict='HOLD';
@@ -706,7 +711,7 @@ function renderMain(){
   $('#anPlan').innerHTML=`
     <div style="display:flex;justify-content:space-between;align-items:center;"><span>Verdetto Balene</span><div style="text-align:right">${vText}</div></div>
     <div style="display:flex;justify-content:space-between"><span>Timeframe Analisi</span><b style="color:var(--gold)">${ai.tfRec}</b></div>
-    <div style="display:flex;justify-content:space-between"><span>Leva Reale Sicura</span><b style="color:var(--warn)">${ai.lev}x</b></div>
+    <div style="display:flex;justify-content:space-between"><span>Leva Reale Consigliata</span><b style="color:var(--warn)">${ai.lev}x</b></div>
     <div style="display:flex;justify-content:space-between"><span>Prezzo d'Ingresso</span><b style="color:var(--gold)">${money(a,a.price)}</b></div>`;
   
   $('#anTargets').innerHTML=`
@@ -784,7 +789,6 @@ window.addEventListener('DOMContentLoaded', boot);
 
 @app.route('/', methods=['GET', 'POST'])
 def home():
-    # CONTROLLO AUTENTICAZIONE RIGIDO: obbliga l'accesso se la sessione non esiste
     if 'user_id' not in session or 'username' not in session:
         return redirect(url_for('login'))
     
@@ -818,7 +822,6 @@ def home():
         flash("Preferenze e chiavi API salvate con successo!")
         return redirect(url_for('home'))
 
-    # Legge unicamente le API Key dell'utente corrente dal database
     user_api_key = ""
     user_secret_key = ""
     try:
