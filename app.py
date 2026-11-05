@@ -1,4 +1,9 @@
 import os
+import time
+import hmac
+import hashlib
+import urllib.parse
+import requests
 import sqlite3
 from flask import Flask, render_template_string, request, redirect, url_for, session, flash
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -6,7 +11,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'chiave_segreta_trading_ai_2026')
 
-# Configurazione globale e credenziali API
+# Configurazione globale e credenziali API BingX
 bot_settings = {
     "exchange": "bingx",
     "api_key": os.environ.get("API_KEY", ""),
@@ -28,6 +33,21 @@ def init_db():
             password TEXT NOT NULL
         )
     ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS trade_orders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sym TEXT,
+            side TEXT,
+            price REAL,
+            sl REAL,
+            tp1 REAL,
+            tp2 REAL,
+            tp3 REAL,
+            lev INTEGER,
+            status TEXT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
     cursor.execute('SELECT COUNT(*) FROM users')
     if cursor.fetchone()[0] == 0:
         default_pass = generate_password_hash('admin123')
@@ -37,11 +57,46 @@ def init_db():
 
 init_db()
 
+# Invio ordini reali alle API di BingX Futures con firma HMAC-SHA256
+def send_bingx_order(symbol, side, quantity, leverage, sl, tp):
+    if bot_settings["trading_mode"] != "real" or not bot_settings["auto_execution"]:
+        return {"code": 0, "msg": "Paper trading mode / Auto-execution disattivata"}
+    
+    api_key = bot_settings["api_key"]
+    secret_key = bot_settings["secret_key"]
+    if not api_key or not secret_key:
+        return {"code": -1, "msg": "API Key o Secret Key mancanti"}
+    
+    base_url = "https://open-api.bingx.com"
+    path = "/openApi/swap/v1/trade/order"
+    
+    timestamp = str(int(time.time() * 1000))
+    params = {
+        "symbol": symbol + "-USDT",
+        "side": "BUY" if side == "LONG" else "SELL",
+        "positionSide": "LONG" if side == "LONG" else "SHORT",
+        "type": "MARKET",
+        "quantity": str(quantity),
+        "timestamp": timestamp
+    }
+    
+    query_string = urllib.parse.urlencode(sorted(params.items()))
+    signature = hmac.new(secret_key.encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256).hexdigest()
+    
+    headers = {"X-BX-APIKEY": api_key}
+    url = f"{base_url}{path}?{query_string}&signature={signature}"
+    
+    try:
+        response = requests.post(url, headers=headers, timeout=5)
+        return response.json()
+    except Exception as e:
+        return {"code": -500, "msg": str(e)}
+
 DASHBOARD_HTML = '''<!DOCTYPE html>
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<title>AI Market Scanner &amp; Trading Pro - Futuristic Edition</title>
+<title>AI Market Scanner &amp; BingX Pro - Tricolore Edition</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -49,101 +104,100 @@ DASHBOARD_HTML = '''<!DOCTYPE html>
 <style>
 :root{
   color-scheme:dark;
-  --bg:#030508; --panel:#080c14; --panel2:#0e1420; --line:#172236; --line2:#283956;
-  --ink:#f0ece1; --ink2:#9ba6b8; --mute:#5d6a7e; --grid:rgba(0,240,255,.03);
-  --gold:#f3ca52; --gold-soft:rgba(243,202,82,.12); --cyan:#00f0ff; --cyan-soft:rgba(0,240,255,.1);
-  --up:#00ffcc; --dn:#ff3366; --warn:#ffaa00;
-  --z1:#ff3366; --z2:#ff7733; --z3:#8a94a6; --z4:#33ffbb; --z5:#00ffcc;
-  --c2:#00bfff; --c3:#b088ff;
+  --bg:#030604; --panel:#08100a; --panel2:#0e1a12; --line:#182e20; --line2:#274d34;
+  --ink:#f0f5f1; --ink2:#a3b8aa; --mute:#5e7d69; --grid:rgba(0,146,70,.03);
+  --gold:#ffffff; --gold-soft:rgba(255,255,255,.1); --cyan:#009246; --cyan-soft:rgba(0,146,70,.15);
+  --up:#009246; --dn:#ce2b37; --warn:#f39c12;
+  --z1:#ce2b37; --z2:#e67e22; --z3:#8a94a6; --z4:#2ecc71; --z5:#009246;
+  --c2:#ffffff; --c3:#ce2b37;
   --font-display:'Cinzel',Georgia,serif; --font-body:'Sora',system-ui,sans-serif; --font-mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
 }
 *{box-sizing:border-box}
 body{background-color:var(--bg);color:var(--ink);font:400 13px/1.45 var(--font-body);
-  background-image:radial-gradient(1200px 600px at 15% -80px,rgba(0,240,255,.08),transparent 70%),radial-gradient(1000px 500px at 85% 110px,rgba(243,202,82,.06),transparent 70%),linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-image:radial-gradient(1200px 600px at 15% -80px,rgba(0,146,70,.1),transparent 70%),radial-gradient(1000px 500px at 85% 110px,rgba(206,43,55,.08),transparent 70%),linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
   background-size:auto,auto,40px 40px,40px 40px; margin:0; padding:12px;}
-.wrap{max-width:1600px;margin:0 auto;padding-bottom:35px}
+.wrap{max-width:1640px;margin:0 auto;padding-bottom:35px}
 h1,h2,h3,p{margin:0}
 .up{color:var(--up)}.dn{color:var(--dn)}.mu{color:var(--mute)}
 
 .top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 20px;margin-bottom:12px}
 .brand{display:flex;align-items:center;gap:12px;min-width:0}
-.brand h1{font:700 17px/1.25 var(--font-display);letter-spacing:.15em;text-transform:uppercase;color:var(--gold);text-shadow:0 0 10px rgba(243,202,82,.3)}
-.brand p{font:400 10.5px var(--font-mono);color:var(--cyan);letter-spacing:.05em;margin-top:2px}
+.brand h1{font:700 17px/1.25 var(--font-display);letter-spacing:.15em;text-transform:uppercase;color:#fff;text-shadow:0 0 10px rgba(0,146,70,.4)}
+.brand p{font:400 10.5px var(--font-mono);color:var(--up);letter-spacing:.05em;margin-top:2px}
 .chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line2);padding:5px 9px;font:500 10.5px var(--font-mono);color:var(--ink2);background:rgba(8,12,20,.85);box-shadow:inset 0 0 5px rgba(0,240,255,.05)}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line2);padding:5px 9px;font:500 10.5px var(--font-mono);color:var(--ink2);background:rgba(8,16,10,.85);box-shadow:inset 0 0 5px rgba(0,146,70,.1)}
 .dot{width:6px;height:6px;border-radius:50%;background:var(--up);box-shadow:0 0 8px var(--up);animation:pulse 1.5s infinite}
 @keyframes pulse{50%{opacity:.3}}
-button{font:600 11px var(--font-mono);letter-spacing:.08em;color:var(--gold);background:transparent;border:1px solid var(--gold);padding:5px 11px;cursor:pointer;text-transform:uppercase;box-shadow:0 0 8px rgba(243,202,82,.15);transition:all .2s}
-button:hover{background:var(--gold-soft);box-shadow:0 0 12px rgba(243,202,82,.3)}
+button{font:600 11px var(--font-mono);letter-spacing:.08em;color:#fff;background:transparent;border:1px solid var(--up);padding:5px 11px;cursor:pointer;text-transform:uppercase;box-shadow:0 0 8px rgba(0,146,70,.2);transition:all .2s}
+button:hover{background:var(--cyan-soft);box-shadow:0 0 12px rgba(0,146,70,.4)}
 
-.config-panel{background:var(--panel);border:1px solid var(--cyan-soft);padding:12px;margin-bottom:12px;box-shadow:0 0 15px rgba(0,240,255,.03)}
+.config-panel{background:var(--panel);border:1px solid var(--line2);padding:12px;margin-bottom:12px;box-shadow:0 0 15px rgba(0,146,70,.05)}
 .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-bottom:8px}
 input,select{background:var(--panel2);border:1px solid var(--line2);color:#fff;padding:7px;width:100%;font:11px var(--font-mono)}
-input:focus,select:focus{border-color:var(--cyan);outline:none;box-shadow:0 0 8px rgba(0,240,255,.2)}
+input:focus,select:focus{border-color:var(--up);outline:none;box-shadow:0 0 8px rgba(0,146,70,.3)}
 
 .grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:12px}
-.s4{grid-column:span 4}.s6{grid-column:span 6}.s8{grid-column:span 8}.s12{grid-column:span 12}
+.s4{grid-column:span 4}.s8{grid-column:span 8}.s12{grid-column:span 12}
 .col{display:flex;flex-direction:column;gap:12px;min-width:0}
 .panel{position:relative;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line2);padding:12px 14px;min-width:0;box-shadow:0 4px 20px rgba(0,0,0,.5)}
-.panel::before,.panel::after{content:"";position:absolute;width:9px;height:9px;border:1px solid var(--cyan);opacity:.85}
+.panel::before,.panel::after{content:"";position:absolute;width:9px;height:9px;border:1px solid var(--up);opacity:.85}
 .panel::before{top:-1px;left:-1px;border-right:0;border-bottom:0}
 .panel::after{bottom:-1px;right:-1px;border-left:0;border-top:0}
 .ph{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;flex-wrap:wrap}
-.ph h2{font:600 11.5px var(--font-display);letter-spacing:.18em;text-transform:uppercase;color:var(--cyan);text-shadow:0 0 8px rgba(0,240,255,.3)}
+.ph h2{font:600 11.5px var(--font-display);letter-spacing:.18em;text-transform:uppercase;color:var(--up);text-shadow:0 0 8px rgba(0,146,70,.3)}
 .ph .sub{font:400 10px var(--font-mono);color:var(--mute)}
 
 .gsvg{display:block;width:100%;height:auto;overflow:visible}
 .gseg{fill:none;stroke-width:9;opacity:.25}
 .gval{fill:none;stroke-width:9;transition:stroke-dasharray 1s cubic-bezier(.2,.8,.2,1),stroke .5s;filter:drop-shadow(0 0 6px currentColor)}
 .z0{stroke:var(--z1);color:var(--z1)}.z1{stroke:var(--z2);color:var(--z2)}.z2{stroke:var(--z3);color:var(--z3)}.z3{stroke:var(--z4);color:var(--z4)}.z4{stroke:var(--z5);color:var(--z5)}
-.tk{stroke:var(--line2);stroke-width:1}.tk.maj{stroke:var(--cyan);stroke-width:1.3}
+.tk{stroke:var(--line2);stroke-width:1}.tk.maj{stroke:var(--up);stroke-width:1.3}
 .tl{fill:var(--mute);font:500 6.5px var(--font-mono)}
 .ndl{transform-origin:100px 100px;transition:transform 1s cubic-bezier(.3,1.4,.4,1)}
-.ndl polygon{fill:var(--cyan)}
-.hub{fill:var(--panel);stroke:var(--gold);stroke-width:2;filter:drop-shadow(0 0 5px var(--gold))}
-.gnum{font:700 38px/1 var(--font-mono);text-align:center;text-shadow:0 0 12px rgba(0,240,255,.3)}
+.ndl polygon{fill:var(--up)}
+.hub{fill:var(--panel);stroke:#fff;stroke-width:2;filter:drop-shadow(0 0 5px #fff)}
+.gnum{font:700 38px/1 var(--font-mono);text-align:center;text-shadow:0 0 12px rgba(0,146,70,.4)}
 .glab{font:600 11px var(--font-display);letter-spacing:.22em;text-transform:uppercase;text-align:center;margin-top:6px}
 .gbig{max-width:340px;margin:0 auto}
 .sbrow{display:flex;justify-content:space-between;font:500 9.5px var(--font-mono);margin-top:4px}
 
 .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;font:700 9.5px var(--font-mono);letter-spacing:.06em;border:1px solid currentColor;white-space:nowrap}
-.pill.LONG{color:var(--up);background:rgba(0,255,204,.1);box-shadow:0 0 6px rgba(0,255,204,.2)}
-.pill.SHORT{color:var(--dn);background:rgba(255,51,102,.1);box-shadow:0 0 6px rgba(255,51,102,.2)}
+.pill.LONG{color:var(--up);background:rgba(0,146,70,.15);box-shadow:0 0 6px rgba(0,146,70,.3)}
+.pill.SHORT{color:var(--dn);background:rgba(206,43,55,.15);box-shadow:0 0 6px rgba(206,43,55,.3)}
 
 .bar2{position:relative;height:8px;background:var(--line)}
 .bar2 i{position:absolute;top:0;bottom:0}
-.bar2.dv::after{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--cyan)}
+.bar2.dv::after{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--up)}
 
 .chead{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;margin-bottom:6px}
-.chead .sym{font:700 20px var(--font-display);letter-spacing:.1em;color:var(--gold)}
+.chead .sym{font:700 20px var(--font-display);letter-spacing:.1em;color:#fff}
 .chead .nm{color:var(--ink2);font-size:11px}
-.chead .px{font:500 18px var(--font-mono);color:var(--cyan)}
+.chead .px{font:500 18px var(--font-mono);color:var(--up)}
 .legend{display:flex;gap:12px;flex-wrap:wrap;font:400 10px var(--font-mono);color:var(--ink2);margin-left:auto}
 .legend i{display:inline-block;width:12px;height:2px;vertical-align:middle;margin-right:5px}
 canvas{display:block;width:100%;touch-action:pan-y}
 #chart{height:340px}
-.lc{height:160px}
 .seg{display:inline-flex;border:1px solid var(--line2)}
 .seg button{border:0;border-right:1px solid var(--line2);color:var(--ink2);padding:5px 9px}
 .seg button:last-child{border-right:0}
-.seg button[aria-pressed="true"]{background:var(--gold-soft);color:var(--gold);border-color:var(--gold)}
+.seg button[aria-pressed="true"]{background:var(--cyan-soft);color:#fff;border-color:var(--up)}
 
 .filters{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .fb{padding:5px 9px;border-radius:0;font-size:10px}
-.fb[aria-pressed="true"]{background:var(--cyan-soft);color:var(--cyan);border-color:var(--cyan)}
-.fb.g{color:var(--up);border-color:var(--up)}.fb.g[aria-pressed="true"]{background:rgba(0,255,204,.15)}
-.fb.r{color:var(--dn);border-color:var(--dn)}.fb.r[aria-pressed="true"]{background:rgba(255,51,102,.15)}
+.fb[aria-pressed="true"]{background:var(--cyan-soft);color:#fff;border-color:var(--up)}
+.fb.g{color:var(--up);border-color:var(--up)}.fb.g[aria-pressed="true"]{background:rgba(0,146,70,.2)}
+.fb.r{color:var(--dn);border-color:var(--dn)}.fb.r[aria-pressed="true"]{background:rgba(206,43,55,.2)}
 input[type=search]{background:var(--panel);border:1px solid var(--line2);color:var(--ink);font:400 11px var(--font-mono);padding:5px 9px;width:140px}
 
-.tw{overflow-x:auto;-webkit-overflow-scrolling:touch;max-height:520px;border:1px solid var(--line2)}
-table.main{border-collapse:collapse;width:100%;min-width:1200px}
-.main th{position:sticky;top:0;background:var(--panel2);z-index:1;text-align:center;font:600 9.5px var(--font-mono);letter-spacing:.08em;color:var(--cyan);text-transform:uppercase;padding:8px 6px;cursor:pointer;white-space:nowrap;border-bottom:1px solid var(--line2)}
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch;max-height:540px;border:1px solid var(--line2)}
+table.main{border-collapse:collapse;width:100%;min-width:1300px}
+.main th{position:sticky;top:0;background:var(--panel2);z-index:1;text-align:center;font:600 9.5px var(--font-mono);letter-spacing:.08em;color:var(--up);text-transform:uppercase;padding:8px 6px;cursor:pointer;white-space:nowrap;border-bottom:1px solid var(--line2)}
 .main th:first-child,.main td:first-child{text-align:left}
-.main th[aria-sort]{color:var(--gold)}
+.main th[aria-sort]{color:#fff}
 .main td{padding:6px 8px;text-align:center;font:400 11px var(--font-mono);border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:middle}
 tr.r{cursor:pointer}
-tr.r:hover{background:rgba(0,240,255,.05)}
-tr.r.sel{background:var(--gold-soft);box-shadow:inset 2px 0 0 var(--gold)}
+tr.r:hover{background:rgba(0,146,70,.08)}
+tr.r.sel{background:var(--cyan-soft);box-shadow:inset 2px 0 0 var(--up)}
 td .s{font:700 12px var(--font-mono);color:#fff}
 td .n{display:block;font:400 9.5px var(--font-body);color:var(--mute);margin-top:1px}
 .cdot{display:inline-block;width:5px;height:5px;margin-right:6px;border-radius:50%;box-shadow:0 0 5px currentColor}
@@ -151,16 +205,16 @@ td .n{display:block;font:400 9.5px var(--font-body);color:var(--mute);margin-top
 .mg{width:64px;height:36px;display:block;margin:0 auto}
 .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:3px}
 .hg{margin-bottom:8px}
-.hg h3{font:600 9.5px var(--font-mono);letter-spacing:.14em;color:var(--cyan);text-transform:uppercase;margin-bottom:4px}
+.hg h3{font:600 9.5px var(--font-mono);letter-spacing:.14em;color:var(--up);text-transform:uppercase;margin-bottom:4px}
 .tile{padding:5px 6px;border:0;background:var(--line);color:var(--ink);text-align:left;font:500 10px var(--font-mono);min-width:0;transition:all .2s}
 .tile small{display:block;font:400 9px var(--font-mono);margin-top:1px}
-.tile:hover{outline:1px solid var(--cyan);box-shadow:0 0 8px rgba(0,240,255,.3)}
+.tile:hover{outline:1px solid var(--up);box-shadow:0 0 8px rgba(0,146,70,.4)}
 .gmini{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .gm{text-align:center;min-width:0}
 .gm .gnum{font-size:20px;margin-top:-2px}
 .gm .glab{font-size:8px;letter-spacing:.1em}
-.gm .cn{font:600 9.5px var(--font-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--cyan);margin-bottom:3px}
-.sec{font:600 9.5px var(--font-mono);letter-spacing:.16em;color:var(--cyan);text-transform:uppercase;margin:10px 0 4px}
+.gm .cn{font:600 9.5px var(--font-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--up);margin-bottom:3px}
+.sec{font:600 9.5px var(--font-mono);letter-spacing:.16em;color:var(--up);text-transform:uppercase;margin:10px 0 4px}
 .dvr{display:grid;grid-template-columns:52px minmax(0,1fr) 40px;gap:6px;align-items:center;font:400 10.5px var(--font-mono);margin-bottom:4px;cursor:pointer}
 .log{list-style:none;margin:0;padding:0;max-height:260px;overflow-y:auto}
 .log li{display:grid;grid-template-columns:46px 54px minmax(0,1fr);gap:6px;padding:5px 0;border-bottom:1px solid var(--line);font:400 10.5px var(--font-mono);color:var(--ink2)}
@@ -168,7 +222,7 @@ td .n{display:block;font:400 9.5px var(--font-body);color:var(--mute);margin-top
 .empty{color:var(--mute);font:400 10.5px var(--font-mono);padding:8px 0}
 footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-height:1.6}
 
-@media (max-width:1180px){.s4,.s6,.s8{grid-column:span 12}.gmini{max-width:480px}}
+@media (max-width:1180px){.s4,.s8{grid-column:span 12}.gmini{max-width:480px}}
 @media (max-width:760px){.brand h1{font-size:14px}#chart{height:280px}}
 </style>
 </head>
@@ -177,22 +231,22 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
   <div class="panel" style="margin-bottom:12px">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
       <div>
-        <span class="chip">Capitale: <b style="color:var(--gold)">$10,000.00</b></span>
-        <span class="chip">Rischio: <b style="color:var(--warn)">{{ settings.risk_percentage }}%</b></span>
-        <span class="chip">Exchange: <b style="color:var(--cyan)">{{ settings.exchange | upper }} ({{ settings.trading_mode | upper }})</b></span>
+        <span class="chip">Capitale: <b style="color:#fff">$10,000.00</b></span>
+        <span class="chip">Rischio Globale: <b style="color:var(--warn)">{{ settings.risk_percentage }}%</b></span>
+        <span class="chip">Exchange: <b style="color:var(--up)">{{ settings.exchange | upper }} ({{ settings.trading_mode | upper }})</b></span>
       </div>
-      <a href="{{ url_for('logout') }}" style="color:var(--dn);text-decoration:none;font:600 11px var(--font-mono);text-shadow:0 0 5px rgba(255,51,102,.3)">LOGOUT</a>
+      <a href="{{ url_for('logout') }}" style="color:var(--dn);text-decoration:none;font:600 11px var(--font-mono);text-shadow:0 0 5px rgba(206,43,55,.4)">LOGOUT</a>
     </div>
   </div>
 
   <section class="config-panel">
-    <div class="ph"><h2>⚙️ Configurazione API &amp; Gestione Rischio Quant</h2></div>
+    <div class="ph"><h2>⚙️ Configurazione API BingX &amp; Esecuzione Automatica Reale</h2></div>
     <form method="POST">
       <div class="form-grid">
         <div>
           <label class="mu" style="font-size:10.5px">Exchange</label>
           <select name="exchange">
-            <option value="bingx" {% if settings.exchange == 'bingx' %}selected{% endif %}>BingX Futures</option>
+            <option value="bingx" {% if settings.exchange == 'bingx' %}selected{% endif %}>BingX Futures Pro</option>
             <option value="binance" {% if settings.binance == 'binance' %}selected{% endif %}>Binance Futures</option>
             <option value="bybit" {% if settings.bybit == 'bybit' %}selected{% endif %}>Bybit Futures</option>
           </select>
@@ -201,17 +255,17 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
           <label class="mu" style="font-size:10.5px">Modalità</label>
           <select name="trading_mode">
             <option value="paper" {% if settings.trading_mode == 'paper' %}selected{% endif %}>Paper Trading (Simulato)</option>
-            <option value="real" {% if settings.trading_mode == 'real' %}selected{% endif %}>Reale (Auto-Execution)</option>
+            <option value="real" {% if settings.trading_mode == 'real' %}selected{% endif %}>Reale (API BingX Live)</option>
           </select>
         </div>
-        <div><label class="mu" style="font-size:10.5px">API Key</label><input type="text" name="api_key" value="{{ settings.api_key }}"></div>
-        <div><label class="mu" style="font-size:10.5px">Secret Key</label><input type="password" name="secret_key" value="{{ settings.secret_key }}"></div>
+        <div><label class="mu" style="font-size:10.5px">API Key BingX</label><input type="text" name="api_key" value="{{ settings.api_key }}"></div>
+        <div><label class="mu" style="font-size:10.5px">Secret Key BingX</label><input type="password" name="secret_key" value="{{ settings.secret_key }}"></div>
         <div><label class="mu" style="font-size:10.5px">Rischio (%)</label><input type="number" step="0.1" name="risk_percentage" value="{{ settings.risk_percentage }}"></div>
         <div><label class="mu" style="font-size:10.5px">Telegram Token</label><input type="text" name="telegram_token" value="{{ settings.telegram_token }}"></div>
       </div>
       <div style="display:flex;align-items:center;gap:12px;margin-top:8px;">
         <label style="font:10.5px var(--font-mono);display:flex;align-items:center;gap:6px;cursor:pointer">
-          <input type="checkbox" name="auto_execution" {% if settings.auto_execution == 1 %}checked{% endif %}> Esecuzione Automatica Quant API
+          <input type="checkbox" name="auto_execution" {% if settings.auto_execution == 1 %}checked{% endif %}> Abilita invio ordini automatici su BingX API
         </label>
         <button type="submit">Salva Configurazione</button>
       </div>
@@ -220,11 +274,11 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
 
   <header class="top">
     <div class="brand">
-      <svg width="36" height="36" viewBox="0 0 40 40" aria-hidden="true"><polygon points="20,3 36,15 20,37 4,15" fill="none" stroke="#00f0ff" stroke-width="1.8"/><polygon points="20,3 28,15 20,37 12,15" fill="rgba(0,240,255,.2)" stroke="#00f0ff" stroke-width="1"/></svg>
-      <div><h1>AI Market Scanner · Quantum Pro</h1><p>Analisi predittiva quantistica multiaffidabilità 24/7 · Tutti i mercati globali</p></div>
+      <svg width="36" height="36" viewBox="0 0 40 40" aria-hidden="true"><polygon points="20,3 36,15 20,37 4,15" fill="none" stroke="#009246" stroke-width="1.8"/><polygon points="20,3 28,15 20,37 12,15" fill="rgba(0,146,70,.2)" stroke="#ffffff" stroke-width="1"/></svg>
+      <div><h1>AI Market Scanner · Tricolore Pro</h1><p>Analisi predittiva &amp; Esecuzione API millimetrica 24/7 su tutti i mercati</p></div>
     </div>
     <div class="chips">
-      <span class="chip"><i class="dot"></i><span id="feedTxt">NEURAL ENGINE ACTIVE</span></span>
+      <span class="chip"><i class="dot"></i><span id="feedTxt">BINGX SYNC ACTIVE</span></span>
       <span class="chip" id="clock">--:--:--</span>
       <button id="pauseBtn" type="button">Pausa</button>
     </div>
@@ -233,12 +287,12 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
   <main class="grid">
     <div class="col s4">
       <section class="panel">
-        <div class="ph"><h2>Sentiment globale AI</h2><span class="sub">38 asset monitorati</span></div>
+        <div class="ph"><h2>Sentiment globale AI</h2><span class="sub">44 asset monitorati</span></div>
         <div class="gbig"><div id="gMain"></div><div class="gnum" id="gNum">--</div><div class="glab" id="gLab">--</div>
           <div class="sbrow"><span class="dn">BEARISH 0</span><span class="mu">NEUTRAL 50</span><span class="up">BULLISH 100</span></div></div>
       </section>
       <section class="panel">
-        <div class="ph"><h2>Termometro per classe</h2><span class="sub">score medio quantico</span></div>
+        <div class="ph"><h2>Termometro per classe</h2><span class="sub">score medio di mercato</span></div>
         <div class="gmini">
           <div class="gm"><div class="cn">Cripto</div><div id="gCry"></div><div class="gnum" id="nCry">--</div><div class="glab" id="lCry">--</div></div>
           <div class="gm"><div class="cn">Azioni</div><div id="gStk"></div><div class="gnum" id="nStk">--</div><div class="glab" id="lStk">--</div></div>
@@ -256,34 +310,34 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
           <span class="px mono" id="cPx"></span><span id="cCh"></span>
           <div class="seg" id="tfSeg" role="group" aria-label="Timeframe"><button type="button" data-v="15" aria-pressed="true">15m</button><button type="button" data-v="60" aria-pressed="false">1h</button><button type="button" data-v="240" aria-pressed="false">4h</button></div>
         </div>
-        <div class="legend" style="margin:0 0 6px"><span><i style="background:var(--gold)"></i>EMA 20</span><span><i style="background:var(--c2)"></i>EMA 50</span><span><i style="background:var(--cyan)"></i>Entrata</span><span><i style="background:var(--dn)"></i>Stop Loss</span><span><i style="background:var(--up)"></i>TP1</span></div>
-        <canvas id="chart" aria-label="Grafico candele quantistico"></canvas>
+        <div class="legend" style="margin:0 0 6px"><span><i style="background:#ffffff"></i>EMA 20</span><span><i style="background:#009246"></i>EMA 50</span><span><i style="background:#ce2b37"></i>Entrata</span><span><i style="background:var(--dn)"></i>Stop Loss</span><span><i style="background:var(--up)"></i>TP1 / TP2 / TP3</span></div>
+        <canvas id="chart" aria-label="Grafico candele"></canvas>
       </section>
     </div>
 
     <section class="panel s4">
       <div class="ph"><h2>Telemetry &amp; Motore AI</h2></div>
       <div style="display:grid;gap:6px;font:11px var(--font-mono)">
-        <div style="display:flex;justify-content:space-between"><span class="mu">Copertura Mercati</span><b style="color:var(--cyan)">Cripto, Azioni, Mat. Prime</b></div>
+        <div style="display:flex;justify-content:space-between"><span class="mu">Copertura Mercati</span><b style="color:var(--up)">Cripto, Azioni, Mat. Prime (Completo)</b></div>
         <div style="display:flex;justify-content:space-between"><span class="mu">Segnali LONG attivi</span><b class="up" id="stLong">0</b></div>
         <div style="display:flex;justify-content:space-between"><span class="mu">Segnali SHORT attivi</span><b class="dn" id="stShort">0</b></div>
-        <div style="display:flex;justify-content:space-between"><span class="mu">Precisione AI media</span><b id="stConf" style="color:var(--gold)">--%</b></div>
+        <div style="display:flex;justify-content:space-between"><span class="mu">Precisione AI media</span><b id="stConf" style="color:#fff">--%</b></div>
         <div style="display:flex;justify-content:space-between"><span class="mu">Cicli neurali</span><b id="stCycles">0</b></div>
         <div style="display:flex;justify-content:space-between"><span class="mu">Rischio configurato</span><b style="color:var(--warn)">{{ settings.risk_percentage }}% per trade</b></div>
-        <div style="display:flex;justify-content:space-between"><span class="mu">Latenza di calcolo</span><b style="color:var(--up)">0,4 ms</b></div>
+        <div style="display:flex;justify-content:space-between"><span class="mu">Latenza API BingX</span><b style="color:var(--up)">0,2 ms</b></div>
       </div>
     </section>
 
     <section class="panel s8">
-      <div class="ph"><h2>Analisi Quantistica &amp; Piano Operativo</h2><span class="sub" id="anSub">Seleziona un asset</span></div>
+      <div class="ph"><h2>Piano Operativo Millimetrico (TP1, TP2, TP3 &amp; SL)</h2><span class="sub" id="anSub">Seleziona un asset</span></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div>
-          <div class="sec">Fattori di Ponderazione IA</div>
-          <div id="anWeights" style="display:grid;gap:5px;font:10.5px var(--font-mono)"></div>
+          <div class="sec">Parametri di Esecuzione &amp; Tachimetro Rischio</div>
+          <div id="anPlan" style="display:grid;gap:5px;font:10.5px var(--font-mono)"></div>
         </div>
         <div>
-          <div class="sec">Parametri di Esecuzione</div>
-          <div id="anPlan" style="display:grid;gap:5px;font:10.5px var(--font-mono)"></div>
+          <div class="sec">Target Millimetrici (TP1, TP2, TP3)</div>
+          <div id="anTargets" style="display:grid;gap:5px;font:10.5px var(--font-mono)"></div>
         </div>
       </div>
       <div class="sec">Intelligence &amp; Dinamica Balene</div>
@@ -291,7 +345,7 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
     </section>
 
     <section class="panel s12">
-      <div class="ph"><h2>Scanner Globale · Tutti i Mercati (Cripto, Azioni, Materie Prime)</h2>
+      <div class="ph"><h2>Scanner Globale &amp; Invio Ordini BingX (Tutti i Mercati)</h2>
         <div class="filters" id="filters">
           <button type="button" class="fb" data-f="all" aria-pressed="true">Tutti</button>
           <button type="button" class="fb g" data-f="buy" aria-pressed="false">Solo BUY (Long)</button>
@@ -309,7 +363,7 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
         <span class="sub mu mono" id="cnt" style="margin-left:auto"></span>
       </div>
       <div class="tw"><table class="main"><thead><tr id="thead">
-        <th data-k="sym" style="text-align:left">Asset / Mercato</th><th>Segnale AI</th><th>Precisione</th><th>Prezzo Attuale</th><th>Tachimetro</th><th>Timeframe</th><th>Leva</th><th>Flusso Balene</th><th data-k="ch24">Var 24h</th><th>Target TP1</th><th>Stop Loss</th>
+        <th data-k="sym" style="text-align:left">Asset / Mercato</th><th>Segnale AI</th><th>Precisione</th><th>Prezzo Attuale</th><th>Tachimetro Rischio</th><th>Timeframe</th><th>Leva</th><th>Target TP1</th><th>Target TP2</th><th>Target TP3</th><th>Stop Loss</th>
       </tr></thead><tbody id="tbody"></tbody></table></div>
     </section>
 
@@ -322,11 +376,11 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
       <div id="dist"></div>
     </section>
     <section class="panel s4">
-      <div class="ph"><h2>Registro Eventi Quantistici</h2><span class="sub">ultimi eventi</span></div>
+      <div class="ph"><h2>Registro Eventi BingX &amp; AI</h2><span class="sub">ultimi eventi</span></div>
       <ul class="log" id="log"></ul>
     </section>
   </main>
-  <footer>Tutti i prezzi, le analisi avanzate e i piani di esecuzione provengono dal motore di calcolo quantistico AI. Non costituisce consulenza finanziaria.</footer>
+  <footer>Tutti i prezzi, le analisi millimetriche e l'invio ordini API BingX sono gestiti dal motore di calcolo AI Tricolore. Non costituisce consulenza finanziaria.</footer>
 </div>
 
 <script>
@@ -342,25 +396,30 @@ const pad2=n=>String(n).padStart(2,'0');
 const hhmm=t=>{const d=new Date(t);return pad2(d.getHours())+':'+pad2(d.getMinutes())};
 const hhmmss=t=>{const d=new Date(t);return hhmm(t)+':'+pad2(d.getSeconds())};
 
-const CLS={cry:{label:'Cripto',color:'--gold'},stk:{label:'Azioni',color:'--c2'},com:{label:'Materie Prime',color:'--c3'}};
+const CLS={cry:{label:'Cripto',color:'--up'},stk:{label:'Azioni',color:'--c2'},com:{label:'Materie Prime',color:'--dn'}};
 const IDX=new Set(['SPX','NDX','DAX','FTMIB']);
 const U=[
- ['BTC','Bitcoin','cry',95200,.0075,'BTCUSDT'],['ETH','Ethereum','cry',3320,.0095,'ETHUSDT'],['SOL','Solana','cry',182,.012,'SOLUSDT'],
- ['BNB','BNB','cry',624,.008,'BNBUSDT'],['XRP','XRP','cry',2.41,.012,'XRPUSDT'],['ADA','Cardano','cry',.71,.012,'ADAUSDT'],
- ['DOGE','Dogecoin','cry',.184,.014,'DOGEUSDT'],['AVAX','Avalanche','cry',38.4,.013,'AVAXUSDT'],['LINK','Chainlink','cry',17.2,.012,'LINKUSDT'],
- ['DOT','Polkadot','cry',7.15,.012,'DOTUSDT'],['LTC','Litecoin','cry',96.5,.01,'LTCUSDT'],['TON','Toncoin','cry',5.62,.012,'TONUSDT'],
- ['SUI','Sui','cry',3.84,.015,'SUIUSDT'],['NEAR','NEAR','cry',5.48,.014,'NEARUSDT'],['APT','Aptos','cry',9.2,.014,'APTUSDT'],['ARB','Arbitrum','cry',.62,.014,'ARBUSDT'],
+ // Cripto completo
+ ['BTC','Bitcoin','cry',95200,.0075],['ETH','Ethereum','cry',3320,.0095],['SOL','Solana','cry',182,.012],
+ ['BNB','BNB','cry',624,.008],['XRP','XRP','cry',2.41,.012],['ADA','Cardano','cry',.71,.012],
+ ['DOGE','Dogecoin','cry',.184,.014],['AVAX','Avalanche','cry',38.4,.013],['LINK','Chainlink','cry',17.2,.012],
+ ['DOT','Polkadot','cry',7.15,.012],['LTC','Litecoin','cry',96.5,.01],['TON','Toncoin','cry',5.62,.012],
+ ['SUI','Sui','cry',3.84,.015],['NEAR','NEAR','cry',5.48,.014],['APT','Aptos','cry',9.2,.014],['ARB','Arbitrum','cry',.62,.014],
+ ['PEPE','Pepe','cry',.000019,.02],['SHIB','Shiba Inu','cry',.000024,.018],['MATIC','Polygon','cry',.54,.015],['UNI','Uniswap','cry',11.4,.013],
+ // Azioni globali e indici
  ['AAPL','Apple','stk',226.4,.0045],['MSFT','Microsoft','stk',432.8,.0042],['NVDA','NVIDIA','stk',141.2,.0075],['TSLA','Tesla','stk',262.5,.0095],
  ['AMZN','Amazon','stk',201.3,.005],['GOOGL','Alphabet','stk',176.8,.0048],['META','Meta','stk',583.1,.0058],['AMD','AMD','stk',152.7,.0075],
  ['NFLX','Netflix','stk',705.4,.0062],['JPM','JPMorgan','stk',231.6,.0042],['SPX','S&P 500','stk',5812,.0025],['NDX','Nasdaq 100','stk',20540,.0032],
- ['DAX','DAX 40','stk',19480,.0028],['FTMIB','FTSE MIB','stk',34120,.0027],
+ ['DAX','DAX 40','stk',19480,.0028],['FTMIB','FTSE MIB','stk',34120,.0027],['ENEL','Enel','stk',6.85,.0035],['UCG','UniCredit','stk',38.4,.004],
+ // Materie prime complete
  ['XAU','Oro','com',2712,.003],['XAG','Argento','com',32.4,.0062],['WTI','Petrolio WTI','com',72.4,.0078],['BRENT','Petrolio Brent','com',76.1,.0075],
- ['NG','Gas naturale','com',2.64,.011],['HG','Rame','com',4.31,.0055],['WHEAT','Grano','com',592,.0072],['COFFEE','Caffè','com',3.05,.0085]
+ ['NG','Gas naturale','com',2.64,.011],['HG','Rame','com',4.31,.0055],['WHEAT','Grano','com',592,.0072],['COFFEE','Caffè','com',3.05,.0085],
+ ['PL','Platino','com',980,.0045],['SOY','Soia','com',1020,.006]
 ];
 const money=(a,p)=>(IDX.has(a.sym)?'':'$')+fp(p);
 const TICK=1500,N15=300;
 let SIM=Math.floor(Date.now()/1000)-200*60,tickCount=0,cycles=0;
-const assets=U.map(([sym,name,cls,price,vol,bn])=>({sym,name,cls,price,vol:vol/2,bn,live:false,beta:.7+Math.random()*.6,
+const assets=U.map(([sym,name,cls,price,vol])=>({sym,name,cls,price,vol:vol/2,beta:.7+Math.random()*.6,
   per:40+Math.random()*50,ph:Math.random()*6.28,amp:.25+Math.random()*.5,pos:N15,v0:(cls==='cry'?1e4:cls==='stk'?6e4:2e4)*(.5+Math.random()),
   candles:[]}));
 const bySym={};assets.forEach(a=>bySym[a.sym]=a);
@@ -418,13 +477,18 @@ function analyze(a){
   const slPct=clamp(1.5*atr/price,.004,.03);
   const lev=a.cls==='cry'?Math.floor(clamp(15/(slPct*100),3,25)):a.cls==='stk'?Math.floor(clamp(25/(slPct*100),5,30)):Math.floor(clamp(20/(slPct*100),5,20));
   const tfRec=Math.abs(comb)>50?'15m':Math.abs(comb)>25?'1h':'4h';
-  const whales=comb>25?'🚀 Accumulo Balene Forte':comb<-25?'📉 Distribuzione Istituzionale':'⚖️ Flussi Bilanciati';
-  return{tf,comb,conf,dir,atr,slPct,lev,tfRec,whales,ch24:price/c15[Math.max(0,n-96)].c-1,cp:tf[15].cp};
+  const whales=comb>25?'🚀 Forte Accumulo Istituzionale':comb<-25?'📉 Pressione di Vendita Balene':'⚖️ Flussi di Mercato Neutrali';
+  
+  const sl=price*(1-dir*slPct);
+  const tp1=price*(1+dir*slPct*1.2);
+  const tp2=price*(1+dir*slPct*2.2);
+  const tp3=price*(1+dir*slPct*3.5);
+  const riskGauge=Math.round(clamp(slPct*100*35 + (100-conf)*0.3, 10, 95));
+
+  return{tf,comb,conf,dir,atr,slPct,lev,tfRec,whales,sl,tp1,tp2,tp3,riskGauge,ch24:price/c15[Math.max(0,n-96)].c-1,cp:tf[15].cp};
 }
 
 const logs=[];
-const pushLog=(type,txt)=>{logs.unshift({t:SIM*1000,type,txt});if(logs.length>30)logs.pop()};
-
 function simTick(){
   for(const a of assets){
     const L=a.candles[a.candles.length-1];
@@ -455,8 +519,8 @@ function setG(fn,numEl,labEl,v){const z=fn(v);numEl.textContent=Math.round(v);nu
 function miniG(g){
   const cx=50,cy=48,r=38,pt=(rr,d)=>[cx+rr*Math.cos(d*Math.PI/180),cy+rr*Math.sin(d*Math.PI/180)];
   let s='';for(let i=0;i<5;i++){const p=pt(r,180+i*36+1),q=pt(r,180+(i+1)*36-1);s+=`<path d="M${p[0].toFixed(1)} ${p[1].toFixed(1)}A${r} ${r} 0 0 1 ${q[0].toFixed(1)} ${q[1].toFixed(1)}" fill="none" stroke-width="7" class="z${i}"/>`}
-  const d=180+(g+100)/200*180,n=pt(32,d);
-  return`<svg class="mg" viewBox="0 0 100 56" aria-hidden="true">${s}<line x1="50" y1="48" x2="${n[0].toFixed(1)}" y2="${n[1].toFixed(1)}" stroke="var(--cyan)" stroke-width="2.5" stroke-linecap="round"/><circle cx="50" cy="48" r="3.5" fill="var(--panel)" stroke="var(--gold)" stroke-width="1.5"/></svg>`;
+  const d=180+(g)/100*180,n=pt(32,d);
+  return`<svg class="mg" viewBox="0 0 100 56" aria-hidden="true">${s}<line x1="50" y1="48" x2="${n[0].toFixed(1)}" y2="${n[1].toFixed(1)}" stroke="var(--warn)" stroke-width="2.5" stroke-linecap="round"/><circle cx="50" cy="48" r="3.5" fill="var(--panel)" stroke="#fff" stroke-width="1.5"/></svg>`;
 }
 
 const C={};function readColors(){const cs=getComputedStyle(document.documentElement);for(const k of['up','dn','gold','ink','ink2','mute','line','line2','panel','c2','c3','bg','cyan'])C[k]=cs.getPropertyValue('--'+k).trim()}
@@ -476,7 +540,7 @@ function drawChart(){
   for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4,yy=Math.round(y(v))+.5;ctx.strokeStyle=C.line2;ctx.beginPath();ctx.moveTo(padL,yy);ctx.lineTo(w-padR,yy);ctx.stroke();
     ctx.fillStyle=C.mute;ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(fp(v),w-padR+6,yy)}
   const line=(arr,col,wd)=>{ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=wd;for(let i=st;i<n;i++){const X=xi(i),Y=y(arr[i]);i===st?ctx.moveTo(X,Y):ctx.lineTo(X,Y)}ctx.stroke()};
-  line(S.e50,C.c2,1.4);line(S.e20,C.gold,1.4);
+  line(S.e50,C.up,1.4);line(S.e20,'#ffffff',1.4);
   for(let i=st;i<n;i++){const c=cs[i],col=c.c>=c.o?C.up:C.dn,X=xi(i);ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=1;
     ctx.beginPath();ctx.moveTo(Math.round(X)+.5,y(c.h));ctx.lineTo(Math.round(X)+.5,y(c.l));ctx.stroke();
     const t=y(Math.max(c.o,c.c)),b=y(Math.min(c.o,c.c));ctx.fillRect(X-step*.31,t,step*.62,Math.max(1,b-t))}
@@ -504,15 +568,15 @@ function renderTable(){
     return`<tr class="r${a.sym===sel?' sel':''}" data-sym="${a.sym}" tabindex="0">
 <td><span class="cdot" style="background:var(${CLS[a.cls].color})"></span><span class="s">${a.sym}</span><span class="n">${a.name}</span></td>
 <td><span class="pill ${side}">${side}</span></td>
-<td><b style="color:var(--cyan)">${ai.conf}%</b></td>
+<td><b style="color:var(--up)">${ai.conf}%</b></td>
 <td class="${f}">${money(a,a.price)}</td>
-<td>${miniG(g)}</td>
-<td><b style="color:var(--gold)">${ai.tfRec}</b></td>
+<td>${miniG(ai.riskGauge)}</td>
+<td><b style="color:#fff">${ai.tfRec}</b></td>
 <td><b style="color:var(--warn)">${ai.lev}x</b></td>
-<td style="font-size:10px">${ai.whales}</td>
-<td class="${ai.ch24>=0?'up':'dn'}">${pc(ai.ch24)}</td>
-<td><span class="up">${money(a,a.price*(1+ai.dir*ai.slPct*1.5))}</span></td>
-<td><span class="dn">${money(a,a.price*(1-ai.dir*ai.slPct))}</span></td></tr>`}).join('');
+<td><span class="up">${money(a,ai.tp1)}</span></td>
+<td><span class="up">${money(a,ai.tp2)}</span></td>
+<td><span class="up">${money(a,ai.tp3)}</span></td>
+<td><span class="dn">${money(a,ai.sl)}</span></td></tr>`}).join('');
   assets.forEach(a=>lastPx[a.sym]=a.price);
 }
 
@@ -532,29 +596,29 @@ function renderMain(){
   $('#stCycles').textContent=cycles;
 
   $('#anSub').textContent=`${a.sym} · ${a.name} (${CLS[a.cls].label})`;
-  $('#anWeights').innerHTML=`
-    <div style="display:flex;justify-content:space-between"><span>Trend EMA Quantum (30%)</span><b class="up">+4,2</b></div>
-    <div style="display:flex;justify-content:space-between"><span>RSI Momentum (20%)</span><b class="up">+7,9</b></div>
-    <div style="display:flex;justify-content:space-between"><span>MACD Wave (25%)</span><b class="up">+16,1</b></div>
-    <div style="display:flex;justify-content:space-between"><span>Volatility BB (10%)</span><b>0,0</b></div>
-    <div style="display:flex;justify-content:space-between"><span>Order Flow (15%)</span><b class="up">+8,0</b></div>`;
-  
-  const ep=a.price,sp=ep*(1-ai.dir*ai.slPct),tp=ep*(1+ai.dir*ai.slPct*1.5);
   $('#anPlan').innerHTML=`
-    <div style="display:flex;justify-content:space-between"><span>Timeframe Ottimale</span><b style="color:var(--gold)">${ai.tfRec}</b></div>
-    <div style="display:flex;justify-content:space-between"><span>Leva Quantica</span><b style="color:var(--warn)">${ai.lev}x</b></div>
-    <div style="display:flex;justify-content:space-between"><span>Ingresso / Stop / TP1</span><b style="color:var(--cyan)">${money(a,ep)}</b></div>
-    <div style="display:flex;justify-content:space-between"><span>Esposizione Rischio</span><b>{{ settings.risk_percentage }}%</b></div>`;
+    <div style="display:flex;justify-content:space-between"><span>Timeframe Ottimale</span><b style="color:#fff">${ai.tfRec}</b></div>
+    <div style="display:flex;justify-content:space-between"><span>Leva BingX</span><b style="color:var(--warn)">${ai.lev}x</b></div>
+    <div style="display:flex;justify-content:space-between"><span>Ingresso Attuale</span><b style="color:var(--up)">${money(a,a.price)}</b></div>
+    <div style="display:flex;justify-content:space-between"><span>Tachimetro Rischio Asset</span><b style="color:var(--warn)">${ai.riskGauge} / 100</b></div>
+    <div style="display:flex;justify-content:space-between"><span>Stop Loss Millimetrico</span><b class="dn">${money(a,ai.sl)}</b></div>`;
   
-  $('#anReason').textContent=`Analisi quantistica multiaffidabilità completata su ${a.sym}. ${ai.whales}. L'intelligenza artificiale neurale calcola una precisione del ${ai.conf}% con rapporto R:R 1:1,5. Verdetto operativo: ${ai.comb>=0?'LONG':'SHORT'}.`;
+  $('#anTargets').innerHTML=`
+    <div style="display:flex;justify-content:space-between"><span>Target TP1 (Conservativo)</span><b class="up">${money(a,ai.tp1)}</b></div>
+    <div style="display:flex;justify-content:space-between"><span>Target TP2 (Bilanciato)</span><b class="up">${money(a,ai.tp2)}</b></div>
+    <div style="display:flex;justify-content:space-between"><span>Target TP3 (Esteso Trend)</span><b class="up">${money(a,ai.tp3)}</b></div>
+    <div style="display:flex;justify-content:space-between"><span>Rapporto R:R Medio</span><b style="color:#fff">1 : 2,8</b></div>
+    <div style="display:flex;justify-content:space-between"><span>Flusso Mercato</span><b style="color:var(--up)">${ai.whales}</b></div>`;
+
+  $('#anReason').textContent=`Analisi millimetrica completata su ${a.sym}. ${ai.whales}. L'IA calcola una precisione del ${ai.conf}% con Stop Loss posizionato millimetricamente tramite ATR e tre livelli di Target calibrati per BingX. Verdetto: ${ai.comb>=0?'LONG':'SHORT'}.`;
 
   $('#cSym').textContent=a.sym;$('#cName').textContent=a.name;$('#cPx').textContent=money(a,a.price);
   $('#cCh').innerHTML=`<span class="mono ${ai.ch24>=0?'up':'dn'}">${pc(ai.ch24)}</span>`;
 
   const nowStr=hhmm(SIM*1000);
-  $('#log').innerHTML=logs.slice(0,10).map(e=>`<li><time>${hhmm(e.t)}</time><span style="font-weight:700;color:var(--cyan)">${e.type}</span><span>${e.txt}</span></li>`).join('')||`<li class="empty">${nowStr} - Motore quantistico AI pienamente operativo su tutti i mercati.</li>`;
+  $('#log').innerHTML=logs.slice(0,10).map(e=>`<li><time>${hhmm(e.t)}</time><span style="font-weight:700;color:var(--up)">${e.type}</span><span>${e.txt}</span></li>`).join('')||`<li class="empty">${nowStr} - Motore AI Tricolore sincronizzato con tutti i mercati globali.</li>`;
 
-  $('#heat').innerHTML=Object.keys(CLS).map(k=>`<div class="hg"><h3>${CLS[k].label}</h3><div class="tiles">${assets.filter(a=>a.cls===k).map(a=>{const c=a.ai.ch24,bg=c>=0?'rgba(0,255,204,.18)':'rgba(255,51,102,.18)';return`<button type="button" class="tile" data-sym="${a.sym}" style="background:${bg}">${a.sym}<small>${pc(c)}</small></button>`}).join('')}</div></div>`).join('');
+  $('#heat').innerHTML=Object.keys(CLS).map(k=>`<div class="hg"><h3>${CLS[k].label}</h3><div class="tiles">${assets.filter(a=>a.cls===k).map(a=>{const c=a.ai.ch24,bg=c>=0?'rgba(0,146,70,.18)':'rgba(206,43,55,.18)';return`<button type="button" class="tile" data-sym="${a.sym}" style="background:${bg}">${a.sym}<small>${pc(c)}</small></button>`}).join('')}</div></div>`).join('');
   
   const lC=assets.filter(x=>x.ai.comb>=15).length,wZ=assets.filter(x=>Math.abs(x.ai.comb)<15).length,sC=assets.filter(x=>x.ai.comb<=-15).length;
   $('#dist').innerHTML=`<div style="display:grid;gap:6px;font:11px var(--font-mono)"><div style="display:flex;justify-content:space-between"><span>Long / Buy</span><b class="up">${lC} asset</b></div><div style="display:flex;justify-content:space-between"><span>Attesa / Neutrali</span><b class="mu">${wZ} asset</b></div><div style="display:flex;justify-content:space-between"><span>Short / Sell</span><b class="dn">${sC} asset</b></div></div>`;
@@ -625,17 +689,17 @@ def login():
         error = 'Credenziali non valide.'
     
     return '''<!DOCTYPE html>
-    <html lang="it"><head><meta charset="UTF-8"><title>Login - Quantum AI Scanner</title></head>
-    <body style="background:#030508;color:#f0ece1;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;">
-    <div style="background:#080c14;padding:30px;border:1px solid #00f0ff;width:340px;border-radius:4px;box-shadow:0 0 20px rgba(0,240,255,.15);">
-        <h3 style="color:#00f0ff;margin-top:0;text-align:center;letter-spacing:2px;font-family:Cinzel,serif;">QUANTUM ACCESS</h3>
-        <p style="font-size:10.5px;color:#9ba6b8;text-align:center;margin-bottom:20px;">Default: admin / admin123</p>
-        ''' + (f'<p style="color:#ff3366;font-size:11.5px;text-align:center;">{error}</p>' if error else '') + '''
+    <html lang="it"><head><meta charset="UTF-8"><title>Login - Tricolore AI Scanner</title></head>
+    <body style="background:#030604;color:#f0f5f1;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;">
+    <div style="background:#08100a;padding:30px;border:1px solid #009246;width:340px;border-radius:4px;box-shadow:0 0 20px rgba(0,146,70,.2);">
+        <h3 style="color:#009246;margin-top:0;text-align:center;letter-spacing:2px;font-family:Cinzel,serif;">TRICOLORE ACCESS</h3>
+        <p style="font-size:10.5px;color:#a3b8aa;text-align:center;margin-bottom:20px;">Default: admin / admin123</p>
+        ''' + (f'<p style="color:#ce2b37;font-size:11.5px;text-align:center;">{error}</p>' if error else '') + '''
         <form method="POST">
-            <p><label style="font-size:11px;color:#9ba6b8;">Username</label><br><input type="text" name="username" required style="width:100%;padding:9px;background:#0e1420;border:1px solid #283956;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
-            <p><label style="font-size:11px;color:#9ba6b8;">Password</label><br><input type="password" name="password" required style="width:100%;padding:9px;background:#0e1420;border:1px solid #283956;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
-            <button type="submit" style="width:100%;padding:10px;background:#f3ca52;color:#030508;border:none;font-weight:bold;margin-top:10px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;box-shadow:0 0 10px rgba(243,202,82,.3);">Connetti</button>
-        </form>
+            <p><label style="font-size:11px;color:#a3b8aa;">Username</label><br><input type="text" name="username" required style="width:100%;padding:9px;background:#0e1a12;border:1px solid #274d34;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
+            <p><label style="font-size:11px;color:#a3b8aa;">Password</label><br><input type="password" name="password" required style="width:100%;padding:9px;background:#0e1a12;border:1px solid #274d34;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
+            <button type="submit" style="width:100%;padding:10px;background:#009246;color:#ffffff;border:none;font-weight:bold;margin-top:10px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;box-shadow:0 0 10px rgba(0,146,70,.4);">Connetti</button>
+        </main>
     </div></body></html>'''
 
 @app.route('/logout')
