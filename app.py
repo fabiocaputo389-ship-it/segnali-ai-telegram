@@ -118,7 +118,7 @@ DASHBOARD_HTML = '''<!DOCTYPE html>
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<title>AI Market Scanner &amp; Whale Tracker - Candle Precision Edition</title>
+<title>AI Market Scanner &amp; Whale Tracker - Duration Precision Edition</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -302,7 +302,7 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
   <main class="grid">
     <div class="col s4">
       <section class="panel">
-        <div class="ph"><h2>Sentiment globale AI</h2><span class="sub">44 asset monitorati</span></div>
+        <div class="ph"><h2>Sentiment globale AI (Cripto &amp; Mercati)</h2><span class="sub">44 asset monitorati</span></div>
         <div class="gbig"><div id="gMain"></div><div class="gnum" id="gNum">--</div><div class="glab" id="gLab">--</div>
           <div class="sbrow"><span class="dn">BEARISH 0</span><span class="mu">NEUTRAL 50</span><span class="up">BULLISH 100</span></div></div>
       </section>
@@ -343,10 +343,10 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
     </section>
 
     <section class="panel s8">
-      <div class="ph"><h2>Verdetto Balene Certificato &amp; Timing Candela per Candela</h2><span class="sub" id="anSub">Seleziona un asset</span></div>
+      <div class="ph"><h2>Verdetto Balene Certificato &amp; Durata Segnale Certo</h2><span class="sub" id="anSub">Seleziona un asset</span></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div>
-          <div class="sec">Consiglio Balene &amp; Durata Candele</div>
+          <div class="sec">Consiglio Balene &amp; Tempo Segnale Certo</div>
           <div id="anPlan" style="display:grid;gap:5px;font:10.5px var(--font-mono)"></div>
         </div>
         <div>
@@ -354,7 +354,7 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
           <div id="anTargets" style="display:grid;gap:5px;font:10.5px var(--font-mono)"></div>
         </div>
       </div>
-      <div class="sec">Attività Istituzionale &amp; Dinamica Balene</div>
+      <div class="sec">Analisi AI dell'Andamento Istituzionale &amp; Mercato</div>
       <p id="anReason" class="mu" style="font-size:11.5px;line-height:1.45"></p>
     </section>
 
@@ -377,7 +377,7 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
         <span class="sub mu mono" id="cnt" style="margin-left:auto"></span>
       </div>
       <div class="tw"><table class="main"><thead><tr id="thead">
-        <th data-k="sym" style="text-align:left">Asset / Mercato</th><th>Verdetto Balene</th><th>Candele per TP</th><th>Precisione</th><th>Prezzo Ingresso</th><th>Timeframe</th><th>Leva Reale</th><th>Target TP1</th><th>Target TP2</th><th>Target TP3</th><th>Stop Loss</th>
+        <th data-k="sym" style="text-align:left">Asset / Mercato</th><th>Verdetto Balene</th><th>Durata Segnale Certo</th><th>Precisione</th><th>Prezzo Ingresso</th><th>Timeframe</th><th>Leva Reale</th><th>Target TP1</th><th>Target TP2</th><th>Target TP3</th><th>Stop Loss</th>
       </tr></thead><tbody id="tbody"></tbody></table></div>
     </section>
 
@@ -394,7 +394,7 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
       <ul class="log" id="log"></ul>
     </section>
   </main>
-  <footer>Tutti i prezzi, i verdetti delle balene, la durata candela per candela e l'invio ordini API BingX Live e Telegram sono gestiti dal motore quantistico AI SaaS. Non costituisce consulenza finanziaria.</footer>
+  <footer>Tutti i prezzi, i verdetti delle balene, la durata del segnale certo e l'invio ordini API BingX Live e Telegram sono gestiti dal motore quantistico AI SaaS. Non costituisce consulenza finanziaria.</footer>
 </div>
 
 <script>
@@ -494,18 +494,18 @@ function analyze(a){
   if(comb>=15) verdict='LONG';
   else if(comb<=-15) verdict='SHORT';
 
-  // CALCOLO CANDELA PER CANDELA IMPECCABILE
-  // Base di candele in base alla forza del segnale e alla volatilità
+  // DURATA SEGNALE CERTO & CANDELA PER CANDELA
   const strengthFactor = Math.max(1, Math.round(Math.abs(comb) / 20));
   const cTP1 = Math.max(1, Math.round(2 / strengthFactor));
   const cTP2 = cTP1 + Math.max(2, Math.round(3 / strengthFactor));
   const cTP3 = cTP2 + Math.max(3, Math.round(5 / strengthFactor));
   
-  const unitLabel = tfRec === '15m' ? 'candele da 15m' : tfRec === '1h' ? 'candele da 1h' : 'candele da 4h';
+  const unitLabel = tfRec === '15m' ? 'candele 15m' : tfRec === '1h' ? 'candele 1h' : 'candele 4h';
   const timeTP1 = `${cTP1} ${unitLabel}`;
   const timeTP2 = `${cTP2} ${unitLabel}`;
   const timeTP3 = `${cTP3} ${unitLabel}`;
   const totalHold = `${cTP3} ${unitLabel}`;
+  const signalDuration = verdict === 'HOLD' ? 'In attesa segnale' : `${cTP3} candele (${tfRec})`;
 
   const whales=comb>25?'🐋 🐳 🚀 Forte Accumulo Balene Istituzionali':comb<-25?'🐋 🔻 Forte Distribuzione / Vendita Balene':'⚖️ Flussi Bilanciati / No Balene';
   
@@ -515,7 +515,7 @@ function analyze(a){
   const tp3=price*(1+dir*slPct*3.5);
   const riskGauge=Math.round(clamp(slPct*100*35 + (100-conf)*0.3, 10, 95));
 
-  return{tf,comb,conf,dir,atr,slPct,lev,tfRec,verdict,timeTP1,timeTP2,timeTP3,totalHold,whales,sl,tp1,tp2,tp3,riskGauge,ch24:price/c15[Math.max(0,n-48)].c-1,cp:tf[15].cp};
+  return{tf,comb,conf,dir,atr,slPct,lev,tfRec,verdict,timeTP1,timeTP2,timeTP3,totalHold,signalDuration,whales,sl,tp1,tp2,tp3,riskGauge,ch24:price/c15[Math.max(0,n-48)].c-1,cp:tf[15].cp};
 }
 
 const logs=[];
@@ -598,7 +598,7 @@ function renderTable(){
     return`<tr class="r${a.sym===sel?' sel':''}" data-sym="${a.sym}" tabindex="0">
 <td><span class="cdot" style="background:var(${CLS[a.cls].color})"></span><span class="s">${a.sym}</span><span class="n">${a.name}</span></td>
 <td><span class="pill ${v}">${lbl}</span></td>
-<td style="font-size:10px;color:var(--warn);font-weight:700;">🕯️ ${ai.totalHold}</td>
+<td style="font-size:10px;color:var(--gold);font-weight:700;">⏱️ ${ai.signalDuration}</td>
 <td><b style="color:var(--cyan)">${ai.conf}%</b></td>
 <td class="${f}">${money(a,a.price)}</td>
 <td><b style="color:var(--gold)">${ai.tfRec}</b></td>
@@ -630,8 +630,8 @@ function renderMain(){
   $('#anSub').textContent=`${a.sym} · ${a.name} (${CLS[a.cls].label})`;
   $('#anPlan').innerHTML=`
     <div style="display:flex;justify-content:space-between"><span>Verdetto Balene</span><b style="color:${v==='HOLD'?'var(--warn)':'var(--up)'}">${vText}</b></div>
-    <div style="display:flex;justify-content:space-between"><span>Timeframe Consigliato</span><b style="color:var(--gold)">${ai.tfRec}</b></div>
-    <div style="display:flex;justify-content:space-between"><span>Permanenza Candele</span><b style="color:var(--warn);font-size:11px;">🕯️ ${ai.totalHold}</b></div>
+    <div style="display:flex;justify-content:space-between"><span>Timeframe Analisi</span><b style="color:var(--gold)">${ai.tfRec}</b></div>
+    <div style="display:flex;justify-content:space-between"><span>⏱️ Durata Segnale Certo</span><b style="color:var(--gold);font-size:11px;">${ai.signalDuration}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Leva Reale Sicura</span><b style="color:var(--warn)">${ai.lev}x</b></div>
     <div style="display:flex;justify-content:space-between"><span>Prezzo d'Ingresso</span><b style="color:var(--cyan)">${money(a,a.price)}</b></div>`;
   
@@ -642,7 +642,7 @@ function renderMain(){
     <div style="display:flex;justify-content:space-between"><span>Stop Loss Millimetrico</span><b class="dn">${money(a,ai.sl)}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Attività Istituzionale</span><b style="color:var(--cyan)">${ai.whales}</b></div>`;
 
-  $('#anReason').textContent=`Analisi balene completata su ${a.sym}. ${ai.whales}. L'intelligenza artificiale calcola che la posizione debba rimanere aperta per un totale di ${ai.totalHold} sul timeframe ${ai.tfRec} (TP1 in ${ai.timeTP1}, TP2 in ${ai.timeTP2}, TP3 in ${ai.timeTP3}). Precisione stimata: ${ai.conf}%.`;
+  $('#anReason').textContent=`Analisi AI millimetrica su ${a.sym} (${CLS[a.cls].label}). ${ai.whales}. L'intelligenza artificiale rileva un andamento di mercato guidato dai flussi istituzionali con verdetto: "${vText}". Il segnale certo ha una durata stimata di ${ai.signalDuration} sul timeframe ${ai.tfRec} per raggiungere i target (TP1 in ${ai.timeTP1}, TP2 in ${ai.timeTP2}, TP3 in ${ai.timeTP3}). Precisione stimata: ${ai.conf}%.`;
 
   $('#cSym').textContent=a.sym;$('#cName').textContent=a.name;$('#cPx').textContent=money(a,a.price);
   $('#cCh').innerHTML=`<span class="mono ${ai.ch24>=0?'up':'dn'}">${pc(ai.ch24)}</span>`;
