@@ -44,13 +44,17 @@ def get_bingx_signature(secret_key, payload):
 
 def send_telegram_alert(token, chat_id, message):
     if not token or not chat_id:
+        print("Telegram: Token o Chat ID mancanti.")
         return
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
     try:
-        requests.post(url, json=payload, timeout=5)
+        response = requests.post(url, json=payload, timeout=5)
+        res_json = response.json()
+        if not res_json.get("ok"):
+            print(f"Errore Telegram API: {res_json.get('description')}")
     except Exception as e:
-        print(f"Errore invio Telegram: {e}")
+        print(f"Errore di connessione a Telegram: {e}")
 
 def get_bingx_account_balance(api_key, secret_key):
     if not api_key or not secret_key:
@@ -77,6 +81,28 @@ def get_bingx_account_balance(api_key, secret_key):
     except Exception as e:
         return {"balance": 0.0, "equity": 0.0, "error": str(e)}
 
+def place_bingx_order(api_key, secret_key, symbol, side, position_side, quantity):
+    """
+    Esegue un ordine futures/swap di mercato su BingX (Modalità Reale)
+    """
+    url = "https://open-api.bingx.com/openApi/swap/v2/trade/order"
+    timestamp = str(int(time.time() * 1000))
+    
+    query_string = f"quantity={quantity}&side={side}&positionSide={position_side}&symbol={symbol}&timestamp={timestamp}&type=MARKET"
+    signature = get_bingx_signature(secret_key, query_string)
+    
+    headers = {"X-BX-APIKEY": api_key}
+    full_url = f"{url}?{query_string}&signature={signature}"
+    
+    try:
+        response = requests.post(full_url, headers=headers, timeout=5)
+        res_data = response.json()
+        print(f"Risposta ordine BingX per {symbol}: {res_data}")
+        return res_data
+    except Exception as e:
+        print(f"Errore esecuzione ordine BingX: {e}")
+        return {"code": -1, "msg": str(e)}
+
 # --- MOTORE SCANNER IA IN BACKGROUND ---
 def background_market_scanner():
     symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT', 'DOGEUSDT', 'AVAXUSDT', 'LINKUSDT']
@@ -86,34 +112,48 @@ def background_market_scanner():
         try:
             token = bot_settings.get("telegram_token")
             chat_id = bot_settings.get("chat_id")
+            auto_exec = bot_settings.get("auto_execution", 0)
+            trading_mode = bot_settings.get("trading_mode", "paper")
+            api_key = bot_settings.get("bingx_api_key")
+            secret_key = bot_settings.get("bingx_secret_key")
             
-            if token and chat_id:
-                for symbol in symbols:
-                    res = requests.get(f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=15m&limit=50", timeout=5)
-                    if res.status_code == 200:
-                        klines = res.json()
-                        closes = [float(k[4]) for k in klines]
-                        current_price = closes[-1]
-                        ema20 = sum(closes[-20:]) / 20
-                        ema50 = sum(closes[-50:]) / 50
+            for symbol in symbols:
+                res = requests.get(f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=15m&limit=50", timeout=5)
+                if res.status_code == 200:
+                    klines = res.json()
+                    closes = [float(k[4]) for k in klines]
+                    current_price = closes[-1]
+                    ema20 = sum(closes[-20:]) / 20
+                    ema50 = sum(closes[-50:]) / 50
+                    
+                    is_long = current_price > ema20 and ema20 > ema50
+                    now = time.time()
+                    
+                    if is_long and (symbol not in last_alerts or now - last_alerts[symbol] > 1800):
+                        msg = (
+                            f"🚀 *SEGNALE TOP ENTRY (IA Scanner)*\n\n"
+                            f"✦ *Asset:* #{symbol}\n"
+                            f"✦ *Direzione:* LONG 🟢\n"
+                            f"✦ *Prezzo Entrata:* ${current_price:,.2f}\n"
+                            f"✦ *Leva Consigliata:* 5x - 10x\n\n"
+                            f"🎯 *Take Profit 1:* ${current_price * 1.015:,.2f}\n"
+                            f"🎯 *Take Profit 2:* ${current_price * 1.03:,.2f}\n"
+                            f"🛑 *Stop Loss:* ${current_price * 0.985:,.2f}\n\n"
+                            f"⚡ _Generato da AI Market Scanner_"
+                        )
                         
-                        is_long = current_price > ema20 and ema20 > ema50
-                        now = time.time()
-                        
-                        if is_long and (symbol not in last_alerts or now - last_alerts[symbol] > 1800):
-                            msg = (
-                                f"🚀 *SEGNALE TOP ENTRY (IA Scanner)*\n\n"
-                                f"✦ *Asset:* #{symbol}\n"
-                                f"✦ *Direzione:* LONG 🟢\n"
-                                f"✦ *Prezzo Entrata:* ${current_price:,.2f}\n"
-                                f"✦ *Leva Consigliata:* 5x - 10x\n\n"
-                                f"🎯 *Take Profit 1:* ${current_price * 1.015:,.2f}\n"
-                                f"🎯 *Take Profit 2:* ${current_price * 1.03:,.2f}\n"
-                                f"🛑 *Stop Loss:* ${current_price * 0.985:,.2f}\n\n"
-                                f"⚡ _Generato da AI Market Scanner su Render_"
-                            )
+                        # 1. Invio Notifica Telegram
+                        if token and chat_id:
                             send_telegram_alert(token, chat_id, msg)
-                            last_alerts[symbol] = now
+                        
+                        # 2. Esecuzione Automatica su BingX (se abilitata e in modalità reale)
+                        if auto_exec == 1 and trading_mode == "real":
+                            if api_key and secret_key:
+                                # Quantità minima di sicurezza basata sull'asset
+                                qty = 0.001 if "BTC" in symbol else (0.01 if "ETH" in symbol else 1.0)
+                                place_bingx_order(api_key, secret_key, symbol, "BUY", "LONG", qty)
+                        
+                        last_alerts[symbol] = now
         except Exception as e:
             print(f"Errore nello scanner background: {e}")
         
