@@ -11,16 +11,16 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'chiave_segreta_default_molto_sicura')
 
-# Configurazione iniziale parametri bot & BingX
+# Configurazione iniziale: legge direttamente dalle variabili d'ambiente di Render se presenti
 bot_settings = {
-    "bingx_api_key": "",
-    "bingx_secret_key": "",
-    "trading_mode": "paper",  # 'paper' o 'real'
-    "telegram_token": "",
-    "chat_id": "",
+    "bingx_api_key": os.environ.get("BINGX_API_KEY", ""),
+    "bingx_secret_key": os.environ.get("BINGX_SECRET_KEY", ""),
+    "trading_mode": os.environ.get("TRADING_MODE", "paper"),  # 'paper' o 'real'
+    "telegram_token": os.environ.get("TELEGRAM_TOKEN", ""),
+    "chat_id": os.environ.get("CHAT_ID", ""),
     "use_trend_following": 1,
     "use_rsi_filter": 1,
-    "auto_execution": 0
+    "auto_execution": int(os.environ.get("AUTO_EXECUTION", 0))
 }
 
 def init_db():
@@ -82,9 +82,6 @@ def get_bingx_account_balance(api_key, secret_key):
         return {"balance": 0.0, "equity": 0.0, "error": str(e)}
 
 def place_bingx_order(api_key, secret_key, symbol, side, position_side, quantity):
-    """
-    Esegue un ordine futures/swap di mercato su BingX (Modalità Reale)
-    """
     url = "https://open-api.bingx.com/openApi/swap/v2/trade/order"
     timestamp = str(int(time.time() * 1000))
     
@@ -146,10 +143,9 @@ def background_market_scanner():
                         if token and chat_id:
                             send_telegram_alert(token, chat_id, msg)
                         
-                        # 2. Esecuzione Automatica su BingX (se abilitata e in modalità reale)
+                        # 2. Esecuzione Automatica su BingX
                         if auto_exec == 1 and trading_mode == "real":
                             if api_key and secret_key:
-                                # Quantità minima di sicurezza basata sull'asset
                                 qty = 0.001 if "BTC" in symbol else (0.01 if "ETH" in symbol else 1.0)
                                 place_bingx_order(api_key, secret_key, symbol, "BUY", "LONG", qty)
                         
@@ -1036,7 +1032,7 @@ def login():
         <h3 style="color: #d6b04c; text-align: center;">ACCESSO PIATTAFORMA</h3>
         <form method="POST">
             <p><label>Username</label><br><input type="text" name="username" required style="width:100%; padding:8px; background:#111722; border:1px solid #2a3750; color:#fff;"></p>
-            <p><label>Password</label><br><input type="password" name="password" required style="width:100%; padding:8px; background:#111722; border:1px solid #2a3750; color:#fff;"></p>
+            <p><label>Password</label><br><input type="password" name="password" required style="width:100% style="width:100%; padding:8px; background:#111722; border:1px solid #2a3750; color:#fff;"></p>
             <button type="submit" style="width:100%; padding:10px; background:#d6b04c; color:#06080c; border:none; font-weight:bold;">Accedi</button>
         </form>
         <p style="text-align:center;"><a href="/register" style="color:#d6b04c;">Non hai un account? Registrati</a></p>
