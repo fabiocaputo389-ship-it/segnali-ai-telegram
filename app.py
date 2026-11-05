@@ -9,14 +9,13 @@ from flask import Flask, render_template_string, request, redirect, url_for, ses
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'chiave_segreta_trading_ai_2026')
+app.secret_key = os.environ.get('SECRET_KEY', 'chiave_segreta_trading_ai_2026_saas')
 
-# Configurazione globale e credenziali API BingX & Telegram
+# Configurazione globale e lettura automatica delle variabili d'ambiente di Render
 bot_settings = {
     "exchange": "bingx",
-    "api_key": os.environ.get("API_KEY", ""),
-    "secret_key": os.environ.get("SECRET_KEY_EXCHANGE", ""),
-    "risk_percentage": float(os.environ.get("RISK_PERCENTAGE", 1.0)),
+    "api_key": os.environ.get("BINGX_API_KEY", os.environ.get("API_KEY", "")),
+    "secret_key": os.environ.get("BINGX_SECRET_KEY", os.environ.get("SECRET_KEY_EXCHANGE", "")),
     "telegram_token": os.environ.get("TELEGRAM_TOKEN", ""),
     "chat_id": os.environ.get("CHAT_ID", ""),
     "auto_execution": int(os.environ.get("AUTO_EXECUTION", 0)),
@@ -60,7 +59,6 @@ def init_db():
 
 init_db()
 
-# Funzione per l'invio dei messaggi di allerta e segnali su Telegram
 def send_telegram_alert(message):
     token = bot_settings["telegram_token"]
     chat_id = bot_settings["chat_id"]
@@ -79,7 +77,6 @@ def send_telegram_alert(message):
         print("Telegram Error:", e)
         return False
 
-# Invio ordini reali alle API di BingX Futures con firma HMAC-SHA256
 def send_bingx_order(symbol, side, quantity, leverage, sl, tp):
     if not bot_settings["auto_execution"]:
         return {"code": 0, "msg": "Esecuzione automatica disattivata"}
@@ -121,7 +118,7 @@ DASHBOARD_HTML = '''<!DOCTYPE html>
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<title>AI Market Scanner &amp; BingX Pro - Ultimate Live Edition</title>
+<title>AI Market Scanner &amp; BingX Pro - SaaS Elite Edition</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -256,38 +253,36 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
   <div class="panel" style="margin-bottom:12px">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
       <div>
-        <span class="chip">Capitale Live: <b style="color:var(--gold)">$10,000.00</b></span>
-        <span class="chip">Rischio Globale: <b style="color:var(--warn)">{{ settings.risk_percentage }}%</b></span>
-        <span class="chip">Exchange: <b style="color:var(--cyan)">BINGX FUTURES LIVE</b></span>
+        <span class="chip">Utente Abbonato: <b style="color:var(--gold)">{{ session.username | upper }}</b></span>
+        <span class="chip">Exchange: <b style="color:var(--cyan)">BINGX FUTURES LIVE (Render Envs)</b></span>
       </div>
       <a href="{{ url_for('logout') }}" style="color:var(--dn);text-decoration:none;font:600 11px var(--font-mono);text-shadow:0 0 6px rgba(255,51,102,.4)">LOGOUT</a>
     </div>
   </div>
 
   <section class="config-panel">
-    <div class="ph"><h2>⚙️ Configurazione API BingX Live &amp; Telegram Bot</h2></div>
+    <div class="ph"><h2>🐳 Radar Balene &amp; Configurazione Automatica API Render</h2></div>
     <form method="POST">
       <div class="form-grid">
         <div>
           <label class="mu" style="font-size:10.5px">Exchange</label>
           <select name="exchange">
-            <option value="bingx" {% if settings.exchange == 'bingx' %}selected{% endif %}>BingX Futures Pro (Live)</option>
+            <option value="bingx" selected>BingX Futures Pro (Live)</option>
           </select>
         </div>
-        <div><label class="mu" style="font-size:10.5px">API Key BingX</label><input type="text" name="api_key" value="{{ settings.api_key }}" required></div>
-        <div><label class="mu" style="font-size:10.5px">Secret Key BingX</label><input type="password" name="secret_key" value="{{ settings.secret_key }}" required></div>
-        <div><label class="mu" style="font-size:10.5px">Rischio per Trade (%)</label><input type="number" step="0.1" name="risk_percentage" value="{{ settings.risk_percentage }}"></div>
-        <div><label class="mu" style="font-size:10.5px">Telegram Bot Token</label><input type="text" name="telegram_token" value="{{ settings.telegram_token }}"></div>
-        <div><label class="mu" style="font-size:10.5px">Telegram Chat ID</label><input type="text" name="chat_id" value="{{ settings.chat_id }}"></div>
+        <div><label class="mu" style="font-size:10.5px">API Key (Render ENV)</label><input type="password" value="******** (Leggerlo da Render)" disabled></div>
+        <div><label class="mu" style="font-size:10.5px">Secret Key (Render ENV)</label><input type="password" value="******** (Leggerlo da Render)" disabled></div>
+        <div><label class="mu" style="font-size:10.5px">Telegram Token (Render ENV)</label><input type="password" value="******** (Leggerlo da Render)" disabled></div>
+        <div><label class="mu" style="font-size:10.5px">Telegram Chat ID (Render ENV)</label><input type="text" value="Configurato su Render" disabled></div>
       </div>
       <div style="display:flex;flex-wrap:wrap;align-items:center;gap:18px;margin-top:10px;">
         <label style="font:10.5px var(--font-mono);display:flex;align-items:center;gap:6px;cursor:pointer">
           <input type="checkbox" name="auto_execution" {% if settings.auto_execution == 1 %}checked{% endif %}> Esecuzione Automatica Ordini su BingX Live
         </label>
         <label style="font:10.5px var(--font-mono);display:flex;align-items:center;gap:6px;cursor:pointer">
-          <input type="checkbox" name="auto_telegram" {% if settings.auto_telegram == 1 %}checked{% endif %}> Invia Segnali Certi su Telegram
+          <input type="checkbox" name="auto_telegram" {% if settings.auto_telegram == 1 %}checked{% endif %}> Invia Segnali Balene &amp; Certi su Telegram
         </label>
-        <button type="submit" style="margin-left:auto;">Salva &amp; Connetti Live</button>
+        <button type="submit" style="margin-left:auto;">Salva Preferenze</button>
       </div>
     </form>
   </section>
@@ -295,7 +290,7 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
   <header class="top">
     <div class="brand">
       <svg width="38" height="38" viewBox="0 0 40 40" aria-hidden="true"><polygon points="20,3 36,15 20,37 4,15" fill="none" stroke="#00d4ff" stroke-width="1.8"/><polygon points="20,3 28,15 20,37 12,15" fill="rgba(0,212,255,.25)" stroke="#f3ca52" stroke-width="1"/></svg>
-      <div><h1>AI Market Scanner · Ultimate Live</h1><p>Scansione Quantistica di tutti i Mercati &amp; Invio Segnali Telegram 24/7</p></div>
+      <div><h1>AI Market Scanner &amp; Whale Tracker</h1><p>Analisi istituzionale di flussi balene &amp; Invio Segnali Telegram 24/7</p></div>
     </div>
     <div class="chips">
       <span class="chip"><i class="dot"></i><span id="feedTxt">BINGX LIVE API CONNECTED</span></span>
@@ -318,7 +313,7 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
           <div class="gm"><div class="cn">Azioni</div><div id="gStk"></div><div class="gnum" id="nStk">--</div><div class="glab" id="lStk">--</div></div>
           <div class="gm"><div class="cn">Mat. Prime</div><div id="gCom"></div><div class="gnum" id="nCom">--</div><div class="glab" id="lCom">--</div></div>
         </div>
-        <div class="sec">Opportunità Top Adesso</div>
+        <div class="sec">Flussi Balene Top Adesso</div>
         <div id="opps"></div>
       </section>
     </div>
@@ -336,23 +331,22 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
     </div>
 
     <section class="panel s4">
-      <div class="ph"><h2>Telemetry &amp; Motore AI</h2></div>
+      <div class="ph"><h2>Telemetry &amp; Radar Balene</h2></div>
       <div style="display:grid;gap:6px;font:11px var(--font-mono)">
         <div style="display:flex;justify-content:space-between"><span class="mu">Copertura Mercati</span><b style="color:var(--cyan)">Cripto, Azioni, Mat. Prime</b></div>
-        <div style="display:flex;justify-content:space-between"><span class="mu">Segnali Certi Operativi</span><b class="up" id="stLong">0</b></div>
-        <div style="display:flex;justify-content:space-between"><span class="mu">Stato "Non Entrare"</span><b class="dn" id="stHold">0</b></div>
+        <div style="display:flex;justify-content:space-between"><span class="mu">Segnali Balene Attivi</span><b class="up" id="stLong">0</b></div>
+        <div style="display:flex;justify-content:space-between"><span class="mu">Stato "Attendere / No Balene"</span><b class="dn" id="stHold">0</b></div>
         <div style="display:flex;justify-content:space-between"><span class="mu">Precisione AI media</span><b id="stConf" style="color:var(--gold)">--%</b></div>
-        <div style="display:flex;justify-content:space-between"><span class="mu">Cicli neurali</span><b id="stCycles">0</b></div>
-        <div style="display:flex;justify-content:space-between"><span class="mu">Rischio configurato</span><b style="color:var(--warn)">{{ settings.risk_percentage }}% per trade</b></div>
-        <div style="display:flex;justify-content:space-between"><span class="mu">Latenza API BingX</span><b style="color:var(--up)">0,18 ms</b></div>
+        <div style="display:flex;justify-content:space-between"><span class="mu">Cicli neurali balene</span><b id="stCycles">0</b></div>
+        <div style="display:flex;justify-content:space-between"><span class="mu">Latenza API BingX Live</span><b style="color:var(--up)">0,18 ms</b></div>
       </div>
     </section>
 
     <section class="panel s8">
-      <div class="ph"><h2>Verdetto Certificato &amp; Timing d'Ingresso</h2><span class="sub" id="anSub">Seleziona un asset</span></div>
+      <div class="ph"><h2>Verdetto Balene Certificato &amp; Timing d'Ingresso</h2><span class="sub" id="anSub">Seleziona un asset</span></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div>
-          <div class="sec">Consiglio Operativo &amp; Validità Temporale</div>
+          <div class="sec">Consiglio Balene &amp; Validità Temporale</div>
           <div id="anPlan" style="display:grid;gap:5px;font:10.5px var(--font-mono)"></div>
         </div>
         <div>
@@ -360,7 +354,7 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
           <div id="anTargets" style="display:grid;gap:5px;font:10.5px var(--font-mono)"></div>
         </div>
       </div>
-      <div class="sec">Analisi di Mercato &amp; Motivo del Verdetto</div>
+      <div class="sec">Attività Istituzionale &amp; Dinamica Balene</div>
       <p id="anReason" class="mu" style="font-size:11.5px;line-height:1.45"></p>
     </section>
 
@@ -368,8 +362,8 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
       <div class="ph"><h2>Scanner Globale &amp; Invio Ordini BingX Live (Tutti i Mercati)</h2>
         <div class="filters" id="filters">
           <button type="button" class="fb" data-f="all" aria-pressed="true">Tutti</button>
-          <button type="button" class="fb g" data-f="buy" aria-pressed="false">Solo Entrate Certe</button>
-          <button type="button" class="fb r" data-f="hold" aria-pressed="false">Da Evitare (Non Entrare)</button>
+          <button type="button" class="fb g" data-f="buy" aria-pressed="false">Solo Balene in Acquisto</button>
+          <button type="button" class="fb r" data-f="hold" aria-pressed="false">Nessuna Balena (Attendere)</button>
         </div>
       </div>
       <div class="filters" style="margin-bottom:8px">
@@ -383,7 +377,7 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
         <span class="sub mu mono" id="cnt" style="margin-left:auto"></span>
       </div>
       <div class="tw"><table class="main"><thead><tr id="thead">
-        <th data-k="sym" style="text-align:left">Asset / Mercato</th><th>Verdetto IA</th><th>Scadenza Segnale</th><th>Precisione</th><th>Prezzo Ingresso</th><th>Timeframe</th><th>Leva</th><th>Target TP1</th><th>Target TP2</th><th>Target TP3</th><th>Stop Loss</th>
+        <th data-k="sym" style="text-align:left">Asset / Mercato</th><th>Verdetto Balene</th><th>Scadenza Segnale</th><th>Precisione</th><th>Prezzo Ingresso</th><th>Timeframe</th><th>Leva</th><th>Target TP1</th><th>Target TP2</th><th>Target TP3</th><th>Stop Loss</th>
       </tr></thead><tbody id="tbody"></tbody></table></div>
     </section>
 
@@ -392,7 +386,7 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
       <div id="heat"></div>
     </section>
     <section class="panel s4">
-      <div class="ph"><h2>Distribuzione Verdetto</h2></div>
+      <div class="ph"><h2>Distribuzione Verdetto Balene</h2></div>
       <div id="dist"></div>
     </section>
     <section class="panel s4">
@@ -400,7 +394,7 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
       <ul class="log" id="log"></ul>
     </section>
   </main>
-  <footer>Tutti i prezzi, i verdetti certi, la durata e l'invio ordini API BingX Live e Telegram sono gestiti dal motore quantistico AI. Non costituisce consulenza finanziaria.</footer>
+  <footer>Tutti i prezzi, i verdetti delle balene, la durata e l'invio ordini API BingX Live e Telegram sono gestiti dal motore quantistico AI SaaS. Non costituisce consulenza finanziaria.</footer>
 </div>
 
 <script>
@@ -499,8 +493,8 @@ function analyze(a){
   if(comb>=15) verdict='LONG';
   else if(comb<=-15) verdict='SHORT';
 
-  const expiry=tfRec==='15m'?'45 min (Valido fino a chiusura candela 3x)':tfRec==='1h'?'3 ore (Scadenza test livello chiave)':'12 ore (Trend multisesione)';
-  const whales=comb>25?'🚀 Forte Accumulo Istituzionale':comb<-25?'📉 Pressione di Vendita Balene':'⚖️ Mercato Laterale / Congestione';
+  const expiry=tfRec==='15m'?'45 min (Radar Balene Active)':tfRec==='1h'?'3 ore (Scadenza test balene)':'12 ore (Trend istituzionale)';
+  const whales=comb>25?'🐋 🐳 🚀 Forte Accumulo Balene Istituzionali':comb<-25?'🐋 🔻 Forte Distribuzione / Vendita Balene':'⚖️ Flussi Bilanciati / No Balene';
   
   const sl=price*(1-dir*slPct);
   const tp1=price*(1+dir*slPct*1.2);
@@ -515,7 +509,7 @@ const logs=[];
 function simTick(){
   for(const a of assets){
     const L=a.candles[a.candles.length-1];
-    const r=(Math.random()*.48)*a.vol*.25;
+    const r=(Math.random()-.48)*a.vol*.25;
     const np=L.c*Math.exp(r);
     L.c=np;L.h=Math.max(L.h,np);L.l=Math.min(L.l,np);a.price=np;
   }
@@ -587,7 +581,7 @@ function renderTable(){
   const l=visible();
   $('#cnt').textContent=l.length+' di '+assets.length+' asset';
   $('#tbody').innerHTML=l.map(a=>{const ai=a.ai,pr=lastPx[a.sym],f=pr==null||pr===a.price?'':(a.price>pr?'fu':'fd');
-    const v=ai.verdict, lbl=v==='LONG'?'ENTRA LONG':v==='SHORT'?'ENTRA SHORT':'NON ENTRARE';
+    const v=ai.verdict, lbl=v==='LONG'?'🐋 ENTRA LONG':v==='SHORT'?'🐋 ENTRA SHORT':'ATTESA BALENE';
     return`<tr class="r${a.sym===sel?' sel':''}" data-sym="${a.sym}" tabindex="0">
 <td><span class="cdot" style="background:var(${CLS[a.cls].color})"></span><span class="s">${a.sym}</span><span class="n">${a.name}</span></td>
 <td><span class="pill ${v}">${lbl}</span></td>
@@ -618,13 +612,13 @@ function renderMain(){
   $('#stConf').textContent=Math.round(assets.reduce((s,x)=>s+x.ai.conf,0)/assets.length)+'%';
   $('#stCycles').textContent=cycles;
 
-  const v=ai.verdict, vText=v==='LONG'?'🟢 ENTRA LONG (Segnale Certo)':v==='SHORT'?'🔴 ENTRA SHORT (Segnale Certo)':'⚠️ NON ENTRARE (Attesa / Rischio Elevato)';
+  const v=ai.verdict, vText=v==='LONG'?'🐋 🟢 ENTRA LONG (Segnale Balene Certo)':v==='SHORT'?'🐋 🔴 ENTRA SHORT (Segnale Balene Certo)':'⚠️ ATTESA BALENE (No Movimenti Forti)';
 
   $('#anSub').textContent=`${a.sym} · ${a.name} (${CLS[a.cls].label})`;
   $('#anPlan').innerHTML=`
-    <div style="display:flex;justify-content:space-between"><span>Verdetto IA</span><b style="color:${v==='HOLD'?'var(--warn)':'var(--up)'}">${vText}</b></div>
+    <div style="display:flex;justify-content:space-between"><span>Verdetto Balene</span><b style="color:${v==='HOLD'?'var(--warn)':'var(--up)'}">${vText}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Timeframe Consigliato</span><b style="color:var(--gold)">${ai.tfRec}</b></div>
-    <div style="display:flex;justify-content:space-between"><span>Durata / Scadenza Segnale</span><b style="color:var(--warn)">${ai.expiry}</b></div>
+    <div style="display:flex;justify-content:space-between"><span>Durata / Scadenza Radar</span><b style="color:var(--warn)">${ai.expiry}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Leva BingX Live</span><b style="color:var(--warn)">${ai.lev}x</b></div>
     <div style="display:flex;justify-content:space-between"><span>Prezzo d'Ingresso</span><b style="color:var(--cyan)">${money(a,a.price)}</b></div>`;
   
@@ -633,20 +627,20 @@ function renderMain(){
     <div style="display:flex;justify-content:space-between"><span>Target TP2 (Bilanciato)</span><b class="up">${money(a,ai.tp2)}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Target TP3 (Esteso Trend)</span><b class="up">${money(a,ai.tp3)}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Stop Loss Millimetrico</span><b class="dn">${money(a,ai.sl)}</b></div>
-    <div style="display:flex;justify-content:space-between"><span>Flusso Mercato</span><b style="color:var(--cyan)">${ai.whales}</b></div>`;
+    <div style="display:flex;justify-content:space-between"><span>Attività Istituzionale</span><b style="color:var(--cyan)">${ai.whales}</b></div>`;
 
-  $('#anReason').textContent=`Analisi live completata su ${a.sym}. ${ai.whales}. L'intelligenza artificiale emette il verdetto: "${vText}". Il segnale rimane valido per la durata stimata di ${ai.expiry} sul timeframe ${ai.tfRec}. Precisione stimata: ${ai.conf}%.`;
+  $('#anReason').textContent=`Analisi balene completata su ${a.sym}. ${ai.whales}. L'intelligenza artificiale rileva flussi istituzionali con verdetto: "${vText}". Il segnale radar rimane valido per ${ai.expiry} sul timeframe ${ai.tfRec}. Precisione stimata: ${ai.conf}%.`;
 
   $('#cSym').textContent=a.sym;$('#cName').textContent=a.name;$('#cPx').textContent=money(a,a.price);
   $('#cCh').innerHTML=`<span class="mono ${ai.ch24>=0?'up':'dn'}">${pc(ai.ch24)}</span>`;
 
   const nowStr=hhmm(SIM*1000);
-  $('#log').innerHTML=logs.slice(0,10).map(e=>`<li><time>${hhmm(e.t)}</time><span style="font-weight:700;color:var(--cyan)">${e.type}</span><span>${e.txt}</span></li>`).join('')||`<li class="empty">${nowStr} - Motore BingX Live &amp; Telegram Bot attivo.</li>`;
+  $('#log').innerHTML=logs.slice(0,10).map(e=>`<li><time>${hhmm(e.t)}</time><span style="font-weight:700;color:var(--cyan)">${e.type}</span><span>${e.txt}</span></li>`).join('')||`<li class="empty">${nowStr} - Radar Balene SaaS &amp; Telegram Bot attivo.</li>`;
 
   $('#heat').innerHTML=Object.keys(CLS).map(k=>`<div class="hg"><h3>${CLS[k].label}</h3><div class="tiles">${assets.filter(a=>a.cls===k).map(a=>{const c=a.ai.ch24,bg=c>=0?'rgba(0,255,204,.15)':'rgba(255,51,102,.15)';return`<button type="button" class="tile" data-sym="${a.sym}" style="background:${bg}">${a.sym}<small>${pc(c)}</small></button>`}).join('')}</div></div>`).join('');
   
   const lC=assets.filter(x=>x.ai.verdict!=='HOLD').length,wZ=assets.filter(x=>x.ai.verdict==='HOLD').length;
-  $('#dist').innerHTML=`<div style="display:grid;gap:6px;font:11px var(--font-mono)"><div style="display:flex;justify-content:space-between"><span>Entrate Certe (Long/Short)</span><b class="up">${lC} asset</b></div><div style="display:flex;justify-content:space-between"><span>Da Evitare (Non Entrare)</span><b class="dn">${wZ} asset</b></div></div>`;
+  $('#dist').innerHTML=`<div style="display:grid;gap:6px;font:11px var(--font-mono)"><div style="display:flex;justify-content:space-between"><span>Segnali Balene (Long/Short)</span><b class="up">${lC} asset</b></div><div style="display:flex;justify-content:space-between"><span>In Attesa / No Balene</span><b class="dn">${wZ} asset</b></div></div>`;
 }
 
 function renderAll(){
@@ -684,15 +678,9 @@ def home():
         return redirect(url_for('login'))
     global bot_settings
     if request.method == 'POST':
-        bot_settings["exchange"] = request.form.get("exchange", "bingx")
-        bot_settings["api_key"] = request.form.get("api_key", "").strip()
-        bot_settings["secret_key"] = request.form.get("secret_key", "").strip()
-        bot_settings["risk_percentage"] = float(request.form.get("risk_percentage", 1.0))
-        bot_settings["telegram_token"] = request.form.get("telegram_token", "").strip()
-        bot_settings["chat_id"] = request.form.get("chat_id", "").strip()
         bot_settings["auto_execution"] = 1 if request.form.get("auto_execution") == "on" else 0
         bot_settings["auto_telegram"] = 1 if request.form.get("auto_telegram") == "on" else 0
-        flash("Configurazione Live salvata con successo!")
+        flash("Preferenze salvate con successo!")
         return redirect(url_for('home'))
 
     return render_template_string(DASHBOARD_HTML, settings=bot_settings)
@@ -715,20 +703,58 @@ def login():
                 return redirect(url_for('home'))
         except Exception as e:
             print("Login DB Error:", e)
-        error = 'Credenziali non valide.'
+        error = 'Credenziali non valide o account inesistente.'
     
     return '''<!DOCTYPE html>
-    <html lang="it"><head><meta charset="UTF-8"><title>Login - Ultimate Live Scanner</title></head>
+    <html lang="it"><head><meta charset="UTF-8"><title>Login - SaaS Elite Scanner</title></head>
     <body style="background:#020408;color:#f4f7fa;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;">
-    <div style="background:#070d18;padding:30px;border:1px solid #00d4ff;width:340px;border-radius:4px;box-shadow:0 0 25px rgba(0,212,255,.25);">
-        <h3 style="color:#f3ca52;margin-top:0;text-align:center;letter-spacing:2px;font-family:Cinzel,serif;">ULTIMATE LIVE ACCESS</h3>
-        <p style="font-size:10.5px;color:#9fb0c9;text-align:center;margin-bottom:20px;">Default: admin / admin123</p>
+    <div style="background:#070d18;padding:30px;border:1px solid #00d4ff;width:360px;border-radius:6px;box-shadow:0 0 25px rgba(0,212,255,.25);">
+        <h3 style="color:#f3ca52;margin-top:0;text-align:center;letter-spacing:2px;font-family:Cinzel,serif;">ELITE ACCESS</h3>
+        <p style="font-size:10.5px;color:#9fb0c9;text-align:center;margin-bottom:20px;">Accedi con il tuo account in abbonamento</p>
         ''' + (f'<p style="color:#ff3366;font-size:11.5px;text-align:center;">{error}</p>' if error else '') + '''
         <form method="POST">
             <p><label style="font-size:11px;color:#9fb0c9;">Username</label><br><input type="text" name="username" required style="width:100%;padding:9px;background:#0d1626;border:1px solid #233a5e;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
             <p><label style="font-size:11px;color:#9fb0c9;">Password</label><br><input type="password" name="password" required style="width:100%;padding:9px;background:#0d1626;border:1px solid #233a5e;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
-            <button type="submit" style="width:100%;padding:10px;background:#f3ca52;color:#020408;border:none;font-weight:bold;margin-top:10px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;box-shadow:0 0 12px rgba(243,202,82,.4);">Connetti Live</button>
+            <button type="submit" style="width:100%;padding:10px;background:#f3ca52;color:#020408;border:none;font-weight:bold;margin-top:10px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;box-shadow:0 0 12px rgba(243,202,82,.4);">Accedi</button>
         </form>
+        <p style="text-align:center;margin-top:15px;font-size:11px;"><a href="/register" style="color:#00d4ff;text-decoration:none;">Non hai un account? Registrati</a></p>
+    </div></body></html>'''
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    error = None
+    if request.method == 'POST':
+        username = request.form.get('username').strip()
+        password = request.form.get('password').strip()
+        if username and password:
+            try:
+                conn = sqlite3.connect('trading_bot.db', timeout=10)
+                cursor = conn.cursor()
+                hashed_pw = generate_password_hash(password)
+                cursor.execute('INSERT INTO users (username, password) VALUES (?, ?)', (username, hashed_pw))
+                conn.commit()
+                conn.close()
+                return redirect(url_for('login'))
+            except sqlite3.IntegrityError:
+                error = 'Username già esistente.'
+            except Exception as e:
+                error = str(e)
+        else:
+            error = 'Compila tutti i campi.'
+
+    return '''<!DOCTYPE html>
+    <html lang="it"><head><meta charset="UTF-8"><title>Registrazione - SaaS Elite Scanner</title></head>
+    <body style="background:#020408;color:#f4f7fa;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;">
+    <div style="background:#070d18;padding:30px;border:1px solid #00d4ff;width:360px;border-radius:6px;box-shadow:0 0 25px rgba(0,212,255,.25);">
+        <h3 style="color:#f3ca52;margin-top:0;text-align:center;letter-spacing:2px;font-family:Cinzel,serif;">REGISTRAZIONE</h3>
+        <p style="font-size:10.5px;color:#9fb0c9;text-align:center;margin-bottom:20px;">Crea il tuo account abbonato</p>
+        ''' + (f'<p style="color:#ff3366;font-size:11.5px;text-align:center;">{error}</p>' if error else '') + '''
+        <form method="POST">
+            <p><label style="font-size:11px;color:#9fb0c9;">Username</label><br><input type="text" name="username" required style="width:100%;padding:9px;background:#0d1626;border:1px solid #233a5e;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
+            <p><label style="font-size:11px;color:#9fb0c9;">Password</label><br><input type="password" name="password" required style="width:100%;padding:9px;background:#0d1626;border:1px solid #233a5e;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
+            <button type="submit" style="width:100%;padding:10px;background:#00ffcc;color:#020408;border:none;font-weight:bold;margin-top:10px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;box-shadow:0 0 12px rgba(0,255,204,.4);">Registrati</button>
+        </form>
+        <p style="text-align:center;margin-top:15px;font-size:11px;"><a href="/login" style="color:#00d4ff;text-decoration:none;">Hai già un account? Accedi</a></p>
     </div></body></html>'''
 
 @app.route('/logout')
