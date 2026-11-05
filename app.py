@@ -10,12 +10,16 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'chiave_segreta_trading_ai_2026_saas_secure')
 
+# Configurazioni globali di sistema (lette esclusivamente da Render ENV)
 bot_settings = {
     "exchange": "bingx",
     "mode": os.environ.get("TRADING_MODE", "automatico"),
     "auto_execution": int(os.environ.get("AUTO_EXECUTION", 0)),
     "auto_telegram": int(os.environ.get("AUTO_TELEGRAM", 1))
 }
+
+# Dizionario globale dei prezzi reali sincronizzati da BingX
+bingx_live_prices = {}
 
 def init_db():
     try:
@@ -30,6 +34,7 @@ def init_db():
                 secret_key TEXT DEFAULT ''
             )
         ''')
+        
         cursor.execute("PRAGMA table_info(users)")
         columns = [col[1] for col in cursor.fetchall()]
         if 'api_key' not in columns:
@@ -49,13 +54,44 @@ def init_db():
 
 init_db()
 
+def sync_bingx_market():
+    while True:
+        try:
+            url = "https://open-api.bingx.com/openApi/swap/v2/quote/ticker"
+            response = requests.get(url, timeout=5)
+            if response.status_code == 200:
+                result = response.json()
+                if result.get("code") == 0:
+                    for ticker in result.get("data", []):
+                        symbol = ticker.get("symbol", "").replace("-USDT", "").replace("-", "")
+                        last_price = float(ticker.get("lastPrice", 0))
+                        price_change = float(ticker.get("priceChangePercent", 0))
+                        if last_price > 0:
+                            bingx_live_prices[symbol] = {
+                                "price": last_price,
+                                "ch24": price_change / 100.0
+                            }
+        except Exception as e:
+            print("Errore sync BingX API:", e)
+        time.sleep(2)
+
+sync_thread = threading.Thread(target=sync_bingx_market, daemon=True)
+sync_thread.start()
+
 def invia_messaggio_telegram(testo):
     token = os.environ.get('TELEGRAM_TOKEN', '')
     chat_id = os.environ.get('CHAT_ID', '')
+    
     if not token or not chat_id:
         return False
+        
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = {"chat_id": chat_id, "text": testo, "parse_mode": "Markdown"}
+    payload = {
+        "chat_id": chat_id,
+        "text": testo,
+        "parse_mode": "Markdown"
+    }
+    
     try:
         response = requests.post(url, json=payload, timeout=10)
         return response.status_code == 200
@@ -133,11 +169,11 @@ input:focus,select:focus{border-color:var(--gold);outline:none;box-shadow:0 0 12
 
 .gsvg{display:block;width:100%;height:auto;overflow:visible}
 .gseg{fill:none;stroke-width:9;opacity:.25}
-.gval{fill:none;stroke-width:9;transition:stroke-dasharray .6s cubic-bezier(0.4,0,0.2,1),stroke .5s;filter:drop-shadow(0 0 10px currentColor)}
+.gval{fill:none;stroke-width:9;transition:stroke-dasharray .5s ease,stroke .5s;filter:drop-shadow(0 0 10px currentColor)}
 .z0{stroke:var(--z1);color:var(--z1)}.z1{stroke:var(--z2);color:var(--z2)}.z2{stroke:var(--z3);color:var(--z3)}.z3{stroke:var(--z4);color:var(--z4)}.z4{stroke:var(--z5);color:var(--z5)}
 .tk{stroke:var(--line2);stroke-width:1}.tk.maj{stroke:var(--gold);stroke-width:1.4}
 .tl{fill:var(--mute);font:500 6.5px var(--font-mono)}
-.ndl{transform-origin:100px 100px;transition:transform .6s cubic-bezier(0.4,0,0.2,1)}
+.ndl{transform-origin:100px 100px;transition:transform .5s cubic-bezier(0.4, 0, 0.2, 1)}
 .ndl polygon{fill:var(--gold)}
 .hub{fill:var(--panel);stroke:var(--gold);stroke-width:2;filter:drop-shadow(0 0 8px var(--gold))}
 .gnum{font:700 36px/1 var(--font-mono);text-align:center;text-shadow:0 0 18px rgba(243,202,82,.45);color:var(--gold)}
@@ -151,10 +187,18 @@ input:focus,select:focus{border-color:var(--gold);outline:none;box-shadow:0 0 12
 .pill.HOLD{color:var(--gold);background:rgba(243,202,82,.15);box-shadow:0 0 10px rgba(243,202,82,.3)}
 
 .anim-entra-adesso {
-  font-weight: 700; color: var(--up); text-transform: uppercase; letter-spacing: 0.1em;
-  animation: flashEntra 0.6s infinite alternate ease-in-out; display: inline-block; text-shadow: 0 0 10px var(--up);
+  font-weight: 700;
+  color: var(--up);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  animation: flashEntra 0.6s infinite alternate ease-in-out;
+  display: inline-block;
+  text-shadow: 0 0 10px var(--up);
 }
-@keyframes flashEntra { 0% { opacity: 0.4; transform: scale(0.98); } 100% { opacity: 1; transform: scale(1.03); text-shadow: 0 0 18px var(--up); } }
+@keyframes flashEntra {
+  0% { opacity: 0.4; transform: scale(0.98); }
+  100% { opacity: 1; transform: scale(1.03); text-shadow: 0 0 18px var(--up); }
+}
 
 .bar2{position:relative;height:8px;background:var(--line)}
 .bar2 i{position:absolute;top:0;bottom:0}
@@ -184,6 +228,7 @@ input[type=search]{background:var(--panel);border:1px solid var(--line2);color:v
 table.main{border-collapse:collapse;width:100%;min-width:1480px}
 .main th{position:sticky;top:0;background:var(--panel2);z-index:1;text-align:center;font:600 10px var(--font-mono);letter-spacing:.08em;color:var(--gold);text-transform:uppercase;padding:10px 9px;cursor:pointer;white-space:nowrap;border-bottom:1px solid var(--line2)}
 .main th:first-child,.main td:first-child{text-align:left}
+.main th[aria-sort]{color:var(--gold)}
 .main td{padding:8px 10px;text-align:center;font:400 11.5px var(--font-mono);border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:middle}
 tr.r{cursor:pointer}
 tr.r:hover{background:rgba(243,202,82,.07)}
@@ -453,7 +498,7 @@ const U=[
 ];
 const money=(a,p)=>(IDX.has(a.sym)?'':'$')+fp(p);
 const N15=120;
-let SIM=Math.floor(Date.now()/1000)-120*60;
+let SIM=Math.floor(Date.now()/1000)-120*60,cycles=0;
 const assets=U.map(([sym,name,cls,price,vol])=>({sym,name,cls,price,vol:vol/2,beta:.7+Math.random()*.6,
   per:40+Math.random()*50,ph:Math.random()*6.28,amp:.25+Math.random()*.5,
   v0:(cls==='cry'?1e4:cls==='stk'?6e4:2e4)*(.5+Math.random()),
@@ -513,11 +558,16 @@ function analyze(a){
   const slPct=clamp(1.5*atr/price,.004,.03);
   
   let lev = 10;
-  if (a.cls === 'cry') lev = Math.round(clamp(12 / (slPct * 100), 2, 10));
-  else if (a.cls === 'stk') lev = Math.round(clamp(6 / (slPct * 100), 2, 5));
-  else lev = Math.round(clamp(8 / (slPct * 100), 2, 8));
+  if (a.cls === 'cry') {
+    lev = Math.round(clamp(12 / (slPct * 100), 2, 10));
+  } else if (a.cls === 'stk') {
+    lev = Math.round(clamp(6 / (slPct * 100), 2, 5));
+  } else {
+    lev = Math.round(clamp(8 / (slPct * 100), 2, 8));
+  }
 
   const tfRec=Math.abs(comb)>50?'15m':Math.abs(comb)>25?'1h':'4h';
+  
   let verdict='HOLD';
   if(comb>=15) verdict='LONG';
   else if(comb<=-15) verdict='SHORT';
@@ -544,7 +594,7 @@ function analyze(a){
 
 const logs=[];
 
-async function updateLiveData() {
+async function fetchLiveBingXPrices() {
   try {
     const response = await fetch('https://open-api.bingx.com/openApi/swap/v2/quote/ticker');
     const result = await response.json();
@@ -559,11 +609,8 @@ async function updateLiveData() {
       });
       assets.forEach(a => {
         if (liveMap[a.sym]) {
-          const oldPrice = a.price;
           a.price = liveMap[a.sym].price;
           a.ch24 = liveMap[a.sym].ch24;
-          
-          // Aggiorna l'ultima candela live o ne aggiunge una se il prezzo si muove
           const lastCandle = a.candles[a.candles.length - 1];
           if (lastCandle) {
             lastCandle.c = a.price;
@@ -571,12 +618,18 @@ async function updateLiveData() {
             lastCandle.l = Math.min(lastCandle.l, a.price);
           }
         }
-        a.ai = analyze(a);
       });
     }
   } catch (err) {
-    console.error("Errore fetch BingX:", err);
+    console.error("Impossibile contattare le API BingX:", err);
   }
+}
+
+async function step(){
+  SIM+=60;
+  await fetchLiveBingXPrices();
+  cycles++;
+  for(const a of assets) a.ai = analyze(a);
 }
 
 const ZL=['Strong Bear','Bearish','Neutral','Bullish','Strong Bull'];
@@ -632,12 +685,15 @@ function getExactCandleSeconds(tfRec) {
   let tfSec = 900;
   if (tfRec === '1h') tfSec = 3600;
   if (tfRec === '4h') tfSec = 14400;
-  return tfSec - (totalSeconds % tfSec);
+  
+  const elapsedInCandle = totalSeconds % tfSec;
+  return tfSec - elapsedInCandle;
 }
 
 function formatTimer(totalSec){
   if(totalSec<=0) return '00:00';
-  const m=Math.floor(totalSec/60),s=totalSec%60;
+  const m=Math.floor(totalSec/60);
+  const s=totalSec%60;
   return `${pad2(m)}:${pad2(s)}`;
 }
 
@@ -688,8 +744,11 @@ function renderMain(){
 
   const v=ai.verdict;
   let vText = '⚠️ ATTESA BALENE (No Movimenti)';
-  if(v === 'LONG') vText = `🐋 🟢 <span class="anim-entra-adesso">ENTRA ADESSO!</span> LONG (Segnale Certo)`;
-  else if(v === 'SHORT') vText = `🐋 🔴 <span class="anim-entra-adesso">ENTRA ADESSO!</span> SHORT (Segnale Certo)`;
+  if(v === 'LONG') {
+    vText = `🐋 🟢 <span class="anim-entra-adesso">ENTRA ADESSO!</span> LONG (Segnale Certo)`;
+  } else if(v === 'SHORT') {
+    vText = `🐋 🔴 <span class="anim-entra-adesso">ENTRA ADESSO!</span> SHORT (Segnale Certo)`;
+  }
 
   const d = new Date();
   const currentTotalMin = d.getHours() * 60 + d.getMinutes();
@@ -698,8 +757,13 @@ function renderMain(){
   const startMinTotal = blockIndex * tfMins;
   const endMinTotal = startMinTotal + tfMins;
   
-  const startTimeStr = pad2(Math.floor(startMinTotal / 60) % 24) + ':' + pad2(startMinTotal % 60);
-  const endTimeStr = pad2(Math.floor(endMinTotal / 60) % 24) + ':' + pad2(endMinTotal % 60);
+  const startH = Math.floor(startMinTotal / 60) % 24;
+  const startM = startMinTotal % 60;
+  const endH = Math.floor(endMinTotal / 60) % 24;
+  const endM = endMinTotal % 60;
+
+  const startTimeStr = pad2(startH) + ':' + pad2(startM);
+  const endTimeStr = pad2(endH) + ':' + pad2(endM);
 
   $('#anSub').textContent=`${a.sym} · ${a.name} (${CLS[a.cls].label})`;
   $('#entryWindowText').textContent=`Finestra Consigliata: ${startTimeStr} - ${endTimeStr} (Retest Scadenza: In Chiusura Candela ${ai.tfRec.toUpperCase()}) Confluenza Live BingX`;
@@ -723,15 +787,30 @@ function renderMain(){
   const pnlSL = (10 * (roiSL / 100)).toFixed(2);
 
   $('#bingxParamsBody').innerHTML = `
-    <tr><td><b>1. Prezzo (USDT)</b></td><td>Prezzo TP1: <b class="up">${money(a, ai.tp1)}</b></td><td>Prezzo SL: <b class="dn">${money(a, ai.sl)}</b></td></tr>
-    <tr><td><b>2. ROI (%)</b> (Leva ${ai.lev}x)</td><td>ROI TP: <b class="up">+${roiTP}%</b></td><td>ROI SL: <b class="dn">-${roiSL}%</b></td></tr>
-    <tr><td><b>3. PnL (USDT)</b> (Margine $10)</td><td>PnL TP: <b class="up">+$${pnlTP}</b></td><td>PnL SL: <b class="dn">-$${pnlSL}</b></td></tr>
+    <tr>
+      <td><b>1. Prezzo (USDT)</b></td>
+      <td>Prezzo TP1: <b class="up">${money(a, ai.tp1)}</b></td>
+      <td>Prezzo SL: <b class="dn">${money(a, ai.sl)}</b></td>
+    </tr>
+    <tr>
+      <td><b>2. ROI (%)</b> (Leva ${ai.lev}x)</td>
+      <td>ROI TP: <b class="up">+${roiTP}%</b></td>
+      <td>ROI SL: <b class="dn">-${roiSL}%</b></td>
+    </tr>
+    <tr>
+      <td><b>3. PnL (USDT)</b> (Margine $10)</td>
+      <td>PnL TP: <b class="up">+$${pnlTP}</b></td>
+      <td>PnL SL: <b class="dn">-$${pnlSL}</b></td>
+    </tr>
   `;
 
   $('#anReason').textContent=`Analisi AI millimetrica su ${a.sym} (${CLS[a.cls].label}) sincronizzata live con BingX. Prezzo di mercato attuale: ${money(a, a.price)}. ${ai.whales}. L'intelligenza artificiale rileva flussi istituzionali reali. Precisione stimata: ${ai.conf}%.`;
 
   $('#cSym').textContent=a.sym;$('#cName').textContent=a.name;$('#cPx').textContent=money(a,a.price);
   $('#cCh').innerHTML=`<span class="mono ${ai.ch24>=0?'up':'dn'}">${pc(ai.ch24)}</span>`;
+
+  const nowStr=hhmm(SIM*1000);
+  $('#log').innerHTML=logs.slice(0,10).map(e=>`<li><time>${hhmm(e.t)}</time><span style="font-weight:700;color:var(--gold)">${e.type}</span><span>${e.txt}</span></li>`).join('')||`<li class="empty">${nowStr} - Sincronizzazione Live BingX attiva.</li>`;
 
   $('#heat').innerHTML=Object.keys(CLS).map(k=>`<div class="hg"><h3>${CLS[k].label}</h3><div class="tiles">${assets.filter(a=>a.cls===k).map(a=>{const c=a.ai.ch24,bg=c>=0?'rgba(0,255,204,.15)':'rgba(255,51,102,.15)';return`<button type="button" class="tile" data-sym="${a.sym}" style="background:${bg}">${a.sym}<small>${pc(c)}</small></button>`}).join('')}</div></div>`).join('');
   
@@ -773,20 +852,23 @@ $('#q').addEventListener('input',e=>{ui.q=e.target.value.trim().toLowerCase();re
 $('#thead').addEventListener('click',e=>{const th=e.target.closest('th[data-k]');if(!th)return;const k=th.dataset.k;assets.sort((x,y)=>(x[k]>y[k]?1:-1));renderTable()});
 let paused=false;$('#pauseBtn').addEventListener('click',()=>{paused=!paused;$('#pauseBtn').textContent=paused?'Riprendi':'Pausa'});
 
-// Loop di aggiornamento fluido ogni 2 secondi tramite AJAX (senza ricaricare la pagina)
+// AGGIORNAMENTO FLUIDO IN BACKGROUND OGNI 2 SECONDI (SENZA MAI RICARICARE LA PAGINA)
 let mainInterval = null;
+
 async function startLoop() {
   if (mainInterval) clearInterval(mainInterval);
   mainInterval = setInterval(async () => {
     if (paused) return;
-    await updateLiveData();
+    await step();
     renderAll();
   }, 2000);
 }
 
+// Se l'utente torna sulla pagina dopo aver sbloccato il telefono, aggiorna subito senza ricaricare
 document.addEventListener("visibilitychange", async () => {
   if (!document.hidden) {
-    await updateLiveData();
+    await fetchLiveBingXPrices();
+    for(const a of assets) a.ai = analyze(a);
     renderAll();
   }
 });
@@ -798,9 +880,11 @@ async function boot(){
   gLiq=mkGauge($('#gLiq'));gVol=mkGauge($('#gVol'));gWhl=mkGauge($('#gWhl'));
   readColors();
   
-  await updateLiveData();
+  await fetchLiveBingXPrices();
+  for(let i=0;i<40;i++){SIM+=60;for(const a of assets)a.ai=analyze(a)}
   sel='BTC';
   renderAll();
+  
   startLoop();
 }
 window.addEventListener('DOMContentLoaded', boot);
@@ -816,6 +900,7 @@ def home():
         return redirect(url_for('login'))
     
     user_id = session['user_id']
+    username = session['username']
     
     if request.method == 'POST':
         new_mode = request.form.get("mode", "automatico")
@@ -831,7 +916,11 @@ def home():
         try:
             conn = sqlite3.connect('trading_bot.db', timeout=10)
             cursor = conn.cursor()
-            cursor.execute('UPDATE users SET api_key = ?, secret_key = ? WHERE id = ?', (new_api_key, new_secret_key, user_id))
+            cursor.execute('''
+                UPDATE users 
+                SET api_key = ?, secret_key = ? 
+                WHERE id = ?
+            ''', (new_api_key, new_secret_key, user_id))
             conn.commit()
             conn.close()
         except Exception as e:
@@ -840,7 +929,8 @@ def home():
         flash("Preferenze e chiavi API salvate con successo!")
         return redirect(url_for('home'))
 
-    user_api_key, user_secret_key = "", ""
+    user_api_key = ""
+    user_secret_key = ""
     try:
         conn = sqlite3.connect('trading_bot.db', timeout=10)
         cursor = conn.cursor()
@@ -848,7 +938,8 @@ def home():
         row = cursor.fetchone()
         conn.close()
         if row:
-            user_api_key, user_secret_key = row[0] or "", row[1] or ""
+            user_api_key = row[0] or ""
+            user_secret_key = row[1] or ""
     except Exception as e:
         print("Errore lettura chiavi utente:", e)
 
@@ -887,11 +978,12 @@ def login():
     <body style="background:#050505;color:#fdfbf7;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;">
     <div style="background:#0a0906;padding:30px;border:1px solid #f3ca52;width:360px;border-radius:6px;box-shadow:0 0 30px rgba(243,202,82,.25);">
         <h3 style="color:#f3ca52;margin-top:0;text-align:center;letter-spacing:2px;font-family:Cinzel,serif;">GOLD ELITE ACCESS</h3>
+        <p style="font-size:10.5px;color:#8c8268;text-align:center;margin-bottom:20px;">Accedi con il tuo account abbonato</p>
         ''' + (f'<p style="color:#ff3366;font-size:11.5px;text-align:center;">{error}</p>' if error else '') + '''
         <form method="POST">
             <p><label style="font-size:11px;color:#8c8268;">Username</label><br><input type="text" name="username" required style="width:100%;padding:9px;background:#12100a;border:1px solid #3d351e;color:#f3ca52;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
             <p><label style="font-size:11px;color:#8c8268;">Password</label><br><input type="password" name="password" required style="width:100%;padding:9px;background:#12100a;border:1px solid #3d351e;color:#f3ca52;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
-            <button type="submit" style="width:100%;padding:10px;background:#f3ca52;color:#050505;border:none;font-weight:bold;margin-top:10px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;">Accedi</button>
+            <button type="submit" style="width:100%;padding:10px;background:#f3ca52;color:#050505;border:none;font-weight:bold;margin-top:10px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;box-shadow:0 0 12px rgba(243,202,82,.4);">Accedi</button>
         </form>
         <p style="text-align:center;margin-top:15px;font-size:11px;"><a href="/register" style="color:#f3ca52;text-decoration:none;">Non hai un account? Registrati</a></p>
     </div></body></html>'''
@@ -900,14 +992,15 @@ def login():
 def register():
     error = None
     if request.method == 'POST':
-        username = request.form.get('username', '').strip()
-        password = request.form.get('password', '').strip()
+        username = request.form.get('username').strip()
+        password = request.form.get('password').strip()
         if username and password:
             try:
                 conn = sqlite3.connect('trading_bot.db', timeout=10)
                 cursor = conn.cursor()
                 hashed_pw = generate_password_hash(password)
-                cursor.execute('INSERT INTO users (username, password, api_key, secret_key) VALUES (?, ?, ?, ?)', (username, hashed_pw, '', ''))
+                cursor.execute('INSERT INTO users (username, password, api_key, secret_key) VALUES (?, ?, ?, ?)', 
+                               (username, hashed_pw, '', ''))
                 conn.commit()
                 conn.close()
                 return redirect(url_for('login'))
@@ -922,12 +1015,13 @@ def register():
     <html lang="it"><head><meta charset="UTF-8"><title>Registrazione - Gold Elite Access</title></head>
     <body style="background:#050505;color:#fdfbf7;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;">
     <div style="background:#0a0906;padding:30px;border:1px solid #f3ca52;width:360px;border-radius:6px;box-shadow:0 0 30px rgba(243,202,82,.25);">
-        <h3 style="color:#f3ca52;margin-top:0;text-align:change;letter-spacing:2px;font-family:Cinzel,serif;">REGISTRAZIONE</h3>
+        <h3 style="color:#f3ca52;margin-top:0;text-align:center;letter-spacing:2px;font-family:Cinzel,serif;">REGISTRAZIONE</h3>
+        <p style="font-size:10.5px;color:#8c8268;text-align:center;margin-bottom:20px;">Crea il tuo account abbonato</p>
         ''' + (f'<p style="color:#ff3366;font-size:11.5px;text-align:center;">{error}</p>' if error else '') + '''
         <form method="POST">
             <p><label style="font-size:11px;color:#8c8268;">Username</label><br><input type="text" name="username" required style="width:100%;padding:9px;background:#12100a;border:1px solid #3d351e;color:#f3ca52;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
-            <p><label style="font-size:11px;color:#8c8268₂;">Password</label><br><input type="password" name="password" required style="width:100%;padding:9px;background:#12100a;border:1px solid #3d351e;color:#f3ca52;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
-            <button type="submit" style="width:100%;padding:10px;background:#00ffcc;color:#050505;border:none;font-weight:bold;margin-top:10px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;">Registrati</button>
+            <p><label style="font-size:11px;color:#8c8268;">Password</label><br><input type="password" name="password" required style="width:100%;padding:9px;background:#12100a;border:1px solid #3d351e;color:#f3ca52;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
+            <button type="submit" style="width:100%;padding:10px;background:#00ffcc;color:#050505;border:none;font-weight:bold;margin-top:10px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;box-shadow:0 0 12px rgba(0,255,204,.4);">Registrati</button>
         </form>
         <p style="text-align:center;margin-top:15px;font-size:11px;"><a href="/login" style="color:#f3ca52;text-decoration:none;">Hai già un account? Accedi</a></p>
     </div></body></html>'''
