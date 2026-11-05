@@ -5,19 +5,17 @@ import hashlib
 import urllib.parse
 import requests
 import sqlite3
+import threading
 from flask import Flask, render_template_string, request, redirect, url_for, session, flash
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'chiave_segreta_trading_ai_2026_saas')
 
+# Configurazioni globali lette esclusivamente da Render Environment Variables
 bot_settings = {
     "exchange": "bingx",
     "mode": os.environ.get("TRADING_MODE", "automatico"),
-    "api_key": os.environ.get("BINGX_API_KEY", os.environ.get("API_KEY", "")),
-    "secret_key": os.environ.get("BINGX_SECRET_KEY", os.environ.get("SECRET_KEY_EXCHANGE", "")),
-    "telegram_token": os.environ.get("TELEGRAM_TOKEN", ""),
-    "chat_id": os.environ.get("CHAT_ID", ""),
     "auto_execution": int(os.environ.get("AUTO_EXECUTION", 0)),
     "auto_telegram": int(os.environ.get("AUTO_TELEGRAM", 1))
 }
@@ -30,19 +28,75 @@ def init_db():
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT UNIQUE NOT NULL,
-                password TEXT NOT NULL
+                password TEXT NOT NULL,
+                api_key TEXT DEFAULT '',
+                secret_key TEXT DEFAULT ''
             )
         ''')
+        
+        # Aggiunge le colonne se il database esiste già ma ne è sprovvisto
+        cursor.execute("PRAGMA table_info(users)")
+        columns = [col[1] for col in cursor.fetchall()]
+        if 'api_key' not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN api_key TEXT DEFAULT ''")
+        if 'secret_key' not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN secret_key TEXT DEFAULT ''")
+
         cursor.execute('SELECT COUNT(*) FROM users')
         if cursor.fetchone()[0] == 0:
             default_pass = generate_password_hash('admin123')
-            cursor.execute('INSERT INTO users (username, password) VALUES (?, ?)', ('admin', default_pass))
+            cursor.execute('INSERT INTO users (username, password, api_key, secret_key) VALUES (?, ?, ?, ?)', 
+                           ('admin', default_pass, '', ''))
         conn.commit()
         conn.close()
     except Exception as e:
         print("DB Init Error:", e)
 
 init_db()
+
+# Funzione per l'invio dei messaggi su Telegram leggendo i dati da Render ENV
+def invia_messaggio_telegram(testo):
+    token = os.environ.get('TELEGRAM_TOKEN', '')
+    chat_id = os.environ.get('CHAT_ID', '')
+    
+    if not token or not chat_id:
+        print("Telegram non configurato: Token o Chat ID mancanti nelle variabili d'ambiente di Render.")
+        return False
+        
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": testo,
+        "parse_mode": "Markdown"
+    }
+    
+    try:
+        response = requests.post(url, json=payload, timeout=10)
+        if response.status_code == 200:
+            print("Segnale inviato con successo su Telegram!")
+            return True
+        else:
+            print(f"Errore invio Telegram ({response.status_code}): {response.text}")
+            return False
+    except Exception as e:
+        print(f"Eccezione durante l'invio su Telegram: {e}")
+        return False
+
+def background_scanner():
+    time.sleep(10)
+    print("Background Scanner e modulo Telegram attivati...")
+    invia_messaggio_telegram("🤖 **SCANNER TRADING VIP BOT**\n\n🟢 Sistema online e collegato correttamente alle variabili di Render!")
+    
+    while True:
+        try:
+            if bot_settings.get("auto_telegram") == 1:
+                pass
+        except Exception as e:
+            print("Errore nel background scanner:", e)
+        time.sleep(120)
+
+scanner_thread = threading.Thread(target=background_scanner, daemon=True)
+scanner_thread.start()
 
 DASHBOARD_HTML = '''<!DOCTYPE html>
 <html lang="it">
@@ -117,7 +171,6 @@ input:focus,select:focus{border-color:var(--gold);outline:none;box-shadow:0 0 12
 .pill.SHORT{color:var(--dn);background:rgba(255,51,102,.15);box-shadow:0 0 10px rgba(255,51,102,.3)}
 .pill.HOLD{color:var(--gold);background:rgba(243,202,82,.15);box-shadow:0 0 10px rgba(243,202,82,.3)}
 
-/* ANIMAZIONE "ENTRA ADESSO" NEL VERDETTO */
 .anim-entra-adesso {
   font-weight: 700;
   color: var(--up);
@@ -227,8 +280,14 @@ footer{margin-top:18px;font:400 10px var(--font-mono);color:var(--mute);line-hei
             <option value="bingx" selected>BingX Futures Pro (Live)</option>
           </select>
         </div>
-        <div><label class="mu" style="font-size:10.5px">API Key (Render ENV)</label><input type="password" value="******** (Protetto)" disabled></div>
-        <div><label class="mu" style="font-size:10.5px">Secret Key (Render ENV)</label><input type="password" value="******** (Protetto)" disabled></div>
+        <div>
+          <label class="mu" style="font-size:10.5px">Le tue API Key (Personali)</label>
+          <input type="password" name="api_key" value="{{ settings.api_key }}" placeholder="Inserisci la tua API Key">
+        </div>
+        <div>
+          <label class="mu" style="font-size:10.5px">Le tue Secret Key (Personali)</label>
+          <input type="password" name="secret_key" value="{{ settings.secret_key }}" placeholder="Inserisci la tua Secret Key">
+        </div>
       </div>
       <div style="display:flex;flex-wrap:wrap;align-items:center;gap:18px;margin-top:12px;">
         <label style="font:10.5px var(--font-mono);display:flex;align-items:center;gap:6px;cursor:pointer">
@@ -306,7 +365,6 @@ footer{margin-top:18px;font:400 10px var(--font-mono);color:var(--mute);line-hei
       </ul>
     </section>
 
-    <!-- SEZIONE TEMPO UTILE INGRESSO & VERDETTO ANIMATO ENTRA ADESSO -->
     <section class="panel s8">
       <div class="ph"><h2>Verdetto Balene Certificato &amp; Tempo Utile Ingresso</h2><span class="sub" id="anSub">Seleziona un asset</span></div>
 
@@ -728,15 +786,59 @@ window.addEventListener('DOMContentLoaded', boot);
 def home():
     if 'username' not in session:
         return redirect(url_for('login'))
-    global bot_settings
+    
+    username = session['username']
+    
     if request.method == 'POST':
-        bot_settings["mode"] = request.form.get("mode", "automatico")
-        bot_settings["auto_execution"] = 1 if request.form.get("auto_execution") == "on" else 0
-        bot_settings["auto_telegram"] = 1 if request.form.get("auto_telegram") == "on" else 0
-        flash("Preferenze e modalità aggiornate con successo!")
+        new_mode = request.form.get("mode", "automatico")
+        new_api_key = request.form.get("api_key", "").strip()
+        new_secret_key = request.form.get("secret_key", "").strip()
+        auto_exec = 1 if request.form.get("auto_execution") == "on" else 0
+        auto_tel = 1 if request.form.get("auto_telegram") == "on" else 0
+        
+        bot_settings["mode"] = new_mode
+        bot_settings["auto_execution"] = auto_exec
+        bot_settings["auto_telegram"] = auto_tel
+
+        try:
+            conn = sqlite3.connect('trading_bot.db', timeout=10)
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE users 
+                SET api_key = ?, secret_key = ? 
+                WHERE username = ?
+            ''', (new_api_key, new_secret_key, username))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print("Errore salvataggio chiavi utente:", e)
+            
+        flash("Preferenze e chiavi API salvate con successo!")
         return redirect(url_for('home'))
 
-    return render_template_string(DASHBOARD_HTML, settings=bot_settings)
+    # Recupera le chiavi salvate dell'utente dal database
+    user_api_key = ""
+    user_secret_key = ""
+    try:
+        conn = sqlite3.connect('trading_bot.db', timeout=10)
+        cursor = conn.cursor()
+        cursor.execute('SELECT api_key, secret_key FROM users WHERE username = ?', (username,))
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            user_api_key, user_secret_key = row[0], row[1]
+    except Exception as e:
+        print("Errore lettura chiavi utente:", e)
+
+    user_settings = {
+        "mode": bot_settings["mode"],
+        "api_key": user_api_key,
+        "secret_key": user_secret_key,
+        "auto_execution": bot_settings["auto_execution"],
+        "auto_telegram": bot_settings["auto_telegram"]
+    }
+
+    return render_template_string(DASHBOARD_HTML, settings=user_settings)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
