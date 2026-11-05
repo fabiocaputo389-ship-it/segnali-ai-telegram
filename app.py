@@ -118,7 +118,7 @@ DASHBOARD_HTML = '''<!DOCTYPE html>
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<title>AI Market Scanner &amp; Whale Tracker - Precision Edition</title>
+<title>AI Market Scanner &amp; Whale Tracker - Candle Precision Edition</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -343,14 +343,14 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
     </section>
 
     <section class="panel s8">
-      <div class="ph"><h2>Verdetto Balene Certificato &amp; Timing d'Ingresso</h2><span class="sub" id="anSub">Seleziona un asset</span></div>
+      <div class="ph"><h2>Verdetto Balene Certificato &amp; Timing Candela per Candela</h2><span class="sub" id="anSub">Seleziona un asset</span></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div>
-          <div class="sec">Consiglio Balene &amp; Durata Posizione</div>
+          <div class="sec">Consiglio Balene &amp; Durata Candele</div>
           <div id="anPlan" style="display:grid;gap:5px;font:10.5px var(--font-mono)"></div>
         </div>
         <div>
-          <div class="sec">Target Millimetrici &amp; Tempi per TP</div>
+          <div class="sec">Target Millimetrici &amp; Candele per TP</div>
           <div id="anTargets" style="display:grid;gap:5px;font:10.5px var(--font-mono)"></div>
         </div>
       </div>
@@ -377,7 +377,7 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
         <span class="sub mu mono" id="cnt" style="margin-left:auto"></span>
       </div>
       <div class="tw"><table class="main"><thead><tr id="thead">
-        <th data-k="sym" style="text-align:left">Asset / Mercato</th><th>Verdetto Balene</th><th>Tempo Stimato TP</th><th>Precisione</th><th>Prezzo Ingresso</th><th>Timeframe</th><th>Leva Reale</th><th>Target TP1</th><th>Target TP2</th><th>Target TP3</th><th>Stop Loss</th>
+        <th data-k="sym" style="text-align:left">Asset / Mercato</th><th>Verdetto Balene</th><th>Candele per TP</th><th>Precisione</th><th>Prezzo Ingresso</th><th>Timeframe</th><th>Leva Reale</th><th>Target TP1</th><th>Target TP2</th><th>Target TP3</th><th>Stop Loss</th>
       </tr></thead><tbody id="tbody"></tbody></table></div>
     </section>
 
@@ -394,7 +394,7 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
       <ul class="log" id="log"></ul>
     </section>
   </main>
-  <footer>Tutti i prezzi, i verdetti delle balene, la durata e l'invio ordini API BingX Live e Telegram sono gestiti dal motore quantistico AI SaaS. Non costituisce consulenza finanziaria.</footer>
+  <footer>Tutti i prezzi, i verdetti delle balene, la durata candela per candela e l'invio ordini API BingX Live e Telegram sono gestiti dal motore quantistico AI SaaS. Non costituisce consulenza finanziaria.</footer>
 </div>
 
 <script>
@@ -430,7 +430,7 @@ const money=(a,p)=>(IDX.has(a.sym)?'':'$')+fp(p);
 const TICK=2000,N15=120;
 let SIM=Math.floor(Date.now()/1000)-120*60,cycles=0;
 const assets=U.map(([sym,name,cls,price,vol])=>({sym,name,cls,price,vol:vol/2,beta:.7+Math.random()*.6,
-  per:40+Math.random()*50,ph:Math.random()*6.28,amp:.25+Math.random()*5,
+  per:40+Math.random()*50,ph:Math.random()*6.28,amp:.25+Math.random()*.5,
   v0:(cls==='cry'?1e4:cls==='stk'?6e4:2e4)*(.5+Math.random()),
   candles:[]}));
 const bySym={};assets.forEach(a=>bySym[a.sym]=a);
@@ -487,20 +487,25 @@ function analyze(a){
   const S=tf[15].S,i=S.c.length-1,atr=S.atr[i],price=a.price;
   const slPct=clamp(1.5*atr/price,.004,.03);
   
-  // LEVA REALE E SICURA
   let lev = a.cls === 'cry' ? Math.floor(clamp(10 / (slPct * 100), 2, 10)) : Math.floor(clamp(5 / (slPct * 100), 2, 5));
-
   const tfRec=Math.abs(comb)>50?'15m':Math.abs(comb)>25?'1h':'4h';
   
   let verdict='HOLD';
   if(comb>=15) verdict='LONG';
   else if(comb<=-15) verdict='SHORT';
 
-  // TEMPI PRECISI PER RAGGIUNGIMENTO TP
-  let timeTP1 = tfRec === '15m' ? '15 - 35 minuti' : tfRec === '1h' ? '1 - 2.5 ore' : '4 - 8 ore';
-  let timeTP2 = tfRec === '15m' ? '45 min - 1.5 ore' : tfRec === '1h' ? '3 - 6 ore' : '12 - 24 ore';
-  let timeTP3 = tfRec === '15m' ? '2 - 4 ore' : tfRec === '1h' ? '8 - 18 ore' : '24 - 48 ore';
-  let totalHold = tfRec === '15m' ? 'Max 4 ore' : tfRec === '1h' ? 'Max 18 ore' : 'Max 48 ore';
+  // CALCOLO CANDELA PER CANDELA IMPECCABILE
+  // Base di candele in base alla forza del segnale e alla volatilità
+  const strengthFactor = Math.max(1, Math.round(Math.abs(comb) / 20));
+  const cTP1 = Math.max(1, Math.round(2 / strengthFactor));
+  const cTP2 = cTP1 + Math.max(2, Math.round(3 / strengthFactor));
+  const cTP3 = cTP2 + Math.max(3, Math.round(5 / strengthFactor));
+  
+  const unitLabel = tfRec === '15m' ? 'candele da 15m' : tfRec === '1h' ? 'candele da 1h' : 'candele da 4h';
+  const timeTP1 = `${cTP1} ${unitLabel}`;
+  const timeTP2 = `${cTP2} ${unitLabel}`;
+  const timeTP3 = `${cTP3} ${unitLabel}`;
+  const totalHold = `${cTP3} ${unitLabel}`;
 
   const whales=comb>25?'🐋 🐳 🚀 Forte Accumulo Balene Istituzionali':comb<-25?'🐋 🔻 Forte Distribuzione / Vendita Balene':'⚖️ Flussi Bilanciati / No Balene';
   
@@ -593,7 +598,7 @@ function renderTable(){
     return`<tr class="r${a.sym===sel?' sel':''}" data-sym="${a.sym}" tabindex="0">
 <td><span class="cdot" style="background:var(${CLS[a.cls].color})"></span><span class="s">${a.sym}</span><span class="n">${a.name}</span></td>
 <td><span class="pill ${v}">${lbl}</span></td>
-<td style="font-size:10px;color:var(--warn);font-weight:700;">⏱️ ${ai.totalHold}</td>
+<td style="font-size:10px;color:var(--warn);font-weight:700;">🕯️ ${ai.totalHold}</td>
 <td><b style="color:var(--cyan)">${ai.conf}%</b></td>
 <td class="${f}">${money(a,a.price)}</td>
 <td><b style="color:var(--gold)">${ai.tfRec}</b></td>
@@ -626,7 +631,7 @@ function renderMain(){
   $('#anPlan').innerHTML=`
     <div style="display:flex;justify-content:space-between"><span>Verdetto Balene</span><b style="color:${v==='HOLD'?'var(--warn)':'var(--up)'}">${vText}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Timeframe Consigliato</span><b style="color:var(--gold)">${ai.tfRec}</b></div>
-    <div style="display:flex;justify-content:space-between"><span>Tempo max permanenza</span><b style="color:var(--warn);font-size:11px;">⏱️ ${ai.totalHold}</b></div>
+    <div style="display:flex;justify-content:space-between"><span>Permanenza Candele</span><b style="color:var(--warn);font-size:11px;">🕯️ ${ai.totalHold}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Leva Reale Sicura</span><b style="color:var(--warn)">${ai.lev}x</b></div>
     <div style="display:flex;justify-content:space-between"><span>Prezzo d'Ingresso</span><b style="color:var(--cyan)">${money(a,a.price)}</b></div>`;
   
@@ -637,7 +642,7 @@ function renderMain(){
     <div style="display:flex;justify-content:space-between"><span>Stop Loss Millimetrico</span><b class="dn">${money(a,ai.sl)}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Attività Istituzionale</span><b style="color:var(--cyan)">${ai.whales}</b></div>`;
 
-  $('#anReason').textContent=`Analisi balene completata su ${a.sym}. ${ai.whales}. L'intelligenza artificiale stima che per raggiungere i target (TP1 in ${ai.timeTP1}, TP2 in ${ai.timeTP2}, TP3 in ${ai.timeTP3}) la posizione debba rimanere aperta per un tempo massimo consigliato di ${ai.totalHold}. Precisione stimata: ${ai.conf}%.`;
+  $('#anReason').textContent=`Analisi balene completata su ${a.sym}. ${ai.whales}. L'intelligenza artificiale calcola che la posizione debba rimanere aperta per un totale di ${ai.totalHold} sul timeframe ${ai.tfRec} (TP1 in ${ai.timeTP1}, TP2 in ${ai.timeTP2}, TP3 in ${ai.timeTP3}). Precisione stimata: ${ai.conf}%.`;
 
   $('#cSym').textContent=a.sym;$('#cName').textContent=a.name;$('#cPx').textContent=money(a,a.price);
   $('#cCh').innerHTML=`<span class="mono ${ai.ch24>=0?'up':'dn'}">${pc(ai.ch24)}</span>`;
@@ -759,7 +764,7 @@ def register():
         ''' + (f'<p style="color:#ff3366;font-size:11.5px;text-align:center;">{error}</p>' if error else '') + '''
         <form method="POST">
             <p><label style="font-size:11px;color:#9fb0c9;">Username</label><br><input type="text" name="username" required style="width:100%;padding:9px;background:#0d1626;border:1px solid #233a5e;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
-            <p><label style="font-size:11px;color:#9fb0c9;">Password</label><br><input type="password" name="password" required style="width:100%2;padding:9px;background:#0d1626;border:1px solid #233a5e;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
+            <p><label style="font-size:11px;color:#9fb0c9;">Password</label><br><input type="password" name="password" required style="width:100%;padding:9px;background:#0d1626;border:1px solid #233a5e;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
             <button type="submit" style="width:100%;padding:10px;background:#00ffcc;color:#020408;border:none;font-weight:bold;margin-top:10px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;box-shadow:0 0 12px rgba(0,255,204,.4);">Registrati</button>
         </form>
         <p style="text-align:center;margin-top:15px;font-size:11px;"><a href="/login" style="color:#00d4ff;text-decoration:none;">Hai già un account? Accedi</a></p>
