@@ -96,7 +96,7 @@ DASHBOARD_HTML = '''<!DOCTYPE html>
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<title>AI Market Scanner &amp; BingX Pro - Tricolore Pro Edition</title>
+<title>AI Market Scanner &amp; BingX Pro - Verdetto Certo Edition</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -116,7 +116,7 @@ DASHBOARD_HTML = '''<!DOCTYPE html>
 body{background-color:var(--bg);color:var(--ink);font:400 13px/1.45 var(--font-body);
   background-image:radial-gradient(1200px 600px at 15% -80px,rgba(0,146,70,.1),transparent 70%),radial-gradient(1000px 500px at 85% 110px,rgba(206,43,55,.08),transparent 70%),linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
   background-size:auto,auto,40px 40px,40px 40px; margin:0; padding:12px;}
-.wrap{max-width:1680px;margin:0 auto;padding-bottom:35px}
+.wrap{max-width:1720px;margin:0 auto;padding-bottom:35px}
 h1,h2,h3,p{margin:0}
 .up{color:var(--up)}.dn{color:var(--dn)}.mu{color:var(--mute)}
 
@@ -190,8 +190,8 @@ canvas{display:block;width:100%;touch-action:pan-y}
 .fb.r{color:var(--dn);border-color:var(--dn)}.fb.r[aria-pressed="true"]{background:rgba(206,43,55,.2)}
 input[type=search]{background:var(--panel);border:1px solid var(--line2);color:var(--ink);font:400 11px var(--font-mono);padding:5px 9px;width:140px}
 
-.tw{overflow-x:auto;-webkit-overflow-scrolling:touch;max-height:560px;border:1px solid var(--line2)}
-table.main{border-collapse:collapse;width:100%;min-width:1400px}
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch;max-height:580px;border:1px solid var(--line2)}
+table.main{border-collapse:collapse;width:100%;min-width:1450px}
 .main th{position:sticky;top:0;background:var(--panel2);z-index:1;text-align:center;font:600 9.5px var(--font-mono);letter-spacing:.08em;color:var(--up);text-transform:uppercase;padding:8px 6px;cursor:pointer;white-space:nowrap;border-bottom:1px solid var(--line2)}
 .main th:first-child,.main td:first-child{text-align:left}
 .main th[aria-sort]{color:#fff}
@@ -248,8 +248,8 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
           <label class="mu" style="font-size:10.5px">Exchange</label>
           <select name="exchange">
             <option value="bingx" {% if settings.exchange == 'bingx' %}selected{% endif %}>BingX Futures Pro</option>
-            <option value="binance" {% if settings.exchange == 'binance' %}selected{% endif %}>Binance Futures</option>
-            <option value="bybit" {% if settings.exchange == 'bybit' %}selected{% endif %}>Bybit Futures</option>
+            <option value="binance" {% if settings.binance == 'binance' %}selected{% endif %}>Binance Futures</option>
+            <option value="bybit" {% if settings.bybit == 'bybit' %}selected{% endif %}>Bybit Futures</option>
           </select>
         </div>
         <div>
@@ -475,7 +475,6 @@ function analyze(a){
   const lev=a.cls==='cry'?Math.floor(clamp(15/(slPct*100),3,25)):a.cls==='stk'?Math.floor(clamp(25/(slPct*100),5,30)):Math.floor(clamp(20/(slPct*100),5,20));
   const tfRec=Math.abs(comb)>50?'15m':Math.abs(comb)>25?'1h':'4h';
   
-  # Determinazione verdetto certo: se la forza del segnale è bassa (tra -15 e +15), il sistema consiglia "NON ENTRARE"
   let verdict='HOLD';
   if(comb>=15) verdict='LONG';
   else if(comb<=-15) verdict='SHORT';
@@ -516,7 +515,7 @@ function mkGauge(host,big){
   s+=`<g class="ndl" style="transform:rotate(0deg)"><polygon points="97.5,100 100,30 102.5,100"/></g><circle class="hub" cx="100" cy="100" r="7"/>`;
   host.innerHTML=`<svg class="gsvg" viewBox="0 0 200 112" role="img" aria-label="Tachimetro">${s}</svg>`;
   const val=host.querySelector('.gval'),nd=host.querySelector('.ndl');
-  return v=>{v=clamp(v,0,100);const z=zone(v);val.style.strokeDasharray=`${v} 100`;val.setAttribute('class','gval z'+z);nd.style.transform=`rotate(${(v-50)*1.8}deg);return z};
+  return v=>{v=clamp(v,0,100);const z=zone(v);val.style.strokeDasharray=`${v} 100`;val.setAttribute('class','gval z'+z);nd.style.transform=`rotate(${(v-50)*1.8}deg)`;return z};
 }
 let gMain,gCry,gStk,gCom;
 function setG(fn,numEl,labEl,v){const z=fn(v);numEl.textContent=Math.round(v);numEl.style.color=zcol(z);labEl.textContent=ZL[z];labEl.style.color=zcol(z)}
