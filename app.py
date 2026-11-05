@@ -119,7 +119,6 @@ def calculate_advanced_indicators(klines):
     lows = [float(k[3]) for k in klines]
     
     current_price = closes[-1]
-    prev_price = closes[-2]
     change_24h = ((current_price - closes[0]) / closes[0]) * 100
     
     ema20 = sum(closes[-20:]) / 20
@@ -197,7 +196,6 @@ def background_real_market_scanner():
             if crip_scores:
                 market_gauge["crip"] = int(sum(crip_scores) / len(crip_scores))
 
-            # Materie Prime Reali
             headers = {'User-Agent': 'Mozilla/5.0'}
             mat_scores = []
             for comm in COMMODITIES_ASSETS:
@@ -271,7 +269,6 @@ th{color:#6b7689;font-size:11px;text-transform:uppercase;}
     </div>
   </div>
 
-  <!-- DIAMANTE LAMPEGGIANTE (TOP ENTRY >80%) -->
   <div class="diamond-box">
     <div style="color:#d6b04c;font-weight:bold;margin-bottom:8px;">💎 TOP ENTRY >80%: DIAMANTE LAMPEGGIANTE ATTIVO</div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;">
@@ -285,7 +282,6 @@ th{color:#6b7689;font-size:11px;text-transform:uppercase;}
     </div>
   </div>
 
-  <!-- TACHIMETRI / TERMOMETRO PER CLASSE -->
   <div class="panel">
     <h2>🌡️ Termometro per Classe (Media Mercato Reale)</h2>
     <div class="gauge-box">
@@ -306,7 +302,6 @@ th{color:#6b7689;font-size:11px;text-transform:uppercase;}
     </div>
   </div>
 
-  <!-- CONFIGURAZIONE IMPOSTAZIONI -->
   <section class="panel">
     <h2>⚙️ Configurazione Account & Bot</h2>
     <form method="POST">
@@ -342,7 +337,6 @@ th{color:#6b7689;font-size:11px;text-transform:uppercase;}
     </form>
   </section>
 
-  <!-- MAPPA DI CALORE 24H -->
   <div class="panel">
     <h2>🔥 Mappa di Calore Reale</h2>
     <div class="heatmap-grid">
@@ -363,7 +357,6 @@ th{color:#6b7689;font-size:11px;text-transform:uppercase;}
     </div>
   </div>
 
-  <!-- TABELLA DETTAGLIATA SCANNER -->
   <section class="panel">
     <h2>📊 Scanner Multi-Asset (Dati Reali)</h2>
     <table>
@@ -445,14 +438,20 @@ def login():
             return redirect(url_for('home'))
         flash('Credenziali non valide.')
     content = '''
-    <div style="max-width:380px;margin:50px auto;background:#0c1017;padding:25px;border:1px solid #2a3750;color:#fff;border-radius:4px;">
-        <h3 style="color:#d6b04c;text-align:center;">ACCESSO</h3>
+    <!DOCTYPE html>
+    <html lang="it">
+    <head><meta charset="UTF-8"><title>Login</title></head>
+    <body style="background:#06080c;color:#ece8dc;font-family:sans-serif;">
+    <div style="max-width:380px;margin:80px auto;background:#0c1017;padding:25px;border:1px solid #2a3750;border-radius:4px;">
+        <h3 style="color:#d6b04c;text-align:center;margin-top:0;">ACCESSO</h3>
         <form method="POST">
-            <p><label>Username</label><br><input type="text" name="username" required style="width:100%;padding:8px;background:#111722;border:1px solid #2a3750;color:#fff;margin-top:5px;"></p>
-            <p><label>Password</label><br><input type="password" name="password" required style="width:100%;padding:8px;background:#111722;border:1px solid #2a3750;color:#fff;margin-top:5px;"></p>
+            <p><label>Username</label><br><input type="text" name="username" required style="width:100%;padding:8px;background:#111722;border:1px solid #2a3750;color:#fff;margin-top:5px;box-sizing:border-box;"></p>
+            <p><label>Password</label><br><input type="password" name="password" required style="width:100%;padding:8px;background:#111722;border:1px solid #2a3750;color:#fff;margin-top:5px;box-sizing:border-box;"></p>
             <button type="submit" style="width:100%;padding:10px;background:#d6b04c;color:#06080c;border:none;font-weight:bold;margin-top:10px;cursor:pointer;">Accedi</button>
         </form>
     </div>
+    </body>
+    </html>
     '''
     return render_template_string(content)
 
