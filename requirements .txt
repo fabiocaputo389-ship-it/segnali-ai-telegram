@@ -1,2 +1,0 @@
-# Nessuna dipendenza esterna: app.py usa solo la libreria standard di Python (3.8 o superiore).
-# Questo file esiste solo perché il comando di build predefinito di Render è "pip install -r requirements.txt".
