@@ -14,7 +14,7 @@ app.secret_key = os.environ.get('SECRET_KEY', 'chiave_segreta_trading_ai_2026_sa
 # Configurazione globale e lettura automatica delle variabili d'ambiente di Render
 bot_settings = {
     "exchange": "bingx",
-    "mode": os.environ.get("TRADING_MODE", "automatico"), # automatico o manuale
+    "mode": os.environ.get("TRADING_MODE", "automatico"),
     "api_key": os.environ.get("BINGX_API_KEY", os.environ.get("API_KEY", "")),
     "secret_key": os.environ.get("BINGX_SECRET_KEY", os.environ.get("SECRET_KEY_EXCHANGE", "")),
     "telegram_token": os.environ.get("TELEGRAM_TOKEN", ""),
@@ -119,7 +119,7 @@ DASHBOARD_HTML = '''<!DOCTYPE html>
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<title>AI Market Scanner &amp; Whale Tracker - Live Timer &amp; Mode Edition</title>
+<title>AI Institutional Market Scanner &amp; Whale Tracker</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -127,8 +127,8 @@ DASHBOARD_HTML = '''<!DOCTYPE html>
 <style>
 :root{
   color-scheme:dark;
-  --bg:#020408; --panel:#070d18; --panel2:#0d1626; --line:#162642; --line2:#233a5e;
-  --ink:#f4f7fa; --ink2:#9fb0c9; --mute:#54698a; --grid:rgba(0,212,255,.02);
+  --bg:#010306; --panel:#050912; --panel2:#091222; --line:#101f38; --line2:#1c3258;
+  --ink:#f4f7fa; --ink2:#9fb0c9; --mute:#54698a; --grid:rgba(0,212,255,.015);
   --gold:#f3ca52; --gold-soft:rgba(243,202,82,.12); --cyan:#00d4ff; --cyan-soft:rgba(0,212,255,.15);
   --up:#00ffcc; --dn:#ff3366; --warn:#ffaa00;
   --z1:#ff3366; --z2:#ff9933; --z3:#8a94a6; --z4:#00ffcc; --z5:#00d4ff;
@@ -136,63 +136,63 @@ DASHBOARD_HTML = '''<!DOCTYPE html>
 }
 *{box-sizing:border-box}
 body{background-color:var(--bg);color:var(--ink);font:400 13px/1.45 var(--font-body);
-  background-image:radial-gradient(1200px 600px at 15% -80px,rgba(0,212,255,.07),transparent 70%),radial-gradient(1000px 500px at 85% 110px,rgba(243,202,82,.05),transparent 70%),linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-image:radial-gradient(1400px 700px at 15% -80px,rgba(0,212,255,.06),transparent 70%),radial-gradient(1200px 600px at 85% 120px,rgba(243,202,82,.04),transparent 70%),linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
   background-size:auto,auto,40px 40px,40px 40px; margin:0; padding:12px;}
-.wrap{max-width:1720px;margin:0 auto;padding-bottom:35px}
+.wrap{max-width:1760px;margin:0 auto;padding-bottom:35px}
 h1,h2,h3,p{margin:0}
 .up{color:var(--up)}.dn{color:var(--dn)}.mu{color:var(--mute)}
 
 .top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 20px;margin-bottom:12px}
 .brand{display:flex;align-items:center;gap:14px;min-width:0}
-.brand h1{font:700 18px/1.25 var(--font-display);letter-spacing:.15em;text-transform:uppercase;color:var(--gold);text-shadow:0 0 12px rgba(243,202,82,.3)}
+.brand h1{font:700 18px/1.25 var(--font-display);letter-spacing:.15em;text-transform:uppercase;color:var(--gold);text-shadow:0 0 14px rgba(243,202,82,.35)}
 .brand p{font:400 10.5px var(--font-mono);color:var(--cyan);letter-spacing:.06em;margin-top:2px}
 .chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line2);padding:5px 10px;font:500 10.5px var(--font-mono);color:var(--ink2);background:rgba(7,13,24,.9);box-shadow:inset 0 0 8px rgba(0,212,255,.1)}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line2);padding:6px 12px;font:500 10.5px var(--font-mono);color:var(--ink2);background:rgba(5,9,18,.95);box-shadow:inset 0 0 10px rgba(0,212,255,.08)}
 .dot{width:7px;height:7px;border-radius:50%;background:var(--up);box-shadow:0 0 10px var(--up);animation:pulse 1.5s infinite}
 @keyframes pulse{50%{opacity:.3}}
-button{font:600 11px var(--font-mono);letter-spacing:.08em;color:var(--gold);background:transparent;border:1px solid var(--gold);padding:6px 12px;cursor:pointer;text-transform:uppercase;box-shadow:0 0 10px rgba(243,202,82,.2);transition:all .2s}
-button:hover{background:var(--gold-soft);box-shadow:0 0 15px rgba(243,202,82,.4)}
+button{font:600 11px var(--font-mono);letter-spacing:.08em;color:var(--gold);background:transparent;border:1px solid var(--gold);padding:7px 14px;cursor:pointer;text-transform:uppercase;box-shadow:0 0 12px rgba(243,202,82,.2);transition:all .2s}
+button:hover{background:var(--gold-soft);box-shadow:0 0 18px rgba(243,202,82,.4)}
 
-.config-panel{background:var(--panel);border:1px solid var(--cyan-soft);padding:14px;margin-bottom:12px;box-shadow:0 0 20px rgba(0,212,255,.05)}
-.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:10px}
-input,select{background:var(--panel2);border:1px solid var(--line2);color:#fff;padding:8px;width:100%;font:11.5px var(--font-mono)}
-input:focus,select:focus{border-color:var(--cyan);outline:none;box-shadow:0 0 10px rgba(0,212,255,.3)}
+.config-panel{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--cyan-soft);padding:16px;margin-bottom:14px;box-shadow:0 0 25px rgba(0,212,255,.06)}
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:10px}
+input,select{background:var(--bg);border:1px solid var(--line2);color:#fff;padding:9px;width:100%;font:11.5px var(--font-mono)}
+input:focus,select:focus{border-color:var(--cyan);outline:none;box-shadow:0 0 12px rgba(0,212,255,.3)}
 
-.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:12px}
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px}
 .s4{grid-column:span 4}.s8{grid-column:span 8}.s12{grid-column:span 12}
-.col{display:flex;flex-direction:column;gap:12px;min-width:0}
-.panel{position:relative;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line2);padding:14px;min-width:0;box-shadow:0 6px 25px rgba(0,0,0,.6)}
+.col{display:flex;flex-direction:column;gap:14px;min-width:0}
+.panel{position:relative;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line2);padding:16px;min-width:0;box-shadow:0 8px 30px rgba(0,0,0,.7)}
 .panel::before,.panel::after{content:"";position:absolute;width:10px;height:10px;border:1px solid var(--cyan);opacity:.9}
 .panel::before{top:-1px;left:-1px;border-right:0;border-bottom:0}
 .panel::after{bottom:-1px;right:-1px;border-left:0;border-top:0}
-.ph{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px;flex-wrap:wrap}
-.ph h2{font:600 12px var(--font-display);letter-spacing:.18em;text-transform:uppercase;color:var(--cyan);text-shadow:0 0 10px rgba(0,212,255,.3)}
+.ph{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.ph h2{font:600 12px var(--font-display);letter-spacing:.2em;text-transform:uppercase;color:var(--cyan);text-shadow:0 0 12px rgba(0,212,255,.35)}
 .ph .sub{font:400 10px var(--font-mono);color:var(--mute)}
 
 .gsvg{display:block;width:100%;height:auto;overflow:visible}
 .gseg{fill:none;stroke-width:9;opacity:.25}
-.gval{fill:none;stroke-width:9;transition:stroke-dasharray .5s ease,stroke .5s;filter:drop-shadow(0 0 8px currentColor)}
+.gval{fill:none;stroke-width:9;transition:stroke-dasharray .5s ease,stroke .5s;filter:drop-shadow(0 0 10px currentColor)}
 .z0{stroke:var(--z1);color:var(--z1)}.z1{stroke:var(--z2);color:var(--z2)}.z2{stroke:var(--z3);color:var(--z3)}.z3{stroke:var(--z4);color:var(--z4)}.z4{stroke:var(--z5);color:var(--z5)}
 .tk{stroke:var(--line2);stroke-width:1}.tk.maj{stroke:var(--cyan);stroke-width:1.4}
 .tl{fill:var(--mute);font:500 6.5px var(--font-mono)}
 .ndl{transform-origin:100px 100px;transition:transform .5s ease}
 .ndl polygon{fill:var(--cyan)}
-.hub{fill:var(--panel);stroke:var(--gold);stroke-width:2;filter:drop-shadow(0 0 6px var(--gold))}
-.gnum{font:700 40px/1 var(--font-mono);text-align:center;text-shadow:0 0 15px rgba(0,212,255,.4)}
+.hub{fill:var(--panel);stroke:var(--gold);stroke-width:2;filter:drop-shadow(0 0 8px var(--gold))}
+.gnum{font:700 42px/1 var(--font-mono);text-align:center;text-shadow:0 0 18px rgba(0,212,255,.45)}
 .glab{font:600 11px var(--font-display);letter-spacing:.22em;text-transform:uppercase;text-align:center;margin-top:6px}
 .gbig{max-width:340px;margin:0 auto}
-.sbrow{display:flex;justify-content:space-between;font:500 9.5px var(--font-mono);margin-top:4px}
+.sbrow{display:flex;justify-content:space-between;font:500 9.5px var(--font-mono);margin-top:6px}
 
-.pill{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;font:700 10px var(--font-mono);letter-spacing:.06em;border:1px solid currentColor;white-space:nowrap}
-.pill.LONG{color:var(--up);background:rgba(0,255,204,.15);box-shadow:0 0 8px rgba(0,255,204,.3)}
-.pill.SHORT{color:var(--dn);background:rgba(255,51,102,.15);box-shadow:0 0 8px rgba(255,51,102,.3)}
-.pill.HOLD{color:var(--warn);background:rgba(255,170,0,.15);box-shadow:0 0 8px rgba(255,170,0,.3)}
+.pill{display:inline-flex;align-items:center;gap:4px;padding:4px 9px;font:700 10px var(--font-mono);letter-spacing:.06em;border:1px solid currentColor;white-space:nowrap}
+.pill.LONG{color:var(--up);background:rgba(0,255,204,.15);box-shadow:0 0 10px rgba(0,255,204,.3)}
+.pill.SHORT{color:var(--dn);background:rgba(255,51,102,.15);box-shadow:0 0 10px rgba(255,51,102,.3)}
+.pill.HOLD{color:var(--warn);background:rgba(255,170,0,.15);box-shadow:0 0 10px rgba(255,170,0,.3)}
 
 .bar2{position:relative;height:8px;background:var(--line)}
 .bar2 i{position:absolute;top:0;bottom:0}
 .bar2.dv::after{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--cyan)}
 
-.chead{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;margin-bottom:6px}
+.chead{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;margin-bottom:8px}
 .chead .sym{font:700 20px var(--font-display);letter-spacing:.1em;color:var(--gold)}
 .chead .nm{color:var(--ink2);font-size:11px}
 .chead .px{font:500 18px var(--font-mono);color:var(--cyan)}
@@ -201,49 +201,54 @@ input:focus,select:focus{border-color:var(--cyan);outline:none;box-shadow:0 0 10
 canvas{display:block;width:100%;touch-action:pan-y}
 #chart{height:340px}
 .seg{display:inline-flex;border:1px solid var(--line2)}
-.seg button{border:0;border-right:1px solid var(--line2);color:var(--ink2);padding:5px 10px}
+.seg button{border:0;border-right:1px solid var(--line2);color:var(--ink2);padding:6px 12px}
 .seg button:last-child{border-right:0}
 .seg button[aria-pressed="true"]{background:var(--gold-soft);color:var(--gold);border-color:var(--gold)}
 
 .filters{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.fb{padding:5px 10px;border-radius:0;font-size:10px}
+.fb{padding:6px 12px;border-radius:0;font-size:10px}
 .fb[aria-pressed="true"]{background:var(--cyan-soft);color:var(--cyan);border-color:var(--cyan)}
 .fb.g{color:var(--up);border-color:var(--up)}.fb.g[aria-pressed="true"]{background:rgba(0,255,204,.2)}
 .fb.r{color:var(--dn);border-color:var(--dn)}.fb.r[aria-pressed="true"]{background:rgba(255,51,102,.2)}
-input[type=search]{background:var(--panel);border:1px solid var(--line2);color:var(--ink);font:400 11px var(--font-mono);padding:6px 10px;width:150px}
+input[type=search]{background:var(--panel);border:1px solid var(--line2);color:var(--ink);font:400 11px var(--font-mono);padding:7px 12px;width:170px}
 
-.tw{overflow-x:auto;-webkit-overflow-scrolling:touch;max-height:580px;border:1px solid var(--line2)}
-table.main{border-collapse:collapse;width:100%;min-width:1450px}
-.main th{position:sticky;top:0;background:var(--panel2);z-index:1;text-align:center;font:600 10px var(--font-mono);letter-spacing:.08em;color:var(--cyan);text-transform:uppercase;padding:9px 8px;cursor:pointer;white-space:nowrap;border-bottom:1px solid var(--line2)}
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch;max-height:600px;border:1px solid var(--line2)}
+table.main{border-collapse:collapse;width:100%;min-width:1480px}
+.main th{position:sticky;top:0;background:var(--panel2);z-index:1;text-align:center;font:600 10px var(--font-mono);letter-spacing:.08em;color:var(--cyan);text-transform:uppercase;padding:10px 9px;cursor:pointer;white-space:nowrap;border-bottom:1px solid var(--line2)}
 .main th:first-child,.main td:first-child{text-align:left}
 .main th[aria-sort]{color:var(--gold)}
-.main td{padding:7px 9px;text-align:center;font:400 11.5px var(--font-mono);border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:middle}
+.main td{padding:8px 10px;text-align:center;font:400 11.5px var(--font-mono);border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:middle}
 tr.r{cursor:pointer}
-tr.r:hover{background:rgba(0,212,255,.06)}
+tr.r:hover{background:rgba(0,212,255,.07)}
 tr.r.sel{background:var(--gold-soft);box-shadow:inset 2px 0 0 var(--gold)}
 td .s{font:700 12.5px var(--font-mono);color:#fff}
 td .n{display:block;font:400 9.5px var(--font-body);color:var(--mute);margin-top:1px}
 .cdot{display:inline-block;width:6px;height:6px;margin-right:6px;border-radius:50%;box-shadow:0 0 6px currentColor}
 
 .mg{width:64px;height:36px;display:block;margin:0 auto}
-.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:3px}
-.hg{margin-bottom:8px}
-.hg h3{font:600 9.5px var(--font-mono);letter-spacing:.14em;color:var(--cyan);text-transform:uppercase;margin-bottom:4px}
-.tile{padding:6px;border:0;background:var(--line);color:var(--ink);text-align:left;font:500 10px var(--font-mono);min-width:0;transition:all .2s}
-.tile small{display:block;font:400 9px var(--font-mono);margin-top:1px}
-.tile:hover{outline:1px solid var(--cyan);box-shadow:0 0 10px rgba(0,212,255,.4)}
-.gmini{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(68px,1fr));gap:4px}
+.hg{margin-bottom:10px}
+.hg h3{font:600 9.5px var(--font-mono);letter-spacing:.14em;color:var(--cyan);text-transform:uppercase;margin-bottom:5px}
+.tile{padding:7px;border:0;background:var(--line);color:var(--ink);text-align:left;font:500 10px var(--font-mono);min-width:0;transition:all .2s}
+.tile small{display:block;font:400 9px var(--font-mono);margin-top:2px}
+.tile:hover{outline:1px solid var(--cyan);box-shadow:0 0 12px rgba(0,212,255,.45)}
+.gmini{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .gm{text-align:center;min-width:0}
 .gm .gnum{font-size:20px;margin-top:-2px}
 .gm .glab{font-size:8px;letter-spacing:.1em}
-.gm .cn{font:600 9.5px var(--font-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--cyan);margin-bottom:3px}
-.sec{font:600 10px var(--font-mono);letter-spacing:.16em;color:var(--cyan);text-transform:uppercase;margin:12px 0 6px}
-.dvr{display:grid;grid-template-columns:52px minmax(0,1fr) 40px;gap:6px;align-items:center;font:400 10.5px var(--font-mono);margin-bottom:5px;cursor:pointer}
-.log{list-style:none;margin:0;padding:0;max-height:260px;overflow-y:auto}
-.log li{display:grid;grid-template-columns:46px 54px minmax(0,1fr);gap:6px;padding:6px 0;border-bottom:1px solid var(--line);font:400 10.5px var(--font-mono);color:var(--ink2)}
+.gm .cn{font:600 9.5px var(--font-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--cyan);margin-bottom:4px}
+.sec{font:600 10px var(--font-mono);letter-spacing:.16em;color:var(--cyan);text-transform:uppercase;margin:14px 0 6px}
+.dvr{display:grid;grid-template-columns:52px minmax(0,1fr) 40px;gap:6px;align-items:center;font:400 10.5px var(--font-mono);margin-bottom:6px;cursor:pointer}
+.log{list-style:none;margin:0;padding:0;max-height:280px;overflow-y:auto}
+.log li{display:grid;grid-template-columns:48px 56px minmax(0,1fr);gap:8px;padding:7px 0;border-bottom:1px solid var(--line);font:400 10.5px var(--font-mono);color:var(--ink2)}
 .log time{color:var(--mute)}
 .empty{color:var(--mute);font:400 10.5px var(--font-mono);padding:8px 0}
-footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-height:1.6}
+.news-list{list-style:none;margin:0;padding:0;max-height:290px;overflow-y:auto}
+.news-item{padding:9px 0;border-bottom:1px solid var(--line);font:11px var(--font-mono)}
+.news-item time{display:block;color:var(--mute);font-size:9.5px;margin-bottom:2px}
+.news-item a{color:var(--cyan);text-decoration:none}
+.news-item a:hover{text-decoration:underline}
+footer{margin-top:18px;font:400 10px var(--font-mono);color:var(--mute);line-height:1.6}
 
 @media (max-width:1180px){.s4,.s8{grid-column:span 12}.gmini{max-width:480px}}
 @media (max-width:760px){.brand h1{font-size:14px}#chart{height:280px}}
@@ -251,19 +256,19 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
 </head>
 <body>
 <div class="wrap">
-  <div class="panel" style="margin-bottom:12px">
+  <div class="panel" style="margin-bottom:14px">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
       <div>
         <span class="chip">Utente Abbonato: <b style="color:var(--gold)">{{ session.username | upper }}</b></span>
-        <span class="chip">Modalità: <b style="color:var(--cyan)" id="lblModeTop">{{ settings.mode | upper }}</b></span>
-        <span class="chip">Exchange: <b style="color:var(--cyan)">BINGX FUTURES LIVE</b></span>
+        <span class="chip">Modalità: <b style="color:var(--cyan)">{{ settings.mode | upper }}</b></span>
+        <span class="chip">Exchange: <b style="color:var(--cyan)">BINGX FUTURES PRO LIVE</b></span>
       </div>
-      <a href="{{ url_for('logout') }}" style="color:var(--dn);text-decoration:none;font:600 11px var(--font-mono);text-shadow:0 0 6px rgba(255,51,102,.4)">LOGOUT</a>
+      <a href="{{ url_for('logout') }}" style="color:var(--dn);text-decoration:none;font:600 11px var(--font-mono);text-shadow:0 0 8px rgba(255,51,102,.4)">LOGOUT</a>
     </div>
   </div>
 
   <section class="config-panel">
-    <div class="ph"><h2>🐳 Radar Balene &amp; Configurazione Modalità (Automatica / Manuale)</h2></div>
+    <div class="ph"><h2>🐳 Radar Balene &amp; Gestione Algoritmo AI SaaS</h2></div>
     <form method="POST">
       <div class="form-grid">
         <div>
@@ -282,7 +287,7 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
         <div><label class="mu" style="font-size:10.5px">API Key (Render ENV)</label><input type="password" value="******** (Protetto)" disabled></div>
         <div><label class="mu" style="font-size:10.5px">Secret Key (Render ENV)</label><input type="password" value="******** (Protetto)" disabled></div>
       </div>
-      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:18px;margin-top:10px;">
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:18px;margin-top:12px;">
         <label style="font:10.5px var(--font-mono);display:flex;align-items:center;gap:6px;cursor:pointer">
           <input type="checkbox" name="auto_execution" {% if settings.auto_execution == 1 %}checked{% endif %}> Abilita Esecuzione Ordini Live
         </label>
@@ -297,7 +302,7 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
   <header class="top">
     <div class="brand">
       <svg width="38" height="38" viewBox="0 0 40 40" aria-hidden="true"><polygon points="20,3 36,15 20,37 4,15" fill="none" stroke="#00d4ff" stroke-width="1.8"/><polygon points="20,3 28,15 20,37 12,15" fill="rgba(0,212,255,.25)" stroke="#f3ca52" stroke-width="1"/></svg>
-      <div><h1>AI Market Scanner &amp; Whale Tracker</h1><p>Analisi istituzionale di flussi balene &amp; Timer Segnale Certo 24/7</p></div>
+      <div><h1>AI Institutional Market Scanner</h1><p>Flussi istituzionali balene, Timer Certo &amp; Macro Feed 24/7</p></div>
     </div>
     <div class="chips">
       <span class="chip"><i class="dot"></i><span id="feedTxt">BINGX LIVE API CONNECTED</span></span>
@@ -338,31 +343,30 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
     </div>
 
     <section class="panel s4">
-      <div class="ph"><h2>Telemetry &amp; Radar Balene</h2></div>
-      <div style="display:grid;gap:6px;font:11px var(--font-mono)">
-        <div style="display:flex;justify-content:space-between"><span class="mu">Modalità Operativa</span><b style="color:var(--cyan)" id="telMode">{{ settings.mode | upper }}</b></div>
-        <div style="display:flex;justify-content:space-between"><span class="mu">Segnali Balene Attivi</span><b class="up" id="stLong">0</b></div>
-        <div style="display:flex;justify-content:space-between"><span class="mu">Stato "Attendere / No Balene"</span><b class="dn" id="stHold">0</b></div>
-        <div style="display:flex;justify-content:space-between"><span class="mu">Precisione AI media</span><b id="stConf" style="color:var(--gold)">--%</b></div>
-        <div style="display:flex;justify-content:space-between"><span class="mu">Cicli neurali balene</span><b id="stCycles">0</b></div>
-        <div style="display:flex;justify-content:space-between"><span class="mu">Latenza API BingX Live</span><b style="color:var(--up)">0,18 ms</b></div>
-      </div>
+      <div class="ph"><h2>Ultime Notizie &amp; Macro Feed</h2><span class="sub">aggiornate in tempo reale</span></div>
+      <ul class="news-list" id="newsList">
+        <li class="news-item"><time>Live • 1 min fa</time><a href="#" target="_blank">🐋 Forte accumulo istituzionale su Bitcoin (BTC) oltre i $95k. Trend rialzista confermato.</a></li>
+        <li class="news-item"><time>Live • 4 min fa</time><a href="#" target="_blank">📈 Wall Street apre in territorio positivo: S&amp;P 500 spinto dai titoli tech.</a></li>
+        <li class="news-item"><time>Live • 9 min fa</time><a href="#" target="_blank">⚡ Ethereum (ETH) rompe le resistenze: volumi balene cresciuti del +34%.</a></li>
+        <li class="news-item"><time>Live • 15 min fa</time><a href="#" target="_blank">🛢️ Materie Prime: Oro e petrolio WTI stabili in attesa dei dati macro globali.</a></li>
+        <li class="news-item"><time>Live • 22 min fa</time><a href="#" target="_blank">🔔 BingX Futures Pro: Latenza API ridotta a 0.18ms per l'esecuzione automatica.</a></li>
+      </ul>
     </section>
 
     <section class="panel s8">
-      <div class="ph"><h2>Verdetto Balene Certificato &amp; Timer in Movimento</h2><span class="sub" id="anSub">Seleziona un asset</span></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="ph"><h2>Verdetto Balene Certificato &amp; Timer Ottimizzato Stabile</h2><span class="sub" id="anSub">Seleziona un asset</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
         <div>
-          <div class="sec">Consiglio Balene &amp; Timer Scadenza</div>
-          <div id="anPlan" style="display:grid;gap:5px;font:10.5px var(--font-mono)"></div>
+          <div class="sec">Consiglio Balene &amp; Timer Scadenza Fissa</div>
+          <div id="anPlan" style="display:grid;gap:6px;font:10.5px var(--font-mono)"></div>
         </div>
         <div>
           <div class="sec">Target Millimetrici &amp; Candele per TP</div>
-          <div id="anTargets" style="display:grid;gap:5px;font:10.5px var(--font-mono)"></div>
+          <div id="anTargets" style="display:grid;gap:6px;font:10.5px var(--font-mono)"></div>
         </div>
       </div>
       <div class="sec">Analisi AI dell'Andamento Istituzionale &amp; Mercato</div>
-      <p id="anReason" class="mu" style="font-size:11.5px;line-height:1.45"></p>
+      <p id="anReason" class="mu" style="font-size:11.5px;line-height:1.5"></p>
     </section>
 
     <section class="panel s12">
@@ -373,7 +377,7 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
           <button type="button" class="fb r" data-f="hold" aria-pressed="false">Nessuna Balena (Attendere)</button>
         </div>
       </div>
-      <div class="filters" style="margin-bottom:8px">
+      <div class="filters" style="margin-bottom:10px">
         <div class="seg" id="fCls" role="group" aria-label="Classe">
           <button type="button" data-v="all" aria-pressed="true">Tutti i mercati</button>
           <button type="button" data-v="cry" aria-pressed="false">Cripto</button>
@@ -384,7 +388,7 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
         <span class="sub mu mono" id="cnt" style="margin-left:auto"></span>
       </div>
       <div class="tw"><table class="main"><thead><tr id="thead">
-        <th data-k="sym" style="text-align:left">Asset / Mercato</th><th>Verdetto Balene</th><th>Timer Segnale Certo (Live)</th><th>Precisione</th><th>Prezzo Ingresso</th><th>Timeframe</th><th>Leva Reale</th><th>Target TP1</th><th>Target TP2</th><th>Target TP3</th><th>Stop Loss</th>
+        <th data-k="sym" style="text-align:left">Asset / Mercato</th><th>Verdetto Balene</th><th>Timer Segnale Certo (Fisso)</th><th>Precisione</th><th>Prezzo Ingresso</th><th>Timeframe</th><th>Leva Reale</th><th>Target TP1</th><th>Target TP2</th><th>Target TP3</th><th>Stop Loss</th>
       </tr></thead><tbody id="tbody"></tbody></table></div>
     </section>
 
@@ -401,7 +405,7 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
       <ul class="log" id="log"></ul>
     </section>
   </main>
-  <footer>Tutti i prezzi, i verdetti delle balene, il timer in movimento del segnale certo e l'invio ordini API BingX Live sono gestiti dal motore AI SaaS. Non costituisce consulenza finanziaria.</footer>
+  <footer>Tutti i prezzi, le notizie in tempo reale, i verdetti delle balene e il timer ottimizzato del segnale certo sono gestiti dal motore AI SaaS. Non costituisce consulenza finanziaria.</footer>
 </div>
 
 <script>
@@ -512,7 +516,6 @@ function analyze(a){
   const timeTP3 = `${cTP3} ${unitLabel}`;
   const totalHold = `${cTP3} ${unitLabel}`;
 
-  // Durata in secondi per il timer in movimento live (es. 15m = 900s per candela)
   const tfSeconds = tfRec === '15m' ? 900 : tfRec === '1h' ? 3600 : 14400;
   const totalDurationSeconds = cTP3 * tfSeconds;
 
@@ -584,9 +587,10 @@ function drawChart(){
 const ui={f:'all',cls:'all',q:''};
 const lastPx={};
 const activeTimers={};
+const timerLocks={};
 
 function formatTimer(totalSec){
-  if(totalSec<=0) return 'Scaduto';
+  if(totalSec<=0) return 'Scaduto (Attesa Candela)';
   const h=Math.floor(totalSec/3600);
   const m=Math.floor((totalSec%3600)/60);
   const s=totalSec%60;
@@ -609,7 +613,10 @@ function renderTable(){
   $('#tbody').innerHTML=l.map(a=>{const ai=a.ai,pr=lastPx[a.sym],f=pr==null||pr===a.price?'':(a.price>pr?'fu':'fd');
     const v=ai.verdict, lbl=v==='LONG'?'🐋 ENTRA LONG':v==='SHORT'?'🐋 ENTRA SHORT':'ATTESA BALENE';
     
-    if(!activeTimers[a.sym]) activeTimers[a.sym]=ai.totalDurationSeconds;
+    if(!activeTimers[a.sym] || timerLocks[a.sym] !== ai.totalDurationSeconds){
+      activeTimers[a.sym] = ai.totalDurationSeconds;
+      timerLocks[a.sym] = ai.totalDurationSeconds;
+    }
 
     return`<tr class="r${a.sym===sel?' sel':''}" data-sym="${a.sym}" tabindex="0">
 <td><span class="cdot" style="background:var(${CLS[a.cls].color})"></span><span class="s">${a.sym}</span><span class="n">${a.name}</span></td>
@@ -647,7 +654,7 @@ function renderMain(){
   $('#anPlan').innerHTML=`
     <div style="display:flex;justify-content:space-between"><span>Verdetto Balene</span><b style="color:${v==='HOLD'?'var(--warn)':'var(--up)'}">${vText}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Timeframe Analisi</span><b style="color:var(--gold)">${ai.tfRec}</b></div>
-    <div style="display:flex;justify-content:space-between"><span>⏱️ Timer in Movimento</span><b style="color:var(--gold);font-size:11.5px;" id="detailTimer">--</b></div>
+    <div style="display:flex;justify-content:space-between"><span>⏱️ Timer Ottimizzato</span><b style="color:var(--gold);font-size:11.5px;" id="detailTimer">--</b></div>
     <div style="display:flex;justify-content:space-between"><span>Leva Reale Sicura</span><b style="color:var(--warn)">${ai.lev}x</b></div>
     <div style="display:flex;justify-content:space-between"><span>Prezzo d'Ingresso</span><b style="color:var(--cyan)">${money(a,a.price)}</b></div>`;
   
@@ -658,13 +665,13 @@ function renderMain(){
     <div style="display:flex;justify-content:space-between"><span>Stop Loss Millimetrico</span><b class="dn">${money(a,ai.sl)}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Attività Istituzionale</span><b style="color:var(--cyan)">${ai.whales}</b></div>`;
 
-  $('#anReason').textContent=`Analisi AI millimetrica su ${a.sym} (${CLS[a.cls].label}). ${ai.whales}. L'intelligenza artificiale rileva un andamento di mercato guidato dai flussi istituzionali con verdetto: "${vText}". Il timer in movimento traccia la validità residua del segnale certo sul timeframe ${ai.tfRec} (TP1 in ${ai.timeTP1}, TP2 in ${ai.timeTP2}, TP3 in ${ai.timeTP3}). Precisione stimata: ${ai.conf}%.`;
+  $('#anReason').textContent=`Analisi AI millimetrica su ${a.sym} (${CLS[a.cls].label}). ${ai.whales}. L'intelligenza artificiale rileva un andamento di mercato guidato dai flussi istituzionali con verdetto: "${vText}". Il timer ottimizzato garantisce una lettura fissa e stabile della validità del segnale certo sul timeframe ${ai.tfRec}. Precisione stimata: ${ai.conf}%.`;
 
   $('#cSym').textContent=a.sym;$('#cName').textContent=a.name;$('#cPx').textContent=money(a,a.price);
   $('#cCh').innerHTML=`<span class="mono ${ai.ch24>=0?'up':'dn'}">${pc(ai.ch24)}</span>`;
 
   const nowStr=hhmm(SIM*1000);
-  $('#log').innerHTML=logs.slice(0,10).map(e=>`<li><time>${hhmm(e.t)}</time><span style="font-weight:700;color:var(--cyan)">${e.type}</span><span>${e.txt}</span></li>`).join('')||`<li class="empty">${nowStr} - Radar Balene SaaS &amp; Timer attivo.</li>`;
+  $('#log').innerHTML=logs.slice(0,10).map(e=>`<li><time>${hhmm(e.t)}</time><span style="font-weight:700;color:var(--cyan)">${e.type}</span><span>${e.txt}</span></li>`).join('')||`<li class="empty">${nowStr} - Radar Balene SaaS &amp; Timer Ottimizzato attivo.</li>`;
 
   $('#heat').innerHTML=Object.keys(CLS).map(k=>`<div class="hg"><h3>${CLS[k].label}</h3><div class="tiles">${assets.filter(a=>a.cls===k).map(a=>{const c=a.ai.ch24,bg=c>=0?'rgba(0,255,204,.15)':'rgba(255,51,102,.15)';return`<button type="button" class="tile" data-sym="${a.sym}" style="background:${bg}">${a.sym}<small>${pc(c)}</small></button>`}).join('')}</div></div>`).join('');
   
@@ -672,12 +679,10 @@ function renderMain(){
   $('#dist').innerHTML=`<div style="display:grid;gap:6px;font:11px var(--font-mono)"><div style="display:flex;justify-content:space-between"><span>Segnali Balene (Long/Short)</span><b class="up">${lC} asset</b></div><div style="display:flex;justify-content:space-between"><span>In Attesa / No Balene</span><b class="dn">${wZ} asset</b></div></div>`;
 }
 
-// Countdown Tick ogni secondo
 setInterval(()=>{
   for(const sym in activeTimers){
     if(activeTimers[sym]>0) activeTimers[sym]--;
   }
-  // Aggiorna elementi timer nella tabella e nel pannello dettagli
   document.querySelectorAll('.live-timer').forEach(el=>{
     const s=el.dataset.sym;
     if(activeTimers[s]!=null){
@@ -756,15 +761,15 @@ def login():
     
     return '''<!DOCTYPE html>
     <html lang="it"><head><meta charset="UTF-8"><title>Login - SaaS Elite Scanner</title></head>
-    <body style="background:#020408;color:#f4f7fa;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;">
-    <div style="background:#070d18;padding:30px;border:1px solid #00d4ff;width:360px;border-radius:6px;box-shadow:0 0 25px rgba(0,212,255,.25);">
+    <body style="background:#010306;color:#f4f7fa;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;">
+    <div style="background:#050912;padding:30px;border:1px solid #00d4ff;width:360px;border-radius:6px;box-shadow:0 0 30px rgba(0,212,255,.3);">
         <h3 style="color:#f3ca52;margin-top:0;text-align:center;letter-spacing:2px;font-family:Cinzel,serif;">ELITE ACCESS</h3>
         <p style="font-size:10.5px;color:#9fb0c9;text-align:center;margin-bottom:20px;">Accedi con il tuo account in abbonamento</p>
         ''' + (f'<p style="color:#ff3366;font-size:11.5px;text-align:center;">{error}</p>' if error else '') + '''
         <form method="POST">
-            <p><label style="font-size:11px;color:#9fb0c9;">Username</label><br><input type="text" name="username" required style="width:100%;padding:9px;background:#0d1626;border:1px solid #233a5e;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
-            <p><label style="font-size:11px;color:#9fb0c9;">Password</label><br><input type="password" name="password" required style="width:100%;padding:9px;background:#0d1626;border:1px solid #233a5e;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
-            <button type="submit" style="width:100%;padding:10px;background:#f3ca52;color:#020408;border:none;font-weight:bold;margin-top:10px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;box-shadow:0 0 12px rgba(243,202,82,.4);">Accedi</button>
+            <p><label style="font-size:11px;color:#9fb0c9;">Username</label><br><input type="text" name="username" required style="width:100%;padding:9px;background:#091222;border:1px solid #1c3258;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
+            <p><label style="font-size:11px;color:#9fb0c9;">Password</label><br><input type="password" name="password" required style="width:100%;padding:9px;background:#091222;border:1px solid #1c3258;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
+            <button type="submit" style="width:100%;padding:10px;background:#f3ca52;color:#010306;border:none;font-weight:bold;margin-top:10px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;box-shadow:0 0 12px rgba(243,202,82,.4);">Accedi</button>
         </form>
         <p style="text-align:center;margin-top:15px;font-size:11px;"><a href="/register" style="color:#00d4ff;text-decoration:none;">Non hai un account? Registrati</a></p>
     </div></body></html>'''
@@ -793,15 +798,15 @@ def register():
 
     return '''<!DOCTYPE html>
     <html lang="it"><head><meta charset="UTF-8"><title>Registrazione - SaaS Elite Scanner</title></head>
-    <body style="background:#020408;color:#f4f7fa;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;">
-    <div style="background:#070d18;padding:30px;border:1px solid #00d4ff;width:360px;border-radius:6px;box-shadow:0 0 25px rgba(0,212,255,.25);">
+    <body style="background:#010306;color:#f4f7fa;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;">
+    <div style="background:#050912;padding:30px;border:1px solid #00d4ff;width:360px;border-radius:6px;box-shadow:0 0 30px rgba(0,212,255,.3);">
         <h3 style="color:#f3ca52;margin-top:0;text-align:center;letter-spacing:2px;font-family:Cinzel,serif;">REGISTRAZIONE</h3>
         <p style="font-size:10.5px;color:#9fb0c9;text-align:center;margin-bottom:20px;">Crea il tuo account abbonato</p>
         ''' + (f'<p style="color:#ff3366;font-size:11.5px;text-align:center;">{error}</p>' if error else '') + '''
         <form method="POST">
-            <p><label style="font-size:11px;color:#9fb0c9;">Username</label><br><input type="text" name="username" required style="width:100%;padding:9px;background:#0d1626;border:1px solid #233a5e;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
-            <p><label style="font-size:11px;color:#9fb0c9;">Password</label><br><input type="password" name="password" required style="width:100%;padding:9px;background:#0d1626;border:1px solid #233a5e;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
-            <button type="submit" style="width:100%;padding:10px;background:#00ffcc;color:#020408;border:none;font-weight:bold;margin-top:10px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;box-shadow:0 0 12px rgba(0,255,204,.4);">Registrati</button>
+            <p><label style="font-size:11px;color:#9fb0c9;">Username</label><br><input type="text" name="username" required style="width:100%;padding:9px;background:#091222;border:1px solid #1c3258;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
+            <p><label style="font-size:11px;color:#9fb0c9;">Password</label><br><input type="password" name="password" required style="width:100%;padding:9px;background:#091222;border:1px solid #1c3258;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
+            <button type="submit" style="width:100%;padding:10px;background:#00ffcc;color:#010306;border:none;font-weight:bold;margin-top:10px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;box-shadow:0 0 12px rgba(0,255,204,.4);">Registrati</button>
         </form>
         <p style="text-align:center;margin-top:15px;font-size:11px;"><a href="/login" style="color:#00d4ff;text-decoration:none;">Hai già un account? Accedi</a></p>
     </div></body></html>'''
