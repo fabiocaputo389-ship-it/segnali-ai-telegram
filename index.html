@@ -74,6 +74,7 @@ button:hover{background:var(--gold-soft)}
 .pill.WAIT,.pill.N{color:var(--mute)}
 .pill.TOP{color:var(--dia);background:var(--dia-soft)}
 .pill.warn{color:var(--warn)}
+.pill.tfrec{color:var(--c2);background:rgba(111,183,255,.1);border-color:var(--c2)}
 
 .cdbig{font:700 40px/1 var(--font-mono);color:var(--dia);letter-spacing:.02em}
 .prog{height:6px;background:var(--line);margin:12px 0 10px;position:relative}
@@ -138,7 +139,7 @@ canvas{display:block;width:100%;touch-action:pan-y}
 input[type=search]{background:var(--panel);border:1px solid var(--line2);color:var(--ink);font:400 12px var(--font-mono);padding:6px 10px;width:130px}
 
 .tw{overflow:auto;max-height:620px;border:1px solid var(--line)}
-table.main{border-collapse:collapse;width:100%;min-width:1280px}
+table.main{border-collapse:collapse;width:100%;min-width:1380px}
 .main th{position:sticky;top:0;background:var(--panel2);z-index:1;text-align:center;font:600 10px var(--font-mono);letter-spacing:.08em;color:var(--mute);text-transform:uppercase;padding:9px 8px;cursor:pointer;white-space:nowrap;border-bottom:1px solid var(--line2)}
 .main th:first-child,.main td:first-child{text-align:left}
 .main td{padding:7px 8px;text-align:center;font:400 12px var(--font-mono);border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:middle}
@@ -181,7 +182,7 @@ footer{margin-top:18px;font:400 10.5px var(--font-mono);color:var(--mute);letter
   <header class="top">
     <div class="brand">
       <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><polygon points="20,3 36,15 20,37 4,15" fill="none" stroke="#ffd23f" stroke-width="1.6"/><polygon points="20,3 28,15 20,37 12,15" fill="rgba(255,210,63,.18)" stroke="#ffd23f" stroke-width="1"/></svg>
-      <div><h1>Scanner · Segnali TOP Entry Pro Live</h1><p>Confluenza &gt; 80% · TP e SL Certi · Flussi Balene Reali</p></div>
+      <div><h1>Scanner · Segnali TOP Entry Pro Live</h1><p>Confluenza &gt; 80% · TP, SL &amp; Timeframe Consigliato Certi</p></div>
     </div>
     <div class="chips">
       <span class="chip"><i class="dot" id="feedDot"></i><span id="feedTxt">MERCATO LIVE</span></span>
@@ -203,7 +204,7 @@ footer{margin-top:18px;font:400 10.5px var(--font-mono);color:var(--mute);letter
         <div class="ph"><h2>Validità segnale operativo</h2><span id="vState"></span></div>
         <div class="cdbig" id="cdMain">45:00</div>
         <div class="prog"><i id="cdBar" style="width:100%"></i></div>
-        <p class="note">Livelli di TP e Stop Loss calcolati in tempo reale sulla volatilità[span_0](start_span)[span_0](end_span).</p>
+        <p class="note">Livelli di TP, Stop Loss e Timeframe di entrata calcolati in tempo reale sulla volatilità[span_0](start_span)[span_0](end_span).</p>
       </section>
     </div>
 
@@ -270,7 +271,7 @@ footer{margin-top:18px;font:400 10.5px var(--font-mono);color:var(--mute);letter
         <span class="sub mu mono" id="cnt" style="margin-left:auto"></span>
       </div>
       <div class="tw"><table class="main"><thead><tr id="thead">
-        <th data-k="sym" style="text-align:left">Coin / Asset</th><th>Entrata istantanea</th><th>Leva consigliata</th><th data-k="price">Prezzo attuale</th><th>Tachimetro</th><th data-k="conf">Confidenza</th><th>Validità segnale</th><th>15m / 1h / 4h</th><th>Notizie &amp; mercato</th><th data-k="ch24">Var 24h</th><th>TP1</th><th>Stop Loss</th>
+        <th data-k="sym" style="text-align:left">Coin / Asset</th><th>Entrata istantanea</th><th>TF Consigliato</th><th>Leva consigliata</th><th data-k="price">Prezzo attuale</th><th>Tachimetro</th><th data-k="conf">Confidenza</th><th>Validità segnale</th><th>15m / 1h / 4h</th><th>Notizie &amp; mercato</th><th data-k="ch24">Var 24h</th><th>TP1</th><th>Stop Loss</th>
       </tr></thead><tbody id="tbody"></tbody></table></div>
     </section>
 
@@ -387,18 +388,26 @@ function analyze(a){
   let agree=0;for(const k in TFW)if(Math.abs(tf[k].score)>8&&Math.sign(tf[k].score)===Math.sign(comb))agree+=TFW[k];
   const conf=clamp(Math.round(Math.abs(comb)*1.15+agree*35-10),10,99),dir=comb>=0?1:-1;
   const raw=Math.abs(comb)>=28&&conf>=60?dir:0;
+  
+  // Determinazione Timeframe Consigliato Esatto
+  let recTf = '15M';
+  const s15 = Math.abs(tf[15].score), s60 = Math.abs(tf[60].score), s240 = Math.abs(tf[240].score);
+  if (s240 >= s60 && s240 >= s15) recTf = '4H';
+  else if (s60 >= s15) recTf = '1H';
+  else recTf = '15M';
+
   const S=tf[15].S,i=Math.max(0,S.c.length-1),atr=S.atr[i]||a.price*0.01,price=a.price;
   const slPct=clamp(1.5*atr/price,.004,.03),hi=clamp(Math.floor(1/(8*slPct)),2,25),lo=Math.max(1,Math.round(hi*.7));
   let v24=0;for(let k=Math.max(0,n-96);k<n;k++)v24+=c15[k].v;
-  return{tf,comb,conf,dir,raw,agree,atr,slPct,lev:[lo,hi],anom:null,ch24:c15.length>96?(price/c15[n-96].c-1):0,vol24:v24*price,rsi:S.rsi[i]};
+  return{tf,comb,conf,dir,raw,agree,atr,slPct,recTf,lev:[lo,hi],anom:null,ch24:c15.length>96?(price/c15[n-96].c-1):0,vol24:v24*price,rsi:S.rsi[i]};
 }
 
 const logs=[];
 const pushLog=(type,txt)=>{logs.unshift({t:SIM*1000,type,txt});if(logs.length>60)logs.pop()};
 function newSig(a,ai,silent){
   const d=ai.raw,p=a.price,sp=ai.slPct;
-  a.sig={dir:d,since:SIM,entry:p,sl:p*(1-d*sp),tp1:p*(1+d*1.5*sp),tp2:p*(1+d*3*sp),slPct:sp,lev:ai.lev,state:'ACTIVE'};
-  if(!silent&&ai.conf>=70)pushLog(ai.conf>=80?'TOP':(d>0?'LONG':'SHORT'),`${a.sym} ${d>0?'LONG':'SHORT'} · confidenza ${ai.conf}% · entrata ${money(a,p)}`);
+  a.sig={dir:d,since:SIM,entry:p,sl:p*(1-d*sp),tp1:p*(1+d*1.5*sp),tp2:p*(1+d*3*sp),slPct:sp,lev:ai.lev,recTf:ai.recTf,state:'ACTIVE'};
+  if(!silent&&ai.conf>=70)pushLog(ai.conf>=80?'TOP':(d>0?'LONG':'SHORT'),`${a.sym} ${d>0?'LONG':'SHORT'} [TF: ${ai.recTf}] · confidenza ${ai.conf}% · entrata ${money(a,p)}`);
 }
 function updateSignal(a,ai){
   const s=a.sig,p=a.price;
@@ -455,7 +464,6 @@ async function fetchBinanceData(){
         a.live = true;
       }
     }
-    // Per azioni e materie prime simulamamo variazioni fluide realistiche
     for(const a of assets){
       if(a.live) continue;
       const ch = (Math.random()-0.49) * a.vol * a.price * 0.1;
@@ -586,6 +594,7 @@ function renderTable(){
     return`<tr class="r${a.sym===sel?' sel':''}${top?' topr':''}" data-sym="${a.sym}" tabindex="0">
 <td><span class="cdot" style="background:var(${CLS[a.cls].color})"></span><span class="s">${a.sym}</span><span class="n">${a.name}</span></td>
 <td>${act?`<span class="pill ${s.dir>0?'LONG':'SHORT'}">${s.dir>0?'▲ ENTRA LONG':'▼ ENTRA SHORT'}</span><span class="n">@ ${money(a,s.entry)}</span>`:'<span class="pill WAIT">● ATTENDI</span>'}</td>
+<td>${act?`<span class="pill tfrec">${ai.recTf}</span>`:'<span class="mu">—</span>'}</td>
 <td>${act?`<span class="pill" style="color:var(--warn)">${s.lev[0]}x – ${s.lev[1]}x</span>`:'<span class="mu">—</span>'}</td>
 <td class="${f}">${money(a,a.price)}</td>
 <td>${miniG(g)}</td>
@@ -595,13 +604,13 @@ function renderTable(){
 <td style="text-align:left"><div class="nw">${news}</div></td>
 <td class="${ai.ch24>=0?'up':'dn'}">${pc(ai.ch24)}</td>
 <td>${act?`<span class="up">${money(a,s.tp1)}</span>`:'<span class="mu">—</span>'}</td>
-<td>${act?`<span class="dn">${money(a,s.sl)}</span>`:'<span class="mu">—</span>'}</td></tr>`}).join('')||'<tr><td colspan="12" class="empty" style="text-align:center">Nessun asset trovato.</td></tr>';
+<td>${act?`<span class="dn">${money(a,s.sl)}</span>`:'<span class="mu">—</span>'}</td></tr>`}).join('')||'<tr><td colspan="13" class="empty" style="text-align:center">Nessun asset trovato.</td></tr>';
   assets.forEach(a=>lastPx[a.sym]=a.price);
 }
 
 function renderBanner(){
   const tops=assets.filter(isTop).sort((x,y)=>y.ai.conf-x.ai.conf),b=$('#banner');
-  if(tops.length){b.className='banner';b.innerHTML=`${dia(18,true)}<span>TOP ENTRY &gt;80%: DIAMANTE GIALLO LAMPEGGIANTE ATTIVO SUL MERCATO REALE</span><span class="tops">${tops.slice(0,6).map(a=>`<button type="button" data-sym="${a.sym}">${a.sym} ${a.ai.conf}%</button>`).join('')}</span>`}
+  if(tops.length){b.className='banner';b.innerHTML=`${dia(18,true)}<span>TOP ENTRY &gt;80%: DIAMANTE GIALLO LAMPEGGIANTE ATTIVO SUL MERCATO REALE</span><span class="tops">${tops.slice(0,6).map(a=>`<button type="button" data-sym="${a.sym}">${a.sym} ${a.ai.conf}% [${a.ai.recTf}]</button>`).join('')}</span>`}
   else{b.className='banner idle';b.innerHTML=`${dia(18,false)}<span>Monitoraggio live reale attivo: in attesa di confluenze &gt;80%</span>`}
 }
 
@@ -627,6 +636,7 @@ function renderMain(){
 
   const rows=[
     ['Entrata istantanea (Market)',act?`${s.dir>0?'LONG':'SHORT'} @ ${money(a,s.entry)}`:'—','--dia'],
+    ['Timeframe consigliato',act?`<span class="pill tfrec">${ai.recTf}</span>`:'—','--c2'],
     ['Leva consigliata',act?`${s.lev[0]}x – ${s.lev[1]}x`:'—','--warn'],
     ['Take Profit 1 (TP1)',act?`${money(a,s.tp1)} (${pc(s.dir*(s.tp1/s.entry-1))})`:'—','--up'],
     ['Take Profit 2 (TP2)',act?`${money(a,s.tp2)} (${pc(s.dir*(s.tp2/s.entry-1))})`:'—','--up'],
@@ -638,7 +648,7 @@ function renderMain(){
   const tb=$('#topbox');
   if(top&&act){
     tb.className='topbox';
-    tb.innerHTML=`<h3>${dia(14,true)} TOP CONFLUENZA (&gt;80%)</h3><ul style="margin:0;padding-left:14px;font-size:11.5px"><li>Ingresso: ${s.dir>0?'BUY':'SELL'} @ ${money(a,s.entry)}</li><li>TP1: ${money(a,s.tp1)} | TP2: ${money(a,s.tp2)}</li><li>Stop Loss: ${money(a,s.sl)}</li></ul>`;
+    tb.innerHTML=`<h3>${dia(14,true)} TOP CONFLUENZA (&gt;80%)</h3><ul style="margin:0;padding-left:14px;font-size:11.5px"><li>Timeframe Consigliato: <b style="color:var(--c2)">${ai.recTf}</b></li><li>Ingresso: ${s.dir>0?'BUY':'SELL'} @ ${money(a,s.entry)}</li><li>TP1: ${money(a,s.tp1)} | TP2: ${money(a,s.tp2)}</li><li>Stop Loss: ${money(a,s.sl)}</li></ul>`;
   }else{
     tb.className='topbox idle';
     tb.innerHTML=`<h3>NESSUNA TOP CONFLUENZA (&gt;80%)</h3><p style="font-size:11px;color:var(--mute)">L'asset corrente non soddisfa i requisiti per il diamante.</p>`;
@@ -654,7 +664,7 @@ function renderMain(){
   $('#tft').innerHTML=rowsT.map(([n,f])=>`<tr><td>${n}</td>${[15,60,240].map(k=>`<td>${f(k)}</td>`).join('')}</tr>`).join('');
   $('#tfSub').textContent=`${a.sym} · Indicatori Tecnici Reali`;
 
-  const ex=[['Confluenza AI',ai.conf+'%'],['RSI 15m',fmtN(ai.tf[15].S.rsi.at(-1),1)],['RSI 1h',fmtN(ai.tf[60].S.rsi.at(-1),1)],['Variazione 24h',pc(ai.ch24)]];
+  const ex=[['Confluenza AI',ai.conf+'%'],['TF Ottimale',ai.recTf],['RSI 15m',fmtN(ai.tf[15].S.rsi.at(-1),1)],['RSI 1h',fmtN(ai.tf[60].S.rsi.at(-1),1)],['Variazione 24h',pc(ai.ch24)]];
   $('#extra').innerHTML=ex.map(([k,v])=>`<div><span>${k}</span><b style="font-weight:500">${v}</b></div>`).join('');
 }
 
@@ -691,9 +701,9 @@ async function boot(){
   readColors();
   $('#feedDot').className='dot';
   $('#feedTxt').textContent='MERCATO LIVE REALE';
-  pushLog('INIT','Connessione attiva alle API di Binance[span_18](start_span)[span_18](end_span). Calcolo TP e SL reali avviato.');
+  pushLog('INIT','Connessione attiva alle API di Binance[span_18](start_span)[span_18](end_span). Calcolo TP, SL e Timeframe Consigliato avviato.');
   await fetchBinanceData();
-  setInterval(fetchBinanceData, 6000); // Aggiornamento automatico ogni 6 secondi
+  setInterval(fetchBinanceData, 6000);
 }
 
 boot();
