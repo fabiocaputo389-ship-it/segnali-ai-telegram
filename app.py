@@ -117,33 +117,19 @@ input:focus,select:focus{border-color:var(--gold);outline:none;box-shadow:0 0 12
 .pill.SHORT{color:var(--dn);background:rgba(255,51,102,.15);box-shadow:0 0 10px rgba(255,51,102,.3)}
 .pill.HOLD{color:var(--gold);background:rgba(243,202,82,.15);box-shadow:0 0 10px rgba(243,202,82,.3)}
 
-/* ANIMAZIONE SEGNALE ENTRA ADESSO PRECISO */
-.entry-now-banner {
-  background: linear-gradient(135deg, rgba(243,202,82,0.2), rgba(0,255,204,0.2));
-  border: 2px solid var(--gold);
-  padding: 12px 18px;
-  border-radius: 6px;
-  margin-bottom: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  box-shadow: 0 0 20px rgba(243,202,82,0.4);
-  animation: borderGlow 1.2s infinite alternate;
-}
-@keyframes borderGlow {
-  0% { border-color: var(--gold); box-shadow: 0 0 10px rgba(243,202,82,0.3); }
-  100% { border-color: var(--up); box-shadow: 0 0 25px rgba(0,255,204,0.6); }
-}
-.blink-text {
-  font: 700 13px var(--font-mono);
+/* ANIMAZIONE "ENTRA ADESSO" NEL VERDETTO */
+.anim-entra-adesso {
+  font-weight: 700;
   color: var(--up);
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  animation: textBlink 0.8s infinite alternate;
+  animation: flashEntra 0.6s infinite alternate ease-in-out;
+  display: inline-block;
+  text-shadow: 0 0 10px var(--up);
 }
-@keyframes textBlink {
-  0% { opacity: 0.4; text-shadow: none; }
-  100% { opacity: 1; text-shadow: 0 0 12px var(--up); }
+@keyframes flashEntra {
+  0% { opacity: 0.4; transform: scale(0.98); }
+  100% { opacity: 1; transform: scale(1.03); text-shadow: 0 0 18px var(--up); }
 }
 
 .bar2{position:relative;height:8px;background:var(--line)}
@@ -320,24 +306,9 @@ footer{margin-top:18px;font:400 10px var(--font-mono);color:var(--mute);line-hei
       </ul>
     </section>
 
-    <!-- SEZIONE TEMPO UTILE INGRESSO & SEGNALE ENTRA ADESSO ANIMATO -->
+    <!-- SEZIONE TEMPO UTILE INGRESSO & VERDETTO ANIMATO ENTRA ADESSO -->
     <section class="panel s8">
       <div class="ph"><h2>Verdetto Balene Certificato &amp; Tempo Utile Ingresso</h2><span class="sub" id="anSub">Seleziona un asset</span></div>
-      
-      <!-- BANNER ANIMATO ENTRA ADESSO -->
-      <div class="entry-now-banner" id="entryNowBanner" style="display:none;">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:20px;">⚡</span>
-          <div>
-            <div class="blink-text">SEGNALE ATTIVO: ENTRA ADESSO!</div>
-            <div style="font:10px var(--font-mono);color:var(--ink2);" id="entryNowSub">Momento esatto di retest e massima confluenza istituzionale</div>
-          </div>
-        </div>
-        <div style="text-align:right;">
-          <span style="font:700 12px var(--font-mono);color:var(--gold);" id="entryNowPrice">--</span>
-          <div style="font:9px var(--font-mono);color:var(--mute);">Esecuzione Immediata BingX</div>
-        </div>
-      </div>
 
       <div style="background:rgba(243,202,82,.04);border:1px solid var(--line2);padding:14px;margin-bottom:14px;border-radius:4px;box-shadow:inset 0 0 15px rgba(243,202,82,.03);">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px;">
@@ -583,11 +554,10 @@ function drawChart(){
 const ui={f:'all',cls:'all',q:''};
 const lastPx={};
 
-// CALCOLO PRECISO E MILLIMETRICO DEI SECONDI ESATTI ALLA CHIUSURA DELLA CANDELA DEL TIMEFRAME
 function getExactCandleSeconds(tfRec) {
   const now = new Date();
   const totalSeconds = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
-  let tfSec = 900; // 15m default
+  let tfSec = 900;
   if (tfRec === '1h') tfSec = 3600;
   if (tfRec === '4h') tfSec = 14400;
   
@@ -647,7 +617,13 @@ function renderMain(){
   const sorted=[...assets].sort((x,y)=>y.ai.comb-x.ai.comb);
   $('#opps').innerHTML=sorted.slice(0,5).map(x=>`<div class="dvr" data-sym="${x.sym}"><b>${x.sym}</b><span class="bar2 dv"><i style="left:50%;width:${Math.abs(x.ai.comb)}%;background:${x.ai.comb>=0?'var(--up)':'var(--dn)'}"></i></span><span style="text-align:right">${x.ai.comb>=0?'+':''}${Math.round(x.ai.comb)}</span></div>`).join('');
 
-  const v=ai.verdict, vText=v==='LONG'?'🐋 🟢 ENTRA LONG (Segnale Certo)':v==='SHORT'?'🐋 🔴 ENTRA SHORT (Segnale Certo)':'⚠️ ATTESA BALENE (No Movimenti)';
+  const v=ai.verdict;
+  let vText = '⚠️ ATTESA BALENE (No Movimenti)';
+  if(v === 'LONG') {
+    vText = `🐋 🟢 <span class="anim-entra-adesso">ENTRA ADESSO!</span> LONG (Segnale Certo)`;
+  } else if(v === 'SHORT') {
+    vText = `🐋 🔴 <span class="anim-entra-adesso">ENTRA ADESSO!</span> SHORT (Segnale Certo)`;
+  }
 
   const d = new Date();
   const currentTotalMin = d.getHours() * 60 + d.getMinutes();
@@ -668,17 +644,9 @@ function renderMain(){
   $('#entryWindowText').textContent=`Finestra Consigliata: ${startTimeStr} - ${endTimeStr} (Retest Scadenza: In Chiusura Candela ${ai.tfRec.toUpperCase()}) Confluenza Live`;
 
   const exactSec = getExactCandleSeconds(ai.tfRec);
-  const banner = $('#entryNowBanner');
-  if(v !== 'HOLD' && exactSec <= 45){
-    banner.style.display = 'flex';
-    $('#entryNowPrice').textContent = money(a, a.price);
-    $('#entryNowSub').textContent = `Confluenza ${v} su ${a.sym} confermata al millimetro in chiusura ${ai.tfRec.toUpperCase()}. Esecuzione immediata consigliata.`;
-  } else {
-    banner.style.display = 'none';
-  }
 
   $('#anPlan').innerHTML=`
-    <div style="display:flex;justify-content:space-between"><span>Verdetto Balene</span><b style="color:${v==='HOLD'?'var(--gold)':'var(--up)'}">${vText}</b></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;"><span>Verdetto Balene</span><div style="text-align:right">${vText}</div></div>
     <div style="display:flex;justify-content:space-between"><span>Timeframe Analisi</span><b style="color:var(--gold)">${ai.tfRec}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Leva Reale Sicura</span><b style="color:var(--warn)">${ai.lev}x</b></div>
     <div style="display:flex;justify-content:space-between"><span>Prezzo d'Ingresso</span><b style="color:var(--gold)">${money(a,a.price)}</b></div>`;
@@ -690,7 +658,7 @@ function renderMain(){
     <div style="display:flex;justify-content:space-between"><span>Stop Loss Millimetrico</span><b class="dn">${money(a,ai.sl)}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Attività Istituzionale</span><b style="color:var(--gold)">${ai.whales}</b></div>`;
 
-  $('#anReason').textContent=`Analisi AI millimetrica su ${a.sym} (${CLS[a.cls].label}). ${ai.whales}. L'intelligenza artificiale rileva un andamento di mercato guidato dai flussi istituzionali con verdetto: "${vText}". Il tempo utile di ingresso calcolato dal sistema di monitoraggio live garantisce precisione costante sulla chiusura della candela ${ai.tfRec}. Precisione stimata: ${ai.conf}%.`;
+  $('#anReason').textContent=`Analisi AI millimetrica su ${a.sym} (${CLS[a.cls].label}). ${ai.whales}. L'intelligenza artificiale rileva un andamento di mercato guidato dai flussi istituzionali. Il tempo utile di ingresso calcolato dal sistema di monitoraggio live garantisce precisione costante sulla chiusura della candela ${ai.tfRec}. Precisione stimata: ${ai.conf}%.`;
 
   $('#cSym').textContent=a.sym;$('#cName').textContent=a.name;$('#cPx').textContent=money(a,a.price);
   $('#cCh').innerHTML=`<span class="mono ${ai.ch24>=0?'up':'dn'}">${pc(ai.ch24)}</span>`;
@@ -722,14 +690,6 @@ setInterval(()=>{
     const pct = clamp((exactSec / tfMax) * 100, 5, 100);
     const bar = $('#entryProgressBar');
     if(bar) bar.style.width = pct + '%';
-    
-    const banner = $('#entryNowBanner');
-    if(a.ai.verdict !== 'HOLD' && exactSec <= 45){
-      banner.style.display = 'flex';
-      $('#entryNowPrice').textContent = money(a, a.price);
-    } else {
-      banner.style.display = 'none';
-    }
   }
 }, 1000);
 
