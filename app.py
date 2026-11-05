@@ -555,35 +555,34 @@ function analyze(a){
   const comb=TFW[15]*tf[15].score+TFW[60]*tf[60].score+TFW[240]*tf[240].score;
   const conf=clamp(Math.round(Math.abs(comb)*1.15+28+(Math.random()*4-2)),40,99),dir=comb>=0?1:-1;
   const S=tf[15].S,i=S.c.length-1,atr=S.atr[i],price=a.price;
-  
-  # --- MODIFICA CHIRURGICA PER SL E TP ULTRA-VICINI (SCALPING) ---
-  const slPct=clamp(0.4 * atr / price, 0.001, 0.005); // Stop loss estremamente stretto e chirurgico
+  const slPct=clamp(1.5*atr/price,.004,.03);
   
   let lev = 10;
   if (a.cls === 'cry') {
-    lev = Math.round(clamp(15 / (slPct * 100), 5, 20));
+    lev = Math.round(clamp(12 / (slPct * 100), 2, 10));
   } else if (a.cls === 'stk') {
-    lev = Math.round(clamp(8 / (slPct * 100), 2, 10));
+    lev = Math.round(clamp(6 / (slPct * 100), 2, 5));
   } else {
-    lev = Math.round(clamp(10 / (slPct * 100), 2, 10));
+    lev = Math.round(clamp(8 / (slPct * 100), 2, 8));
   }
 
   const tfRec=Math.abs(comb)>50?'15m':Math.abs(comb)>25?'1h':'4h';
   
+  // LOGICA DI SELETTIVITÀ RIGIDA (CON ISTERESI PER EVITARE CONTINUI RIMBALZI)
   let verdict = a.ai && a.ai.verdict ? a.ai.verdict : 'HOLD';
   if (verdict === 'LONG') {
-    if (comb < 5) verdict = 'HOLD'; 
+    if (comb < 8) verdict = 'HOLD'; // Richiede che scenda sotto 8 per togliere il LONG
   } else if (verdict === 'SHORT') {
-    if (comb > -5) verdict = 'HOLD'; 
+    if (comb > -8) verdict = 'HOLD'; // Richiede che salga sopra -8 per togliere lo SHORT
   } else {
-    if (comb >= 15) verdict = 'LONG';    
-    else if (comb <= -15) verdict = 'SHORT'; 
+    if (comb >= 22) verdict = 'LONG';    // Scatta LONG solo se supera fermamente 22
+    else if (comb <= -22) verdict = 'SHORT'; // Scatta SHORT solo se scende sotto -22
   }
 
   const strengthFactor = Math.max(1, Math.round(Math.abs(comb) / 20));
-  const cTP1 = Math.max(1, Math.round(1 / strengthFactor));
-  const cTP2 = cTP1 + 1;
-  const cTP3 = cTP2 + 2;
+  const cTP1 = Math.max(1, Math.round(2 / strengthFactor));
+  const cTP2 = cTP1 + Math.max(2, Math.round(3 / strengthFactor));
+  const cTP3 = cTP2 + Math.max(3, Math.round(5 / strengthFactor));
   
   const unitLabel = tfRec === '15m' ? 'candele 15m' : tfRec === '1h' ? 'candele 1h' : 'candele 4h';
   const timeTP1 = `${cTP1} ${unitLabel}`;
@@ -592,11 +591,10 @@ function analyze(a){
 
   const whales=comb>25?'🐋 🐳 🚀 Forte Accumulo Balene Istituzionali':comb<-25?'🐋 🔻 Forte Distribuzione / Vendita Balene':'⚖️ Flussi Bilanciati / No Balene';
   
-  # TARGET CHIRURGICI RAVVICINATI (PUNTO A PUNTO)
   const sl=price*(1-dir*slPct);
-  const tp1=price*(1+dir*slPct*0.5); // TP1 vicinissimo per chiusura lampo
-  const tp2=price*(1+dir*slPct*1.0); // TP2 equilibrato
-  const tp3=price*(1+dir*slPct*1.5); // TP3 finale ravvicinato
+  const tp1=price*(1+dir*slPct*1.2);
+  const tp2=price*(1+dir*slPct*2.2);
+  const tp3=price*(1+dir*slPct*3.5);
 
   return{tf,comb,conf,dir,atr,slPct,lev,tfRec,verdict,timeTP1,timeTP2,timeTP3,whales,sl,tp1,tp2,tp3,ch24:a.ch24||(price/c15[Math.max(0,n-48)].c-1),cp:tf[15].cp};
 }
@@ -654,7 +652,7 @@ function mkGauge(host,big){
   s+=`<g class="ndl" style="transform:rotate(0deg)"><polygon points="97.5,100 100,30 102.5,100"/></g><circle class="hub" cx="100" cy="100" r="7"/>`;
   host.innerHTML=`<svg class="gsvg" viewBox="0 0 200 112" role="img" aria-label="Tachimetro">${s}</svg>`;
   const val=host.querySelector('.gval'),nd=host.querySelector('.ndl');
-  return v=>{v=clamp(v,0,100);const z=zone(v);val.style.strokeDasharray=`${v} 100`;val.setAttribute('class','gval z'+z);nd.style.transform=`rotate(${(v-50)*1.8}deg)` ;return z};
+  return v=>{v=clamp(v,0,100);const z=zone(v);val.style.strokeDasharray=`${v} 100`;val.setAttribute('class','gval z'+z);nd.style.transform=`rotate(${(v-50)*1.8}deg)`;return z};
 }
 let gMain,gCry,gStk,gCom,gLiq,gVol,gWhl;
 function setG(fn,numEl,labEl,v){const z=fn(v);numEl.textContent=Math.round(v);numEl.style.color=zcol(z);labEl.textContent=ZL[z];labEl.style.color=zcol(z)}
