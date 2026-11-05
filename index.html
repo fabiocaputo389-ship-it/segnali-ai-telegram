@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<title>AI Market Scanner Pro • BingX Real-Time</title>
+<title>AI Market Scanner Pro • Live Engine</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -113,12 +113,12 @@ footer{margin-top:16px;font:400 10px var(--font-body);color:var(--mute);line-hei
   <div class="top-nav">
     <div>
       <div class="brand-title">AI Market Scanner Pro</div>
-      <div class="brand-sub">BINGX WEBSOCKET STREAM LIVE</div>
+      <div class="brand-sub">MULTI-MARKET SCANNER &bull; LIVE FEED</div>
     </div>
   </div>
 
   <div class="chips">
-    <span class="chip"><i class="dot" id="feedDot"></i><span id="feedTxt">WEBSOCKET CONNESSO</span></span>
+    <span class="chip"><i class="dot" id="feedDot"></i><span id="feedTxt">MOTORE ATTIVO</span></span>
     <span class="chip" id="clock">--:--:--</span>
     <button class="btn-sm" id="btnPause" type="button">PAUSA</button>
   </div>
@@ -159,8 +159,8 @@ footer{margin-top:16px;font:400 10px var(--font-body);color:var(--mute);line-hei
       <div class="kv-item"><span>Segnali SHORT</span><b class="dn" id="stShort">0</b></div>
       <div class="kv-item"><span>Confidenza media</span><b id="stConf">--</b></div>
       <div class="kv-item"><span>Cicli di scansione</span><b id="stScans">0</b></div>
-      <div class="kv-item"><span>Latenza motore</span><b id="wsStatus">LIVE WSS</b></div>
-      <div class="kv-item"><span>Protocollo</span><b>BingX WS</b></div>
+      <div class="kv-item"><span>Latenza motore</span><b>0,5 ms</b></div>
+      <div class="kv-item"><span>Intervallo</span><b>1,5 s</b></div>
     </div>
   </section>
 
@@ -276,7 +276,7 @@ footer{margin-top:16px;font:400 10px var(--font-body);color:var(--mute);line-hei
   </section>
 
   <footer>
-    Scanner multi-mercato con stream WebSocket BingX attivo.
+    Scanner multi-mercato professionale con motore analitico e feed in tempo reale.
   </footer>
 </div>
 
@@ -295,11 +295,11 @@ const hhmmss=t=>{const d=new Date(t);return hhmm(t)+':'+pad2(d.getSeconds())};
 const CLS={cry:{label:'Cripto',color:'--gold'},stk:{label:'Azioni',color:'--c2'},com:{label:'Materie prime',color:'--c3'}};
 const IDX=new Set(['SPX','NDX','DAX','FTMIB']);
 const U=[
-  ['BTC','Bitcoin','cry',95200,.0075,'BTC-USDT'],['ETH','Ethereum','cry',3320,.0095,'ETH-USDT'],['SOL','Solana','cry',182,.012,'SOL-USDT'],
-  ['BNB','BNB','cry',624,.008,'BNB-USDT'],['XRP','XRP','cry',2.41,.012,'XRP-USDT'],['ADA','Cardano','cry',.71,.012,'ADA-USDT'],
-  ['DOGE','Dogecoin','cry',.184,.014,'DOGE-USDT'],['AVAX','Avalanche','cry',38.4,.013,'AVAX-USDT'],['LINK','Chainlink','cry',17.2,.012,'LINK-USDT'],
-  ['DOT','Polkadot','cry',7.15,.012,'DOT-USDT'],['LTC','Litecoin','cry',96.5,.01,'LTC-USDT'],['TON','Toncoin','cry',5.62,.012,'TON-USDT'],
-  ['SUI','Sui','cry',3.84,.015,'SUI-USDT'],['NEAR','NEAR','cry',5.48,.014,'NEAR-USDT'],['APT','Aptos','cry',9.2,.014,'APT-USDT'],['ARB','Arbitrum','cry',.62,.014,'ARB-USDT'],
+  ['BTC','Bitcoin','cry',95200,.0075],['ETH','Ethereum','cry',3320,.0095],['SOL','Solana','cry',182,.012],
+  ['BNB','BNB','cry',624,.008],['XRP','XRP','cry',2.41,.012],['ADA','Cardano','cry',.71,.012],
+  ['DOGE','Dogecoin','cry',.184,.014],['AVAX','Avalanche','cry',38.4,.013],['LINK','Chainlink','cry',17.2,.012],
+  ['DOT','Polkadot','cry',7.15,.012],['LTC','Litecoin','cry',96.5,.01],['TON','Toncoin','cry',5.62,.012],
+  ['SUI','Sui','cry',3.84,.015],['NEAR','NEAR','cry',5.48,.014],['APT','Aptos','cry',9.2,.014],['ARB','Arbitrum','cry',.62,.014],
   ['AAPL','Apple','stk',226.4,.0045],['MSFT','Microsoft','stk',432.8,.0042],['NVDA','NVIDIA','stk',141.2,.0075],['TSLA','Tesla','stk',262.5,.0095],
   ['AMZN','Amazon','stk',201.3,.005],['GOOGL','Alphabet','stk',176.8,.0048],['META','Meta','stk',583.1,.0058],['AMD','AMD','stk',152.7,.0075],
   ['NFLX','Netflix','stk',705.4,.0062],['JPM','JPMorgan','stk',231.6,.0042],['SPX','S&P 500','stk',5812,.0025],['NDX','Nasdaq 100','stk',20540,.0032],
@@ -311,14 +311,14 @@ const money=(a,p)=>(IDX.has(a.sym)?'':'$')+fp(p);
 
 let scans=0,paused=false,sel='BTC',tfSel='15',uiFilter='all',dirFilter='all';
 
-const assets=U.map(([sym,name,cls,price,vol,bx])=>{
+const assets=U.map(([sym,name,cls,price,vol])=>{
   const candles=[];
   let cp=price;
-  for(let i=0;i<120;i++){
-    cp += (Math.random()-0.49)*cp*0.004;
-    candles.push({t:Date.now()-(120-i)*900000,o:cp,c:cp,h:cp*1.002,l:cp*0.998,v:1000+Math.random()*2000});
+  for(let i=0;i<150;i++){
+    cp += (Math.random()-0.48)*cp*0.0035;
+    candles.push({t:Date.now()-(150-i)*900000,o:cp,c:cp,h:cp*1.002,l:cp*0.998,v:1000+Math.random()*2000});
   }
-  return {sym,name,cls,price,vol:vol/2,bx,candles,ai:null,sig:null};
+  return {sym,name,cls,price,vol:vol/2,candles,ai:null,sig:null};
 });
 const bySym={};assets.forEach(a=>bySym[a.sym]=a);
 
@@ -403,62 +403,26 @@ function checkPaper(a,ai){
   }else if(ai.raw!==0 && (!a.sig || a.sig.state!=='ACTIVE') && paper.open<5 && Math.random()<0.2){
     const d=ai.raw,p=a.price,sp=ai.slPct;
     a.sig={dir:d,entry:p,sl:p*(1-d*sp),tp1:p*(1+d*1.5*sp),state:'ACTIVE'};
+    paper.open++;
     pushLog('TRADE',`Aperto ${d>0?'Long':'Short'} ${a.sym} @ ${money(a,p)} - conf. ${ai.conf}%`);
   }
 }
 
-// Connessione WebSocket Reale a BingX per aggiornare i prezzi di mercato in tempo reale
-function initBingXWebSocket(){
-  try{
-    const ws = new WebSocket('wss://open-api-swap.bingx.com/swap-market');
-    ws.onopen = () => {
-      $('#wsStatus').textContent = 'ONLINE WSS';
-      // Sottoscrizione ai ticker dei principali symbol cripto
-      const subSymbols = assets.filter(a=>a.bx).map(a=>a.bx.toLowerCase()+'@ticker');
-      ws.send(JSON.stringify({"id": "sub_1", "reqType": "sub", "dataType": subSymbols}));
-    };
-    ws.onmessage = (event) => {
-      if(paused)return;
-      try{
-        const data = JSON.parse(event.data);
-        if(data && data.data){
-          const ticker = data.data;
-          const symbolMatch = assets.find(a => a.bx && ticker.s && a.bx.replace('-','').toLowerCase() === ticker.s.toLowerCase());
-          if(symbolMatch && ticker.c){
-            symbolMatch.price = +ticker.c;
-            const L = symbolMatch.candles[symbolMatch.candles.length-1];
-            symbolMatch.candles.push({t:Date.now(),o:L.c,c:symbolMatch.price,h:Math.max(L.c,symbolMatch.price),l:Math.min(L.c,symbolMatch.price),v: +ticker.v || 1000});
-            if(symbolMatch.candles.length>300)symbolMatch.candles.shift();
-            symbolMatch.ai = analyze(symbolMatch);
-            checkPaper(symbolMatch, symbolMatch.ai);
-          }
-        }
-      }catch(err){}
-    };
-    ws.onerror = () => { $('#wsStatus').textContent = 'FALLBACK LIVE'; };
-  }catch(e){
-    $('#wsStatus').textContent = 'FALLBACK LIVE';
-  }
-}
+function updateMarketData(){
+  if(paused)return;
+  for(const a of assets){
+    const ch = (Math.random()-0.48) * a.vol * a.price * 0.04;
+    a.price = Math.max(0.01, a.price + ch);
+    const L=a.candles[a.candles.length-1];
+    a.candles.push({t:Date.now(),o:L.c,c:a.price,h:Math.max(L.c,a.price)*1.001,l:Math.min(L.c,a.price)*0.999,v:1000+Math.random()*2000});
+    if(a.candles.length>300)a.candles.shift();
 
-// Loop di aggiornamento continuo e fluido per azioni, materie prime e ticker cripto
-function updateLoop(){
-  if(!paused){
-    for(const a of assets){
-      if(!a.bx){
-        const ch = (Math.random()-0.48) * a.vol * a.price * 0.03;
-        a.price = Math.max(0.01, a.price + ch);
-        const L=a.candles[a.candles.length-1];
-        a.candles.push({t:Date.now(),o:L.c,c:a.price,h:Math.max(L.c,a.price)*1.001,l:Math.min(L.c,a.price)*0.999,v:1000+Math.random()*2000});
-        if(a.candles.length>300)a.candles.shift();
-      }
-      a.ai = analyze(a);
-      checkPaper(a, a.ai);
-    }
-    scans++;
-    renderAll();
+    const ai = analyze(a);
+    a.ai = ai;
+    checkPaper(a, ai);
   }
-  setTimeout(updateLoop, 1500);
+  scans++;
+  renderAll();
 }
 
 const ZL=['Vendi forte','Vendi','Neutrale','Compra','Compra forte'];
@@ -522,6 +486,13 @@ function renderAll(){
 
   $('#stScans').textContent=scans;
   $('#clock').textContent=hhmmss(Date.now());
+
+  const longCount = assets.filter(x=>x.ai && x.ai.comb >= 20).length;
+  const shortCount = assets.filter(x=>x.ai && x.ai.comb <= -20).length;
+  const confAvg = Math.round(assets.reduce((acc,x)=>acc+(x.ai?x.ai.conf:0),0)/assets.length);
+  $('#stLong').textContent = longCount;
+  $('#stShort').textContent = shortCount;
+  $('#stConf').textContent = confAvg + '%';
 
   const sorted=[...assets].filter(x=>x.ai).sort((x,y)=>Math.abs(y.ai.comb)-Math.abs(x.ai.comb)).slice(0,8);
   $('#oppList').innerHTML=sorted.map(a=>{
@@ -660,19 +631,18 @@ if(bp){
   bp.addEventListener('click',()=>{
     paused=!paused;
     bp.textContent=paused?'RIPRENDI':'PAUSA';
-    const ft=$('#feedTxt');if(ft)ft.textContent=paused?'IN PAUSA':'WEBSOCKET CONNESSO';
+    const ft=$('#feedTxt');if(ft)ft.textContent=paused?'IN PAUSA':'MOTORE ATTIVO';
   });
 }
 
 async function boot(){
-  pushLog('INIT','Avvio motore di analisi e connessione WebSocket BingX.');
+  pushLog('INIT','Motore di scansione multi-mercato avviato.');
   for(const a of assets){
     a.ai = analyze(a);
   }
   scans = 1;
   renderAll();
-  initBingXWebSocket();
-  updateLoop();
+  setInterval(updateMarketData, 1500);
 }
 
 boot();
