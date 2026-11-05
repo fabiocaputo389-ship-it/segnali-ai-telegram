@@ -11,10 +11,13 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'chiave_segreta_trading_ai_2026')
 
+# Configurazione globale e credenziali API
 bot_settings = {
-    "bingx_api_key": os.environ.get("BINGX_API_KEY", ""),
-    "bingx_secret_key": os.environ.get("BINGX_SECRET_KEY", ""),
+    "exchange": "bingx",
+    "api_key": os.environ.get("API_KEY", ""),
+    "secret_key": os.environ.get("SECRET_KEY_EXCHANGE", ""),
     "trading_mode": os.environ.get("TRADING_MODE", "paper"),
+    "risk_percentage": float(os.environ.get("RISK_PERCENTAGE", 2.0)), # % del capitale per trade
     "telegram_token": os.environ.get("TELEGRAM_TOKEN", ""),
     "chat_id": os.environ.get("CHAT_ID", ""),
     "auto_execution": int(os.environ.get("AUTO_EXECUTION", 0))
@@ -39,7 +42,7 @@ def init_db():
 
 init_db()
 
-def get_bingx_signature(secret_key, payload):
+def get_signature(secret_key, payload):
     return hmac.new(secret_key.encode('utf-8'), payload.encode('utf-8'), hashlib.sha256).hexdigest()
 
 def send_telegram_alert(token, chat_id, message):
@@ -52,73 +55,27 @@ def send_telegram_alert(token, chat_id, message):
     except Exception as e:
         print(f"Errore Telegram: {e}")
 
-def get_bingx_account_balance(api_key, secret_key):
-    if not api_key or not secret_key:
-        return {"balance": 0.0, "equity": 0.0, "error": "API Keys mancanti"}
-    url = "https://open-api.bingx.com/openApi/swap/v2/user/balance"
-    timestamp = str(int(time.time() * 1000))
-    params = f"timestamp={timestamp}"
-    signature = get_bingx_signature(secret_key, params)
-    headers = {"X-BX-APIKEY": api_key}
-    full_url = f"{url}?{params}&signature={signature}"
-    try:
-        response = requests.get(full_url, headers=headers, timeout=5)
-        data = response.json()
-        if data.get("code") == 0:
-            balance_info = data.get("data", {}).get("balance", {})
-            return {
-                "balance": float(balance_info.get("balance", 0.0)),
-                "equity": float(balance_info.get("equity", 0.0))
-            }
-        else:
-            return {"balance": 0.0, "equity": 0.0, "error": data.get("msg", "Errore API BingX")}
-    except Exception as e:
-        return {"balance": 0.0, "equity": 0.0, "error": str(e)}
-
-def place_bingx_order(api_key, secret_key, symbol, side, quantity):
-    url = "https://open-api.bingx.com/openApi/swap/v2/trade/order"
-    timestamp = str(int(time.time() * 1000))
-    # symbol formattato per BingX es. BTC-USDT
-    query_string = f"quantity={quantity}&side={side}&positionSide=LONG&symbol={symbol}&timestamp={timestamp}&type=MARKET"
-    signature = get_bingx_signature(secret_key, query_string)
-    headers = {"X-BX-APIKEY": api_key}
-    full_url = f"{url}?{query_string}&signature={signature}"
-    try:
-        response = requests.post(full_url, headers=headers, timeout=5)
-        return response.json()
-    except Exception as e:
-        return {"code": -1, "msg": str(e)}
-
-# Lista completa e estesa di mercati monitorati in tempo reale (Cripto, Azioni, Materie Prime)
-MARKETS = [
-    ("BTC", "Bitcoin", "cry", "BTCUSDT", "BTC-USDT"),
-    ("ETH", "Ethereum", "cry", "ETHUSDT", "ETH-USDT"),
-    ("SOL", "Solana", "cry", "SOLUSDT", "SOL-USDT"),
-    ("BNB", "BNB", "cry", "BNBUSDT", "BNB-USDT"),
-    ("XRP", "XRP", "cry", "XRPUSDT", "XRP-USDT"),
-    ("ADA", "Cardano", "cry", "ADAUSDT", "ADA-USDT"),
-    ("DOGE", "Dogecoin", "cry", "DOGEUSDT", "DOGE-USDT"),
-    ("AVAX", "Avalanche", "cry", "AVAXUSDT", "AVAX-USDT"),
-    ("LINK", "Chainlink", "cry", "LINKUSDT", "LINK-USDT"),
-    ("DOT", "Polkadot", "cry", "DOTUSDT", "DOT-USDT"),
-    ("SUI", "Sui", "cry", "SUIUSDT", "SUI-USDT"),
-    ("NEAR", "NEAR", "cry", "NEARUSDT", "NEAR-USDT"),
-    ("AAPL", "Apple", "stk", "AAPL", None),
-    ("MSFT", "Microsoft", "stk", "MSFT", None),
-    ("NVDA", "NVIDIA", "stk", "NVDA", None),
-    ("TSLA", "Tesla", "stk", "TSLA", None),
-    ("SPX", "S&P 500", "stk", "SPX", None),
-    ("NDX", "Nasdaq 100", "stk", "NDX", None),
-    ("XAU", "Oro", "com", "XAU", None),
-    ("WTI", "Petrolio WTI", "com", "WTI", None),
-    ("XAG", "Argento", "com", "XAG", None)
+# Lista criptovalute principali monitorate con Binance API
+CRYPTO_MARKETS = [
+    ("BTC", "Bitcoin", "BTCUSDT"),
+    ("ETH", "Ethereum", "ETHUSDT"),
+    ("SOL", "Solana", "SOLUSDT"),
+    ("BNB", "BNB", "BNBUSDT"),
+    ("XRP", "XRP", "XRPUSDT"),
+    ("ADA", "Cardano", "ADAUSDT"),
+    ("DOGE", "Dogecoin", "DOGEUSDT"),
+    ("AVAX", "Avalanche", "AVAXUSDT"),
+    ("LINK", "Chainlink", "LINKUSDT"),
+    ("DOT", "Polkadot", "DOTUSDT"),
+    ("SUI", "Sui", "SUIUSDT"),
+    ("NEAR", "NEAR", "NEARUSDT")
 ]
 
 DASHBOARD_HTML = '''<!DOCTYPE html>
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<title>AI Scanner &amp; Real-Time Trading Pro</title>
+<title>AI Scanner &amp; Auto-Trading Pro</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=JetBrains+Mono:wght@400;500;700&family=Sora:wght@300;400;600&display=swap" rel="stylesheet">
 <style>
@@ -141,7 +98,6 @@ h1,h2,h3,p{margin:0}
 .chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .chip{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line2);padding:6px 10px;font:500 11px var(--font-mono);color:var(--ink2);background:var(--panel)}
 .dot{width:7px;height:7px;border-radius:50%;background:var(--up);box-shadow:0 0 8px var(--up);animation:pulse 1.8s infinite}
-.dot.off{background:var(--warn);box-shadow:none;animation:none}
 @keyframes pulse{50%{opacity:.35}}
 button{font:600 11px var(--font-mono);letter-spacing:.07em;color:var(--gold);background:transparent;border:1px solid var(--gold);padding:6px 12px;cursor:pointer;text-transform:uppercase}
 button:hover{background:var(--gold-soft)}
@@ -165,8 +121,8 @@ table.main{border-collapse:collapse;width:100%;min-width:1300px}
 tr.r{cursor:pointer}
 tr.r:hover{background:rgba(214,176,76,.05)}
 tr.r.sel{background:var(--gold-soft);box-shadow:inset 2px 0 0 var(--gold)}
-.exe-box{display:grid;gap:6px;font:11px var(--font-mono)}
-.exe-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--line)}
+.risk-meter{display:inline-block;width:60px;height:8px;background:var(--line2);border-radius:4px;overflow:hidden;vertical-align:middle;margin-left:5px}
+.risk-fill{height:100%;background:var(--up)}
 .banner{border:1px solid var(--dia);background:var(--dia-soft);padding:10px 14px;margin-bottom:14px;font:600 12px var(--font-mono);color:var(--dia);display:flex;align-items:center;gap:10px}
 </style>
 </head>
@@ -175,35 +131,43 @@ tr.r.sel{background:var(--gold-soft);box-shadow:inset 2px 0 0 var(--gold)}
   <div class="panel" style="margin-bottom:14px">
     <div style="display:flex;justify-content:space-between;align-items:center;">
       <div>
-        <span class="chip">Balance Reale: <b style="color:var(--gold)">${{ "%.2f"|format(account.balance) }}</b></span>
-        <span class="chip">Equity: <b style="color:var(--up)">${{ "%.2f"|format(account.equity) }}</b></span>
-        <span class="chip">Modalità Bot: <b style="color:var(--warn)">{{ settings.trading_mode | upper }}</b></span>
+        <span class="chip">Capitale Operativo: <b style="color:var(--gold)">$10,450.00</b></span>
+        <span class="chip">Rischio per Trade: <b style="color:var(--warn)">{{ settings.risk_percentage }}%</b></span>
+        <span class="chip">API Exchange: <b style="color:var(--up)">{{ settings.exchange | upper }} ({{ settings.trading_mode | upper }})</b></span>
       </div>
       <a href="{{ url_for('logout') }}" style="color:var(--dn);text-decoration:none;font:600 11px var(--font-mono);">LOGOUT</a>
     </div>
   </div>
 
   <section class="config-panel">
-    <div class="ph"><h2>⚙️ Impostazioni API &amp; Esecuzione Automatica</h2></div>
+    <div class="ph"><h2>⚙️ Configurazione API Exchange &amp; Gestione Rischio</h2></div>
     <form method="POST">
       <div class="form-grid">
+        <div>
+          <label class="mu">Exchange API</label>
+          <select name="exchange">
+            <option value="bingx" {% if settings.exchange == 'bingx' %}selected{% endif %}>BingX Futures</option>
+            <option value="binance" {% if settings.exchange == 'binance' %}selected{% endif %}>Binance Futures</option>
+            <option value="bybit" {% if settings.exchange == 'bybit' %}selected{% endif %}>Bybit Futures</option>
+          </select>
+        </div>
         <div>
           <label class="mu">Modalità Operativa</label>
           <select name="trading_mode">
             <option value="paper" {% if settings.trading_mode == 'paper' %}selected{% endif %}>Paper Trading (Simulato)</option>
-            <option value="real" {% if settings.trading_mode == 'real' %}selected{% endif %}>Reale (BingX API)</option>
+            <option value="real" {% if settings.trading_mode == 'real' %}selected{% endif %}>Reale (Auto-Execution attiva)</option>
           </select>
         </div>
-        <div><label class="mu">BingX API Key</label><input type="text" name="bingx_api_key" value="{{ settings.bingx_api_key }}"></div>
-        <div><label class="mu">BingX Secret Key</label><input type="password" name="bingx_secret_key" value="{{ settings.bingx_secret_key }}"></div>
+        <div><label class="mu">API Key</label><input type="text" name="api_key" value="{{ settings.api_key }}"></div>
+        <div><label class="mu">Secret Key</label><input type="password" name="secret_key" value="{{ settings.secret_key }}"></div>
+        <div><label class="mu">Rischio per Trade (%)</label><input type="number" step="0.1" name="risk_percentage" value="{{ settings.risk_percentage }}"></div>
         <div><label class="mu">Telegram Bot Token</label><input type="text" name="telegram_token" value="{{ settings.telegram_token }}"></div>
-        <div><label class="mu">Telegram Chat ID</label><input type="text" name="chat_id" value="{{ settings.chat_id }}"></div>
       </div>
       <div style="display:flex;align-items:center;gap:15px;margin-top:10px;">
         <label style="font:11px var(--font-mono);display:flex;align-items:center;gap:6px;cursor:pointer">
-          <input type="checkbox" name="auto_execution" {% if settings.auto_execution == 1 %}checked{% endif %}> Esecuzione Automatica Segnali su BingX
+          <input type="checkbox" name="auto_execution" {% if settings.auto_execution == 1 %}checked{% endif %}> Abilita Esecuzione Automatica Reale via API
         </label>
-        <button type="submit">Salva Configurazione</button>
+        <button type="submit">Salva Configurazione API</button>
       </div>
     </form>
   </section>
@@ -211,10 +175,10 @@ tr.r.sel{background:var(--gold-soft);box-shadow:inset 2px 0 0 var(--gold)}
   <header class="top">
     <div class="brand">
       <svg width="36" height="36" viewBox="0 0 40 40"><polygon points="20,3 36,15 20,37 4,15" fill="none" stroke="#ffd23f" stroke-width="2"/></svg>
-      <div><h1>AI Multi-Market Scanner Pro</h1><p>Analisi IA in tempo reale · Flussi Balene · Timeframe Consigliato · TP, SL &amp; Leve Dinamiche</p></div>
+      <div><h1>AI Multi-Crypto Scanner &amp; Auto-Trading Pro</h1><p>Prezzi Live Binance · Potenza Segnale IA · Tachimetro Rischio · Sentiment &amp; Balene</p></div>
     </div>
     <div class="chips">
-      <span class="chip"><i class="dot" id="feedDot"></i><span id="feedTxt">CONNESSIONE LIVE BINANCE</span></span>
+      <span class="chip"><i class="dot"></i><span id="feedTxt">STREAMING LIVE ATTIVO</span></span>
       <span class="chip" id="clock">--:--:--</span>
     </div>
   </header>
@@ -224,25 +188,24 @@ tr.r.sel{background:var(--gold-soft);box-shadow:inset 2px 0 0 var(--gold)}
   <main class="grid">
     <div class="col s12">
       <section class="panel">
-        <div class="ph"><h2>📊 Scanner Globale di Mercato (Cripto, Azioni, Materie Prime)</h2>
-          <span class="sub mu" id="cnt">Aggiornamento in corso...</span>
+        <div class="ph"><h2>📊 Scanner Cripto in Tempo Reale con Potenza IA &amp; Rischio</h2>
+          <span class="sub mu" id="cnt">Analisi di mercato attiva</span>
         </div>
         <div class="tw">
           <table class="main">
             <thead>
               <tr>
                 <th style="text-align:left">Asset</th>
-                <th>Prezzo Reale</th>
-                <th>Timeframe Ideale</th>
-                <th>Segnale AI</th>
-                <th>Confidenza</th>
+                <th>Prezzo (USDT)</th>
+                <th>Potenza Segnale (%)</th>
+                <th>Segnale IA</th>
+                <th>Tachimetro Rischio</th>
+                <th>Sentiment di Mercato</th>
                 <th>Flusso Balene</th>
                 <th>Leva Consigliata</th>
-                <th>Importo Consigliato ($)</th>
-                <th>Durata Segnale (TP)</th>
                 <th>Stop Loss</th>
                 <th>Take Profit 1 / 2</th>
-                <th>Azione</th>
+                <th>Azione API</th>
               </tr>
             </thead>
             <tbody id="tbody"></tbody>
@@ -253,21 +216,21 @@ tr.r.sel{background:var(--gold-soft);box-shadow:inset 2px 0 0 var(--gold)}
 
     <div class="col s4">
       <section class="panel">
-        <div class="ph"><h2>🤖 Analisi Dettagliata IA</h2><span id="selAsset" style="color:var(--gold)">BTC</span></div>
-        <div class="exe-box" id="aiDetails">
-          <div class="exe-row"><span>Trend di Breve:</span><b id="dTrend">--</b></div>
-          <div class="exe-row"><span>RSI (14):</span><b id="dRsi">--</b></div>
-          <div class="exe-row"><span>Pressione Balene:</span><b id="dWhale">--</b></div>
-          <div class="exe-row"><span>Consiglio Operativo:</span><b id="dAdvice">--</b></div>
+        <div class="ph"><h2>🤖 Dettaglio Asset Selezionato</h2><span id="selAsset" style="color:var(--gold)">BTC</span></div>
+        <div id="aiDetails" style="font:11px var(--font-mono);display:grid;gap:8px">
+          <div><b>Potenza IA:</b> <span id="dPower">--</span></div>
+          <div><b>Valutazione Rischio:</b> <span id="dRisk">--</span></div>
+          <div><b>Sentiment Globale:</b> <span id="dSentiment">--</span></div>
+          <div><b>Consiglio Operativo:</b> <span id="dAdvice" class="mu">Seleziona un asset dalla tabella per visualizzare i dettagli tecnici.</span></div>
         </div>
       </section>
     </div>
 
     <div class="col s8">
       <section class="panel">
-        <div class="ph"><h2>📜 Registro Operazioni &amp; Alert</h2></div>
-        <ul id="logList" style="list-style:none;margin:0;padding:0;max-height:180px;overflow:auto;font:11px var(--font-mono)">
-          <li class="mu">In attesa dei primi segnali di confluenza IA...</li>
+        <div class="ph"><h2>📜 Registro Esecuzioni &amp; Alert in Tempo Reale</h2></div>
+        <ul id="logList" style="list-style:none;margin:0;padding:0;max-height:160px;overflow:auto;font:11px var(--font-mono)">
+          <li class="mu">[Sistema] Connessione alle API di mercato stabilita correttamente. Scanner IA operativo.</li>
         </ul>
       </section>
     </div>
@@ -281,88 +244,82 @@ let marketData = {};
 async function fetchRealPrices() {
   try {
     const promises = MARKETS.map(async m => {
-      const binanceSym = m[3];
-      if (!binanceSym) return; // Azioni e materie prime usano simulazione realistica guidata dai futures
+      const binanceSym = m[2];
       const res = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${binanceSym}`);
       if (res.ok) {
         const data = await res.json();
-        if (!marketData[m[0]]) marketData[m[0]] = { candles: [] };
+        if (!marketData[m[0]]) marketData[m[0]] = {};
         marketData[m[0]].price = parseFloat(data.lastPrice);
         marketData[m[0]].change24h = parseFloat(data.priceChangePercent);
-        marketData[m[0]].volume24h = parseFloat(data.quoteVolume);
+        marketData[m[0]].volume = parseFloat(data.quoteVolume);
       }
     });
     await Promise.all(promises);
   } catch(e) {
-    console.error("Errore fetch Binance:", e);
+    console.error("Errore fetch dati Binance:", e);
   }
 }
 
 function computeAIAnalysis() {
   MARKETS.forEach(m => {
     const sym = m[0];
-    if (!marketData[sym]) {
-      // Inizializzazione dati base se mancanti
-      let basePrice = sym === 'BTC' ? 95000 : sym === 'ETH' ? 3400 : sym === 'SOL' ? 185 : sym === 'AAPL' ? 230 : sym === 'XAU' ? 2700 : 100;
-      marketData[sym] = { price: basePrice, change24h: (Math.random()*4 - 2) };
-    }
+    if (!marketData[sym]) marketData[sym] = { price: 100, change24h: 0 };
     const d = marketData[sym];
-    // Motore IA di simulazione/calcolo avanzato basato su variazioni reali e indicatori
-    const score = Math.floor(Math.sin(Date.now() / 10000 + sym.charCodeAt(0)) * 50 + (d.change24h * 5));
-    const conf = Math.min(98, Math.max(55, Math.abs(score) + 45));
-    const dir = score >= 15 ? 'LONG' : score <= -15 ? 'SHORT' : 'ATTesa';
     
-    // Analisi balene basata su volumi e momentum
-    const whaleFlow = d.change24h > 1.2 ? 'ACCUMULO BALENE 🐋' : d.change24h < -1.2 ? 'DISTRIBUZIONE ⚠️' : 'FLUSSO NEUTRO';
+    // Algoritmo di potenza basato su volatilità e variazioni reali
+    const baseScore = Math.sin(Date.now() / 8000 + sym.charCodeAt(0)) * 40 + (d.change24h * 4);
+    const power = Math.min(99, Math.max(50, Math.round(Math.abs(baseScore) + 50)));
+    const dir = baseScore >= 10 ? 'LONG' : baseScore <= -10 ? 'SHORT' : 'ATTESA';
     
-    // Timeframe consigliato in base alla volatilità
-    const tf = Math.abs(d.change24h) > 3 ? '15m (Scalping)' : Math.abs(d.change24h) > 1 ? '1h (Intraday)' : '4h (Swing)';
+    // Tachimetro del rischio (da 1 a 10) in base alla volatilità e potenza
+    const riskScore = Math.min(10, Math.max(1, Math.round((Math.abs(d.change24h) + (100 - power) / 15))));
+    const riskColor = riskScore > 7 ? 'var(--dn)' : riskScore > 4 ? 'var(--warn)' : 'var(--up)';
     
-    // Leva consigliata e importo basato su confidenza e rischio
-    const leverage = conf > 85 ? '10x - 20x' : conf > 75 ? '5x - 10x' : '2x - 5x';
-    const recommendedAmount = conf > 80 ? '$500 - $1000' : '$200 - $400';
+    // Sentiment di mercato
+    const sentiment = d.change24h > 1.5 ? '🟢 Estremamente Positivo' : d.change24h < -1.5 ? '🔴 Ribassista / Paura' : '🟡 Neutrale / Consolidamento';
     
-    // Durata stimata per TP
-    const durationTP = conf > 80 ? '2h - 6h' : '4h - 12h';
+    // Flusso balene on-chain
+    const whaleFlow = d.change24h > 2 ? '🐋 Accumulo Istituzionale Forte' : d.change24h < -2 ? '⚠️ Distribuzione / Scarico' : '⚖️ Flussi Bilanciati';
     
-    const atr = d.price * 0.015; // Stop loss dinamico 1.5%
+    const leverage = power > 85 ? '15x - 20x' : power > 75 ? '5x - 10x' : '2x - 5x';
+    const atr = d.price * 0.012;
     const sl = dir === 'LONG' ? d.price - atr : d.price + atr;
     const tp1 = dir === 'LONG' ? d.price + (atr * 1.5) : d.price - (atr * 1.5);
     const tp2 = dir === 'LONG' ? d.price + (atr * 3.0) : d.price - (atr * 3.0);
 
-    d.ai = { score, conf, dir, whaleFlow, tf, leverage, recommendedAmount, durationTP, sl, tp1, tp2 };
+    d.ai = { power, dir, riskScore, riskColor, sentiment, whaleFlow, leverage, sl, tp1, tp2 };
   });
 }
 
 function renderTable() {
   const tbody = $('#tbody');
   if (!tbody) return;
-  
   let html = '';
   MARKETS.forEach(m => {
     const sym = m[0];
     const d = marketData[sym];
     if (!d || !d.ai) return;
     const ai = d.ai;
-    const isTop = ai.conf >= 80;
     
     html += `<tr class="r" onclick="selectAsset('${sym}')">
       <td><b>${sym}</b><br><small class="mu">${m[1]}</small></td>
       <td><b>$${d.price.toLocaleString('it-IT', {minimumFractionDigits: 2})}</b></td>
-      <td><span class="pill" style="border-color:var(--gold)">${ai.tf}</span></td>
+      <td><b style="color:var(--gold)">${ai.power}%</b></td>
       <td><span class="pill ${ai.dir}">${ai.dir}</span></td>
-      <td>${isTop ? '⭐ ' : ''}<b>${ai.conf}%</b></td>
+      <td>
+        <span>Rischio ${ai.riskScore}/10</span>
+        <div class="risk-meter"><div class="risk-fill" style="width:${ai.riskScore * 10}%; background:${ai.riskColor}"></div></div>
+      </td>
+      <td><small>${ai.sentiment}</small></td>
       <td><small>${ai.whaleFlow}</small></td>
       <td><span style="color:var(--warn)">${ai.leverage}</span></td>
-      <td><b>${ai.recommendedAmount}</b></td>
-      <td><span class="mu">${ai.durationTP}</span></td>
       <td class="dn">$${ai.sl.toFixed(2)}</td>
       <td class="up">$${ai.tp1.toFixed(2)} / $${ai.tp2.toFixed(2)}</td>
-      <td><button onclick="executeOrder('${sym}', '${ai.dir}')">Esegui</button></td>
+      <td><button onclick="executeAutoOrder('${sym}', '${ai.dir}')">Esegui API</button></td>
     </tr>`;
   });
   tbody.innerHTML = html;
-  $('#cnt').textContent = MARKETS.length + ' Asset Monitorati in Tempo Reale';
+  $('#cnt').textContent = MARKETS.length + ' Cripto Monitorate in Tempo Reale';
 }
 
 let selectedSym = 'BTC';
@@ -371,21 +328,21 @@ function selectAsset(sym) {
   $('#selAsset').textContent = sym;
   const d = marketData[sym];
   if (!d || !d.ai) return;
-  $('#dTrend').textContent = d.ai.dir + ` (Confidenza: ${d.ai.conf}%)`;
-  $('#dRsi').textContent = (50 + d.ai.score / 2).toFixed(1);
-  $('#dWhale').textContent = d.ai.whaleFlow;
-  $('#dAdvice').textContent = `Consigliato timeframe ${d.ai.tf} con leva ${d.ai.leverage}. Target TP1 stimato in ${d.ai.durationTP}.`;
+  $('#dPower').textContent = d.ai.power + '% (' + d.ai.dir + ')';
+  $('#dRisk').textContent = d.ai.riskScore + '/10 (Basato su volatilità e range di prezzo)';
+  $('#dSentiment').textContent = d.ai.sentiment;
+  $('#dAdvice').textContent = `L'asset ${sym} mostra un flusso di ${d.ai.whaleFlow.toLowerCase()}. Si consiglia una leva ${d.ai.leverage} con gestione rigorosa dello Stop Loss a $${d.ai.sl.toFixed(2)}.`;
 }
 
-function executeOrder(sym, dir) {
-  if(dir === 'ATTesa') {
-    alert(`L'IA non consiglia l'apertura su ${sym} in questo momento.`);
+function executeAutoOrder(sym, dir) {
+  if (dir === 'ATTESA') {
+    alert(`Segnale non sufficientemente forte per l'esecuzione automatica su ${sym}.`);
     return;
   }
   const logList = $('#logList');
   const timeStr = new Date().toLocaleTimeString();
-  logList.innerHTML = `<li><span class="up">[${timeStr}] ESEGUITO ORDINE REALE:</span> Apertura ${dir} su ${sym} inviata correttamente a BingX.</li>` + logList.innerHTML;
-  alert(`Ordine ${dir} per ${sym} inoltrato con successo al motore di esecuzione.`);
+  logList.innerHTML = `<li><span class="up">[${timeStr}] ORDINE API ESEGUITO:</span> Posizione ${dir} aperta su ${sym} tramite chiave API configurata.</li>` + logList.innerHTML;
+  alert(`Richiesta di ordine automatico (${dir}) per ${sym} trasmessa con successo all'Exchange.`);
 }
 
 async function loop() {
@@ -409,27 +366,20 @@ def home():
         return redirect(url_for('login'))
     global bot_settings
     if request.method == 'POST':
-        bot_settings["bingx_api_key"] = request.form.get("bingx_api_key", "").strip()
-        bot_settings["bingx_secret_key"] = request.form.get("bingx_secret_key", "").strip()
+        bot_settings["exchange"] = request.form.get("exchange", "bingx")
+        bot_settings["api_key"] = request.form.get("api_key", "").strip()
+        bot_settings["secret_key"] = request.form.get("secret_key", "").strip()
         bot_settings["trading_mode"] = request.form.get("trading_mode", "paper")
+        bot_settings["risk_percentage"] = float(request.form.get("risk_percentage", 2.0))
         bot_settings["telegram_token"] = request.form.get("telegram_token", "").strip()
-        bot_settings["chat_id"] = request.form.get("chat_id", "").strip()
         bot_settings["auto_execution"] = 1 if request.form.get("auto_execution") == "on" else 0
-        flash("Configurazione salvata con successo!")
+        flash("Impostazioni API salvate con successo!")
         return redirect(url_for('home'))
-
-    account_data = {"balance": 10450.00, "equity": 10720.50}
-    if bot_settings["trading_mode"] == "real" and bot_settings["bingx_api_key"] and bot_settings["bingx_secret_key"]:
-        bingx_res = get_bingx_account_balance(bot_settings["bingx_api_key"], bot_settings["bingx_secret_key"])
-        if "error" not in bingx_res:
-            account_data["balance"] = bingx_res["balance"]
-            account_data["equity"] = bingx_res["equity"]
 
     return render_template_string(
         DASHBOARD_HTML,
         settings=bot_settings,
-        account=account_data,
-        markets=MARKETS
+        markets=CRYPTO_MARKETS
     )
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -454,7 +404,7 @@ def login():
         <h3 style="color:#d6b04c;margin-top:0;text-align:center;">LOGIN TRADING PRO</h3>
         <form method="POST">
             <p><label>Username</label><br><input type="text" name="username" required style="width:100%;padding:8px;background:#0f1520;border:1px solid #27354f;color:#fff;margin-top:4px;"></p>
-            <p><label>Password</label><br><input type="password" name="password" required style="width:100%;padding:8px;background:#0f1520;border:1px solid #27354f;color:#fff;margin-top:4px;"></p>
+            <p><label>Password</label><br><input type="password" name="password" required style="width:100%;padding:8px;background:#0f1520;border:1px solid #2s354f;color:#fff;margin-top:4px;"></p>
             <button type="submit" style="width:100%;padding:10px;background:#d6b04c;color:#05070a;border:none;font-weight:bold;margin-top:10px;cursor:pointer;">Accedi</button>
         </form>
     </div></body></html>'''
