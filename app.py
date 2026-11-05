@@ -14,6 +14,7 @@ app.secret_key = os.environ.get('SECRET_KEY', 'chiave_segreta_trading_ai_2026_sa
 # Configurazione globale e lettura automatica delle variabili d'ambiente di Render
 bot_settings = {
     "exchange": "bingx",
+    "mode": os.environ.get("TRADING_MODE", "automatico"),
     "api_key": os.environ.get("BINGX_API_KEY", os.environ.get("API_KEY", "")),
     "secret_key": os.environ.get("BINGX_SECRET_KEY", os.environ.get("SECRET_KEY_EXCHANGE", "")),
     "telegram_token": os.environ.get("TELEGRAM_TOKEN", ""),
@@ -78,8 +79,8 @@ def send_telegram_alert(message):
         return False
 
 def send_bingx_order(symbol, side, quantity, leverage, sl, tp):
-    if not bot_settings["auto_execution"]:
-        return {"code": 0, "msg": "Esecuzione automatica disattivata"}
+    if bot_settings["mode"] == "manuale" or not bot_settings["auto_execution"]:
+        return {"code": 0, "msg": "Modalità manuale o esecuzione automatica disattivata"}
     
     api_key = bot_settings["api_key"]
     secret_key = bot_settings["secret_key"]
@@ -118,196 +119,209 @@ DASHBOARD_HTML = '''<!DOCTYPE html>
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<title>AI Market Scanner &amp; Whale Tracker - Duration Precision Edition</title>
+<title>AI Market Scanner &amp; Whale Tracker - Fighter Jet HUD Edition</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=JetBrains+Mono:wght@400;500;700&family=Sora:wght@300;400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
 <style>
 :root{
   color-scheme:dark;
-  --bg:#020408; --panel:#070d18; --panel2:#0d1626; --line:#162642; --line2:#233a5e;
-  --ink:#f4f7fa; --ink2:#9fb0c9; --mute:#54698a; --grid:rgba(0,212,255,.02);
-  --gold:#f3ca52; --gold-soft:rgba(243,202,82,.12); --cyan:#00d4ff; --cyan-soft:rgba(0,212,255,.15);
-  --up:#00ffcc; --dn:#ff3366; --warn:#ffaa00;
-  --z1:#ff3366; --z2:#ff9933; --z3:#8a94a6; --z4:#00ffcc; --z5:#00d4ff;
-  --font-display:'Cinzel',Georgia,serif; --font-body:'Sora',system-ui,sans-serif; --font-mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
+  --bg:#010409; --panel:#040d1a; --panel2:#08162b; --line:#0f2b4c; --line2:#1e4879;
+  --ink:#eef5fc; --ink2:#8baaca; --mute:#4a719c; --grid:rgba(0,255,204,.03);
+  --gold:#ffcc00; --gold-soft:rgba(255,204,0,.15); --cyan:#00ffcc; --cyan-soft:rgba(0,255,204,.15);
+  --up:#00ff66; --dn:#ff0055; --warn:#ff9900; --hud-border:#00ffcc;
+  --font-display:'Orbitron',sans-serif; --font-body:'Rajdhani',sans-serif; --font-mono:'Share Tech Mono',monospace;
 }
 *{box-sizing:border-box}
-body{background-color:var(--bg);color:var(--ink);font:400 13px/1.45 var(--font-body);
-  background-image:radial-gradient(1200px 600px at 15% -80px,rgba(0,212,255,.07),transparent 70%),radial-gradient(1000px 500px at 85% 110px,rgba(243,202,82,.05),transparent 70%),linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
-  background-size:auto,auto,40px 40px,40px 40px; margin:0; padding:12px;}
-.wrap{max-width:1720px;margin:0 auto;padding-bottom:35px}
+body{background-color:var(--bg);color:var(--ink);font:600 14px/1.4 var(--font-body);
+  background-image:radial-gradient(1400px 700px at 50% -100px,rgba(0,255,204,.08),transparent 70%),radial-gradient(1000px 500px at 50% 1100px,rgba(255,0,85,.05),transparent 70%),linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:auto,auto,30px 30px,30px 30px; margin:0; padding:12px;}
+.wrap{max-width:1760px;margin:0 auto;padding-bottom:40px}
 h1,h2,h3,p{margin:0}
 .up{color:var(--up)}.dn{color:var(--dn)}.mu{color:var(--mute)}
 
-.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 20px;margin-bottom:12px}
+.top-bar{background:linear-gradient(90deg,var(--panel2),var(--panel));border:1px solid var(--line2);padding:10px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;box-shadow:0 0 15px rgba(0,255,204,.1);clip-path:polygon(0 0, 98% 0, 100% 100%, 0% 100%)}
+.hud-tag{font:700 12px var(--font-mono);color:var(--cyan);letter-spacing:1px;display:inline-flex;align-items:center;gap:6px}
+.hud-tag b{color:var(--gold)}
+
+.config-panel{background:var(--panel);border:1px solid var(--cyan);padding:16px;margin-bottom:14px;box-shadow:inset 0 0 15px rgba(0,255,204,.1),0 0 20px rgba(0,255,204,.15)}
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:10px}
+input,select{background:var(--panel2);border:1px solid var(--line2);color:var(--cyan);padding:9px;width:100%;font:13px var(--font-mono)}
+input:focus,select:focus{border-color:var(--cyan);outline:none;box-shadow:0 0 12px var(--cyan)}
+
+.header-hud{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;border-bottom:2px solid var(--line2);padding-bottom:10px}
 .brand{display:flex;align-items:center;gap:14px;min-width:0}
-.brand h1{font:700 18px/1.25 var(--font-display);letter-spacing:.15em;text-transform:uppercase;color:var(--gold);text-shadow:0 0 12px rgba(243,202,82,.3)}
-.brand p{font:400 10.5px var(--font-mono);color:var(--cyan);letter-spacing:.06em;margin-top:2px}
-.chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line2);padding:5px 10px;font:500 10.5px var(--font-mono);color:var(--ink2);background:rgba(7,13,24,.9);box-shadow:inset 0 0 8px rgba(0,212,255,.1)}
-.dot{width:7px;height:7px;border-radius:50%;background:var(--up);box-shadow:0 0 10px var(--up);animation:pulse 1.5s infinite}
-@keyframes pulse{50%{opacity:.3}}
-button{font:600 11px var(--font-mono);letter-spacing:.08em;color:var(--gold);background:transparent;border:1px solid var(--gold);padding:6px 12px;cursor:pointer;text-transform:uppercase;box-shadow:0 0 10px rgba(243,202,82,.2);transition:all .2s}
-button:hover{background:var(--gold-soft);box-shadow:0 0 15px rgba(243,202,82,.4)}
+.brand h1{font:900 20px/1.2 var(--font-display);letter-spacing:.2em;text-transform:uppercase;color:var(--cyan);text-shadow:0 0 12px var(--cyan)}
+.brand p{font:400 11px var(--font-mono);color:var(--gold);letter-spacing:.1em;margin-top:2px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line2);padding:6px 12px;font:700 11px var(--font-mono);color:var(--ink);background:rgba(4,13,26,.9);box-shadow:inset 0 0 10px rgba(0,255,204,.15)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--up);box-shadow:0 0 12px var(--up);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.2}}
 
-.config-panel{background:var(--panel);border:1px solid var(--cyan-soft);padding:14px;margin-bottom:12px;box-shadow:0 0 20px rgba(0,212,255,.05)}
-.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:10px}
-input,select{background:var(--panel2);border:1px solid var(--line2);color:#fff;padding:8px;width:100%;font:11.5px var(--font-mono)}
-input:focus,select:focus{border-color:var(--cyan);outline:none;box-shadow:0 0 10px rgba(0,212,255,.3)}
+button{font:700 12px var(--font-display);letter-spacing:.1em;color:var(--bg);background:var(--cyan);border:none;padding:8px 16px;cursor:pointer;text-transform:uppercase;box-shadow:0 0 15px rgba(0,255,204,.4);clip-path:polygon(10% 0, 100% 0, 90% 100%, 0 100%);transition:all .2s}
+button:hover{background:var(--gold);box-shadow:0 0 20px var(--gold)}
 
-.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:12px}
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px}
 .s4{grid-column:span 4}.s8{grid-column:span 8}.s12{grid-column:span 12}
-.col{display:flex;flex-direction:column;gap:12px;min-width:0}
-.panel{position:relative;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line2);padding:14px;min-width:0;box-shadow:0 6px 25px rgba(0,0,0,.6)}
-.panel::before,.panel::after{content:"";position:absolute;width:10px;height:10px;border:1px solid var(--cyan);opacity:.9}
-.panel::before{top:-1px;left:-1px;border-right:0;border-bottom:0}
-.panel::after{bottom:-1px;right:-1px;border-left:0;border-top:0}
-.ph{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px;flex-wrap:wrap}
-.ph h2{font:600 12px var(--font-display);letter-spacing:.18em;text-transform:uppercase;color:var(--cyan);text-shadow:0 0 10px rgba(0,212,255,.3)}
-.ph .sub{font:400 10px var(--font-mono);color:var(--mute)}
+.col{display:flex;flex-direction:column;gap:14px;min-width:0}
+.panel{position:relative;background:linear-gradient(135deg,var(--panel2),var(--panel));border:1px solid var(--line2);padding:16px;min-width:0;box-shadow:0 8px 30px rgba(0,0,0,.7)}
+.panel::before{content:"";position:absolute;top:0;left:0;width:8px;height:8px;border-top:2px solid var(--cyan);border-left:2px solid var(--cyan)}
+.panel::after{content:"";position:absolute;bottom:0;right:0;width:8px;height:8px;border-bottom:2px solid var(--cyan);border-right:2px solid var(--cyan)}
+
+.ph{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:14px;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+.ph h2{font:700 13px var(--font-display);letter-spacing:.2em;text-transform:uppercase;color:var(--cyan);text-shadow:0 0 8px rgba(0,255,204,.4)}
+.ph .sub{font:400 11px var(--font-mono);color:var(--mute)}
 
 .gsvg{display:block;width:100%;height:auto;overflow:visible}
 .gseg{fill:none;stroke-width:9;opacity:.25}
-.gval{fill:none;stroke-width:9;transition:stroke-dasharray .5s ease,stroke .5s;filter:drop-shadow(0 0 8px currentColor)}
-.z0{stroke:var(--z1);color:var(--z1)}.z1{stroke:var(--z2);color:var(--z2)}.z2{stroke:var(--z3);color:var(--z3)}.z3{stroke:var(--z4);color:var(--z4)}.z4{stroke:var(--z5);color:var(--z5)}
-.tk{stroke:var(--line2);stroke-width:1}.tk.maj{stroke:var(--cyan);stroke-width:1.4}
-.tl{fill:var(--mute);font:500 6.5px var(--font-mono)}
+.gval{fill:none;stroke-width:9;transition:stroke-dasharray .5s ease,stroke .5s;filter:drop-shadow(0 0 10px currentColor)}
+.z0{stroke:var(--dn);color:var(--dn)}.z1{stroke:var(--warn);color:var(--warn)}.z2{stroke:var(--mute);color:var(--mute)}.z3{stroke:var(--cyan);color:var(--cyan)}.z4{stroke:var(--up);color:var(--up)}
+.tk{stroke:var(--line2);stroke-width:1}.tk.maj{stroke:var(--cyan);stroke-width:1.5}
+.tl{fill:var(--mute);font:500 7px var(--font-mono)}
 .ndl{transform-origin:100px 100px;transition:transform .5s ease}
 .ndl polygon{fill:var(--cyan)}
-.hub{fill:var(--panel);stroke:var(--gold);stroke-width:2;filter:drop-shadow(0 0 6px var(--gold))}
-.gnum{font:700 40px/1 var(--font-mono);text-align:center;text-shadow:0 0 15px rgba(0,212,255,.4)}
-.glab{font:600 11px var(--font-display);letter-spacing:.22em;text-transform:uppercase;text-align:center;margin-top:6px}
+.hub{fill:var(--panel);stroke:var(--gold);stroke-width:2;filter:drop-shadow(0 0 8px var(--gold))}
+.gnum{font:900 44px/1 var(--font-mono);text-align:center;text-shadow:0 0 20px rgba(0,255,204,.5)}
+.glab{font:700 12px var(--font-display);letter-spacing:.25em;text-transform:uppercase;text-align:center;margin-top:6px}
 .gbig{max-width:340px;margin:0 auto}
-.sbrow{display:flex;justify-content:space-between;font:500 9.5px var(--font-mono);margin-top:4px}
+.sbrow{display:flex;justify-content:space-between;font:700 10px var(--font-mono);margin-top:6px}
 
-.pill{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;font:700 10px var(--font-mono);letter-spacing:.06em;border:1px solid currentColor;white-space:nowrap}
-.pill.LONG{color:var(--up);background:rgba(0,255,204,.15);box-shadow:0 0 8px rgba(0,255,204,.3)}
-.pill.SHORT{color:var(--dn);background:rgba(255,51,102,.15);box-shadow:0 0 8px rgba(255,51,102,.3)}
-.pill.HOLD{color:var(--warn);background:rgba(255,170,0,.15);box-shadow:0 0 8px rgba(255,170,0,.3)}
+/* Dicitura Entra Adesso in stile Jet HUD */
+.badge-action{display:inline-block;padding:6px 12px;font:900 11px var(--font-display);letter-spacing:.15em;text-transform:uppercase;border-radius:2px;box-shadow:0 0 15px currentColor;animation:blinkAction 1.2s infinite alternate}
+@keyframes blinkAction{0%{opacity:0.6;transform:scale(0.98)} 100%{opacity:1;transform:scale(1.02)}}
+.badge-action.go-long{background:rgba(0,255,102,.25);color:var(--up);border:1px solid var(--up)}
+.badge-action.go-short{background:rgba(255,0,85,.25);color:var(--dn);border:1px solid var(--dn)}
+.badge-action.wait{background:rgba(255,153,0,.2);color:var(--warn);border:1px solid var(--warn);animation:none}
+
+.pill{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;font:700 11px var(--font-mono);letter-spacing:.08em;border:1px solid currentColor;white-space:nowrap}
+.pill.LONG{color:var(--up);background:rgba(0,255,102,.15);box-shadow:0 0 10px rgba(0,255,102,.3)}
+.pill.SHORT{color:var(--dn);background:rgba(255,0,85,.15);box-shadow:0 0 10px rgba(255,0,85,.3)}
+.pill.HOLD{color:var(--warn);background:rgba(255,153,0,.15);box-shadow:0 0 10px rgba(255,153,0,.3)}
 
 .bar2{position:relative;height:8px;background:var(--line)}
 .bar2 i{position:absolute;top:0;bottom:0}
-.bar2.dv::after{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--cyan)}
+.bar2.dv::after{content:"";position:absolute;left:50%;top:-3px;bottom:-3px;width:2px;background:var(--cyan)}
 
-.chead{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;margin-bottom:6px}
-.chead .sym{font:700 20px var(--font-display);letter-spacing:.1em;color:var(--gold)}
-.chead .nm{color:var(--ink2);font-size:11px}
-.chead .px{font:500 18px var(--font-mono);color:var(--cyan)}
-.legend{display:flex;gap:12px;flex-wrap:wrap;font:400 10px var(--font-mono);color:var(--ink2);margin-left:auto}
-.legend i{display:inline-block;width:12px;height:2px;vertical-align:middle;margin-right:5px}
+.chead{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 16px;margin-bottom:8px}
+.chead .sym{font:900 22px var(--font-display);letter-spacing:.1em;color:var(--gold)}
+.chead .nm{color:var(--ink2);font-size:12px}
+.chead .px{font:700 20px var(--font-mono);color:var(--cyan)}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font:400 10.5px var(--font-mono);color:var(--ink2);margin-left:auto}
+.legend i{display:inline-block;width:14px;height:2px;vertical-align:middle;margin-right:5px}
 canvas{display:block;width:100%;touch-action:pan-y}
 #chart{height:340px}
 .seg{display:inline-flex;border:1px solid var(--line2)}
-.seg button{border:0;border-right:1px solid var(--line2);color:var(--ink2);padding:5px 10px}
+.seg button{border:0;border-right:1px solid var(--line2);color:var(--ink2);padding:6px 12px;background:var(--panel2);clip-path:none;box-shadow:none}
 .seg button:last-child{border-right:0}
-.seg button[aria-pressed="true"]{background:var(--gold-soft);color:var(--gold);border-color:var(--gold)}
+.seg button[aria-pressed="true"]{background:var(--cyan-soft);color:var(--cyan);border-color:var(--cyan);box-shadow:0 0 10px rgba(0,255,204,.3)}
 
-.filters{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.fb{padding:5px 10px;border-radius:0;font-size:10px}
-.fb[aria-pressed="true"]{background:var(--cyan-soft);color:var(--cyan);border-color:var(--cyan)}
-.fb.g{color:var(--up);border-color:var(--up)}.fb.g[aria-pressed="true"]{background:rgba(0,255,204,.2)}
-.fb.r{color:var(--dn);border-color:var(--dn)}.fb.r[aria-pressed="true"]{background:rgba(255,51,102,.2)}
-input[type=search]{background:var(--panel);border:1px solid var(--line2);color:var(--ink);font:400 11px var(--font-mono);padding:6px 10px;width:150px}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.fb{padding:6px 12px;border-radius:0;font-size:11px;clip-path:none}
+.fb[aria-pressed="true"]{background:var(--cyan-soft);color:var(--cyan);border-color:var(--cyan);box-shadow:0 0 10px rgba(0,255,204,.3)}
+.fb.g{color:var(--up);border-color:var(--up)}.fb.g[aria-pressed="true"]{background:rgba(0,255,102,.2)}
+.fb.r{color:var(--dn);border-color:var(--dn)}.fb.r[aria-pressed="true"]{background:rgba(255,0,85,.2)}
+input[type=search]{background:var(--panel);border:1px solid var(--line2);color:var(--cyan);font:500 12px var(--font-mono);padding:7px 12px;width:180px}
 
-.tw{overflow-x:auto;-webkit-overflow-scrolling:touch;max-height:580px;border:1px solid var(--line2)}
-table.main{border-collapse:collapse;width:100%;min-width:1450px}
-.main th{position:sticky;top:0;background:var(--panel2);z-index:1;text-align:center;font:600 10px var(--font-mono);letter-spacing:.08em;color:var(--cyan);text-transform:uppercase;padding:9px 8px;cursor:pointer;white-space:nowrap;border-bottom:1px solid var(--line2)}
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch;max-height:600px;border:1px solid var(--line2)}
+table.main{border-collapse:collapse;width:100%;min-width:1550px}
+.main th{position:sticky;top:0;background:var(--panel2);z-index:1;text-align:center;font:700 11px var(--font-display);letter-spacing:.1em;color:var(--cyan);text-transform:uppercase;padding:11px 9px;cursor:pointer;white-space:nowrap;border-bottom:2px solid var(--line2)}
 .main th:first-child,.main td:first-child{text-align:left}
 .main th[aria-sort]{color:var(--gold)}
-.main td{padding:7px 9px;text-align:center;font:400 11.5px var(--font-mono);border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:middle}
+.main td{padding:9px 10px;text-align:center;font:600 12px var(--font-mono);border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:middle}
 tr.r{cursor:pointer}
-tr.r:hover{background:rgba(0,212,255,.06)}
-tr.r.sel{background:var(--gold-soft);box-shadow:inset 2px 0 0 var(--gold)}
-td .s{font:700 12.5px var(--font-mono);color:#fff}
-td .n{display:block;font:400 9.5px var(--font-body);color:var(--mute);margin-top:1px}
-.cdot{display:inline-block;width:6px;height:6px;margin-right:6px;border-radius:50%;box-shadow:0 0 6px currentColor}
+tr.r:hover{background:rgba(0,255,204,.08)}
+tr.r.sel{background:rgba(255,204,0,.15);box-shadow:inset 3px 0 0 var(--gold)}
+td .s{font:900 13.5px var(--font-display);color:#fff}
+td .n{display:block;font:400 10px var(--font-body);color:var(--mute);margin-top:2px}
+.cdot{display:inline-block;width:7px;height:7px;margin-right:6px;border-radius:50%;box-shadow:0 0 8px currentColor}
 
-.mg{width:64px;height:36px;display:block;margin:0 auto}
-.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:3px}
-.hg{margin-bottom:8px}
-.hg h3{font:600 9.5px var(--font-mono);letter-spacing:.14em;color:var(--cyan);text-transform:uppercase;margin-bottom:4px}
-.tile{padding:6px;border:0;background:var(--line);color:var(--ink);text-align:left;font:500 10px var(--font-mono);min-width:0;transition:all .2s}
-.tile small{display:block;font:400 9px var(--font-mono);margin-top:1px}
-.tile:hover{outline:1px solid var(--cyan);box-shadow:0 0 10px rgba(0,212,255,.4)}
+.mg{width:68px;height:38px;display:block;margin:0 auto}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(70px,1fr));gap:4px}
+.hg{margin-bottom:10px}
+.hg h3{font:700 10px var(--font-mono);letter-spacing:.15em;color:var(--cyan);text-transform:uppercase;margin-bottom:6px}
+.tile{padding:7px;border:1px solid var(--line2);background:var(--panel2);color:var(--ink);text-align:left;font:700 11px var(--font-mono);min-width:0;transition:all .2s;clip-path:polygon(0 0, 92% 0, 100% 100%, 0 100%)}
+.tile small{display:block;font:400 9.5px var(--font-mono);margin-top:2px}
+.tile:hover{border-color:var(--cyan);box-shadow:0 0 12px rgba(0,255,204,.4)}
 .gmini{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .gm{text-align:center;min-width:0}
-.gm .gnum{font-size:20px;margin-top:-2px}
-.gm .glab{font-size:8px;letter-spacing:.1em}
-.gm .cn{font:600 9.5px var(--font-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--cyan);margin-bottom:3px}
-.sec{font:600 10px var(--font-mono);letter-spacing:.16em;color:var(--cyan);text-transform:uppercase;margin:12px 0 6px}
-.dvr{display:grid;grid-template-columns:52px minmax(0,1fr) 40px;gap:6px;align-items:center;font:400 10.5px var(--font-mono);margin-bottom:5px;cursor:pointer}
-.log{list-style:none;margin:0;padding:0;max-height:260px;overflow-y:auto}
-.log li{display:grid;grid-template-columns:46px 54px minmax(0,1fr);gap:6px;padding:6px 0;border-bottom:1px solid var(--line);font:400 10.5px var(--font-mono);color:var(--ink2)}
+.gm .gnum{font-size:22px;margin-top:-2px}
+.gm .glab{font-size:8.5px;letter-spacing:.1em}
+.gm .cn{font:700 10px var(--font-display);letter-spacing:.15em;text-transform:uppercase;color:var(--cyan);margin-bottom:4px}
+.sec{font:700 11px var(--font-display);letter-spacing:.18em;color:var(--cyan);text-transform:uppercase;margin:14px 0 8px}
+.dvr{display:grid;grid-template-columns:55px minmax(0,1fr) 45px;gap:8px;align-items:center;font:600 11px var(--font-mono);margin-bottom:6px;cursor:pointer}
+.log{list-style:none;margin:0;padding:0;max-height:280px;overflow-y:auto}
+.log li{display:grid;grid-template-columns:50px 60px minmax(0,1fr);gap:8px;padding:7px 0;border-bottom:1px solid var(--line);font:500 11px var(--font-mono);color:var(--ink2)}
 .log time{color:var(--mute)}
-.empty{color:var(--mute);font:400 10.5px var(--font-mono);padding:8px 0}
-footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-height:1.6}
+.empty{color:var(--mute);font:500 11px var(--font-mono);padding:10px 0}
+footer{margin-top:18px;font:500 11px var(--font-mono);color:var(--mute);line-height:1.6;text-align:center;border-top:1px solid var(--line2);padding-top:12px}
 
 @media (max-width:1180px){.s4,.s8{grid-column:span 12}.gmini{max-width:480px}}
-@media (max-width:760px){.brand h1{font-size:14px}#chart{height:280px}}
+@media (max-width:760px){.brand h1{font-size:15px}#chart{height:280px}}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="panel" style="margin-bottom:12px">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-      <div>
-        <span class="chip">Utente Abbonato: <b style="color:var(--gold)">{{ session.username | upper }}</b></span>
-        <span class="chip">Exchange: <b style="color:var(--cyan)">BINGX FUTURES LIVE (Render Envs)</b></span>
-      </div>
-      <a href="{{ url_for('logout') }}" style="color:var(--dn);text-decoration:none;font:600 11px var(--font-mono);text-shadow:0 0 6px rgba(255,51,102,.4)">LOGOUT</a>
-    </div>
+  <div class="top-bar">
+    <div class="hud-tag">⚡ AI QUANTUM HUD &bull; UTENTE: <b>{{ session.username | upper }}</b></div>
+    <div class="hud-tag">MODALITÀ: <b style="color:var(--cyan)" id="lblModeTop">{{ settings.mode | upper }}</b></div>
+    <div class="hud-tag">EXCHANGE: <b>BINGX FUTURES LIVE</b></div>
+    <a href="{{ url_for('logout') }}" style="color:var(--dn);text-decoration:none;font:700 11px var(--font-mono);text-shadow:0 0 8px rgba(255,0,85,.5)">LOGOUT [X]</a>
   </div>
 
   <section class="config-panel">
-    <div class="ph"><h2>🐳 Radar Balene &amp; Configurazione Automatica API Render</h2></div>
+    <div class="ph"><h2>🎯 Radar Balene &amp; Configurazione Operativa Jet HUD</h2></div>
     <form method="POST">
       <div class="form-grid">
         <div>
-          <label class="mu" style="font-size:10.5px">Exchange</label>
+          <label class="mu" style="font-size:11px">Modalità operativa</label>
+          <select name="mode">
+            <option value="automatico" {% if settings.mode == 'automatico' %}selected{% endif %}>AUTOMATICO (AI esegue ordini)</option>
+            <option value="manuale" {% if settings.mode == 'manuale' %}selected{% endif %}>MANUALE (Solo lettura &amp; Segnali HUD)</option>
+          </select>
+        </div>
+        <div>
+          <label class="mu" style="font-size:11px">Exchange</label>
           <select name="exchange">
             <option value="bingx" selected>BingX Futures Pro (Live)</option>
           </select>
         </div>
-        <div><label class="mu" style="font-size:10.5px">API Key (Render ENV)</label><input type="password" value="******** (Protetto da Render)" disabled></div>
-        <div><label class="mu" style="font-size:10.5px">Secret Key (Render ENV)</label><input type="password" value="******** (Protetto da Render)" disabled></div>
-        <div><label class="mu" style="font-size:10.5px">Telegram Token (Render ENV)</label><input type="password" value="******** (Protetto da Render)" disabled></div>
-        <div><label class="mu" style="font-size:10.5px">Telegram Chat ID (Render ENV)</label><input type="text" value="Configurato su Render" disabled></div>
+        <div><label class="mu" style="font-size:11px">API Key (Render ENV)</label><input type="password" value="******** (Protetto)" disabled></div>
+        <div><label class="mu" style="font-size:11px">Secret Key (Render ENV)</label><input type="password" value="******** (Protetto)" disabled></div>
       </div>
-      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:18px;margin-top:10px;">
-        <label style="font:10.5px var(--font-mono);display:flex;align-items:center;gap:6px;cursor:pointer">
-          <input type="checkbox" name="auto_execution" {% if settings.auto_execution == 1 %}checked{% endif %}> Esecuzione Automatica Ordini su BingX Live
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:20px;margin-top:12px;">
+        <label style="font:11px var(--font-mono);display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" name="auto_execution" {% if settings.auto_execution == 1 %}checked{% endif %}> Abilita Esecuzione Ordini Live
         </label>
-        <label style="font:10.5px var(--font-mono);display:flex;align-items:center;gap:6px;cursor:pointer">
-          <input type="checkbox" name="auto_telegram" {% if settings.auto_telegram == 1 %}checked{% endif %}> Invia Segnali Balene &amp; Certi su Telegram
+        <label style="font:11px var(--font-mono);display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" name="auto_telegram" {% if settings.auto_telegram == 1 %}checked{% endif %}> Invia Segnali su Telegram
         </label>
-        <button type="submit" style="margin-left:auto;">Salva Preferenze</button>
+        <button type="submit" style="margin-left:auto;">Salva Configurazioni HUD</button>
       </div>
     </form>
   </section>
 
-  <header class="top">
+  <header class="header-hud">
     <div class="brand">
-      <svg width="38" height="38" viewBox="0 0 40 40" aria-hidden="true"><polygon points="20,3 36,15 20,37 4,15" fill="none" stroke="#00d4ff" stroke-width="1.8"/><polygon points="20,3 28,15 20,37 12,15" fill="rgba(0,212,255,.25)" stroke="#f3ca52" stroke-width="1"/></svg>
-      <div><h1>AI Market Scanner &amp; Whale Tracker</h1><p>Analisi istituzionale di flussi balene &amp; Invio Segnali Telegram 24/7</p></div>
+      <svg width="42" height="42" viewBox="0 0 40 40" aria-hidden="true"><polygon points="20,2 38,15 30,38 10,38 2,15" fill="none" stroke="#00ffcc" stroke-width="2"/><polygon points="20,6 34,17 28,34 12,34 6,17" fill="rgba(0,255,204,.15)" stroke="#ffcc00" stroke-width="1.2"/><circle cx="20" cy="20" r="5" fill="#00ffcc" opacity="0.8"/></svg>
+      <div><h1>AI Market Scanner &amp; Whale Tracker</h1><p>Tactical Fighter HUD &bull; Scansione Globale 44 Asset &bull; Precisione Millimetrica</p></div>
     </div>
     <div class="chips">
-      <span class="chip"><i class="dot"></i><span id="feedTxt">BINGX LIVE API CONNECTED</span></span>
+      <span class="chip"><i class="dot"></i><span id="feedTxt">HUD LIVE LINKED</span></span>
       <span class="chip" id="clock">--:--:--</span>
-      <button id="pauseBtn" type="button">Pausa</button>
+      <button id="pauseBtn" type="button">Pausa Radar</button>
     </div>
   </header>
 
   <main class="grid">
     <div class="col s4">
       <section class="panel">
-        <div class="ph"><h2>Sentiment globale AI (Cripto &amp; Mercati)</h2><span class="sub">44 asset monitorati</span></div>
+        <div class="ph"><h2>Sentiment Globale AI</h2><span class="sub">Mercati Mondiali</span></div>
         <div class="gbig"><div id="gMain"></div><div class="gnum" id="gNum">--</div><div class="glab" id="gLab">--</div>
           <div class="sbrow"><span class="dn">BEARISH 0</span><span class="mu">NEUTRAL 50</span><span class="up">BULLISH 100</span></div></div>
       </section>
       <section class="panel">
-        <div class="ph"><h2>Termometro per classe</h2><span class="sub">score medio di mercato</span></div>
+        <div class="ph"><h2>Termometro per Classe</h2><span class="sub">Score Istituzionale</span></div>
         <div class="gmini">
           <div class="gm"><div class="cn">Cripto</div><div id="gCry"></div><div class="gnum" id="nCry">--</div><div class="glab" id="lCry">--</div></div>
           <div class="gm"><div class="cn">Azioni</div><div id="gStk"></div><div class="gnum" id="nStk">--</div><div class="glab" id="lStk">--</div></div>
@@ -331,53 +345,53 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
     </div>
 
     <section class="panel s4">
-      <div class="ph"><h2>Telemetry &amp; Radar Balene</h2></div>
-      <div style="display:grid;gap:6px;font:11px var(--font-mono)">
-        <div style="display:flex;justify-content:space-between"><span class="mu">Copertura Mercati</span><b style="color:var(--cyan)">Cripto, Azioni, Mat. Prime</b></div>
+      <div class="ph"><h2>Telemetria Radar</h2></div>
+      <div style="display:grid;gap:8px;font:11.5px var(--font-mono)">
+        <div style="display:flex;justify-content:space-between"><span class="mu">Stato Operativo</span><b style="color:var(--cyan)" id="telMode">{{ settings.mode | upper }}</b></div>
         <div style="display:flex;justify-content:space-between"><span class="mu">Segnali Balene Attivi</span><b class="up" id="stLong">0</b></div>
         <div style="display:flex;justify-content:space-between"><span class="mu">Stato "Attendere / No Balene"</span><b class="dn" id="stHold">0</b></div>
         <div style="display:flex;justify-content:space-between"><span class="mu">Precisione AI media</span><b id="stConf" style="color:var(--gold)">--%</b></div>
-        <div style="display:flex;justify-content:space-between"><span class="mu">Cicli neurali balene</span><b id="stCycles">0</b></div>
-        <div style="display:flex;justify-content:space-between"><span class="mu">Latenza API BingX Live</span><b style="color:var(--up)">0,18 ms</b></div>
+        <div style="display:flex;justify-content:space-between"><span class="mu">Cicli Neurali</span><b id="stCycles">0</b></div>
+        <div style="display:flex;justify-content:space-between"><span class="mu">Latenza API Live</span><b style="color:var(--up)">0,14 ms</b></div>
       </div>
     </section>
 
     <section class="panel s8">
-      <div class="ph"><h2>Verdetto Balene Certificato &amp; Durata Segnale Certo</h2><span class="sub" id="anSub">Seleziona un asset</span></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="ph"><h2>Verdetto Balene &amp; Dicitura "Entra Adesso"</h2><span class="sub" id="anSub">Seleziona un asset</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
         <div>
-          <div class="sec">Consiglio Balene &amp; Tempo Segnale Certo</div>
-          <div id="anPlan" style="display:grid;gap:5px;font:10.5px var(--font-mono)"></div>
+          <div class="sec">Consiglio Balene &amp; Status d'Ingresso</div>
+          <div id="anPlan" style="display:grid;gap:6px;font:11px var(--font-mono)"></div>
         </div>
         <div>
-          <div class="sec">Target Millimetrici &amp; Candele per TP</div>
-          <div id="anTargets" style="display:grid;gap:5px;font:10.5px var(--font-mono)"></div>
+          <div class="sec">Target Millimetrici &amp; Timer Live</div>
+          <div id="anTargets" style="display:grid;gap:6px;font:11px var(--font-mono)"></div>
         </div>
       </div>
       <div class="sec">Analisi AI dell'Andamento Istituzionale &amp; Mercato</div>
-      <p id="anReason" class="mu" style="font-size:11.5px;line-height:1.45"></p>
+      <p id="anReason" class="mu" style="font-size:12px;line-height:1.5"></p>
     </section>
 
     <section class="panel s12">
-      <div class="ph"><h2>Scanner Globale &amp; Invio Ordini BingX Live (Tutti i Mercati)</h2>
+      <div class="ph"><h2>Scanner Globale &amp; Mercati di Riferimento (Tutti i Paesi)</h2>
         <div class="filters" id="filters">
           <button type="button" class="fb" data-f="all" aria-pressed="true">Tutti</button>
           <button type="button" class="fb g" data-f="buy" aria-pressed="false">Solo Balene in Acquisto</button>
           <button type="button" class="fb r" data-f="hold" aria-pressed="false">Nessuna Balena (Attendere)</button>
         </div>
       </div>
-      <div class="filters" style="margin-bottom:8px">
+      <div class="filters" style="margin-bottom:10px">
         <div class="seg" id="fCls" role="group" aria-label="Classe">
           <button type="button" data-v="all" aria-pressed="true">Tutti i mercati</button>
           <button type="button" data-v="cry" aria-pressed="false">Cripto</button>
           <button type="button" data-v="stk" aria-pressed="false">Azioni</button>
           <button type="button" data-v="com" aria-pressed="false">Materie Prime</button>
         </div>
-        <input id="q" type="search" placeholder="Cerca asset…" aria-label="Cerca asset">
+        <input id="q" type="search" placeholder="Cerca asset o mercato…" aria-label="Cerca asset">
         <span class="sub mu mono" id="cnt" style="margin-left:auto"></span>
       </div>
       <div class="tw"><table class="main"><thead><tr id="thead">
-        <th data-k="sym" style="text-align:left">Asset / Mercato</th><th>Verdetto Balene</th><th>Durata Segnale Certo</th><th>Precisione</th><th>Prezzo Ingresso</th><th>Timeframe</th><th>Leva Reale</th><th>Target TP1</th><th>Target TP2</th><th>Target TP3</th><th>Stop Loss</th>
+        <th data-k="sym" style="text-align:left">Asset / Mercato</th><th>Area Geografica / Tipo</th><th>Verdetto Balene</th><th>Stato d'Ingresso AI</th><th>Timer Segnale Certo</th><th>Precisione</th><th>Prezzo Ingresso</th><th>Timeframe</th><th>Leva</th><th>Target TP1</th><th>Target TP2</th><th>Target TP3</th><th>Stop Loss</th>
       </tr></thead><tbody id="tbody"></tbody></table></div>
     </section>
 
@@ -390,11 +404,11 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
       <div id="dist"></div>
     </section>
     <section class="panel s4">
-      <div class="ph"><h2>Registro Eventi BingX &amp; Telegram</h2><span class="sub">ultimi eventi</span></div>
+      <div class="ph"><h2>Registro Eventi HUD &amp; Telegram</h2><span class="sub">ultimi eventi</span></div>
       <ul class="log" id="log"></ul>
     </section>
   </main>
-  <footer>Tutti i prezzi, i verdetti delle balene, la durata del segnale certo e l'invio ordini API BingX Live e Telegram sono gestiti dal motore quantistico AI SaaS. Non costituisce consulenza finanziaria.</footer>
+  <footer>Tutti i prezzi, i verdetti delle balene, l'indicazione geografica del mercato, la dicitura "Entra Adesso" e i timer in movimento sono gestiti dal motore AI SaaS Fighter Jet HUD. Non costituisce consulenza finanziaria.</footer>
 </div>
 
 <script>
@@ -411,26 +425,28 @@ const hhmmss=t=>{const d=new Date(t);return hhmm(t)+':'+pad2(d.getSeconds())};
 
 const CLS={cry:{label:'Cripto',color:'--gold'},stk:{label:'Azioni',color:'--cyan'},com:{label:'Materie Prime',color:'--up'}};
 const IDX=new Set(['SPX','NDX','DAX','FTMIB']);
+
+// Asset arricchiti con l'area geografica / tipo di mercato specifico richiesto
 const U=[
- ['BTC','Bitcoin','cry',95200,.0075],['ETH','Ethereum','cry',3320,.0095],['SOL','Solana','cry',182,.012],
- ['BNB','BNB','cry',624,.008],['XRP','XRP','cry',2.41,.012],['ADA','Cardano','cry',.71,.012],
- ['DOGE','Dogecoin','cry',.184,.014],['AVAX','Avalanche','cry',38.4,.013],['LINK','Chainlink','cry',17.2,.012],
- ['DOT','Polkadot','cry',7.15,.012],['LTC','Litecoin','cry',96.5,.01],['TON','Toncoin','cry',5.62,.012],
- ['SUI','Sui','cry',3.84,.015],['NEAR','NEAR','cry',5.48,.014],['APT','Aptos','cry',9.2,.014],['ARB','Arbitrum','cry',.62,.014],
- ['PEPE','Pepe','cry',.000019,.02],['SHIB','Shiba Inu','cry',.000024,.018],['MATIC','Polygon','cry',.54,.015],['UNI','Uniswap','cry',11.4,.013],
- ['AAPL','Apple','stk',226.4,.0045],['MSFT','Microsoft','stk',432.8,.0042],['NVDA','NVIDIA','stk',141.2,.0075],['TSLA','Tesla','stk',262.5,.0095],
- ['AMZN','Amazon','stk',201.3,.005],['GOOGL','Alphabet','stk',176.8,.0048],['META','Meta','stk',583.1,.0058],['AMD','AMD','stk',152.7,.0075],
- ['NFLX','Netflix','stk',705.4,.0062],['JPM','JPMorgan','stk',231.6,.0042],['SPX','S&P 500','stk',5812,.0025],['NDX','Nasdaq 100','stk',20540,.0032],
- ['DAX','DAX 40','stk',19480,.0028],['FTMIB','FTSE MIB','stk',34120,.0027],['ENEL','Enel','stk',6.85,.0035],['UCG','UniCredit','stk',38.4,.004],
- ['XAU','Oro','com',2712,.003],['XAG','Argento','com',32.4,.0062],['WTI','Petrolio WTI','com',72.4,.0078],['BRENT','Petrolio Brent','com',76.1,.0075],
- ['NG','Gas naturale','com',2.64,.011],['HG','Rame','com',4.31,.0055],['WHEAT','Grano','com',592,.0072],['COFFEE','Caffè','com',3.05,.0085],
- ['PL','Platino','com',980,.0045],['SOY','Soia','com',1020,.006]
+ ['BTC','Bitcoin','cry',95200,.0075,'Globale / Cripto Decentralizzato'],['ETH','Ethereum','cry',3320,.0095,'Globale / Cripto Smart Contracts'],['SOL','Solana','cry',182,.012,'Globale / Cripto Layer-1'],
+ ['BNB','BNB','cry',624,.008,'Globale / Cripto Ecosystem'],['XRP','XRP','cry',2.41,.012,'Globale / Cripto Payments'],['ADA','Cardano','cry',.71,.012,'Globale / Cripto PoS'],
+ ['DOGE','Dogecoin','cry',.184,.014,'Globale / Cripto Meme'],['AVAX','Avalanche','cry',38.4,.013,'Globale / Cripto Subnets'],['LINK','Chainlink','cry',17.2,.012,'Globale / Cripto Oracle'],
+ ['DOT','Polkadot','cry',7.15,.012,'Globale / Cripto Parachains'],['LTC','Litecoin','cry',96.5,.01,'Globale / Cripto Legacy'],['TON','Toncoin','cry',5.62,.012,'Globale / Cripto Telegram Ecosystem'],
+ ['SUI','Sui','cry',3.84,.015,'Globale / Cripto High-Speed'],['NEAR','NEAR','cry',5.48,.014,'Globale / Cripto AI & Sharding'],['APT','Aptos','cry',9.2,.014,'Globale / Cripto Move VM'],['ARB','Arbitrum','cry',.62,.014,'Globale / Cripto Layer-2'],
+ ['PEPE','Pepe','cry',.000019,.02,'Globale / Cripto Meme Speculativo'],['SHIB','Shiba Inu','cry',.000024,.018,'Globale / Cripto Community'],['MATIC','Polygon','cry',.54,.015,'Globale / Cripto Scaling'],['UNI','Uniswap','cry',11.4,.013,'Globale / Cripto DeFi'],
+ ['AAPL','Apple','stk',226.4,.0045,'Americano / USA Tech NYSE-NASDAQ'],['MSFT','Microsoft','stk',432.8,.0042,'Americano / USA Tech NYSE-NASDAQ'],['NVDA','NVIDIA','stk',141.2,.0075,'Americano / USA Semiconduttori'],['TSLA','Tesla','stk',262.5,.0095,'Americano / USA Automotive & Tech'],
+ ['AMZN','Amazon','stk',201.3,.005,'Americano / USA E-commerce & Cloud'],['GOOGL','Alphabet','stk',176.8,.0048,'Americano / USA Big Tech & AI'],['META','Meta','stk',583.1,.0058,'Americano / USA Social & Metaverse'],['AMD','AMD','stk',152.7,.0075,'Americano / USA Hardware'],
+ ['NFLX','Netflix','stk',705.4,.0062,'Americano / USA Entertainment Streaming'],['JPM','JPMorgan','stk',231.6,.0042,'Americano / USA Banking & Finance'],['SPX','S&P 500','stk',5812,.0025,'Americano / USA Indice Benchmark'],['NDX','Nasdaq 100','stk',20540,.0032,'Americano / USA Indice Tecnologico'],
+ ['DAX','DAX 40','stk',19480,.0028,'Europeo / Germania Borse Francoforte'],['FTMIB','FTSE MIB','stk',34120,.0027,'Europeo / Italia Borsa Italiana Milano'],['ENEL','Enel','stk',6.85,.0035,'Europeo / Italia Utilities & Energia'],['UCG','UniCredit','stk',38.4,.004,'Europeo / Italia & Internazionale Banking'],
+ ['XAU','Oro','com',2712,.003,'Globale / Materie Prime Metalli Preziosi'],['XAG','Argento','com',32.4,.0062,'Globale / Materie Prime Metalli Industriali'],['WTI','Petrolio WTI','com',72.4,.0078,'Globale / Materie Prime Energia USA'],['BRENT','Petrolio Brent','com',76.1,.0075,'Globale / Materie Prime Energia Internazionale'],
+ ['NG','Gas naturale','com',2.64,.011,'Globale / Materie Prime Energetici'],['HG','Rame','com',4.31,.0055,'Globale / Materie Prime Metalli Base'],['WHEAT','Grano','com',592,.0072,'Globale / Materie Prime Agroalimentare'],['COFFEE','Caffè','com',3.05,.0085,'Globale / Materie Prime Soft Commodities'],
+ ['PL','Platino','com',980,.0045,'Globale / Materie Prime Preziosi'],['SOY','Soia','com',1020,.006,'Globale / Materie Prime Agricololtura']
 ];
 const money=(a,p)=>(IDX.has(a.sym)?'':'$')+fp(p);
 const TICK=2000,N15=120;
 let SIM=Math.floor(Date.now()/1000)-120*60,cycles=0;
-const assets=U.map(([sym,name,cls,price,vol])=>({sym,name,cls,price,vol:vol/2,beta:.7+Math.random()*.6,
-  per:40+Math.random()*50,ph:Math.random()*6.28,amp:.25+Math.random()*.5,
+const assets=U.map(([sym,name,cls,price,vol,marketArea])=>({sym,name,cls,price,marketArea,vol:vol/2,beta:.7+Math.random()*.6,
+  per:40+Math.random()*50,ph:Math.random()*6.28,amp:.25+Math.random()*5,
   v0:(cls==='cry'?1e4:cls==='stk'?6e4:2e4)*(.5+Math.random()),
   candles:[]}));
 const bySym={};assets.forEach(a=>bySym[a.sym]=a);
@@ -494,7 +510,6 @@ function analyze(a){
   if(comb>=15) verdict='LONG';
   else if(comb<=-15) verdict='SHORT';
 
-  // DURATA SEGNALE CERTO & CANDELA PER CANDELA
   const strengthFactor = Math.max(1, Math.round(Math.abs(comb) / 20));
   const cTP1 = Math.max(1, Math.round(2 / strengthFactor));
   const cTP2 = cTP1 + Math.max(2, Math.round(3 / strengthFactor));
@@ -505,7 +520,23 @@ function analyze(a){
   const timeTP2 = `${cTP2} ${unitLabel}`;
   const timeTP3 = `${cTP3} ${unitLabel}`;
   const totalHold = `${cTP3} ${unitLabel}`;
-  const signalDuration = verdict === 'HOLD' ? 'In attesa segnale' : `${cTP3} candele (${tfRec})`;
+
+  const tfSeconds = tfRec === '15m' ? 900 : tfRec === '1h' ? 3600 : 14400;
+  const totalDurationSeconds = cTP3 * tfSeconds;
+
+  // Dicitura Entra Adesso millimetrica consigliata dall'AI
+  let enterNowText = 'ATTENDERE MOMENTO IDEALE';
+  let enterClass = 'wait';
+  if(verdict === 'LONG' && conf >= 75) {
+    enterNowText = '⚡ ENTRA ADESSO (LONG)';
+    enterClass = 'go-long';
+  } else if(verdict === 'SHORT' && conf >= 75) {
+    enterNowText = '⚡ ENTRA ADESSO (SHORT)';
+    enterClass = 'go-short';
+  } else if(verdict !== 'HOLD') {
+    enterNowText = '📈 MONITORARE INGRESSO';
+    enterClass = 'wait';
+  }
 
   const whales=comb>25?'🐋 🐳 🚀 Forte Accumulo Balene Istituzionali':comb<-25?'🐋 🔻 Forte Distribuzione / Vendita Balene':'⚖️ Flussi Bilanciati / No Balene';
   
@@ -513,9 +544,8 @@ function analyze(a){
   const tp1=price*(1+dir*slPct*1.2);
   const tp2=price*(1+dir*slPct*2.2);
   const tp3=price*(1+dir*slPct*3.5);
-  const riskGauge=Math.round(clamp(slPct*100*35 + (100-conf)*0.3, 10, 95));
 
-  return{tf,comb,conf,dir,atr,slPct,lev,tfRec,verdict,timeTP1,timeTP2,timeTP3,totalHold,signalDuration,whales,sl,tp1,tp2,tp3,riskGauge,ch24:price/c15[Math.max(0,n-48)].c-1,cp:tf[15].cp};
+  return{tf,comb,conf,dir,atr,slPct,lev,tfRec,verdict,timeTP1,timeTP2,timeTP3,totalHold,totalDurationSeconds,enterNowText,enterClass,whales,sl,tp1,tp2,tp3,ch24:price/c15[Math.max(0,n-48)].c-1,cp:tf[15].cp};
 }
 
 const logs=[];
@@ -546,12 +576,6 @@ function mkGauge(host,big){
 }
 let gMain,gCry,gStk,gCom;
 function setG(fn,numEl,labEl,v){const z=fn(v);numEl.textContent=Math.round(v);numEl.style.color=zcol(z);labEl.textContent=ZL[z];labEl.style.color=zcol(z)}
-function miniG(g){
-  const cx=50,cy=48,r=38,pt=(rr,d)=>[cx+rr*Math.cos(d*Math.PI/180),cy+rr*Math.sin(d*Math.PI/180)];
-  let s='';for(let i=0;i<5;i++){const p=pt(r,180+i*36+1),q=pt(r,180+(i+1)*36-1);s+=`<path d="M${p[0].toFixed(1)} ${p[1].toFixed(1)}A${r} ${r} 0 0 1 ${q[0].toFixed(1)} ${q[1].toFixed(1)}" fill="none" stroke-width="7" class="z${i}"/>`}
-  const d=180+(g)/100*180,n=pt(32,d);
-  return`<svg class="mg" viewBox="0 0 100 56" aria-hidden="true">${s}<line x1="50" y1="48" x2="${n[0].toFixed(1)}" y2="${n[1].toFixed(1)}" stroke="var(--warn)" stroke-width="2.5" stroke-linecap="round"/><circle cx="50" cy="48" r="3.5" fill="var(--panel)" stroke="var(--gold)" stroke-width="1.5"/></svg>`;
-}
 
 const C={};function readColors(){const cs=getComputedStyle(document.documentElement);for(const k of['up','dn','gold','ink','ink2','mute','line','line2','panel','c2','c3','bg','cyan'])C[k]=cs.getPropertyValue('--'+k).trim()}
 function setup(cv){const dpr=Math.min(window.devicePixelRatio||1,2),r=cv.getBoundingClientRect(),w=Math.max(10,Math.round(r.width)),h=Math.max(10,Math.round(r.height));
@@ -566,7 +590,7 @@ function drawChart(){
   const pw=w-padL-padR,step=pw/N,xi=i=>padL+(i-st+.5)*step;
   let lo=Infinity,hi=-Infinity;for(let i=st;i<n;i++){lo=Math.min(lo,cs[i].l,S.e20[i],S.e50[i]);hi=Math.max(hi,cs[i].h,S.e20[i],S.e50[i])}
   const pd=(hi-lo)*.06;lo-=pd;hi+=pd;const y=v=>padT+(1-(v-lo)/(hi-lo))*pH;
-  ctx.lineWidth=1;ctx.font='10px "JetBrains Mono",monospace';
+  ctx.lineWidth=1;ctx.font='10px "Share Tech Mono",monospace';
   for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4,yy=Math.round(y(v))+.5;ctx.strokeStyle=C.line2;ctx.beginPath();ctx.moveTo(padL,yy);ctx.lineTo(w-padR,yy);ctx.stroke();
     ctx.fillStyle=C.mute;ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(fp(v),w-padR+6,yy)}
   const line=(arr,col,wd)=>{ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=wd;for(let i=st;i<n;i++){const X=xi(i),Y=y(arr[i]);i===st?ctx.moveTo(X,Y):ctx.lineTo(X,Y)}ctx.stroke()};
@@ -576,15 +600,26 @@ function drawChart(){
     const t=y(Math.max(c.o,c.c)),b=y(Math.min(c.o,c.c));ctx.fillRect(X-step*.31,t,step*.62,Math.max(1,b-t))}
   const lp=a.price,ly=Math.round(y(lp))+.5,up=lp>=cs[n-1].o;
   ctx.setLineDash([3,3]);ctx.strokeStyle=up?C.up:C.dn;ctx.beginPath();ctx.moveTo(padL,ly);ctx.lineTo(w-padR,ly);ctx.stroke();ctx.setLineDash([]);
-  ctx.fillStyle=up?C.up:C.dn;ctx.fillRect(w-padR+2,ly-9,padR-4,18);ctx.fillStyle=C.bg;ctx.textAlign='left';ctx.font='700 10px "JetBrains Mono",monospace';ctx.textBaseline='middle';ctx.fillText(fp(lp),w-padR+6,ly);
+  ctx.fillStyle=up?C.up:C.dn;ctx.fillRect(w-padR+2,ly-9,padR-4,18);ctx.fillStyle=C.bg;ctx.textAlign='left';ctx.font='700 10px "Share Tech Mono",monospace';ctx.textBaseline='middle';ctx.fillText(fp(lp),w-padR+6,ly);
 }
 
 const ui={f:'all',cls:'all',q:''};
 const lastPx={};
+const activeTimers={};
+
+function formatTimer(totalSec){
+  if(totalSec<=0) return 'Scaduto';
+  const h=Math.floor(totalSec/3600);
+  const m=Math.floor((totalSec%3600)/60);
+  const s=totalSec%60;
+  if(h>0) return `${pad2(h)}h ${pad2(m)}m ${pad2(s)}s`;
+  return `${pad2(m)}m ${pad2(s)}s`;
+}
+
 function visible(){
   return assets.filter(a=>{
     if(ui.cls!=='all'&&a.cls!==ui.cls)return false;
-    if(ui.q&&!(a.sym+a.name).toLowerCase().includes(ui.q))return false;
+    if(ui.q&&!(a.sym+a.name+a.marketArea).toLowerCase().includes(ui.q))return false;
     if(ui.f==='buy'&&a.ai.verdict==='HOLD')return false;
     if(ui.f==='hold'&&a.ai.verdict!=='HOLD')return false;
     return true});
@@ -594,11 +629,16 @@ function renderTable(){
   const l=visible();
   $('#cnt').textContent=l.length+' di '+assets.length+' asset';
   $('#tbody').innerHTML=l.map(a=>{const ai=a.ai,pr=lastPx[a.sym],f=pr==null||pr===a.price?'':(a.price>pr?'fu':'fd');
-    const v=ai.verdict, lbl=v==='LONG'?'🐋 ENTRA LONG':v==='SHORT'?'🐋 ENTRA SHORT':'ATTESA BALENE';
+    const v=ai.verdict, lbl=v==='LONG'?'LONG INSTITUTIONAL':v==='SHORT'?'SHORT INSTITUTIONAL':'ATTESA BALENE';
+    
+    if(!activeTimers[a.sym]) activeTimers[a.sym]=ai.totalDurationSeconds;
+
     return`<tr class="r${a.sym===sel?' sel':''}" data-sym="${a.sym}" tabindex="0">
 <td><span class="cdot" style="background:var(${CLS[a.cls].color})"></span><span class="s">${a.sym}</span><span class="n">${a.name}</span></td>
+<td><b style="color:var(--cyan);font-size:10.5px">${a.marketArea}</b></td>
 <td><span class="pill ${v}">${lbl}</span></td>
-<td style="font-size:10px;color:var(--gold);font-weight:700;">⏱️ ${ai.signalDuration}</td>
+<td><span class="badge-action ${ai.enterClass}">${ai.enterNowText}</span></td>
+<td style="font-size:11.5px;color:var(--gold);font-weight:700;" class="live-timer" data-sym="${a.sym}">⏱️ ${formatTimer(activeTimers[a.sym])}</td>
 <td><b style="color:var(--cyan)">${ai.conf}%</b></td>
 <td class="${f}">${money(a,a.price)}</td>
 <td><b style="color:var(--gold)">${ai.tfRec}</b></td>
@@ -625,14 +665,15 @@ function renderMain(){
   $('#stConf').textContent=Math.round(assets.reduce((s,x)=>s+x.ai.conf,0)/assets.length)+'%';
   $('#stCycles').textContent=cycles;
 
-  const v=ai.verdict, vText=v==='LONG'?'🐋 🟢 ENTRA LONG (Segnale Balene Certo)':v==='SHORT'?'🐋 🔴 ENTRA SHORT (Segnale Balene Certo)':'⚠️ ATTESA BALENE (No Movimenti Forti)';
+  const v=ai.verdict, vText=v==='LONG'?'LONG INSTITUTIONAL':v==='SHORT'?'SHORT INSTITUTIONAL':'ATTESA BALENE';
 
-  $('#anSub').textContent=`${a.sym} · ${a.name} (${CLS[a.cls].label})`;
+  $('#anSub').textContent=`${a.sym} · ${a.name} (${CLS[a.cls].label} | ${a.marketArea})`;
   $('#anPlan').innerHTML=`
     <div style="display:flex;justify-content:space-between"><span>Verdetto Balene</span><b style="color:${v==='HOLD'?'var(--warn)':'var(--up)'}">${vText}</b></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;"><span>Consiglio AI</span><span class="badge-action ${ai.enterClass}">${ai.enterNowText}</span></div>
     <div style="display:flex;justify-content:space-between"><span>Timeframe Analisi</span><b style="color:var(--gold)">${ai.tfRec}</b></div>
-    <div style="display:flex;justify-content:space-between"><span>⏱️ Durata Segnale Certo</span><b style="color:var(--gold);font-size:11px;">${ai.signalDuration}</b></div>
-    <div style="display:flex;justify-content:space-between"><span>Leva Reale Sicura</span><b style="color:var(--warn)">${ai.lev}x</b></div>
+    <div style="display:flex;justify-content:space-between"><span>⏱️ Timer in Movimento</span><b style="color:var(--gold);font-size:12px;" id="detailTimer">--</b></div>
+    <div style="display:flex;justify-content:space-between"><span>Leva Consigliata</span><b style="color:var(--warn)">${ai.lev}x</b></div>
     <div style="display:flex;justify-content:space-between"><span>Prezzo d'Ingresso</span><b style="color:var(--cyan)">${money(a,a.price)}</b></div>`;
   
   $('#anTargets').innerHTML=`
@@ -642,19 +683,37 @@ function renderMain(){
     <div style="display:flex;justify-content:space-between"><span>Stop Loss Millimetrico</span><b class="dn">${money(a,ai.sl)}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Attività Istituzionale</span><b style="color:var(--cyan)">${ai.whales}</b></div>`;
 
-  $('#anReason').textContent=`Analisi AI millimetrica su ${a.sym} (${CLS[a.cls].label}). ${ai.whales}. L'intelligenza artificiale rileva un andamento di mercato guidato dai flussi istituzionali con verdetto: "${vText}". Il segnale certo ha una durata stimata di ${ai.signalDuration} sul timeframe ${ai.tfRec} per raggiungere i target (TP1 in ${ai.timeTP1}, TP2 in ${ai.timeTP2}, TP3 in ${ai.timeTP3}). Precisione stimata: ${ai.conf}%.`;
+  $('#anReason').textContent=`Analisi AI millimetrica su ${a.sym} (${CLS[a.cls].label}). Area di mercato: ${a.marketArea}. ${ai.whales}. L'intelligenza artificiale emette il verdetto: "${vText}" con raccomandazione tattica: "${ai.enterNowText}". Il timer in movimento traccia la validità residua del segnale sul timeframe ${ai.tfRec} per raggiungere i target (TP1 in ${ai.timeTP1}, TP2 in ${ai.timeTP2}, TP3 in ${ai.timeTP3}). Precisione stimata: ${ai.conf}%.`;
 
   $('#cSym').textContent=a.sym;$('#cName').textContent=a.name;$('#cPx').textContent=money(a,a.price);
   $('#cCh').innerHTML=`<span class="mono ${ai.ch24>=0?'up':'dn'}">${pc(ai.ch24)}</span>`;
 
   const nowStr=hhmm(SIM*1000);
-  $('#log').innerHTML=logs.slice(0,10).map(e=>`<li><time>${hhmm(e.t)}</time><span style="font-weight:700;color:var(--cyan)">${e.type}</span><span>${e.txt}</span></li>`).join('')||`<li class="empty">${nowStr} - Radar Balene SaaS &amp; Telegram Bot attivo.</li>`;
+  $('#log').innerHTML=logs.slice(0,10).map(e=>`<li><time>${hhmm(e.t)}</time><span style="font-weight:700;color:var(--cyan)">${e.type}</span><span>${e.txt}</span></li>`).join('')||`<li class="empty">${nowStr} - Fighter Jet HUD &amp; Radar Balene attivo.</li>`;
 
-  $('#heat').innerHTML=Object.keys(CLS).map(k=>`<div class="hg"><h3>${CLS[k].label}</h3><div class="tiles">${assets.filter(a=>a.cls===k).map(a=>{const c=a.ai.ch24,bg=c>=0?'rgba(0,255,204,.15)':'rgba(255,51,102,.15)';return`<button type="button" class="tile" data-sym="${a.sym}" style="background:${bg}">${a.sym}<small>${pc(c)}</small></button>`}).join('')}</div></div>`).join('');
+  $('#heat').innerHTML=Object.keys(CLS).map(k=>`<div class="hg"><h3>${CLS[k].label}</h3><div class="tiles">${assets.filter(a=>a.cls===k).map(a=>{const c=a.ai.ch24,bg=c>=0?'rgba(0,255,102,.15)':'rgba(255,0,85,.15)';return`<button type="button" class="tile" data-sym="${a.sym}" style="background:${bg}">${a.sym}<small>${pc(c)}</small></button>`}).join('')}</div></div>`).join('');
   
   const lC=assets.filter(x=>x.ai.verdict!=='HOLD').length,wZ=assets.filter(x=>x.ai.verdict==='HOLD').length;
-  $('#dist').innerHTML=`<div style="display:grid;gap:6px;font:11px var(--font-mono)"><div style="display:flex;justify-content:space-between"><span>Segnali Balene (Long/Short)</span><b class="up">${lC} asset</b></div><div style="display:flex;justify-content:space-between"><span>In Attesa / No Balene</span><b class="dn">${wZ} asset</b></div></div>`;
+  $('#dist').innerHTML=`<div style="display:grid;gap:6px;font:11.5px var(--font-mono)"><div style="display:flex;justify-content:space-between"><span>Segnali Balene (Long/Short)</span><b class="up">${lC} asset</b></div><div style="display:flex;justify-content:space-between"><span>In Attesa / No Balene</span><b class="dn">${wZ} asset</b></div></div>`;
 }
+
+// Countdown Tick ogni secondo
+setInterval(()=>{
+  for(const sym in activeTimers){
+    if(activeTimers[sym]>0) activeTimers[sym]--;
+  }
+  document.querySelectorAll('.live-timer').forEach(el=>{
+    const s=el.dataset.sym;
+    if(activeTimers[s]!=null){
+      el.textContent=`⏱️ ${formatTimer(activeTimers[s])}`;
+    }
+  });
+  const dt=$('#detailTimer');
+  if(dt && bySym[sel]){
+    const s=activeTimers[sel];
+    if(s!=null) dt.textContent=formatTimer(s);
+  }
+}, 1000);
 
 function renderAll(){
   renderMain();renderTable();drawChart();$('#clock').textContent=hhmmss(Date.now());
@@ -667,7 +726,7 @@ function seg(id,cb){$(id).addEventListener('click',e=>{const b=e.target.closest(
 seg('#fCls',v=>{ui.cls=v;renderTable()});seg('#tfSeg',v=>{tfSel=v;drawChart()});
 $('#q').addEventListener('input',e=>{ui.q=e.target.value.trim().toLowerCase();renderTable()});
 $('#thead').addEventListener('click',e=>{const th=e.target.closest('th[data-k]');if(!th)return;const k=th.dataset.k;assets.sort((x,y)=>(x[k]>y[k]?1:-1));renderTable()});
-let paused=false;$('#pauseBtn').addEventListener('click',()=>{paused=!paused;$('#pauseBtn').textContent=paused?'Riprendi':'Pausa'});
+let paused=false;$('#pauseBtn').addEventListener('click',()=>{paused=!paused;$('#pauseBtn').textContent=paused?'Riprendi Radar':'Pausa Radar'});
 
 async function boot(){
   chartCv=$('#chart');
@@ -691,9 +750,10 @@ def home():
         return redirect(url_for('login'))
     global bot_settings
     if request.method == 'POST':
+        bot_settings["mode"] = request.form.get("mode", "automatico")
         bot_settings["auto_execution"] = 1 if request.form.get("auto_execution") == "on" else 0
         bot_settings["auto_telegram"] = 1 if request.form.get("auto_telegram") == "on" else 0
-        flash("Preferenze salvate con successo!")
+        flash("Preferenze aggiornate con successo!")
         return redirect(url_for('home'))
 
     return render_template_string(DASHBOARD_HTML, settings=bot_settings)
@@ -719,18 +779,18 @@ def login():
         error = 'Credenziali non valide o account inesistente.'
     
     return '''<!DOCTYPE html>
-    <html lang="it"><head><meta charset="UTF-8"><title>Login - SaaS Elite Scanner</title></head>
-    <body style="background:#020408;color:#f4f7fa;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;">
-    <div style="background:#070d18;padding:30px;border:1px solid #00d4ff;width:360px;border-radius:6px;box-shadow:0 0 25px rgba(0,212,255,.25);">
-        <h3 style="color:#f3ca52;margin-top:0;text-align:center;letter-spacing:2px;font-family:Cinzel,serif;">ELITE ACCESS</h3>
-        <p style="font-size:10.5px;color:#9fb0c9;text-align:center;margin-bottom:20px;">Accedi con il tuo account in abbonamento</p>
-        ''' + (f'<p style="color:#ff3366;font-size:11.5px;text-align:center;">{error}</p>' if error else '') + '''
+    <html lang="it"><head><meta charset="UTF-8"><title>Login - Fighter Jet HUD</title></head>
+    <body style="background:#010409;color:#eef5fc;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;">
+    <div style="background:#040d1a;padding:30px;border:1px solid #00ffcc;width:360px;box-shadow:0 0 30px rgba(0,255,204,.3);">
+        <h3 style="color:#ffcc00;margin-top:0;text-align:center;letter-spacing:2px;font-family:Orbitron,sans-serif;">FIGHTER JET HUD ACCESS</h3>
+        <p style="font-size:11px;color:#8baaca;text-align:center;margin-bottom:20px;">Autenticazione Terminale Sicuro</p>
+        ''' + (f'<p style="color:#ff0055;font-size:12px;text-align:center;">{error}</p>' if error else '') + '''
         <form method="POST">
-            <p><label style="font-size:11px;color:#9fb0c9;">Username</label><br><input type="text" name="username" required style="width:100%;padding:9px;background:#0d1626;border:1px solid #233a5e;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
-            <p><label style="font-size:11px;color:#9fb0c9;">Password</label><br><input type="password" name="password" required style="width:100%;padding:9px;background:#0d1626;border:1px solid #233a5e;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
-            <button type="submit" style="width:100%;padding:10px;background:#f3ca52;color:#020408;border:none;font-weight:bold;margin-top:10px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;box-shadow:0 0 12px rgba(243,202,82,.4);">Accedi</button>
+            <p><label style="font-size:11px;color:#8baaca;">Username</label><br><input type="text" name="username" required style="width:100%;padding:9px;background:#08162b;border:1px solid #1e4879;color:#00ffcc;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
+            <p><label style="font-size:11px;color:#8baaca;">Password</label><br><input type="password" name="password" required style="width:100%;padding:9px;background:#08162b;border:1px solid #1e4879;color:#00ffcc;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
+            <button type="submit" style="width:100%;padding:11px;background:#00ffcc;color:#010409;border:none;font-weight:bold;margin-top:12px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;box-shadow:0 0 15px rgba(0,255,204,.4);">Accedi al Radar</button>
         </form>
-        <p style="text-align:center;margin-top:15px;font-size:11px;"><a href="/register" style="color:#00d4ff;text-decoration:none;">Non hai un account? Registrati</a></p>
+        <p style="text-align:center;margin-top:16px;font-size:11px;"><a href="/register" style="color:#00ffcc;text-decoration:none;">Registra un nuovo account</a></p>
     </div></body></html>'''
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -756,18 +816,18 @@ def register():
             error = 'Compila tutti i campi.'
 
     return '''<!DOCTYPE html>
-    <html lang="it"><head><meta charset="UTF-8"><title>Registrazione - SaaS Elite Scanner</title></head>
-    <body style="background:#020408;color:#f4f7fa;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;">
-    <div style="background:#070d18;padding:30px;border:1px solid #00d4ff;width:360px;border-radius:6px;box-shadow:0 0 25px rgba(0,212,255,.25);">
-        <h3 style="color:#f3ca52;margin-top:0;text-align:center;letter-spacing:2px;font-family:Cinzel,serif;">REGISTRAZIONE</h3>
-        <p style="font-size:10.5px;color:#9fb0c9;text-align:center;margin-bottom:20px;">Crea il tuo account abbonato</p>
-        ''' + (f'<p style="color:#ff3366;font-size:11.5px;text-align:center;">{error}</p>' if error else '') + '''
+    <html lang="it"><head><meta charset="UTF-8"><title>Registrazione - Fighter Jet HUD</title></head>
+    <body style="background:#010409;color:#eef5fc;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;">
+    <div style="background:#040d1a;padding:30px;border:1px solid #00ffcc;width:360px;box-shadow:0 0 30px rgba(0,255,204,.3);">
+        <h3 style="color:#ffcc00;margin-top:0;text-align:center;letter-spacing:2px;font-family:Orbitron,sans-serif;">REGISTRAZIONE</h3>
+        <p style="font-size:11px;color:#8baaca;text-align:center;margin-bottom:20px;">Crea credenziali HUD</p>
+        ''' + (f'<p style="color:#ff0055;font-size:12px;text-align:center;">{error}</p>' if error else '') + '''
         <form method="POST">
-            <p><label style="font-size:11px;color:#9fb0c9;">Username</label><br><input type="text" name="username" required style="width:100%;padding:9px;background:#0d1626;border:1px solid #233a5e;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
-            <p><label style="font-size:11px;color:#9fb0c9;">Password</label><br><input type="password" name="password" required style="width:100%;padding:9px;background:#0d1626;border:1px solid #233a5e;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
-            <button type="submit" style="width:100%;padding:10px;background:#00ffcc;color:#020408;border:none;font-weight:bold;margin-top:10px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;box-shadow:0 0 12px rgba(0,255,204,.4);">Registrati</button>
+            <p><label style="font-size:11px;color:#8baaca;">Username</label><br><input type="text" name="username" required style="width:100%;padding:9px;background:#08162b;border:1px solid #1e4879;color:#00ffcc;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
+            <p><label style="font-size:11px;color:#8baaca;">Password</label><br><input type="password" name="password" required style="width:100%;padding:9px;background:#08162b;border:1px solid #1e4879;color:#00ffcc;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
+            <button type="submit" style="width:100%;padding:11px;background:#ffcc00;color:#010409;border:none;font-weight:bold;margin-top:12px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;box-shadow:0 0 15px rgba(255,204,0,.4);">Registrati</button>
         </form>
-        <p style="text-align:center;margin-top:15px;font-size:11px;"><a href="/login" style="color:#00d4ff;text-decoration:none;">Hai già un account? Accedi</a></p>
+        <p style="text-align:center;margin-top:16px;font-size:11px;"><a href="/login" style="color:#00ffcc;text-decoration:none;">Torna al Login</a></p>
     </div></body></html>'''
 
 @app.route('/logout')
