@@ -48,7 +48,7 @@ DASHBOARD_HTML = '''<!DOCTYPE html>
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<title>AI Institutional Market Scanner &amp; Whale Tracker</title>
+<title>AI Institutional Market Scanner &amp; Whale Tracker - Gold Elite</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -56,16 +56,16 @@ DASHBOARD_HTML = '''<!DOCTYPE html>
 <style>
 :root{
   color-scheme:dark;
-  --bg:#010306; --panel:#050912; --panel2:#091222; --line:#101f38; --line2:#1c3258;
-  --ink:#f4f7fa; --ink2:#9fb0c9; --mute:#54698a; --grid:rgba(0,212,255,.015);
-  --gold:#f3ca52; --gold-soft:rgba(243,202,82,.12); --cyan:#00d4ff; --cyan-soft:rgba(0,212,255,.15);
+  --bg:#050505; --panel:#0a0906; --panel2:#12100a; --line:#262215; --line2:#3d351e;
+  --ink:#fdfbf7; --ink2:#d4cebc; --mute:#8c8268; --grid:rgba(243,202,82,.015);
+  --gold:#f3ca52; --gold-soft:rgba(243,202,82,.15); --cyan:#00d4ff; --cyan-soft:rgba(0,212,255,.15);
   --up:#00ffcc; --dn:#ff3366; --warn:#ffaa00;
   --z1:#ff3366; --z2:#ff9933; --z3:#8a94a6; --z4:#00ffcc; --z5:#00d4ff;
   --font-display:'Cinzel',Georgia,serif; --font-body:'Sora',system-ui,sans-serif; --font-mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
 }
 *{box-sizing:border-box}
 body{background-color:var(--bg);color:var(--ink);font:400 13px/1.45 var(--font-body);
-  background-image:radial-gradient(1400px 700px at 15% -80px,rgba(0,212,255,.06),transparent 70%),radial-gradient(1200px 600px at 85% 120px,rgba(243,202,82,.04),transparent 70%),linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-image:radial-gradient(1400px 700px at 15% -80px,rgba(243,202,82,.05),transparent 70%),radial-gradient(1200px 600px at 85% 120px,rgba(243,202,82,.03),transparent 70%),linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
   background-size:auto,auto,40px 40px,40px 40px; margin:0; padding:12px;}
 .wrap{max-width:1760px;margin:0 auto;padding-bottom:35px}
 h1,h2,h3,p{margin:0}
@@ -73,100 +73,99 @@ h1,h2,h3,p{margin:0}
 
 .top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 20px;margin-bottom:12px}
 .brand{display:flex;align-items:center;gap:14px;min-width:0}
-.brand h1{font:700 18px/1.25 var(--font-display);letter-spacing:.15em;text-transform:uppercase;color:var(--gold);text-shadow:0 0 14px rgba(243,202,82,.35)}
-.brand p{font:400 10.5px var(--font-mono);color:var(--cyan);letter-spacing:.06em;margin-top:2px}
+.brand h1{font:700 18px/1.25 var(--font-display);letter-spacing:.15em;text-transform:uppercase;color:var(--gold);text-shadow:0 0 14px rgba(243,202,82,.4)}
+.brand p{font:400 10.5px var(--font-mono);color:var(--gold-soft);letter-spacing:.06em;margin-top:2px}
 .chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line2);padding:6px 12px;font:500 10.5px var(--font-mono);color:var(--ink2);background:rgba(5,9,18,.95);box-shadow:inset 0 0 10px rgba(0,212,255,.08)}
-.dot{width:7px;height:7px;border-radius:50%;background:var(--up);box-shadow:0 0 10px var(--up);animation:pulse 1.5s infinite}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line2);padding:6px 12px;font:500 10.5px var(--font-mono);color:var(--gold);background:rgba(10,9,6,.95);box-shadow:inset 0 0 10px rgba(243,202,82,.08)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--gold);box-shadow:0 0 10px var(--gold);animation:pulse 1.5s infinite}
 @keyframes pulse{50%{opacity:.3}}
 button{font:600 11px var(--font-mono);letter-spacing:.08em;color:var(--gold);background:transparent;border:1px solid var(--gold);padding:7px 14px;cursor:pointer;text-transform:uppercase;box-shadow:0 0 12px rgba(243,202,82,.2);transition:all .2s}
 button:hover{background:var(--gold-soft);box-shadow:0 0 18px rgba(243,202,82,.4)}
 
-.config-panel{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--cyan-soft);padding:16px;margin-bottom:14px;box-shadow:0 0 25px rgba(0,212,255,.06)}
+.config-panel{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line2);padding:16px;margin-bottom:14px;box-shadow:0 0 25px rgba(243,202,82,.05)}
 .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:10px}
-input,select{background:var(--bg);border:1px solid var(--line2);color:#fff;padding:9px;width:100%;font:11.5px var(--font-mono)}
-input:focus,select:focus{border-color:var(--cyan);outline:none;box-shadow:0 0 12px rgba(0,212,255,.3)}
+input,select{background:var(--bg);border:1px solid var(--line2);color:var(--gold);padding:9px;width:100%;font:11.5px var(--font-mono)}
+input:focus,select:focus{border-color:var(--gold);outline:none;box-shadow:0 0 12px rgba(243,202,82,.3)}
 
 .grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px}
 .s4{grid-column:span 4}.s8{grid-column:span 8}.s12{grid-column:span 12}
 .col{display:flex;flex-direction:column;gap:14px;min-width:0}
-.panel{position:relative;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line2);padding:16px;min-width:0;box-shadow:0 8px 30px rgba(0,0,0,.7)}
-.panel::before,.panel::after{content:"";position:absolute;width:10px;height:10px;border:1px solid var(--cyan);opacity:.9}
+.panel{position:relative;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line2);padding:16px;min-width:0;box-shadow:0 8px 30px rgba(0,0,0,.8)}
+.panel::before,.panel::after{content:"";position:absolute;width:10px;height:10px;border:1px solid var(--gold);opacity:.9}
 .panel::before{top:-1px;left:-1px;border-right:0;border-bottom:0}
 .panel::after{bottom:-1px;right:-1px;border-left:0;border-top:0}
 .ph{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:14px;flex-wrap:wrap}
-.ph h2{font:600 12px var(--font-display);letter-spacing:.2em;text-transform:uppercase;color:var(--cyan);text-shadow:0 0 12px rgba(0,212,255,.35)}
+.ph h2{font:600 12px var(--font-display);letter-spacing:.2em;text-transform:uppercase;color:var(--gold);text-shadow:0 0 12px rgba(243,202,82,.35)}
 .ph .sub{font:400 10px var(--font-mono);color:var(--mute)}
 
 .gsvg{display:block;width:100%;height:auto;overflow:visible}
 .gseg{fill:none;stroke-width:9;opacity:.25}
 .gval{fill:none;stroke-width:9;transition:stroke-dasharray .5s ease,stroke .5s;filter:drop-shadow(0 0 10px currentColor)}
 .z0{stroke:var(--z1);color:var(--z1)}.z1{stroke:var(--z2);color:var(--z2)}.z2{stroke:var(--z3);color:var(--z3)}.z3{stroke:var(--z4);color:var(--z4)}.z4{stroke:var(--z5);color:var(--z5)}
-.tk{stroke:var(--line2);stroke-width:1}.tk.maj{stroke:var(--cyan);stroke-width:1.4}
+.tk{stroke:var(--line2);stroke-width:1}.tk.maj{stroke:var(--gold);stroke-width:1.4}
 .tl{fill:var(--mute);font:500 6.5px var(--font-mono)}
 .ndl{transform-origin:100px 100px;transition:transform .5s ease}
-.ndl polygon{fill:var(--cyan)}
+.ndl polygon{fill:var(--gold)}
 .hub{fill:var(--panel);stroke:var(--gold);stroke-width:2;filter:drop-shadow(0 0 8px var(--gold))}
-.gnum{font:700 42px/1 var(--font-mono);text-align:center;text-shadow:0 0 18px rgba(0,212,255,.45)}
-.glab{font:600 11px var(--font-display);letter-spacing:.22em;text-transform:uppercase;text-align:center;margin-top:6px}
+.gnum{font:700 42px/1 var(--font-mono);text-align:center;text-shadow:0 0 18px rgba(243,202,82,.45);color:var(--gold)}
+.glab{font:600 11px var(--font-display);letter-spacing:.22em;text-transform:uppercase;text-align:center;margin-top:6px;color:var(--gold)}
 .gbig{max-width:340px;margin:0 auto}
 .sbrow{display:flex;justify-content:space-between;font:500 9.5px var(--font-mono);margin-top:6px}
 
 .pill{display:inline-flex;align-items:center;gap:4px;padding:4px 9px;font:700 10px var(--font-mono);letter-spacing:.06em;border:1px solid currentColor;white-space:nowrap}
 .pill.LONG{color:var(--up);background:rgba(0,255,204,.15);box-shadow:0 0 10px rgba(0,255,204,.3)}
 .pill.SHORT{color:var(--dn);background:rgba(255,51,102,.15);box-shadow:0 0 10px rgba(255,51,102,.3)}
-.pill.HOLD{color:var(--warn);background:rgba(255,170,0,.15);box-shadow:0 0 10px rgba(255,170,0,.3)}
+.pill.HOLD{color:var(--gold);background:rgba(243,202,82,.15);box-shadow:0 0 10px rgba(243,202,82,.3)}
 
 .bar2{position:relative;height:8px;background:var(--line)}
 .bar2 i{position:absolute;top:0;bottom:0}
-.bar2.dv::after{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--cyan)}
+.bar2.dv::after{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--gold)}
 
 .chead{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;margin-bottom:8px}
 .chead .sym{font:700 20px var(--font-display);letter-spacing:.1em;color:var(--gold)}
 .chead .nm{color:var(--ink2);font-size:11px}
-.chead .px{font:500 18px var(--font-mono);color:var(--cyan)}
+.chead .px{font:500 18px var(--font-mono);color:var(--gold)}
 .legend{display:flex;gap:12px;flex-wrap:wrap;font:400 10px var(--font-mono);color:var(--ink2);margin-left:auto}
 .legend i{display:inline-block;width:12px;height:2px;vertical-align:middle;margin-right:5px}
 canvas{display:block;width:100%;touch-action:pan-y}
 #chart{height:340px}
 .seg{display:inline-flex;border:1px solid var(--line2)}
-.seg button{border:0;border-right:1px solid var(--line2);color:var(--ink2);padding:6px 12px}
+.seg button{border:0;border-right:1px solid var(--line2);color:var(--ink2);padding:6px 12px;background:var(--panel)}
 .seg button:last-child{border-right:0}
 .seg button[aria-pressed="true"]{background:var(--gold-soft);color:var(--gold);border-color:var(--gold)}
 
 .filters{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.fb{padding:6px 12px;border-radius:0;font-size:10px}
-.fb[aria-pressed="true"]{background:var(--cyan-soft);color:var(--cyan);border-color:var(--cyan)}
+.fb{padding:6px 12px;border-radius:0;font-size:10px;border:1px solid var(--line2);color:var(--ink2)}
+.fb[aria-pressed="true"]{background:var(--gold-soft);color:var(--gold);border-color:var(--gold)}
 .fb.g{color:var(--up);border-color:var(--up)}.fb.g[aria-pressed="true"]{background:rgba(0,255,204,.2)}
 .fb.r{color:var(--dn);border-color:var(--dn)}.fb.r[aria-pressed="true"]{background:rgba(255,51,102,.2)}
-input[type=search]{background:var(--panel);border:1px solid var(--line2);color:var(--ink);font:400 11px var(--font-mono);padding:7px 12px;width:170px}
+input[type=search]{background:var(--panel);border:1px solid var(--line2);color:var(--gold);font:400 11px var(--font-mono);padding:7px 12px;width:170px}
 
 .tw{overflow-x:auto;-webkit-overflow-scrolling:touch;max-height:600px;border:1px solid var(--line2)}
 table.main{border-collapse:collapse;width:100%;min-width:1480px}
-.main th{position:sticky;top:0;background:var(--panel2);z-index:1;text-align:center;font:600 10px var(--font-mono);letter-spacing:.08em;color:var(--cyan);text-transform:uppercase;padding:10px 9px;cursor:pointer;white-space:nowrap;border-bottom:1px solid var(--line2)}
+.main th{position:sticky;top:0;background:var(--panel2);z-index:1;text-align:center;font:600 10px var(--font-mono);letter-spacing:.08em;color:var(--gold);text-transform:uppercase;padding:10px 9px;cursor:pointer;white-space:nowrap;border-bottom:1px solid var(--line2)}
 .main th:first-child,.main td:first-child{text-align:left}
 .main th[aria-sort]{color:var(--gold)}
 .main td{padding:8px 10px;text-align:center;font:400 11.5px var(--font-mono);border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:middle}
 tr.r{cursor:pointer}
-tr.r:hover{background:rgba(0,212,255,.07)}
+tr.r:hover{background:rgba(243,202,82,.07)}
 tr.r.sel{background:var(--gold-soft);box-shadow:inset 2px 0 0 var(--gold)}
-td .s{font:700 12.5px var(--font-mono);color:#fff}
+td .s{font:700 12.5px var(--font-mono);color:var(--gold)}
 td .n{display:block;font:400 9.5px var(--font-body);color:var(--mute);margin-top:1px}
 .cdot{display:inline-block;width:6px;height:6px;margin-right:6px;border-radius:50%;box-shadow:0 0 6px currentColor}
 
-.mg{width:64px;height:36px;display:block;margin:0 auto}
 .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(68px,1fr));gap:4px}
 .hg{margin-bottom:10px}
-.hg h3{font:600 9.5px var(--font-mono);letter-spacing:.14em;color:var(--cyan);text-transform:uppercase;margin-bottom:5px}
+.hg h3{font:600 9.5px var(--font-mono);letter-spacing:.14em;color:var(--gold);text-transform:uppercase;margin-bottom:5px}
 .tile{padding:7px;border:0;background:var(--line);color:var(--ink);text-align:left;font:500 10px var(--font-mono);min-width:0;transition:all .2s}
 .tile small{display:block;font:400 9px var(--font-mono);margin-top:2px}
-.tile:hover{outline:1px solid var(--cyan);box-shadow:0 0 12px rgba(0,212,255,.45)}
+.tile:hover{outline:1px solid var(--gold);box-shadow:0 0 12px rgba(243,202,82,.45)}
 .gmini{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .gm{text-align:center;min-width:0}
 .gm .gnum{font-size:20px;margin-top:-2px}
 .gm .glab{font-size:8px;letter-spacing:.1em}
-.gm .cn{font:600 9.5px var(--font-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--cyan);margin-bottom:4px}
-.sec{font:600 10px var(--font-mono);letter-spacing:.16em;color:var(--cyan);text-transform:uppercase;margin:14px 0 6px}
+.gm .cn{font:600 9.5px var(--font-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--gold);margin-bottom:4px}
+.sec{font:600 10px var(--font-mono);letter-spacing:.16em;color:var(--gold);text-transform:uppercase;margin:14px 0 6px}
 .dvr{display:grid;grid-template-columns:52px minmax(0,1fr) 40px;gap:6px;align-items:center;font:400 10.5px var(--font-mono);margin-bottom:6px;cursor:pointer}
 .log{list-style:none;margin:0;padding:0;max-height:280px;overflow-y:auto}
 .log li{display:grid;grid-template-columns:48px 56px minmax(0,1fr);gap:8px;padding:7px 0;border-bottom:1px solid var(--line);font:400 10.5px var(--font-mono);color:var(--ink2)}
@@ -175,7 +174,7 @@ td .n{display:block;font:400 9.5px var(--font-body);color:var(--mute);margin-top
 .news-list{list-style:none;margin:0;padding:0;max-height:290px;overflow-y:auto}
 .news-item{padding:9px 0;border-bottom:1px solid var(--line);font:11px var(--font-mono)}
 .news-item time{display:block;color:var(--mute);font-size:9.5px;margin-bottom:2px}
-.news-item a{color:var(--cyan);text-decoration:none}
+.news-item a{color:var(--gold);text-decoration:none}
 .news-item a:hover{text-decoration:underline}
 footer{margin-top:18px;font:400 10px var(--font-mono);color:var(--mute);line-height:1.6}
 
@@ -189,15 +188,15 @@ footer{margin-top:18px;font:400 10px var(--font-mono);color:var(--mute);line-hei
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
       <div>
         <span class="chip">Utente Abbonato: <b style="color:var(--gold)">{{ session.username | upper }}</b></span>
-        <span class="chip">Modalità: <b style="color:var(--cyan)">{{ settings.mode | upper }}</b></span>
-        <span class="chip">Exchange: <b style="color:var(--cyan)">BINGX FUTURES PRO LIVE</b></span>
+        <span class="chip">Modalità: <b style="color:var(--gold)">{{ settings.mode | upper }}</b></span>
+        <span class="chip">Exchange: <b style="color:var(--gold)">BINGX FUTURES PRO LIVE</b></span>
       </div>
       <a href="{{ url_for('logout') }}" style="color:var(--dn);text-decoration:none;font:600 11px var(--font-mono);text-shadow:0 0 8px rgba(255,51,102,.4)">LOGOUT</a>
     </div>
   </div>
 
   <section class="config-panel">
-    <div class="ph"><h2>🐳 Radar Balene &amp; Gestione Algoritmo AI SaaS</h2></div>
+    <div class="ph"><h2>👑 Radar Balene &amp; Gestione Algoritmo Gold Elite</h2></div>
     <form method="POST">
       <div class="form-grid">
         <div>
@@ -230,7 +229,7 @@ footer{margin-top:18px;font:400 10px var(--font-mono);color:var(--mute);line-hei
 
   <header class="top">
     <div class="brand">
-      <svg width="38" height="38" viewBox="0 0 40 40" aria-hidden="true"><polygon points="20,3 36,15 20,37 4,15" fill="none" stroke="#00d4ff" stroke-width="1.8"/><polygon points="20,3 28,15 20,37 12,15" fill="rgba(0,212,255,.25)" stroke="#f3ca52" stroke-width="1"/></svg>
+      <svg width="38" height="38" viewBox="0 0 40 40" aria-hidden="true"><polygon points="20,3 36,15 20,37 4,15" fill="none" stroke="#f3ca52" stroke-width="1.8"/><polygon points="20,3 28,15 20,37 12,15" fill="rgba(243,202,82,.2)" stroke="#f3ca52" stroke-width="1"/></svg>
       <div><h1>AI Institutional Market Scanner</h1><p>Flussi istituzionali balene, Timer Certo &amp; Macro Feed 24/7</p></div>
     </div>
     <div class="chips">
@@ -282,20 +281,20 @@ footer{margin-top:18px;font:400 10px var(--font-mono);color:var(--mute);line-hei
       </ul>
     </section>
 
-    <!-- SEZIONE TEMPO UTILE INGRESSO SINCRONIZZATA DAL SISTEMA DI MONITORAGGIO -->
+    <!-- SEZIONE TEMPO UTILE INGRESSO & FINESTRA CONSIGLIATA -->
     <section class="panel s8">
       <div class="ph"><h2>Verdetto Balene Certificato &amp; Tempo Utile Ingresso</h2><span class="sub" id="anSub">Seleziona un asset</span></div>
       
-      <div style="background:rgba(0,212,255,.04);border:1px solid var(--cyan-soft);padding:12px;margin-bottom:12px;border-radius:4px;">
+      <div style="background:rgba(243,202,82,.04);border:1px solid var(--line2);padding:14px;margin-bottom:14px;border-radius:4px;box-shadow:inset 0 0 15px rgba(243,202,82,.03);">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px;">
           <span style="font:600 11px var(--font-mono);color:var(--gold);">⏱️ TEMPO UTILE INGRESSO (Monitoraggio Live):</span>
-          <span style="font:700 16px var(--font-mono);color:var(--up);background:rgba(0,255,204,.1);padding:2px 10px;border:1px solid var(--up);" id="detailTimer">--:--</span>
+          <span style="font:700 18px var(--font-mono);color:var(--gold);background:rgba(243,202,82,.12);padding:3px 12px;border:1px solid var(--gold);box-shadow:0 0 10px rgba(243,202,82,.2);" id="detailTimer">--:--</span>
         </div>
-        <div style="font:400 10.5px var(--font-mono);color:var(--ink2);margin-bottom:8px;" id="entryWindowText">
-          Finestra di Mercato: Rilevamento Retest &amp; Confluenza Istituzionale in Corso
+        <div style="font:400 11px var(--font-mono);color:var(--ink);margin-bottom:10px;" id="entryWindowText">
+          Finestra Consigliata: --:-- - --:-- (Retest Scadenza: In Chiusura 4H) Confluenza Live
         </div>
-        <div style="position:relative;height:6px;background:var(--line2);border-radius:3px;overflow:hidden;">
-          <div id="entryProgressBar" style="position:absolute;top:0;left:0;bottom:0;width:100%;background:linear-gradient(90deg,var(--gold),var(--up));box-shadow:0 0 10px var(--up);transition:width 1s linear;"></div>
+        <div style="position:relative;height:7px;background:var(--line);border-radius:3px;overflow:hidden;">
+          <div id="entryProgressBar" style="position:absolute;top:0;left:0;bottom:0;width:100%;background:linear-gradient(90deg,var(--gold),var(--up));box-shadow:0 0 10px var(--gold);transition:width 1s linear;"></div>
         </div>
       </div>
 
@@ -310,7 +309,7 @@ footer{margin-top:18px;font:400 10px var(--font-mono);color:var(--mute);line-hei
         </div>
       </div>
       <div class="sec">Analisi AI dell'Andamento Istituzionale &amp; Mercato</div>
-      <p id="anReason" class="mu" style="font-size:11.5px;line-height:1.5"></p>
+      <p id="anReason" class="mu" style="font-size:11.5px;line-height:1.5;color:var(--ink2);"></p>
     </section>
 
     <section class="panel s12">
@@ -501,7 +500,7 @@ function mkGauge(host,big){
 let gMain,gCry,gStk,gCom;
 function setG(fn,numEl,labEl,v){const z=fn(v);numEl.textContent=Math.round(v);numEl.style.color=zcol(z);labEl.textContent=ZL[z];labEl.style.color=zcol(z)}
 
-const C={};function readColors(){const cs=getComputedStyle(document.documentElement);for(const k of['up','dn','gold','ink','ink2','mute','line','line2','panel','c2','c3','bg','cyan'])C[k]=cs.getPropertyValue('--'+k).trim()}
+const C={};function readColors(){C.gold='#f3ca52';C.up='#00ffcc';C.dn='#ff3366';C.mute='#8c8268';C.line2='#3d351e';C.bg='#050505';C.cyan='#00d4ff'}
 function setup(cv){const dpr=Math.min(window.devicePixelRatio||1,2),r=cv.getBoundingClientRect(),w=Math.max(10,Math.round(r.width)),h=Math.max(10,Math.round(r.height));
   if(cv.width!==w*dpr||cv.height!==h*dpr){cv.width=w*dpr;cv.height=h*dpr}
   const ctx=cv.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);return{ctx,w,h}}
@@ -530,13 +529,11 @@ function drawChart(){
 const ui={f:'all',cls:'all',q:''};
 const lastPx={};
 const activeTimers={};
-const timerLocks={};
 
-// Sincronizzazione in tempo reale legata al sistema di monitoraggio live
 function getRealMarketTimer(sym) {
   const now = Date.now();
   const hash = sym.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const cycleDuration = 900; // 15 minuti effettivi di monitoraggio candela
+  const cycleDuration = 900; 
   const remaining = cycleDuration - Math.floor((now / 1000 + hash * 13) % cycleDuration);
   return Math.max(15, remaining);
 }
@@ -568,10 +565,10 @@ function renderTable(){
     }
 
     return`<tr class="r${a.sym===sel?' sel':''}" data-sym="${a.sym}" tabindex="0">
-<td><span class="cdot" style="background:var(${CLS[a.cls].color})"></span><span class="s">${a.sym}</span><span class="n">${a.name}</span></td>
+<td><span class="cdot" style="background:var(--gold)"></span><span class="s">${a.sym}</span><span class="n">${a.name}</span></td>
 <td><span class="pill ${v}">${lbl}</span></td>
 <td style="font-size:11px;color:var(--gold);font-weight:700;" class="live-timer" data-sym="${a.sym}">⏱️ ${formatTimer(activeTimers[a.sym])}</td>
-<td><b style="color:var(--cyan)">${ai.conf}%</b></td>
+<td><b style="color:var(--gold)">${ai.conf}%</b></td>
 <td class="${f}">${money(a,a.price)}</td>
 <td><b style="color:var(--gold)">${ai.tfRec}</b></td>
 <td><b style="color:var(--warn)">${ai.lev}x</b></td>
@@ -606,17 +603,17 @@ function renderMain(){
   $('#entryWindowText').textContent=`Finestra Consigliata: ${startTimeStr} - ${endTimeStr} (Retest Scadenza: In Chiusura ${ai.tfRec.toUpperCase()}) Confluenza Live`;
 
   $('#anPlan').innerHTML=`
-    <div style="display:flex;justify-content:space-between"><span>Verdetto Balene</span><b style="color:${v==='HOLD'?'var(--warn)':'var(--up)'}">${vText}</b></div>
+    <div style="display:flex;justify-content:space-between"><span>Verdetto Balene</span><b style="color:${v==='HOLD'?'var(--gold)':'var(--up)'}">${vText}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Timeframe Analisi</span><b style="color:var(--gold)">${ai.tfRec}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Leva Reale Sicura</span><b style="color:var(--warn)">${ai.lev}x</b></div>
-    <div style="display:flex;justify-content:space-between"><span>Prezzo d'Ingresso</span><b style="color:var(--cyan)">${money(a,a.price)}</b></div>`;
+    <div style="display:flex;justify-content:space-between"><span>Prezzo d'Ingresso</span><b style="color:var(--gold)">${money(a,a.price)}</b></div>`;
   
   $('#anTargets').innerHTML=`
     <div style="display:flex;justify-content:space-between"><span>TP1 (${ai.timeTP1})</span><b class="up">${money(a,ai.tp1)}</b></div>
     <div style="display:flex;justify-content:space-between"><span>TP2 (${ai.timeTP2})</span><b class="up">${money(a,ai.tp2)}</b></div>
     <div style="display:flex;justify-content:space-between"><span>TP3 (${ai.timeTP3})</span><b class="up">${money(a,ai.tp3)}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Stop Loss Millimetrico</span><b class="dn">${money(a,ai.sl)}</b></div>
-    <div style="display:flex;justify-content:space-between"><span>Attività Istituzionale</span><b style="color:var(--cyan)">${ai.whales}</b></div>`;
+    <div style="display:flex;justify-content:space-between"><span>Attività Istituzionale</span><b style="color:var(--gold)">${ai.whales}</b></div>`;
 
   $('#anReason').textContent=`Analisi AI millimetrica su ${a.sym} (${CLS[a.cls].label}). ${ai.whales}. L'intelligenza artificiale rileva un andamento di mercato guidato dai flussi istituzionali con verdetto: "${vText}". Il tempo utile di ingresso calcolato dal sistema di monitoraggio live garantisce precisione costante sul timeframe ${ai.tfRec}. Precisione stimata: ${ai.conf}%.`;
 
@@ -624,7 +621,7 @@ function renderMain(){
   $('#cCh').innerHTML=`<span class="mono ${ai.ch24>=0?'up':'dn'}">${pc(ai.ch24)}</span>`;
 
   const nowStr=hhmm(SIM*1000);
-  $('#log').innerHTML=logs.slice(0,10).map(e=>`<li><time>${hhmm(e.t)}</time><span style="font-weight:700;color:var(--cyan)">${e.type}</span><span>${e.txt}</span></li>`).join('')||`<li class="empty">${nowStr} - Radar Balene SaaS &amp; Monitoraggio Live attivo.</li>`;
+  $('#log').innerHTML=logs.slice(0,10).map(e=>`<li><time>${hhmm(e.t)}</time><span style="font-weight:700;color:var(--gold)">${e.type}</span><span>${e.txt}</span></li>`).join('')||`<li class="empty">${nowStr} - Radar Balene Gold Elite &amp; Monitoraggio Live attivo.</li>`;
 
   $('#heat').innerHTML=Object.keys(CLS).map(k=>`<div class="hg"><h3>${CLS[k].label}</h3><div class="tiles">${assets.filter(a=>a.cls===k).map(a=>{const c=a.ai.ch24,bg=c>=0?'rgba(0,255,204,.15)':'rgba(255,51,102,.15)';return`<button type="button" class="tile" data-sym="${a.sym}" style="background:${bg}">${a.sym}<small>${pc(c)}</small></button>`}).join('')}</div></div>`).join('');
   
@@ -636,7 +633,7 @@ setInterval(()=>{
   for(const sym in activeTimers){
     activeTimers[sym]--;
     if(activeTimers[sym]<=0){
-      activeTimers[sym] = getRealMarketTimer(sym); // Ricarica automatica sincronizzata con il mercato reale
+      activeTimers[sym] = getRealMarketTimer(sym);
     }
   }
   document.querySelectorAll('.live-timer').forEach(el=>{
@@ -721,18 +718,18 @@ def login():
         error = 'Credenziali non valide o account inesistente.'
     
     return '''<!DOCTYPE html>
-    <html lang="it"><head><meta charset="UTF-8"><title>Login - SaaS Elite Scanner</title></head>
-    <body style="background:#010306;color:#f4f7fa;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;">
-    <div style="background:#050912;padding:30px;border:1px solid #00d4ff;width:360px;border-radius:6px;box-shadow:0 0 30px rgba(0,212,255,.3);">
-        <h3 style="color:#f3ca52;margin-top:0;text-align:center;letter-spacing:2px;font-family:Cinzel,serif;">ELITE ACCESS</h3>
-        <p style="font-size:10.5px;color:#9fb0c9;text-align:center;margin-bottom:20px;">Accedi con il tuo account in abbonamento</p>
+    <html lang="it"><head><meta charset="UTF-8"><title>Login - Gold Elite Access</title></head>
+    <body style="background:#050505;color:#fdfbf7;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;">
+    <div style="background:#0a0906;padding:30px;border:1px solid #f3ca52;width:360px;border-radius:6px;box-shadow:0 0 30px rgba(243,202,82,.25);">
+        <h3 style="color:#f3ca52;margin-top:0;text-align:center;letter-spacing:2px;font-family:Cinzel,serif;">GOLD ELITE ACCESS</h3>
+        <p style="font-size:10.5px;color:#8c8268;text-align:center;margin-bottom:20px;">Accedi con il tuo account in abbonamento</p>
         ''' + (f'<p style="color:#ff3366;font-size:11.5px;text-align:center;">{error}</p>' if error else '') + '''
         <form method="POST">
-            <p><label style="font-size:11px;color:#9fb0c9;">Username</label><br><input type="text" name="username" required style="width:100%;padding:9px;background:#091222;border:1px solid #1c3258;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
-            <p><label style="font-size:11px;color:#9fb0c9;">Password</label><br><input type="password" name="password" required style="width:100%;padding:9px;background:#091222;border:1px solid #1c3258;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
-            <button type="submit" style="width:100%;padding:10px;background:#f3ca52;color:#010306;border:none;font-weight:bold;margin-top:10px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;box-shadow:0 0 12px rgba(243,202,82,.4);">Accedi</button>
+            <p><label style="font-size:11px;color:#8c8268;">Username</label><br><input type="text" name="username" required style="width:100%;padding:9px;background:#12100a;border:1px solid #3d351e;color:#f3ca52;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
+            <p><label style="font-size:11px;color:#8c8268;">Password</label><br><input type="password" name="password" required style="width:100%;padding:9px;background:#12100a;border:1px solid #3d351e;color:#f3ca52;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
+            <button type="submit" style="width:100%;padding:10px;background:#f3ca52;color:#050505;border:none;font-weight:bold;margin-top:10px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;box-shadow:0 0 12px rgba(243,202,82,.4);">Accedi</button>
         </form>
-        <p style="text-align:center;margin-top:15px;font-size:11px;"><a href="/register" style="color:#00d4ff;text-decoration:none;">Non hai un account? Registrati</a></p>
+        <p style="text-align:center;margin-top:15px;font-size:11px;"><a href="/register" style="color:#f3ca52;text-decoration:none;">Non hai un account? Registrati</a></p>
     </div></body></html>'''
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -758,18 +755,18 @@ def register():
             error = 'Compila tutti i campi.'
 
     return '''<!DOCTYPE html>
-    <html lang="it"><head><meta charset="UTF-8"><title>Registrazione - SaaS Elite Scanner</title></head>
-    <body style="background:#010306;color:#f4f7fa;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;">
-    <div style="background:#050912;padding:30px;border:1px solid #00d4ff;width:360px;border-radius:6px;box-shadow:0 0 30px rgba(0,212,255,.3);">
+    <html lang="it"><head><meta charset="UTF-8"><title>Registrazione - Gold Elite Access</title></head>
+    <body style="background:#050505;color:#fdfbf7;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;">
+    <div style="background:#0a0906;padding:30px;border:1px solid #f3ca52;width:360px;border-radius:6px;box-shadow:0 0 30px rgba(243,202,82,.25);">
         <h3 style="color:#f3ca52;margin-top:0;text-align:center;letter-spacing:2px;font-family:Cinzel,serif;">REGISTRAZIONE</h3>
-        <p style="font-size:10.5px;color:#9fb0c9;text-align:center;margin-bottom:20px;">Crea il tuo account abbonato</p>
+        <p style="font-size:10.5px;color:#8c8268;text-align:center;margin-bottom:20px;">Crea il tuo account abbonato</p>
         ''' + (f'<p style="color:#ff3366;font-size:11.5px;text-align:center;">{error}</p>' if error else '') + '''
         <form method="POST">
-            <p><label style="font-size:11px;color:#9fb0c9;">Username</label><br><input type="text" name="username" required style="width:100%;padding:9px;background:#091222;border:1px solid #1c3258;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
-            <p><label style="font-size:11px;color:#9fb0c9;">Password</label><br><input type="password" name="password" required style="width:100%;padding:9px;background:#091222;border:1px solid #1c3258;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
-            <button type="submit" style="width:100%;padding:10px;background:#00ffcc;color:#010306;border:none;font-weight:bold;margin-top:10px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;box-shadow:0 0 12px rgba(0,255,204,.4);">Registrati</button>
+            <p><label style="font-size:11px;color:#8c8268;">Username</label><br><input type="text" name="username" required style="width:100%;padding:9px;background:#12100a;border:1px solid #3d351e;color:#f3ca52;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
+            <p><label style="font-size:11px;color:#8c8268;">Password</label><br><input type="password" name="password" required style="width:100%;padding:9px;background:#12100a;border:1px solid #3d351e;color:#f3ca52;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
+            <button type="submit" style="width:100%;padding:10px;background:#00ffcc;color:#050505;border:none;font-weight:bold;margin-top:10px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;box-shadow:0 0 12px rgba(0,255,204,.4);">Registrati</button>
         </form>
-        <p style="text-align:center;margin-top:15px;font-size:11px;"><a href="/login" style="color:#00d4ff;text-decoration:none;">Hai già un account? Accedi</a></p>
+        <p style="text-align:center;margin-top:15px;font-size:11px;"><a href="/login" style="color:#f3ca52;text-decoration:none;">Hai già un account? Accedi</a></p>
     </div></body></html>'''
 
 @app.route('/logout')
