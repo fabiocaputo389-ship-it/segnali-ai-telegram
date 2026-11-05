@@ -33,21 +33,6 @@ def init_db():
                 password TEXT NOT NULL
             )
         ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS trade_orders (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                sym TEXT,
-                side TEXT,
-                price REAL,
-                sl REAL,
-                tp1 REAL,
-                tp2 REAL,
-                tp3 REAL,
-                lev INTEGER,
-                status TEXT,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
         cursor.execute('SELECT COUNT(*) FROM users')
         if cursor.fetchone()[0] == 0:
             default_pass = generate_password_hash('admin123')
@@ -58,61 +43,6 @@ def init_db():
         print("DB Init Error:", e)
 
 init_db()
-
-def send_telegram_alert(message):
-    token = bot_settings["telegram_token"]
-    chat_id = bot_settings["chat_id"]
-    if not token or not chat_id or not bot_settings["auto_telegram"]:
-        return False
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = {
-        "chat_id": chat_id,
-        "text": message,
-        "parse_mode": "Markdown"
-    }
-    try:
-        requests.post(url, json=payload, timeout=5)
-        return True
-    except Exception as e:
-        print("Telegram Error:", e)
-        return False
-
-def send_bingx_order(symbol, side, quantity, leverage, sl, tp):
-    if bot_settings["mode"] == "manuale" or not bot_settings["auto_execution"]:
-        return {"code": 0, "msg": "Modalità manuale o esecuzione automatica disattivata"}
-    
-    api_key = bot_settings["api_key"]
-    secret_key = bot_settings["secret_key"]
-    if not api_key or not secret_key:
-        return {"code": -1, "msg": "API Key o Secret Key mancanti"}
-    
-    base_url = "https://open-api.bingx.com"
-    path = "/openApi/swap/v1/trade/order"
-    
-    timestamp = str(int(time.time() * 1000))
-    params = {
-        "symbol": symbol + "-USDT",
-        "side": "BUY" if side == "LONG" else "SELL",
-        "positionSide": "LONG" if side == "LONG" else "SHORT",
-        "type": "MARKET",
-        "quantity": str(quantity),
-        "timestamp": timestamp
-    }
-    
-    query_string = urllib.parse.urlencode(sorted(params.items()))
-    signature = hmac.new(secret_key.encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256).hexdigest()
-    
-    headers = {"X-BX-APIKEY": api_key}
-    url = f"{base_url}{path}?{query_string}&signature={signature}"
-    
-    try:
-        response = requests.post(url, headers=headers, timeout=5)
-        res_json = response.json()
-        if res_json.get("code") == 0:
-            send_telegram_alert(f"🚀 **ORDINE ESEGUITO SU BINGX LIVE**\nAsset: `{symbol}-USDT`\nLato: `{side}`\nLeva: `{leverage}x`")
-        return res_json
-    except Exception as e:
-        return {"code": -500, "msg": str(e)}
 
 DASHBOARD_HTML = '''<!DOCTYPE html>
 <html lang="it">
@@ -352,11 +282,27 @@ footer{margin-top:18px;font:400 10px var(--font-mono);color:var(--mute);line-hei
       </ul>
     </section>
 
+    <!-- SEZIONE AGGIORNATA CON TEMPO UTILE INGRESSO ESATTO COME DA IMMAGINE -->
     <section class="panel s8">
-      <div class="ph"><h2>Verdetto Balene Certificato &amp; Timer Ottimizzato Stabile</h2><span class="sub" id="anSub">Seleziona un asset</span></div>
+      <div class="ph"><h2>Verdetto Balene Certificato &amp; Tempo Utile Ingresso</h2><span class="sub" id="anSub">Seleziona un asset</span></div>
+      
+      <!-- Box Tempo Utile Ingresso Stile Immagine -->
+      <div style="background:rgba(0,212,255,.04);border:1px solid var(--cyan-soft);padding:12px;margin-bottom:12px;border-radius:4px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px;">
+          <span style="font:600 11px var(--font-mono);color:var(--gold);">⏱️ TEMPO UTILE INGRESSO:</span>
+          <span style="font:700 16px var(--font-mono);color:var(--up);background:rgba(0,255,204,.1);padding:2px 10px;border:1px solid var(--up);" id="detailTimer">--:--</span>
+        </div>
+        <div style="font:400 10.5px var(--font-mono);color:var(--ink2);margin-bottom:8px;" id="entryWindowText">
+          Finestra Consigliata: 15:00 - 15:45 (Retest Scadenza: In Chiusura 1H) Confluenza
+        </div>
+        <div style="position:relative;height:6px;background:var(--line2);border-radius:3px;overflow:hidden;">
+          <div id="entryProgressBar" style="position:absolute;top:0;left:0;bottom:0;width:75%;background:linear-gradient(90deg,var(--gold),var(--up));box-shadow:0 0 10px var(--up);"></div>
+        </div>
+      </div>
+
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
         <div>
-          <div class="sec">Consiglio Balene &amp; Timer Scadenza Fissa</div>
+          <div class="sec">Consiglio Balene &amp; Setup</div>
           <div id="anPlan" style="display:grid;gap:6px;font:10.5px var(--font-mono)"></div>
         </div>
         <div>
@@ -551,7 +497,7 @@ function mkGauge(host,big){
   s+=`<g class="ndl" style="transform:rotate(0deg)"><polygon points="97.5,100 100,30 102.5,100"/></g><circle class="hub" cx="100" cy="100" r="7"/>`;
   host.innerHTML=`<svg class="gsvg" viewBox="0 0 200 112" role="img" aria-label="Tachimetro">${s}</svg>`;
   const val=host.querySelector('.gval'),nd=host.querySelector('.ndl');
-  return v=>{v=clamp(v,0,100);const z=zone(v);val.style.strokeDasharray=`${v} 100`;val.setAttribute('class','gval z'+z);nd.style.transform=`rotate(${(v-50)*1.8}deg)`;return z};
+  return v=>{v=clamp(v,0,100);const z=zone(v);val.style.strokeDasharray=`${v} 100`;val.setAttribute('class','gval z'+z);nd.style.transform=`rotate(${(v-50)*1.8}deg)`return z};
 }
 let gMain,gCry,gStk,gCom;
 function setG(fn,numEl,labEl,v){const z=fn(v);numEl.textContent=Math.round(v);numEl.style.color=zcol(z);labEl.textContent=ZL[z];labEl.style.color=zcol(z)}
@@ -588,12 +534,10 @@ const activeTimers={};
 const timerLocks={};
 
 function formatTimer(totalSec){
-  if(totalSec<=0) return 'Scaduto (Attesa Candela)';
-  const h=Math.floor(totalSec/3600);
-  const m=Math.floor((totalSec%3600)/60);
+  if(totalSec<=0) return '00:00';
+  const m=Math.floor(totalSec/60);
   const s=totalSec%60;
-  if(h>0) return `${pad2(h)}h ${pad2(m)}m ${pad2(s)}s`;
-  return `${pad2(m)}m ${pad2(s)}s`;
+  return `${pad2(m)}:${pad2(s)}`;
 }
 
 function visible(){
@@ -641,18 +585,12 @@ function renderMain(){
   const sorted=[...assets].sort((x,y)=>y.ai.comb-x.ai.comb);
   $('#opps').innerHTML=sorted.slice(0,5).map(x=>`<div class="dvr" data-sym="${x.sym}"><b>${x.sym}</b><span class="bar2 dv"><i style="left:50%;width:${Math.abs(x.ai.comb)}%;background:${x.ai.comb>=0?'var(--up)':'var(--dn)'}"></i></span><span style="text-align:right">${x.ai.comb>=0?'+':''}${Math.round(x.ai.comb)}</span></div>`).join('');
 
-  $('#stLong').textContent=assets.filter(x=>x.ai.verdict!=='HOLD').length;
-  $('#stHold').textContent=assets.filter(x=>x.ai.verdict==='HOLD').length;
-  $('#stConf').textContent=Math.round(assets.reduce((s,x)=>s+x.ai.conf,0)/assets.length)+'%';
-  $('#stCycles').textContent=cycles;
-
   const v=ai.verdict, vText=v==='LONG'?'🐋 🟢 ENTRA LONG (Segnale Certo)':v==='SHORT'?'🐋 🔴 ENTRA SHORT (Segnale Certo)':'⚠️ ATTESA BALENE (No Movimenti)';
 
   $('#anSub').textContent=`${a.sym} · ${a.name} (${CLS[a.cls].label})`;
   $('#anPlan').innerHTML=`
     <div style="display:flex;justify-content:space-between"><span>Verdetto Balene</span><b style="color:${v==='HOLD'?'var(--warn)':'var(--up)'}">${vText}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Timeframe Analisi</span><b style="color:var(--gold)">${ai.tfRec}</b></div>
-    <div style="display:flex;justify-content:space-between"><span>⏱️ Timer Ottimizzato</span><b style="color:var(--gold);font-size:11.5px;" id="detailTimer">--</b></div>
     <div style="display:flex;justify-content:space-between"><span>Leva Reale Sicura</span><b style="color:var(--warn)">${ai.lev}x</b></div>
     <div style="display:flex;justify-content:space-between"><span>Prezzo d'Ingresso</span><b style="color:var(--cyan)">${money(a,a.price)}</b></div>`;
   
@@ -663,13 +601,13 @@ function renderMain(){
     <div style="display:flex;justify-content:space-between"><span>Stop Loss Millimetrico</span><b class="dn">${money(a,ai.sl)}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Attività Istituzionale</span><b style="color:var(--cyan)">${ai.whales}</b></div>`;
 
-  $('#anReason').textContent=`Analisi AI millimetrica su ${a.sym} (${CLS[a.cls].label}). ${ai.whales}. L'intelligenza artificiale rileva un andamento di mercato guidato dai flussi istituzionali con verdetto: "${vText}". Il timer ottimizzato garantisce una lettura fissa e stabile della validità del segnale certo sul timeframe ${ai.tfRec}. Precisione stimata: ${ai.conf}%.`;
+  $('#anReason').textContent=`Analisi AI millimetrica su ${a.sym} (${CLS[a.cls].label}). ${ai.whales}. L'intelligenza artificiale rileva un andamento di mercato guidato dai flussi istituzionali con verdetto: "${vText}". Il tempo utile di ingresso garantisce una lettura fissa e stabile della validità del segnale sul timeframe ${ai.tfRec}. Precisione stimata: ${ai.conf}%.`;
 
   $('#cSym').textContent=a.sym;$('#cName').textContent=a.name;$('#cPx').textContent=money(a,a.price);
   $('#cCh').innerHTML=`<span class="mono ${ai.ch24>=0?'up':'dn'}">${pc(ai.ch24)}</span>`;
 
   const nowStr=hhmm(SIM*1000);
-  $('#log').innerHTML=logs.slice(0,10).map(e=>`<li><time>${hhmm(e.t)}</time><span style="font-weight:700;color:var(--cyan)">${e.type}</span><span>${e.txt}</span></li>`).join('')||`<li class="empty">${nowStr} - Radar Balene SaaS &amp; Timer Ottimizzato attivo.</li>`;
+  $('#log').innerHTML=logs.slice(0,10).map(e=>`<li><time>${hhmm(e.t)}</time><span style="font-weight:700;color:var(--cyan)">${e.type}</span><span>${e.txt}</span></li>`).join('')||`<li class="empty">${nowStr} - Radar Balene SaaS &amp; Timer attivo.</li>`;
 
   $('#heat').innerHTML=Object.keys(CLS).map(k=>`<div class="hg"><h3>${CLS[k].label}</h3><div class="tiles">${assets.filter(a=>a.cls===k).map(a=>{const c=a.ai.ch24,bg=c>=0?'rgba(0,255,204,.15)':'rgba(255,51,102,.15)';return`<button type="button" class="tile" data-sym="${a.sym}" style="background:${bg}">${a.sym}<small>${pc(c)}</small></button>`}).join('')}</div></div>`).join('');
   
@@ -690,7 +628,13 @@ setInterval(()=>{
   const dt=$('#detailTimer');
   if(dt && bySym[sel]){
     const s=activeTimers[sel];
-    if(s!=null) dt.textContent=formatTimer(s);
+    if(s!=null){
+      dt.textContent=formatTimer(s);
+      const maxSec = bySym[sel].ai.totalDurationSeconds || 1200;
+      const pct = clamp(((maxSec - s) / maxSec) * 100, 5, 100);
+      const bar = $('#entryProgressBar');
+      if(bar) bar.style.width = pct + '%';
+    }
   }
 }, 1000);
 
