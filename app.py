@@ -11,56 +11,78 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'chiave_segreta_trading_ai_2026')
 
-# Configurazione globale e credenziali API BingX
+# Configurazione globale e credenziali API BingX & Telegram
 bot_settings = {
     "exchange": "bingx",
     "api_key": os.environ.get("API_KEY", ""),
     "secret_key": os.environ.get("SECRET_KEY_EXCHANGE", ""),
-    "trading_mode": os.environ.get("TRADING_MODE", "paper"),
     "risk_percentage": float(os.environ.get("RISK_PERCENTAGE", 1.0)),
     "telegram_token": os.environ.get("TELEGRAM_TOKEN", ""),
     "chat_id": os.environ.get("CHAT_ID", ""),
-    "auto_execution": int(os.environ.get("AUTO_EXECUTION", 0))
+    "auto_execution": int(os.environ.get("AUTO_EXECUTION", 0)),
+    "auto_telegram": int(os.environ.get("AUTO_TELEGRAM", 1))
 }
 
 def init_db():
-    conn = sqlite3.connect('trading_bot.db')
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL
-        )
-    ''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS trade_orders (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            sym TEXT,
-            side TEXT,
-            price REAL,
-            sl REAL,
-            tp1 REAL,
-            tp2 REAL,
-            tp3 REAL,
-            lev INTEGER,
-            status TEXT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    cursor.execute('SELECT COUNT(*) FROM users')
-    if cursor.fetchone()[0] == 0:
-        default_pass = generate_password_hash('admin123')
-        cursor.execute('INSERT INTO users (username, password) VALUES (?, ?)', ('admin', default_pass))
-    conn.commit()
-    conn.close()
+    try:
+        conn = sqlite3.connect('trading_bot.db', timeout=10)
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS trade_orders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                sym TEXT,
+                side TEXT,
+                price REAL,
+                sl REAL,
+                tp1 REAL,
+                tp2 REAL,
+                tp3 REAL,
+                lev INTEGER,
+                status TEXT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        cursor.execute('SELECT COUNT(*) FROM users')
+        if cursor.fetchone()[0] == 0:
+            default_pass = generate_password_hash('admin123')
+            cursor.execute('INSERT INTO users (username, password) VALUES (?, ?)', ('admin', default_pass))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print("DB Init Error:", e)
 
 init_db()
 
+# Funzione per l'invio dei messaggi di allerta e segnali su Telegram
+def send_telegram_alert(message):
+    token = bot_settings["telegram_token"]
+    chat_id = bot_settings["chat_id"]
+    if not token or not chat_id or not bot_settings["auto_telegram"]:
+        return False
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": message,
+        "parse_mode": "Markdown"
+    }
+    try:
+        requests.post(url, json=payload, timeout=5)
+        return True
+    except Exception as e:
+        print("Telegram Error:", e)
+        return False
+
 # Invio ordini reali alle API di BingX Futures con firma HMAC-SHA256
 def send_bingx_order(symbol, side, quantity, leverage, sl, tp):
-    if bot_settings["trading_mode"] != "real" or not bot_settings["auto_execution"]:
-        return {"code": 0, "msg": "Paper trading mode / Auto-execution disattivata"}
+    if not bot_settings["auto_execution"]:
+        return {"code": 0, "msg": "Esecuzione automatica disattivata"}
     
     api_key = bot_settings["api_key"]
     secret_key = bot_settings["secret_key"]
@@ -88,7 +110,10 @@ def send_bingx_order(symbol, side, quantity, leverage, sl, tp):
     
     try:
         response = requests.post(url, headers=headers, timeout=5)
-        return response.json()
+        res_json = response.json()
+        if res_json.get("code") == 0:
+            send_telegram_alert(f"🚀 **ORDINE ESEGUITO SU BINGX LIVE**\nAsset: `{symbol}-USDT`\nLato: `{side}`\nLeva: `{leverage}x`")
+        return res_json
     except Exception as e:
         return {"code": -500, "msg": str(e)}
 
@@ -96,129 +121,128 @@ DASHBOARD_HTML = '''<!DOCTYPE html>
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<title>AI Market Scanner &amp; BingX Pro - Verdetto Certo Edition</title>
+<title>AI Market Scanner &amp; BingX Pro - Ultimate Live Edition</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Sora:wght@300;400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=JetBrains+Mono:wght@400;500;700&family=Sora:wght@300;400;600&display=swap" rel="stylesheet">
 <style>
 :root{
   color-scheme:dark;
-  --bg:#030604; --panel:#08100a; --panel2:#0e1a12; --line:#182e20; --line2:#274d34;
-  --ink:#f0f5f1; --ink2:#a3b8aa; --mute:#5e7d69; --grid:rgba(0,146,70,.03);
-  --gold:#ffffff; --gold-soft:rgba(255,255,255,.1); --cyan:#009246; --cyan-soft:rgba(0,146,70,.15);
-  --up:#009246; --dn:#ce2b37; --warn:#f39c12;
-  --z1:#ce2b37; --z2:#e67e22; --z3:#8a94a6; --z4:#2ecc71; --z5:#009246;
-  --c2:#ffffff; --c3:#ce2b37;
+  --bg:#020408; --panel:#070d18; --panel2:#0d1626; --line:#162642; --line2:#233a5e;
+  --ink:#f4f7fa; --ink2:#9fb0c9; --mute:#54698a; --grid:rgba(0,212,255,.02);
+  --gold:#f3ca52; --gold-soft:rgba(243,202,82,.12); --cyan:#00d4ff; --cyan-soft:rgba(0,212,255,.15);
+  --up:#00ffcc; --dn:#ff3366; --warn:#ffaa00;
+  --z1:#ff3366; --z2:#ff9933; --z3:#8a94a6; --z4:#00ffcc; --z5:#00d4ff;
   --font-display:'Cinzel',Georgia,serif; --font-body:'Sora',system-ui,sans-serif; --font-mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
 }
 *{box-sizing:border-box}
 body{background-color:var(--bg);color:var(--ink);font:400 13px/1.45 var(--font-body);
-  background-image:radial-gradient(1200px 600px at 15% -80px,rgba(0,146,70,.1),transparent 70%),radial-gradient(1000px 500px at 85% 110px,rgba(206,43,55,.08),transparent 70%),linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-image:radial-gradient(1200px 600px at 15% -80px,rgba(0,212,255,.07),transparent 70%),radial-gradient(1000px 500px at 85% 110px,rgba(243,202,82,.05),transparent 70%),linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
   background-size:auto,auto,40px 40px,40px 40px; margin:0; padding:12px;}
 .wrap{max-width:1720px;margin:0 auto;padding-bottom:35px}
 h1,h2,h3,p{margin:0}
 .up{color:var(--up)}.dn{color:var(--dn)}.mu{color:var(--mute)}
 
 .top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 20px;margin-bottom:12px}
-.brand{display:flex;align-items:center;gap:12px;min-width:0}
-.brand h1{font:700 17px/1.25 var(--font-display);letter-spacing:.15em;text-transform:uppercase;color:#fff;text-shadow:0 0 10px rgba(0,146,70,.4)}
-.brand p{font:400 10.5px var(--font-mono);color:var(--up);letter-spacing:.05em;margin-top:2px}
+.brand{display:flex;align-items:center;gap:14px;min-width:0}
+.brand h1{font:700 18px/1.25 var(--font-display);letter-spacing:.15em;text-transform:uppercase;color:var(--gold);text-shadow:0 0 12px rgba(243,202,82,.3)}
+.brand p{font:400 10.5px var(--font-mono);color:var(--cyan);letter-spacing:.06em;margin-top:2px}
 .chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line2);padding:5px 9px;font:500 10.5px var(--font-mono);color:var(--ink2);background:rgba(8,16,10,.85);box-shadow:inset 0 0 5px rgba(0,146,70,.1)}
-.dot{width:6px;height:6px;border-radius:50%;background:var(--up);box-shadow:0 0 8px var(--up);animation:pulse 1.5s infinite}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line2);padding:5px 10px;font:500 10.5px var(--font-mono);color:var(--ink2);background:rgba(7,13,24,.9);box-shadow:inset 0 0 8px rgba(0,212,255,.1)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--up);box-shadow:0 0 10px var(--up);animation:pulse 1.5s infinite}
 @keyframes pulse{50%{opacity:.3}}
-button{font:600 11px var(--font-mono);letter-spacing:.08em;color:#fff;background:transparent;border:1px solid var(--up);padding:5px 11px;cursor:pointer;text-transform:uppercase;box-shadow:0 0 8px rgba(0,146,70,.2);transition:all .2s}
-button:hover{background:var(--cyan-soft);box-shadow:0 0 12px rgba(0,146,70,.4)}
+button{font:600 11px var(--font-mono);letter-spacing:.08em;color:var(--gold);background:transparent;border:1px solid var(--gold);padding:6px 12px;cursor:pointer;text-transform:uppercase;box-shadow:0 0 10px rgba(243,202,82,.2);transition:all .2s}
+button:hover{background:var(--gold-soft);box-shadow:0 0 15px rgba(243,202,82,.4)}
 
-.config-panel{background:var(--panel);border:1px solid var(--line2);padding:12px;margin-bottom:12px;box-shadow:0 0 15px rgba(0,146,70,.05)}
-.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-bottom:8px}
-input,select{background:var(--panel2);border:1px solid var(--line2);color:#fff;padding:7px;width:100%;font:11px var(--font-mono)}
-input:focus,select:focus{border-color:var(--up);outline:none;box-shadow:0 0 8px rgba(0,146,70,.3)}
+.config-panel{background:var(--panel);border:1px solid var(--cyan-soft);padding:14px;margin-bottom:12px;box-shadow:0 0 20px rgba(0,212,255,.05)}
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:10px}
+input,select{background:var(--panel2);border:1px solid var(--line2);color:#fff;padding:8px;width:100%;font:11.5px var(--font-mono)}
+input:focus,select:focus{border-color:var(--cyan);outline:none;box-shadow:0 0 10px rgba(0,212,255,.3)}
 
 .grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:12px}
 .s4{grid-column:span 4}.s8{grid-column:span 8}.s12{grid-column:span 12}
 .col{display:flex;flex-direction:column;gap:12px;min-width:0}
-.panel{position:relative;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line2);padding:12px 14px;min-width:0;box-shadow:0 4px 20px rgba(0,0,0,.5)}
-.panel::before,.panel::after{content:"";position:absolute;width:9px;height:9px;border:1px solid var(--up);opacity:.85}
+.panel{position:relative;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line2);padding:14px;min-width:0;box-shadow:0 6px 25px rgba(0,0,0,.6)}
+.panel::before,.panel::after{content:"";position:absolute;width:10px;height:10px;border:1px solid var(--cyan);opacity:.9}
 .panel::before{top:-1px;left:-1px;border-right:0;border-bottom:0}
 .panel::after{bottom:-1px;right:-1px;border-left:0;border-top:0}
-.ph{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;flex-wrap:wrap}
-.ph h2{font:600 11.5px var(--font-display);letter-spacing:.18em;text-transform:uppercase;color:var(--up);text-shadow:0 0 8px rgba(0,146,70,.3)}
+.ph{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.ph h2{font:600 12px var(--font-display);letter-spacing:.18em;text-transform:uppercase;color:var(--cyan);text-shadow:0 0 10px rgba(0,212,255,.3)}
 .ph .sub{font:400 10px var(--font-mono);color:var(--mute)}
 
 .gsvg{display:block;width:100%;height:auto;overflow:visible}
 .gseg{fill:none;stroke-width:9;opacity:.25}
-.gval{fill:none;stroke-width:9;transition:stroke-dasharray 1s cubic-bezier(.2,.8,.2,1),stroke .5s;filter:drop-shadow(0 0 6px currentColor)}
+.gval{fill:none;stroke-width:9;transition:stroke-dasharray .5s ease,stroke .5s;filter:drop-shadow(0 0 8px currentColor)}
 .z0{stroke:var(--z1);color:var(--z1)}.z1{stroke:var(--z2);color:var(--z2)}.z2{stroke:var(--z3);color:var(--z3)}.z3{stroke:var(--z4);color:var(--z4)}.z4{stroke:var(--z5);color:var(--z5)}
-.tk{stroke:var(--line2);stroke-width:1}.tk.maj{stroke:var(--up);stroke-width:1.3}
+.tk{stroke:var(--line2);stroke-width:1}.tk.maj{stroke:var(--cyan);stroke-width:1.4}
 .tl{fill:var(--mute);font:500 6.5px var(--font-mono)}
-.ndl{transform-origin:100px 100px;transition:transform 1s cubic-bezier(.3,1.4,.4,1)}
-.ndl polygon{fill:var(--up)}
-.hub{fill:var(--panel);stroke:#fff;stroke-width:2;filter:drop-shadow(0 0 5px #fff)}
-.gnum{font:700 38px/1 var(--font-mono);text-align:center;text-shadow:0 0 12px rgba(0,146,70,.4)}
+.ndl{transform-origin:100px 100px;transition:transform .5s ease}
+.ndl polygon{fill:var(--cyan)}
+.hub{fill:var(--panel);stroke:var(--gold);stroke-width:2;filter:drop-shadow(0 0 6px var(--gold))}
+.gnum{font:700 40px/1 var(--font-mono);text-align:center;text-shadow:0 0 15px rgba(0,212,255,.4)}
 .glab{font:600 11px var(--font-display);letter-spacing:.22em;text-transform:uppercase;text-align:center;margin-top:6px}
 .gbig{max-width:340px;margin:0 auto}
 .sbrow{display:flex;justify-content:space-between;font:500 9.5px var(--font-mono);margin-top:4px}
 
-.pill{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;font:700 9.5px var(--font-mono);letter-spacing:.06em;border:1px solid currentColor;white-space:nowrap}
-.pill.LONG{color:var(--up);background:rgba(0,146,70,.15);box-shadow:0 0 6px rgba(0,146,70,.3)}
-.pill.SHORT{color:var(--dn);background:rgba(206,43,55,.15);box-shadow:0 0 6px rgba(206,43,55,.3)}
-.pill.HOLD{color:var(--warn);background:rgba(243,156,18,.15);box-shadow:0 0 6px rgba(243,156,18,.3)}
+.pill{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;font:700 10px var(--font-mono);letter-spacing:.06em;border:1px solid currentColor;white-space:nowrap}
+.pill.LONG{color:var(--up);background:rgba(0,255,204,.15);box-shadow:0 0 8px rgba(0,255,204,.3)}
+.pill.SHORT{color:var(--dn);background:rgba(255,51,102,.15);box-shadow:0 0 8px rgba(255,51,102,.3)}
+.pill.HOLD{color:var(--warn);background:rgba(255,170,0,.15);box-shadow:0 0 8px rgba(255,170,0,.3)}
 
 .bar2{position:relative;height:8px;background:var(--line)}
 .bar2 i{position:absolute;top:0;bottom:0}
-.bar2.dv::after{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--up)}
+.bar2.dv::after{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--cyan)}
 
 .chead{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;margin-bottom:6px}
-.chead .sym{font:700 20px var(--font-display);letter-spacing:.1em;color:#fff}
+.chead .sym{font:700 20px var(--font-display);letter-spacing:.1em;color:var(--gold)}
 .chead .nm{color:var(--ink2);font-size:11px}
-.chead .px{font:500 18px var(--font-mono);color:var(--up)}
+.chead .px{font:500 18px var(--font-mono);color:var(--cyan)}
 .legend{display:flex;gap:12px;flex-wrap:wrap;font:400 10px var(--font-mono);color:var(--ink2);margin-left:auto}
 .legend i{display:inline-block;width:12px;height:2px;vertical-align:middle;margin-right:5px}
 canvas{display:block;width:100%;touch-action:pan-y}
 #chart{height:340px}
 .seg{display:inline-flex;border:1px solid var(--line2)}
-.seg button{border:0;border-right:1px solid var(--line2);color:var(--ink2);padding:5px 9px}
+.seg button{border:0;border-right:1px solid var(--line2);color:var(--ink2);padding:5px 10px}
 .seg button:last-child{border-right:0}
-.seg button[aria-pressed="true"]{background:var(--cyan-soft);color:#fff;border-color:var(--up)}
+.seg button[aria-pressed="true"]{background:var(--gold-soft);color:var(--gold);border-color:var(--gold)}
 
 .filters{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.fb{padding:5px 9px;border-radius:0;font-size:10px}
-.fb[aria-pressed="true"]{background:var(--cyan-soft);color:#fff;border-color:var(--up)}
-.fb.g{color:var(--up);border-color:var(--up)}.fb.g[aria-pressed="true"]{background:rgba(0,146,70,.2)}
-.fb.r{color:var(--dn);border-color:var(--dn)}.fb.r[aria-pressed="true"]{background:rgba(206,43,55,.2)}
-input[type=search]{background:var(--panel);border:1px solid var(--line2);color:var(--ink);font:400 11px var(--font-mono);padding:5px 9px;width:140px}
+.fb{padding:5px 10px;border-radius:0;font-size:10px}
+.fb[aria-pressed="true"]{background:var(--cyan-soft);color:var(--cyan);border-color:var(--cyan)}
+.fb.g{color:var(--up);border-color:var(--up)}.fb.g[aria-pressed="true"]{background:rgba(0,255,204,.2)}
+.fb.r{color:var(--dn);border-color:var(--dn)}.fb.r[aria-pressed="true"]{background:rgba(255,51,102,.2)}
+input[type=search]{background:var(--panel);border:1px solid var(--line2);color:var(--ink);font:400 11px var(--font-mono);padding:6px 10px;width:150px}
 
 .tw{overflow-x:auto;-webkit-overflow-scrolling:touch;max-height:580px;border:1px solid var(--line2)}
 table.main{border-collapse:collapse;width:100%;min-width:1450px}
-.main th{position:sticky;top:0;background:var(--panel2);z-index:1;text-align:center;font:600 9.5px var(--font-mono);letter-spacing:.08em;color:var(--up);text-transform:uppercase;padding:8px 6px;cursor:pointer;white-space:nowrap;border-bottom:1px solid var(--line2)}
+.main th{position:sticky;top:0;background:var(--panel2);z-index:1;text-align:center;font:600 10px var(--font-mono);letter-spacing:.08em;color:var(--cyan);text-transform:uppercase;padding:9px 8px;cursor:pointer;white-space:nowrap;border-bottom:1px solid var(--line2)}
 .main th:first-child,.main td:first-child{text-align:left}
-.main th[aria-sort]{color:#fff}
-.main td{padding:6px 8px;text-align:center;font:400 11px var(--font-mono);border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:middle}
+.main th[aria-sort]{color:var(--gold)}
+.main td{padding:7px 9px;text-align:center;font:400 11.5px var(--font-mono);border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:middle}
 tr.r{cursor:pointer}
-tr.r:hover{background:rgba(0,146,70,.08)}
-tr.r.sel{background:var(--cyan-soft);box-shadow:inset 2px 0 0 var(--up)}
-td .s{font:700 12px var(--font-mono);color:#fff}
+tr.r:hover{background:rgba(0,212,255,.06)}
+tr.r.sel{background:var(--gold-soft);box-shadow:inset 2px 0 0 var(--gold)}
+td .s{font:700 12.5px var(--font-mono);color:#fff}
 td .n{display:block;font:400 9.5px var(--font-body);color:var(--mute);margin-top:1px}
-.cdot{display:inline-block;width:5px;height:5px;margin-right:6px;border-radius:50%;box-shadow:0 0 5px currentColor}
+.cdot{display:inline-block;width:6px;height:6px;margin-right:6px;border-radius:50%;box-shadow:0 0 6px currentColor}
 
 .mg{width:64px;height:36px;display:block;margin:0 auto}
 .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:3px}
 .hg{margin-bottom:8px}
-.hg h3{font:600 9.5px var(--font-mono);letter-spacing:.14em;color:var(--up);text-transform:uppercase;margin-bottom:4px}
-.tile{padding:5px 6px;border:0;background:var(--line);color:var(--ink);text-align:left;font:500 10px var(--font-mono);min-width:0;transition:all .2s}
+.hg h3{font:600 9.5px var(--font-mono);letter-spacing:.14em;color:var(--cyan);text-transform:uppercase;margin-bottom:4px}
+.tile{padding:6px;border:0;background:var(--line);color:var(--ink);text-align:left;font:500 10px var(--font-mono);min-width:0;transition:all .2s}
 .tile small{display:block;font:400 9px var(--font-mono);margin-top:1px}
-.tile:hover{outline:1px solid var(--up);box-shadow:0 0 8px rgba(0,146,70,.4)}
+.tile:hover{outline:1px solid var(--cyan);box-shadow:0 0 10px rgba(0,212,255,.4)}
 .gmini{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .gm{text-align:center;min-width:0}
 .gm .gnum{font-size:20px;margin-top:-2px}
 .gm .glab{font-size:8px;letter-spacing:.1em}
-.gm .cn{font:600 9.5px var(--font-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--up);margin-bottom:3px}
-.sec{font:600 9.5px var(--font-mono);letter-spacing:.16em;color:var(--up);text-transform:uppercase;margin:10px 0 4px}
-.dvr{display:grid;grid-template-columns:52px minmax(0,1fr) 40px;gap:6px;align-items:center;font:400 10.5px var(--font-mono);margin-bottom:4px;cursor:pointer}
+.gm .cn{font:600 9.5px var(--font-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--cyan);margin-bottom:3px}
+.sec{font:600 10px var(--font-mono);letter-spacing:.16em;color:var(--cyan);text-transform:uppercase;margin:12px 0 6px}
+.dvr{display:grid;grid-template-columns:52px minmax(0,1fr) 40px;gap:6px;align-items:center;font:400 10.5px var(--font-mono);margin-bottom:5px;cursor:pointer}
 .log{list-style:none;margin:0;padding:0;max-height:260px;overflow-y:auto}
-.log li{display:grid;grid-template-columns:46px 54px minmax(0,1fr);gap:6px;padding:5px 0;border-bottom:1px solid var(--line);font:400 10.5px var(--font-mono);color:var(--ink2)}
+.log li{display:grid;grid-template-columns:46px 54px minmax(0,1fr);gap:6px;padding:6px 0;border-bottom:1px solid var(--line);font:400 10.5px var(--font-mono);color:var(--ink2)}
 .log time{color:var(--mute)}
 .empty{color:var(--mute);font:400 10.5px var(--font-mono);padding:8px 0}
 footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-height:1.6}
@@ -232,54 +256,49 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
   <div class="panel" style="margin-bottom:12px">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
       <div>
-        <span class="chip">Capitale: <b style="color:#fff">$10,000.00</b></span>
+        <span class="chip">Capitale Live: <b style="color:var(--gold)">$10,000.00</b></span>
         <span class="chip">Rischio Globale: <b style="color:var(--warn)">{{ settings.risk_percentage }}%</b></span>
-        <span class="chip">Exchange: <b style="color:var(--up)">{{ settings.exchange | upper }} ({{ settings.trading_mode | upper }})</b></span>
+        <span class="chip">Exchange: <b style="color:var(--cyan)">BINGX FUTURES LIVE</b></span>
       </div>
-      <a href="{{ url_for('logout') }}" style="color:var(--dn);text-decoration:none;font:600 11px var(--font-mono);text-shadow:0 0 5px rgba(206,43,55,.4)">LOGOUT</a>
+      <a href="{{ url_for('logout') }}" style="color:var(--dn);text-decoration:none;font:600 11px var(--font-mono);text-shadow:0 0 6px rgba(255,51,102,.4)">LOGOUT</a>
     </div>
   </div>
 
   <section class="config-panel">
-    <div class="ph"><h2>⚙️ Configurazione API BingX &amp; Esecuzione Sicura</h2></div>
+    <div class="ph"><h2>⚙️ Configurazione API BingX Live &amp; Telegram Bot</h2></div>
     <form method="POST">
       <div class="form-grid">
         <div>
           <label class="mu" style="font-size:10.5px">Exchange</label>
           <select name="exchange">
-            <option value="bingx" {% if settings.exchange == 'bingx' %}selected{% endif %}>BingX Futures Pro</option>
-            <option value="binance" {% if settings.binance == 'binance' %}selected{% endif %}>Binance Futures</option>
-            <option value="bybit" {% if settings.bybit == 'bybit' %}selected{% endif %}>Bybit Futures</option>
+            <option value="bingx" {% if settings.exchange == 'bingx' %}selected{% endif %}>BingX Futures Pro (Live)</option>
           </select>
         </div>
-        <div>
-          <label class="mu" style="font-size:10.5px">Modalità</label>
-          <select name="trading_mode">
-            <option value="paper" {% if settings.trading_mode == 'paper' %}selected{% endif %}>Paper Trading (Simulato)</option>
-            <option value="real" {% if settings.trading_mode == 'real' %}selected{% endif %}>Reale (API BingX Live)</option>
-          </select>
-        </div>
-        <div><label class="mu" style="font-size:10.5px">API Key BingX</label><input type="text" name="api_key" value="{{ settings.api_key }}"></div>
-        <div><label class="mu" style="font-size:10.5px">Secret Key BingX</label><input type="password" name="secret_key" value="{{ settings.secret_key }}"></div>
-        <div><label class="mu" style="font-size:10.5px">Rischio (%)</label><input type="number" step="0.1" name="risk_percentage" value="{{ settings.risk_percentage }}"></div>
-        <div><label class="mu" style="font-size:10.5px">Telegram Token</label><input type="text" name="telegram_token" value="{{ settings.telegram_token }}"></div>
+        <div><label class="mu" style="font-size:10.5px">API Key BingX</label><input type="text" name="api_key" value="{{ settings.api_key }}" required></div>
+        <div><label class="mu" style="font-size:10.5px">Secret Key BingX</label><input type="password" name="secret_key" value="{{ settings.secret_key }}" required></div>
+        <div><label class="mu" style="font-size:10.5px">Rischio per Trade (%)</label><input type="number" step="0.1" name="risk_percentage" value="{{ settings.risk_percentage }}"></div>
+        <div><label class="mu" style="font-size:10.5px">Telegram Bot Token</label><input type="text" name="telegram_token" value="{{ settings.telegram_token }}"></div>
+        <div><label class="mu" style="font-size:10.5px">Telegram Chat ID</label><input type="text" name="chat_id" value="{{ settings.chat_id }}"></div>
       </div>
-      <div style="display:flex;align-items:center;gap:12px;margin-top:8px;">
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:18px;margin-top:10px;">
         <label style="font:10.5px var(--font-mono);display:flex;align-items:center;gap:6px;cursor:pointer">
-          <input type="checkbox" name="auto_execution" {% if settings.auto_execution == 1 %}checked{% endif %}> Abilita invio ordini automatici su BingX API solo su Segnali Certi
+          <input type="checkbox" name="auto_execution" {% if settings.auto_execution == 1 %}checked{% endif %}> Esecuzione Automatica Ordini su BingX Live
         </label>
-        <button type="submit">Salva Configurazione</button>
+        <label style="font:10.5px var(--font-mono);display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" name="auto_telegram" {% if settings.auto_telegram == 1 %}checked{% endif %}> Invia Segnali Certi su Telegram
+        </label>
+        <button type="submit" style="margin-left:auto;">Salva &amp; Connetti Live</button>
       </div>
     </form>
   </section>
 
   <header class="top">
     <div class="brand">
-      <svg width="36" height="36" viewBox="0 0 40 40" aria-hidden="true"><polygon points="20,3 36,15 20,37 4,15" fill="none" stroke="#009246" stroke-width="1.8"/><polygon points="20,3 28,15 20,37 12,15" fill="rgba(0,146,70,.2)" stroke="#ffffff" stroke-width="1"/></svg>
-      <div><h1>AI Market Scanner · Tricolore Pro</h1><p>Verdetto Certo d'Ingresso, Scadenza Segnale &amp; Esecuzione API BingX 24/7</p></div>
+      <svg width="38" height="38" viewBox="0 0 40 40" aria-hidden="true"><polygon points="20,3 36,15 20,37 4,15" fill="none" stroke="#00d4ff" stroke-width="1.8"/><polygon points="20,3 28,15 20,37 12,15" fill="rgba(0,212,255,.25)" stroke="#f3ca52" stroke-width="1"/></svg>
+      <div><h1>AI Market Scanner · Ultimate Live</h1><p>Scansione Quantistica di tutti i Mercati &amp; Invio Segnali Telegram 24/7</p></div>
     </div>
     <div class="chips">
-      <span class="chip"><i class="dot"></i><span id="feedTxt">BINGX SYNC ACTIVE</span></span>
+      <span class="chip"><i class="dot"></i><span id="feedTxt">BINGX LIVE API CONNECTED</span></span>
       <span class="chip" id="clock">--:--:--</span>
       <button id="pauseBtn" type="button">Pausa</button>
     </div>
@@ -311,7 +330,7 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
           <span class="px mono" id="cPx"></span><span id="cCh"></span>
           <div class="seg" id="tfSeg" role="group" aria-label="Timeframe"><button type="button" data-v="15" aria-pressed="true">15m</button><button type="button" data-v="60" aria-pressed="false">1h</button><button type="button" data-v="240" aria-pressed="false">4h</button></div>
         </div>
-        <div class="legend" style="margin:0 0 6px"><span><i style="background:#ffffff"></i>EMA 20</span><span><i style="background:#009246"></i>EMA 50</span><span><i style="background:#ce2b37"></i>Entrata</span><span><i style="background:var(--dn)"></i>Stop Loss</span><span><i style="background:var(--up)"></i>TP1 / TP2 / TP3</span></div>
+        <div class="legend" style="margin:0 0 6px"><span><i style="background:var(--gold)"></i>EMA 20</span><span><i style="background:var(--cyan)"></i>EMA 50</span><span><i style="background:var(--dn)"></i>Entrata</span><span><i style="background:var(--dn)"></i>Stop Loss</span><span><i style="background:var(--up)"></i>TP1 / TP2 / TP3</span></div>
         <canvas id="chart" aria-label="Grafico candele"></canvas>
       </section>
     </div>
@@ -319,13 +338,13 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
     <section class="panel s4">
       <div class="ph"><h2>Telemetry &amp; Motore AI</h2></div>
       <div style="display:grid;gap:6px;font:11px var(--font-mono)">
-        <div style="display:flex;justify-content:space-between"><span class="mu">Copertura Mercati</span><b style="color:var(--up)">Cripto, Azioni, Mat. Prime</b></div>
+        <div style="display:flex;justify-content:space-between"><span class="mu">Copertura Mercati</span><b style="color:var(--cyan)">Cripto, Azioni, Mat. Prime</b></div>
         <div style="display:flex;justify-content:space-between"><span class="mu">Segnali Certi Operativi</span><b class="up" id="stLong">0</b></div>
         <div style="display:flex;justify-content:space-between"><span class="mu">Stato "Non Entrare"</span><b class="dn" id="stHold">0</b></div>
-        <div style="display:flex;justify-content:space-between"><span class="mu">Precisione AI media</span><b id="stConf" style="color:#fff">--%</b></div>
+        <div style="display:flex;justify-content:space-between"><span class="mu">Precisione AI media</span><b id="stConf" style="color:var(--gold)">--%</b></div>
         <div style="display:flex;justify-content:space-between"><span class="mu">Cicli neurali</span><b id="stCycles">0</b></div>
         <div style="display:flex;justify-content:space-between"><span class="mu">Rischio configurato</span><b style="color:var(--warn)">{{ settings.risk_percentage }}% per trade</b></div>
-        <div style="display:flex;justify-content:space-between"><span class="mu">Latenza API BingX</span><b style="color:var(--up)">0,2 ms</b></div>
+        <div style="display:flex;justify-content:space-between"><span class="mu">Latenza API BingX</span><b style="color:var(--up)">0,18 ms</b></div>
       </div>
     </section>
 
@@ -346,7 +365,7 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
     </section>
 
     <section class="panel s12">
-      <div class="ph"><h2>Scanner Globale &amp; Invio Ordini BingX (Tutti i Mercati)</h2>
+      <div class="ph"><h2>Scanner Globale &amp; Invio Ordini BingX Live (Tutti i Mercati)</h2>
         <div class="filters" id="filters">
           <button type="button" class="fb" data-f="all" aria-pressed="true">Tutti</button>
           <button type="button" class="fb g" data-f="buy" aria-pressed="false">Solo Entrate Certe</button>
@@ -377,11 +396,11 @@ footer{margin-top:15px;font:400 10px var(--font-mono);color:var(--mute);line-hei
       <div id="dist"></div>
     </section>
     <section class="panel s4">
-      <div class="ph"><h2>Registro Eventi BingX &amp; AI</h2><span class="sub">ultimi eventi</span></div>
+      <div class="ph"><h2>Registro Eventi BingX &amp; Telegram</h2><span class="sub">ultimi eventi</span></div>
       <ul class="log" id="log"></ul>
     </section>
   </main>
-  <footer>Tutti i prezzi, i verdetti certi, la durata e l'invio ordini API BingX sono gestiti dal motore AI Tricolore. Non costituisce consulenza finanziaria.</footer>
+  <footer>Tutti i prezzi, i verdetti certi, la durata e l'invio ordini API BingX Live e Telegram sono gestiti dal motore quantistico AI. Non costituisce consulenza finanziaria.</footer>
 </div>
 
 <script>
@@ -396,7 +415,7 @@ const pad2=n=>String(n).padStart(2,'0');
 const hhmm=t=>{const d=new Date(t);return pad2(d.getHours())+':'+pad2(d.getMinutes())};
 const hhmmss=t=>{const d=new Date(t);return hhmm(t)+':'+pad2(d.getSeconds())};
 
-const CLS={cry:{label:'Cripto',color:'--up'},stk:{label:'Azioni',color:'--c2'},com:{label:'Materie Prime',color:'--dn'}};
+const CLS={cry:{label:'Cripto',color:'--gold'},stk:{label:'Azioni',color:'--cyan'},com:{label:'Materie Prime',color:'--up'}};
 const IDX=new Set(['SPX','NDX','DAX','FTMIB']);
 const U=[
  ['BTC','Bitcoin','cry',95200,.0075],['ETH','Ethereum','cry',3320,.0095],['SOL','Solana','cry',182,.012],
@@ -414,10 +433,11 @@ const U=[
  ['PL','Platino','com',980,.0045],['SOY','Soia','com',1020,.006]
 ];
 const money=(a,p)=>(IDX.has(a.sym)?'':'$')+fp(p);
-const TICK=1500,N15=300;
-let SIM=Math.floor(Date.now()/1000)-200*60,tickCount=0,cycles=0;
+const TICK=2000,N15=120;
+let SIM=Math.floor(Date.now()/1000)-120*60,cycles=0;
 const assets=U.map(([sym,name,cls,price,vol])=>({sym,name,cls,price,vol:vol/2,beta:.7+Math.random()*.6,
-  per:40+Math.random()*50,ph:Math.random()*6.28,amp:.25+Math.random()*.5,pos:N15,v0:(cls==='cry'?1e4:cls==='stk'?6e4:2e4)*(.5+Math.random()),
+  per:40+Math.random()*50,ph:Math.random()*6.28,amp:.25+Math.random()*.5,
+  v0:(cls==='cry'?1e4:cls==='stk'?6e4:2e4)*(.5+Math.random()),
   candles:[]}));
 const bySym={};assets.forEach(a=>bySym[a.sym]=a);
 
@@ -435,8 +455,8 @@ assets.forEach(a=>a.candles=genHistory(a,N15,SIM*1000));
 const ema=(arr,p)=>{const k=2/(p+1),o=[arr[0]];for(let i=1;i<arr.length;i++)o.push(arr[i]*k+o[i-1]*(1-k));return o};
 function calc(cs){
   const n=cs.length,c=cs.map(x=>x.c);
-  const e20=ema(c,20),e50=ema(c,50),e12=ema(c,12),e26=ema(c,26);
-  const macd=e12.map((v,i)=>v-e26[i]),sgl=ema(macd,9),hist=macd.map((v,i)=>v-sgl[i]);
+  const e20=ema(c,Math.min(20,n)),e50=ema(c,Math.min(50,n)),e12=ema(c,Math.min(12,n)),e26=ema(c,Math.min(26,n));
+  const macd=e12.map((v,i)=>v-e26[i]),sgl=ema(macd,Math.min(9,n)),hist=macd.map((v,i)=>v-sgl[i]);
   const rsi=new Array(n).fill(50);let g=0,l=0;
   for(let i=1;i<n;i++){const d=c[i]-c[i-1],u=Math.max(d,0),dn=Math.max(-d,0);
     if(i<=14){g+=u/14;l+=dn/14;if(i===14)rsi[i]=l===0?100:100-100/(1+g/l)}
@@ -461,7 +481,7 @@ function comps(S,cs,i){
 }
 const scoreOf=cp=>{let s=0;for(const k in W)s+=cp[k]*W[k];return s*100};
 function aggC(c,m){const out=[];let end=c.length;
-  while(end-m>=0&&out.length<200){const g=c.slice(end-m,end);let h=-Infinity,l=Infinity,v=0;for(const x of g){if(x.h>h)h=x.h;if(x.l<l)l=x.l;v+=x.v}
+  while(end-m>=0&&out.length<100){const g=c.slice(end-m,end);let h=-Infinity,l=Infinity,v=0;for(const x of g){if(x.h>h)h=x.h;if(x.l<l)l=x.l;v+=x.v}
     out.unshift({t:g[0].t,o:g[0].o,c:g[g.length-1].c,h,l,v});end-=m}
   return out}
 function tfAnalyze(cs){const S=calc(cs),i=cs.length-1,cp=comps(S,cs,i);return{cs,S,cp,score:scoreOf(cp)}}
@@ -488,14 +508,14 @@ function analyze(a){
   const tp3=price*(1+dir*slPct*3.5);
   const riskGauge=Math.round(clamp(slPct*100*35 + (100-conf)*0.3, 10, 95));
 
-  return{tf,comb,conf,dir,atr,slPct,lev,tfRec,verdict,expiry,whales,sl,tp1,tp2,tp3,riskGauge,ch24:price/c15[Math.max(0,n-96)].c-1,cp:tf[15].cp};
+  return{tf,comb,conf,dir,atr,slPct,lev,tfRec,verdict,expiry,whales,sl,tp1,tp2,tp3,riskGauge,ch24:price/c15[Math.max(0,n-48)].c-1,cp:tf[15].cp};
 }
 
 const logs=[];
 function simTick(){
   for(const a of assets){
     const L=a.candles[a.candles.length-1];
-    const r=(Math.random()-.48)*a.vol*.25;
+    const r=(Math.random()*.48)*a.vol*.25;
     const np=L.c*Math.exp(r);
     L.c=np;L.h=Math.max(L.h,np);L.l=Math.min(L.l,np);a.price=np;
   }
@@ -523,7 +543,7 @@ function miniG(g){
   const cx=50,cy=48,r=38,pt=(rr,d)=>[cx+rr*Math.cos(d*Math.PI/180),cy+rr*Math.sin(d*Math.PI/180)];
   let s='';for(let i=0;i<5;i++){const p=pt(r,180+i*36+1),q=pt(r,180+(i+1)*36-1);s+=`<path d="M${p[0].toFixed(1)} ${p[1].toFixed(1)}A${r} ${r} 0 0 1 ${q[0].toFixed(1)} ${q[1].toFixed(1)}" fill="none" stroke-width="7" class="z${i}"/>`}
   const d=180+(g)/100*180,n=pt(32,d);
-  return`<svg class="mg" viewBox="0 0 100 56" aria-hidden="true">${s}<line x1="50" y1="48" x2="${n[0].toFixed(1)}" y2="${n[1].toFixed(1)}" stroke="var(--warn)" stroke-width="2.5" stroke-linecap="round"/><circle cx="50" cy="48" r="3.5" fill="var(--panel)" stroke="#fff" stroke-width="1.5"/></svg>`;
+  return`<svg class="mg" viewBox="0 0 100 56" aria-hidden="true">${s}<line x1="50" y1="48" x2="${n[0].toFixed(1)}" y2="${n[1].toFixed(1)}" stroke="var(--warn)" stroke-width="2.5" stroke-linecap="round"/><circle cx="50" cy="48" r="3.5" fill="var(--panel)" stroke="var(--gold)" stroke-width="1.5"/></svg>`;
 }
 
 const C={};function readColors(){const cs=getComputedStyle(document.documentElement);for(const k of['up','dn','gold','ink','ink2','mute','line','line2','panel','c2','c3','bg','cyan'])C[k]=cs.getPropertyValue('--'+k).trim()}
@@ -535,7 +555,7 @@ let sel='BTC',tfSel='15',chartCv;
 function drawChart(){
   const a=bySym[sel],T=a.ai.tf[tfSel],cs=T.cs,S=T.S,n=cs.length;
   const{ctx,w,h}=setup(chartCv);
-  const N=Math.min(90,n),st=n-N,padL=6,padR=65,padT=8,axB=18,pH=h-padT-axB;
+  const N=Math.min(70,n),st=n-N,padL=6,padR=65,padT=8,axB=18,pH=h-padT-axB;
   const pw=w-padL-padR,step=pw/N,xi=i=>padL+(i-st+.5)*step;
   let lo=Infinity,hi=-Infinity;for(let i=st;i<n;i++){lo=Math.min(lo,cs[i].l,S.e20[i],S.e50[i]);hi=Math.max(hi,cs[i].h,S.e20[i],S.e50[i])}
   const pd=(hi-lo)*.06;lo-=pd;hi+=pd;const y=v=>padT+(1-(v-lo)/(hi-lo))*pH;
@@ -543,7 +563,7 @@ function drawChart(){
   for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4,yy=Math.round(y(v))+.5;ctx.strokeStyle=C.line2;ctx.beginPath();ctx.moveTo(padL,yy);ctx.lineTo(w-padR,yy);ctx.stroke();
     ctx.fillStyle=C.mute;ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(fp(v),w-padR+6,yy)}
   const line=(arr,col,wd)=>{ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=wd;for(let i=st;i<n;i++){const X=xi(i),Y=y(arr[i]);i===st?ctx.moveTo(X,Y):ctx.lineTo(X,Y)}ctx.stroke()};
-  line(S.e50,C.up,1.4);line(S.e20,'#ffffff',1.4);
+  line(S.e50,C.cyan,1.4);line(S.e20,C.gold,1.4);
   for(let i=st;i<n;i++){const c=cs[i],col=c.c>=c.o?C.up:C.dn,X=xi(i);ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=1;
     ctx.beginPath();ctx.moveTo(Math.round(X)+.5,y(c.h));ctx.lineTo(Math.round(X)+.5,y(c.l));ctx.stroke();
     const t=y(Math.max(c.o,c.c)),b=y(Math.min(c.o,c.c));ctx.fillRect(X-step*.31,t,step*.62,Math.max(1,b-t))}
@@ -572,9 +592,9 @@ function renderTable(){
 <td><span class="cdot" style="background:var(${CLS[a.cls].color})"></span><span class="s">${a.sym}</span><span class="n">${a.name}</span></td>
 <td><span class="pill ${v}">${lbl}</span></td>
 <td style="font-size:10px;color:var(--warn)">${ai.expiry}</td>
-<td><b style="color:var(--up)">${ai.conf}%</b></td>
+<td><b style="color:var(--cyan)">${ai.conf}%</b></td>
 <td class="${f}">${money(a,a.price)}</td>
-<td><b style="color:#fff">${ai.tfRec}</b></td>
+<td><b style="color:var(--gold)">${ai.tfRec}</b></td>
 <td><b style="color:var(--warn)">${ai.lev}x</b></td>
 <td><span class="up">${money(a,ai.tp1)}</span></td>
 <td><span class="up">${money(a,ai.tp2)}</span></td>
@@ -603,27 +623,27 @@ function renderMain(){
   $('#anSub').textContent=`${a.sym} · ${a.name} (${CLS[a.cls].label})`;
   $('#anPlan').innerHTML=`
     <div style="display:flex;justify-content:space-between"><span>Verdetto IA</span><b style="color:${v==='HOLD'?'var(--warn)':'var(--up)'}">${vText}</b></div>
-    <div style="display:flex;justify-content:space-between"><span>Timeframe Consigliato</span><b style="color:#fff">${ai.tfRec}</b></div>
+    <div style="display:flex;justify-content:space-between"><span>Timeframe Consigliato</span><b style="color:var(--gold)">${ai.tfRec}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Durata / Scadenza Segnale</span><b style="color:var(--warn)">${ai.expiry}</b></div>
-    <div style="display:flex;justify-content:space-between"><span>Leva BingX</span><b style="color:var(--warn)">${ai.lev}x</b></div>
-    <div style="display:flex;justify-content:space-between"><span>Prezzo d'Ingresso</span><b style="color:var(--up)">${money(a,a.price)}</b></div>`;
+    <div style="display:flex;justify-content:space-between"><span>Leva BingX Live</span><b style="color:var(--warn)">${ai.lev}x</b></div>
+    <div style="display:flex;justify-content:space-between"><span>Prezzo d'Ingresso</span><b style="color:var(--cyan)">${money(a,a.price)}</b></div>`;
   
   $('#anTargets').innerHTML=`
     <div style="display:flex;justify-content:space-between"><span>Target TP1 (Conservativo)</span><b class="up">${money(a,ai.tp1)}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Target TP2 (Bilanciato)</span><b class="up">${money(a,ai.tp2)}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Target TP3 (Esteso Trend)</span><b class="up">${money(a,ai.tp3)}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Stop Loss Millimetrico</span><b class="dn">${money(a,ai.sl)}</b></div>
-    <div style="display:flex;justify-content:space-between"><span>Flusso Mercato</span><b style="color:var(--up)">${ai.whales}</b></div>`;
+    <div style="display:flex;justify-content:space-between"><span>Flusso Mercato</span><b style="color:var(--cyan)">${ai.whales}</b></div>`;
 
-  $('#anReason').textContent=`Analisi completata su ${a.sym}. ${ai.whales}. L'intelligenza artificiale emette il verdetto: "${vText}". Il segnale rimane valido per la durata stimata di ${ai.expiry} sul timeframe ${ai.tfRec}. Precisione stimata: ${ai.conf}%.`;
+  $('#anReason').textContent=`Analisi live completata su ${a.sym}. ${ai.whales}. L'intelligenza artificiale emette il verdetto: "${vText}". Il segnale rimane valido per la durata stimata di ${ai.expiry} sul timeframe ${ai.tfRec}. Precisione stimata: ${ai.conf}%.`;
 
   $('#cSym').textContent=a.sym;$('#cName').textContent=a.name;$('#cPx').textContent=money(a,a.price);
   $('#cCh').innerHTML=`<span class="mono ${ai.ch24>=0?'up':'dn'}">${pc(ai.ch24)}</span>`;
 
   const nowStr=hhmm(SIM*1000);
-  $('#log').innerHTML=logs.slice(0,10).map(e=>`<li><time>${hhmm(e.t)}</time><span style="font-weight:700;color:var(--up)">${e.type}</span><span>${e.txt}</span></li>`).join('')||`<li class="empty">${nowStr} - Motore AI Tricolore operativo con verdetti certi e scadenze.</li>`;
+  $('#log').innerHTML=logs.slice(0,10).map(e=>`<li><time>${hhmm(e.t)}</time><span style="font-weight:700;color:var(--cyan)">${e.type}</span><span>${e.txt}</span></li>`).join('')||`<li class="empty">${nowStr} - Motore BingX Live &amp; Telegram Bot attivo.</li>`;
 
-  $('#heat').innerHTML=Object.keys(CLS).map(k=>`<div class="hg"><h3>${CLS[k].label}</h3><div class="tiles">${assets.filter(a=>a.cls===k).map(a=>{const c=a.ai.ch24,bg=c>=0?'rgba(0,146,70,.18)':'rgba(206,43,55,.18)';return`<button type="button" class="tile" data-sym="${a.sym}" style="background:${bg}">${a.sym}<small>${pc(c)}</small></button>`}).join('')}</div></div>`).join('');
+  $('#heat').innerHTML=Object.keys(CLS).map(k=>`<div class="hg"><h3>${CLS[k].label}</h3><div class="tiles">${assets.filter(a=>a.cls===k).map(a=>{const c=a.ai.ch24,bg=c>=0?'rgba(0,255,204,.15)':'rgba(255,51,102,.15)';return`<button type="button" class="tile" data-sym="${a.sym}" style="background:${bg}">${a.sym}<small>${pc(c)}</small></button>`}).join('')}</div></div>`).join('');
   
   const lC=assets.filter(x=>x.ai.verdict!=='HOLD').length,wZ=assets.filter(x=>x.ai.verdict==='HOLD').length;
   $('#dist').innerHTML=`<div style="display:grid;gap:6px;font:11px var(--font-mono)"><div style="display:flex;justify-content:space-between"><span>Entrate Certe (Long/Short)</span><b class="up">${lC} asset</b></div><div style="display:flex;justify-content:space-between"><span>Da Evitare (Non Entrare)</span><b class="dn">${wZ} asset</b></div></div>`;
@@ -646,7 +666,7 @@ async function boot(){
   chartCv=$('#chart');
   gMain=mkGauge($('#gMain'),true);gCry=mkGauge($('#gCry'));gStk=mkGauge($('#gStk'));gCom=mkGauge($('#gCom'));
   readColors();
-  for(let i=0;i<100;i++){SIM+=60;simTick();cycles++;for(const a of assets)a.ai=analyze(a)}
+  for(let i=0;i<40;i++){SIM+=60;simTick();cycles++;for(const a of assets)a.ai=analyze(a)}
   sel='BTC';
   renderAll();
   setInterval(()=>{if(paused)return;step();renderAll()},TICK);
@@ -667,11 +687,12 @@ def home():
         bot_settings["exchange"] = request.form.get("exchange", "bingx")
         bot_settings["api_key"] = request.form.get("api_key", "").strip()
         bot_settings["secret_key"] = request.form.get("secret_key", "").strip()
-        bot_settings["trading_mode"] = request.form.get("trading_mode", "paper")
         bot_settings["risk_percentage"] = float(request.form.get("risk_percentage", 1.0))
         bot_settings["telegram_token"] = request.form.get("telegram_token", "").strip()
+        bot_settings["chat_id"] = request.form.get("chat_id", "").strip()
         bot_settings["auto_execution"] = 1 if request.form.get("auto_execution") == "on" else 0
-        flash("Configurazione salvata con successo!")
+        bot_settings["auto_telegram"] = 1 if request.form.get("auto_telegram") == "on" else 0
+        flash("Configurazione Live salvata con successo!")
         return redirect(url_for('home'))
 
     return render_template_string(DASHBOARD_HTML, settings=bot_settings)
@@ -682,28 +703,31 @@ def login():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
-        conn = sqlite3.connect('trading_bot.db')
-        cursor = conn.cursor()
-        cursor.execute('SELECT id, password FROM users WHERE username = ?', (username,))
-        user = cursor.fetchone()
-        conn.close()
-        if user and check_password_hash(user[1], password):
-            session['user_id'] = user[0]
-            session['username'] = username
-            return redirect(url_for('home'))
+        try:
+            conn = sqlite3.connect('trading_bot.db', timeout=10)
+            cursor = conn.cursor()
+            cursor.execute('SELECT id, password FROM users WHERE username = ?', (username,))
+            user = cursor.fetchone()
+            conn.close()
+            if user and check_password_hash(user[1], password):
+                session['user_id'] = user[0]
+                session['username'] = username
+                return redirect(url_for('home'))
+        except Exception as e:
+            print("Login DB Error:", e)
         error = 'Credenziali non valide.'
     
     return '''<!DOCTYPE html>
-    <html lang="it"><head><meta charset="UTF-8"><title>Login - Tricolore AI Scanner</title></head>
-    <body style="background:#030604;color:#f0f5f1;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;">
-    <div style="background:#08100a;padding:30px;border:1px solid #009246;width:340px;border-radius:4px;box-shadow:0 0 20px rgba(0,146,70,.2);">
-        <h3 style="color:#009246;margin-top:0;text-align:center;letter-spacing:2px;font-family:Cinzel,serif;">TRICOLORE ACCESS</h3>
-        <p style="font-size:10.5px;color:#a3b8aa;text-align:center;margin-bottom:20px;">Default: admin / admin123</p>
-        ''' + (f'<p style="color:#ce2b37;font-size:11.5px;text-align:center;">{error}</p>' if error else '') + '''
+    <html lang="it"><head><meta charset="UTF-8"><title>Login - Ultimate Live Scanner</title></head>
+    <body style="background:#020408;color:#f4f7fa;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;">
+    <div style="background:#070d18;padding:30px;border:1px solid #00d4ff;width:340px;border-radius:4px;box-shadow:0 0 25px rgba(0,212,255,.25);">
+        <h3 style="color:#f3ca52;margin-top:0;text-align:center;letter-spacing:2px;font-family:Cinzel,serif;">ULTIMATE LIVE ACCESS</h3>
+        <p style="font-size:10.5px;color:#9fb0c9;text-align:center;margin-bottom:20px;">Default: admin / admin123</p>
+        ''' + (f'<p style="color:#ff3366;font-size:11.5px;text-align:center;">{error}</p>' if error else '') + '''
         <form method="POST">
-            <p><label style="font-size:11px;color:#a3b8aa;">Username</label><br><input type="text" name="username" required style="width:100%;padding:9px;background:#0e1a12;border:1px solid #274d34;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
-            <p><label style="font-size:11px;color:#a3b8aa;">Password</label><br><input type="password" name="password" required style="width:100%;padding:9px;background:#0e1a12;border:1px solid #274d34;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
-            <button type="submit" style="width:100%;padding:10px;background:#009246;color:#ffffff;border:none;font-weight:bold;margin-top:10px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;box-shadow:0 0 10px rgba(0,146,70,.4);">Connetti</button>
+            <p><label style="font-size:11px;color:#9fb0c9;">Username</label><br><input type="text" name="username" required style="width:100%;padding:9px;background:#0d1626;border:1px solid #233a5e;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
+            <p><label style="font-size:11px;color:#9fb0c9;">Password</label><br><input type="password" name="password" required style="width:100%;padding:9px;background:#0d1626;border:1px solid #233a5e;color:#fff;margin-top:4px;box-sizing:border-box;font-family:monospace;"></p>
+            <button type="submit" style="width:100%;padding:10px;background:#f3ca52;color:#020408;border:none;font-weight:bold;margin-top:10px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;box-shadow:0 0 12px rgba(243,202,82,.4);">Connetti Live</button>
         </form>
     </div></body></html>'''
 
