@@ -242,6 +242,12 @@ td .n{display:block;font:400 9.5px var(--font-body);color:var(--mute);margin-top
 .news-item a:hover{text-decoration:underline}
 footer{margin-top:18px;font:400 10px var(--font-mono);color:var(--mute);line-height:1.6}
 
+/* Tabella Guida Parametri BingX */
+.bingx-table{width:100%;border-collapse:collapse;margin-top:10px;font-family:var(--font-mono);font-size:11px}
+.bingx-table th{background:rgba(243,202,82,.1);color:var(--gold);border:1px solid var(--line2);padding:6px;text-align:left}
+.bingx-table td{border:1px solid var(--line2);padding:6px;color:var(--ink2)}
+.bingx-table td b{color:var(--gold)}
+
 @media (max-width:1180px){.s4,.s8{grid-column:span 12}.gmini{max-width:480px}}
 @media (max-width:760px){.brand h1{font-size:14px}#chart{height:280px}}
 </style>
@@ -387,7 +393,23 @@ footer{margin-top:18px;font:400 10px var(--font-mono);color:var(--mute);line-hei
           <div id="anTargets" style="display:grid;gap:6px;font:10.5px var(--font-mono)"></div>
         </div>
       </div>
-      <div class="sec">Analisi AI dell'Andamento Istituzionale &amp; Mercato</div>
+
+      <!-- TABELLA GUIDA PARAMETRI DA INSERIRE SU BINGX -->
+      <div class="sec" style="margin-top:16px;">📲 PARAMETRI ESATTI DA INSERIRE SU BINGX (LIVE)</div>
+      <table class="bingx-table">
+        <thead>
+          <tr>
+            <th>Metodo BingX</th>
+            <th>Trigger TP (Take Profit)</th>
+            <th>Trigger SL (Stop Loss)</th>
+          </tr>
+        </thead>
+        <tbody id="bingxParamsBody">
+          <!-- Inserito dinamicamente in JS -->
+        </tbody>
+      </table>
+
+      <div class="sec" style="margin-top:14px;">Analisi AI dell'Andamento Istituzionale &amp; Mercato</div>
       <p id="anReason" class="mu" style="font-size:11.5px;line-height:1.5;color:var(--ink2);"></p>
     </section>
 
@@ -520,7 +542,6 @@ function analyze(a){
   const S=tf[15].S,i=S.c.length-1,atr=S.atr[i],price=a.price;
   const slPct=clamp(1.5*atr/price,.004,.03);
   
-  // LEVA REALE CONSIGLIATA DINAMICA E PRECISA
   let lev = 10;
   if (a.cls === 'cry') {
     lev = Math.round(clamp(12 / (slPct * 100), 2, 10));
@@ -720,6 +741,30 @@ function renderMain(){
     <div style="display:flex;justify-content:space-between"><span>TP3 (${ai.timeTP3})</span><b class="up">${money(a,ai.tp3)}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Stop Loss Millimetrico</span><b class="dn">${money(a,ai.sl)}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Attività Istituzionale</span><b style="color:var(--gold)">${ai.whales}</b></div>`;
+
+  // CALCOLO DEI PARAMETRI ESATTI BINGX IN BASE A LEVA E PREZZO LIVE
+  const roiTP = Math.round(ai.slPct * 1.2 * ai.lev * 100);
+  const roiSL = Math.round(ai.slPct * ai.lev * 100);
+  const pnlTP = (10 * (roiTP / 100)).toFixed(2);
+  const pnlSL = (10 * (roiSL / 100)).toFixed(2);
+
+  $('#bingxParamsBody').innerHTML = `
+    <tr>
+      <td><b>1. Prezzo (USDT)</b></td>
+      <td>Prezzo TP1: <b class="up">${money(a, ai.tp1)}</b></td>
+      <td>Prezzo SL: <b class="dn">${money(a, ai.sl)}</b></td>
+    </tr>
+    <tr>
+      <td><b>2. ROI (%)</b> (Leva ${ai.lev}x)</td>
+      <td>ROI TP: <b class="up">+${roiTP}%</b></td>
+      <td>ROI SL: <b class="dn">-${roiSL}%</b></td>
+    </tr>
+    <tr>
+      <td><b>3. PnL (USDT)</b> (Margine $10)</td>
+      <td>PnL TP: <b class="up">+$${pnlTP}</b></td>
+      <td>PnL SL: <b class="dn">-$${pnlSL}</b></td>
+    </tr>
+  `;
 
   $('#anReason').textContent=`Analisi AI millimetrica su ${a.sym} (${CLS[a.cls].label}). ${ai.whales}. L'intelligenza artificiale rileva un andamento di mercato guidato dai flussi istituzionali. Il tempo utile di ingresso calcolato dal sistema di monitoraggio live garantisce precisione costante sulla chiusura della candela ${ai.tfRec}. Precisione stimata: ${ai.conf}%.`;
 
