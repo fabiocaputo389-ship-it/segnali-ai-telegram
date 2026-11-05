@@ -1,5 +1,0 @@
-flask
-websockets
-asyncio
-pandas
-requests
