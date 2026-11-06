@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ApexScan Pro Elite • Real-Time Market Engine</title>
+  <title>ApexScan Pro • Real Binance Live Engine</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -41,79 +41,78 @@
         <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-[#F4D35E] to-[#8A6D1B] flex items-center justify-center font-extrabold text-[#030304]">⚡</div>
         <div>
           <div class="flex items-center gap-2">
-            <h1 class="text-base sm:text-lg font-extrabold text-white">ApexScan <span class="text-gold-400">Real-Time</span></h1>
+            <h1 class="text-base sm:text-lg font-extrabold text-white">ApexScan <span class="text-gold-400">Live Binance Engine</span></h1>
             <span id="apiStatusBadge" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#00FF66]/15 text-[#00FF66] border border-[#00FF66]/40">
-              <span class="w-1.5 h-1.5 rounded-full bg-[#00FF66] animate-ping"></span> BINANCE LIVE FEED
+              <span class="w-1.5 h-1.5 rounded-full bg-[#00FF66] animate-ping"></span> API DIRETTE ATTIVE
             </span>
           </div>
           <div class="flex items-center gap-2 text-[11px] font-mono text-slate-400 mt-0.5">
             <span id="liveCetClock" class="text-gold-300 font-semibold tabular-nums">--:--:-- CET</span>
             <span>•</span>
-            <span id="lastUpdateText">Aggiornamento: in corso...</span>
+            <span id="lastUpdateText">Ultimo aggiornamento: in corso...</span>
           </div>
         </div>
       </div>
 
-      <!-- TIMEFRAME SELECTOR -->
+      <!-- TIMEFRAME -->
       <div class="flex items-center bg-[#08080A] p-1 rounded-xl border border-gold-500/25" id="tfSelector">
-        <span class="text-[10px] font-mono text-gold-400 px-2">TF REALE:</span>
+        <span class="text-[10px] font-mono text-gold-400 px-2">TF:</span>
         <button data-tf="15m" class="tf-btn px-2.5 py-1 rounded-lg text-xs font-mono text-slate-400 hover:text-gold-300">15m</button>
         <button data-tf="1h" class="tf-btn active px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-gold-500/20 text-gold-300 border border-gold-500/40">1H</button>
         <button data-tf="4h" class="tf-btn px-2.5 py-1 rounded-lg text-xs font-mono text-slate-400 hover:text-gold-300">4H</button>
       </div>
 
       <div class="flex items-center gap-2">
-        <button id="audioToggleBtn" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-gold-500/20 text-gold-300 border border-gold-500/40">🔊 Audio ON</button>
-        <button onclick="fetchRealMarketData(true)" class="gold-gradient-btn px-3 py-1.5 rounded-xl text-xs">↻ Aggiorna Ora</button>
+        <button onclick="fetchAllRealData(true)" class="gold-gradient-btn px-3 py-1.5 rounded-xl text-xs">↻ Sincronizza Ora</button>
       </div>
     </div>
-  </main>
+  </header>
 
   <main class="flex-1 max-w-[1920px] w-full mx-auto px-3 sm:px-5 py-4 flex flex-col gap-4">
 
-    <!-- SEZIONE SEGNALI REALI -->
+    <!-- SEZIONE SEGNALI REALI IN PRIMO PIANO -->
     <section class="master-enter-section rounded-2xl p-4 sm:p-5">
       <div class="flex flex-wrap items-center justify-between gap-2 pb-3 mb-4 border-b border-gold-500/30">
         <div>
-          <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-gold-300">⚡ SEGNALI REALI SINCRONIZZATI CON IL MERCATO</h2>
-          <p class="text-[11px] text-slate-300 mt-0.5">Prezzi, candele, RSI(14) e ATR(14) letti direttamente dai book reali. LONG solo su trend/rimbalzo confermato, SHORT su rottura ribassista.</p>
+          <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-gold-300">⚡ ENTRA ADESSO — SETUP CALCOLATI SU PREZZI REALI</h2>
+          <p class="text-[11px] text-slate-300 mt-0.5">Livelli di Entry, Stop Loss e Take Profit derivati direttamente dall'ATR(14) e dal trend in tempo reale dei book.</p>
         </div>
         <span id="activeSetupsCount" class="px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-gold-500/20 text-gold-300 border border-gold-500/40">Caricamento...</span>
       </div>
       <div id="masterCardsGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
     </section>
 
-    <!-- GRIGLIA COMPLETA TUTTI GLI ASSET -->
+    <!-- SCREENER COMPLETO -->
     <section class="terminal-card rounded-2xl p-4">
       <div class="flex flex-wrap items-center justify-between gap-2 pb-3 mb-3 border-b border-gold-500/25">
-        <h2 class="text-sm font-bold text-white">Screener Live Multi-Asset (Dati Reali)</h2>
-        <input type="text" id="searchInput" placeholder="Cerca ticker (es. BTC, SOL, ETH)..." class="bg-[#030304] border border-gold-500/30 rounded-xl px-3 py-1.5 text-xs text-white outline-none focus:border-gold-400 w-full sm:w-64"/>
+        <h2 class="text-sm font-bold text-white">Screener Live Multi-Asset</h2>
+        <input type="text" id="searchInput" placeholder="Cerca ticker (es. BTC, ETH, SOL)..." class="bg-[#030304] border border-gold-500/30 rounded-xl px-3 py-1.5 text-xs text-white outline-none focus:border-gold-400 w-full sm:w-64"/>
       </div>
       <div id="scannerGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"></div>
     </section>
 
   </main>
 
-  <!-- MODALE GRAFICO REALE TRADINGVIEW + CALCOLATORE -->
+  <!-- MODALE GRAFICO TRADINGVIEW + PARAMETRI -->
   <div id="assetModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/90 backdrop-blur-md p-2 sm:p-4 overflow-y-auto">
     <div class="bg-[#08080A] border border-gold-500/45 rounded-2xl w-full max-w-[1400px] shadow-2xl overflow-hidden my-auto">
       <div class="px-4 py-3 border-b border-gold-500/25 flex items-center justify-between bg-[#030304]">
         <div class="flex items-center gap-2.5">
           <h2 id="modalSymbol" class="text-base sm:text-lg font-extrabold font-mono text-white">BTCUSDT</h2>
-          <span id="modalDirectionBadge" class="px-2 py-0.5 rounded text-xs font-mono font-bold">SHORT</span>
+          <span id="modalDirectionBadge" class="px-2 py-0.5 rounded text-xs font-mono font-bold">LONG</span>
           <span id="modalPrice" class="text-base font-mono font-bold text-gold-300 ml-2">$0.00</span>
         </div>
         <button onclick="closeModal()" class="p-2 rounded-xl bg-[#121218] text-slate-400 hover:text-white">✕</button>
       </div>
 
       <div class="p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
-        <!-- GRAFICO REALE TRADINGVIEW EMBEDDED -->
+        <!-- WIDGET TRADINGVIEW UFFICIALE -->
         <div class="lg:col-span-8 bg-[#030304] rounded-xl border border-gold-500/25 overflow-hidden h-[420px]" id="tvChartContainer"></div>
 
-        <!-- DETTAGLIO LIVELLI REALI & CONSIGLIO -->
+        <!-- DETTAGLIO LIVELLI REALI -->
         <div class="lg:col-span-4 flex flex-col justify-between gap-3">
           <div class="bg-[#030304] border border-gold-500/35 rounded-xl p-3.5">
-            <span class="text-[10px] font-bold uppercase text-gold-400 block">Stato &amp; Gestione Posizione</span>
+            <span class="text-[10px] font-bold uppercase text-gold-400 block">Stato di Mercato Reale</span>
             <p id="modalAdviceText" class="text-xs font-bold text-white mt-1">--</p>
           </div>
 
@@ -136,25 +135,6 @@
               <strong id="mTp2" class="text-[#00FF66]">--</strong>
             </div>
           </div>
-
-          <!-- CALCOLATORE SIZE -->
-          <div class="bg-[#030304] border border-gold-500/35 rounded-xl p-3.5 space-y-2 text-xs">
-            <span class="font-bold text-white block">Calcolatore Size Reale</span>
-            <div class="grid grid-cols-2 gap-2">
-              <div>
-                <label class="text-[10px] text-slate-400">Capitale ($)</label>
-                <input type="number" id="calcCap" value="1000" oninput="recalcSize()" class="w-full bg-[#08080A] border border-gold-500/30 rounded px-2 py-1 font-mono text-white"/>
-              </div>
-              <div>
-                <label class="text-[10px] text-slate-400">Rischio (%)</label>
-                <input type="number" id="calcRisk" value="1" step="0.5" oninput="recalcSize()" class="w-full bg-[#08080A] border border-gold-500/30 rounded px-2 py-1 font-mono text-white"/>
-              </div>
-            </div>
-            <div class="flex justify-between pt-2 border-t border-gold-500/20 font-mono">
-              <span class="text-slate-400">Size da acquistare:</span>
-              <strong id="calcResultUnits" class="text-gold-300">--</strong>
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -174,69 +154,38 @@
 
     let state = {
       timeframe: '1h',
-      audioEnabled: true,
       assetsData: [],
       selectedAsset: null
     };
 
-    // Audio sintetizzato
-    let audioCtx = null;
-    function playBeep() {
-      if (!state.audioEnabled) return;
-      try {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.frequency.setValueAtTime(920, audioCtx.currentTime);
-        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.25);
-      } catch (e) {}
-    }
-
-    // Calcolo RSI(14) reale da chiusure candele
-    function calculateRealRSI(closes, period = 14) {
+    function calcRSI(closes, period = 14) {
       if (closes.length <= period) return 50;
       let gains = 0, losses = 0;
       for (let i = 1; i <= period; i++) {
         const diff = closes[i] - closes[i - 1];
-        if (diff >= 0) gains += diff;
-        else losses -= diff;
+        if (diff >= 0) gains += diff; else losses -= diff;
       }
-      let avgGain = gains / period;
-      let avgLoss = losses / period;
+      let avgGain = gains / period, avgLoss = losses / period;
       for (let i = period + 1; i < closes.length; i++) {
         const diff = closes[i] - closes[i - 1];
-        const gain = diff >= 0 ? diff : 0;
-        const loss = diff < 0 ? -diff : 0;
-        avgGain = (avgGain * (period - 1) + gain) / period;
-        avgLoss = (avgLoss * (period - 1) + loss) / period;
+        avgGain = (avgGain * (period - 1) + (diff >= 0 ? diff : 0)) / period;
+        avgLoss = (avgLoss * (period - 1) + (diff < 0 ? -diff : 0)) / period;
       }
       if (avgLoss === 0) return 100;
-      const rs = avgGain / avgLoss;
-      return 100 - (100 / (1 + rs));
+      return 100 - (100 / (1 + (avgGain / avgLoss)));
     }
 
-    // Calcolo ATR(14) reale da High, Low, Close
-    function calculateRealATR(candles, period = 14) {
+    function calcATR(candles, period = 14) {
       if (candles.length <= period) return candles[candles.length - 1].close * 0.01;
-      const trs = [];
+      let trs = [];
       for (let i = 1; i < candles.length; i++) {
-        const h = candles[i].high;
-        const l = candles[i].low;
-        const prevC = candles[i - 1].close;
+        const h = candles[i].high, l = candles[i].low, prevC = candles[i - 1].close;
         trs.push(Math.max(h - l, Math.abs(h - prevC), Math.abs(l - prevC)));
       }
-      const recentTrs = trs.slice(-period);
-      return recentTrs.reduce((a, b) => a + b, 0) / period;
+      return trs.slice(-period).reduce((a, b) => a + b, 0) / period;
     }
 
-    // Fetch dati REALI da Binance Public API
-    async function fetchRealMarketData(manual = false) {
+    async function fetchAllRealData(manual = false) {
       try {
         const promises = SYMBOLS.map(async (sym) => {
           const [tickerRes, klinesRes] = await Promise.all([
@@ -248,30 +197,18 @@
 
           const currentPrice = parseFloat(ticker.lastPrice);
           const change24h = parseFloat(ticker.priceChangePercent);
-
-          const candles = klines.map(k => ({
-            open: parseFloat(k[1]),
-            high: parseFloat(k[2]),
-            low: parseFloat(k[3]),
-            close: parseFloat(k[4]),
-            volume: parseFloat(k[5])
-          }));
-
+          const candles = klines.map(k => ({ open: parseFloat(k[1]), high: parseFloat(k[2]), low: parseFloat(k[3]), close: parseFloat(k[4]) }));
           const closes = candles.map(c => c.close);
-          const rsi = calculateRealRSI(closes, 14);
-          const atr = calculateRealATR(candles, 14);
+          const rsi = calcRSI(closes, 14);
+          const atr = calcATR(candles, 14);
 
-          // Analisi struttura reale delle ultime 5 candele + EMA20
           const ema20 = closes.slice(-20).reduce((a, b) => a + b, 0) / 20;
-          const lastCandle = candles[candles.length - 1];
-          const prevCandle = candles[candles.length - 2];
+          const lastC = candles[candles.length - 1];
+          const prevC = candles[candles.length - 2];
 
-          // Determinazione direzione coerente con il movimento reale
-          const isBullishMomentum = currentPrice > ema20 && lastCandle.close >= prevCandle.close;
-          const isOversoldBounce = rsi < 32 && lastCandle.close > lastCandle.open;
-          const isLong = isBullishMomentum || isOversoldBounce;
+          // Direzione reale guidata dal trend di mercato effettivo
+          const isLong = currentPrice > ema20 && lastC.close >= prevC.close;
 
-          // Calcolo livelli reali ancorati ad ATR(14)
           const slDist = atr * 1.3;
           const entry = currentPrice;
           const sl = isLong ? entry - slDist : entry + slDist;
@@ -282,40 +219,19 @@
           const tp1Pct = ((Math.abs(tp1 - entry) / entry) * 100).toFixed(2);
           const tp2Pct = ((Math.abs(tp2 - entry) / entry) * 100).toFixed(2);
 
-          // Consiglio Gestione Posizione
-          let adviceBadge = '', adviceText = '';
-          if (isLong) {
-            if (rsi > 72) {
-              adviceBadge = '🔴 ESCI / PRENDI PROFITTO';
-              adviceText = `RSI reale a ${rsi.toFixed(1)} (ipercomprato). Rischio ritracciamento: chiudi o sposta SL a breakeven.`;
-            } else {
-              adviceBadge = '🟢 RIMANI LONG';
-              adviceText = `Prezzo sopra EMA20 ($${ema20.toFixed(sym.decimals)}) con momentum rialzista. Mantieni verso TP1.`;
-            }
-          } else {
-            if (rsi < 28) {
-              adviceBadge = '🔴 ESCI / CHIUDI SHORT';
-              adviceText = `RSI reale a ${rsi.toFixed(1)} (ipervenduto estremo). Possibile rimbalzo: prendi profitto sullo short.`;
-            } else {
-              adviceBadge = '🔻 RIMANI SHORT';
-              adviceText = `Prezzo sotto EMA20 ($${ema20.toFixed(sym.decimals)}) in pressione ribassista. Mantieni lo short verso TP1.`;
-            }
-          }
+          const adviceText = isLong 
+            ? `Mercato in momentum rialzista sopra EMA20 ($${ema20.toFixed(sym.decimals)}). RSI a ${rsi.toFixed(1)}.`
+            : `Pressione ribassista sotto EMA20 ($${ema20.toFixed(sym.decimals)}). RSI a ${rsi.toFixed(1)}.`;
 
-          return {
-            ...sym, currentPrice, change24h, rsi, atr, ema20,
-            isLong, entry, sl, tp1, tp2, slPct, tp1Pct, tp2Pct,
-            adviceBadge, adviceText
-          };
+          return { ...sym, currentPrice, change24h, rsi, atr, isLong, entry, sl, tp1, tp2, slPct, tp1Pct, tp2Pct, adviceText };
         });
 
         state.assetsData = await Promise.all(promises);
-        document.getElementById('lastUpdateText').textContent = `Aggiornato: ${new Date().toLocaleTimeString('it-IT')}`;
+        document.getElementById('lastUpdateText').textContent = `Sincronizzato: ${new Date().toLocaleTimeString('it-IT')}`;
         renderUI();
-        if (manual) playBeep();
       } catch (err) {
-        console.error('Errore fetch Binance:', err);
-        document.getElementById('apiStatusBadge').textContent = '⚠ ERRORE RETE / CORS';
+        console.error('Errore connessione API Binance:', err);
+        document.getElementById('apiStatusBadge').textContent = '⚠ ERRORE RETE';
       }
     }
 
@@ -323,11 +239,9 @@
       const search = document.getElementById('searchInput').value.toLowerCase();
       const filtered = state.assetsData.filter(a => a.binance.toLowerCase().includes(search) || a.name.toLowerCase().includes(search));
 
-      // Top 3 setup più forti (maggior distanza da EMA / momentum)
-      const topSetups = [...state.assetsData].sort((a, b) => Math.abs(b.change24h) - Math.abs(a.change24h)).slice(0, 3);
-      document.getElementById('activeSetupsCount').textContent = `${topSetups.length} SETUP ATTIVI`;
+      document.getElementById('activeSetupsCount').textContent = `${state.assetsData.length} ASSET LIVE`;
 
-      document.getElementById('masterCardsGrid').innerHTML = topSetups.map(a => `
+      document.getElementById('masterCardsGrid').innerHTML = state.assetsData.slice(0, 3).map(a => `
         <div class="bg-[#030304] border border-gold-500/45 rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden">
           <div class="absolute top-0 left-0 w-1.5 h-full ${a.isLong ? 'bg-[#00FF66]' : 'bg-[#FF334B]'}"></div>
           <div>
@@ -339,27 +253,22 @@
               <span class="font-mono font-extrabold text-sm text-white">$${a.currentPrice.toFixed(a.decimals)}</span>
             </div>
 
-            <div class="my-2 px-2.5 py-1.5 rounded-lg bg-[#08080A] border border-gold-500/30 flex items-center justify-between text-[11px] font-mono">
-              <span class="text-slate-400">RSI(${state.timeframe}): <strong class="text-white">${a.rsi.toFixed(1)}</strong></span>
-              <span class="font-bold text-gold-300">${a.adviceBadge}</span>
-            </div>
-
-            <div class="grid grid-cols-3 gap-2 font-mono text-center my-2 text-xs">
+            <div class="grid grid-cols-3 gap-2 font-mono text-center my-3 text-xs">
               <div class="bg-gold-500/15 p-2 rounded-xl border border-gold-500/30">
                 <span class="text-[9px] text-gold-300 block">Entry Reale</span>
                 <strong class="text-white">$${a.entry.toFixed(a.decimals)}</strong>
               </div>
               <div class="bg-[#FF334B]/10 p-2 rounded-xl border border-[#FF334B]/30">
-                <span class="text-[9px] text-[#FF334B] block">SL (${a.isLong ? '-' : '+'}${a.slPct}%)</span>
+                <span class="text-[9px] text-[#FF334B] block">SL (-${a.slPct}%)</span>
                 <strong class="text-[#FF334B]">$${a.sl.toFixed(a.decimals)}</strong>
               </div>
               <div class="bg-[#00FF66]/10 p-2 rounded-xl border border-[#00FF66]/30">
-                <span class="text-[9px] text-[#00FF66] block">TP1 (${a.isLong ? '+' : '-'}${a.tp1Pct}%)</span>
+                <span class="text-[9px] text-[#00FF66] block">TP1 (+${a.tp1Pct}%)</span>
                 <strong class="text-[#00FF66]">$${a.tp1.toFixed(a.decimals)}</strong>
               </div>
             </div>
           </div>
-          <button onclick="openAssetModal('${a.binance}')" class="gold-gradient-btn w-full mt-2 py-2 rounded-xl text-xs">Apri Grafico TradingView ↗</button>
+          <button onclick="openAssetModal('${a.binance}')" class="gold-gradient-btn w-full mt-2 py-2 rounded-xl text-xs">Apri Grafico Reale ↗</button>
         </div>
       `).join('');
 
@@ -380,16 +289,13 @@
           </div>
           <div class="grid grid-cols-2 gap-1.5 font-mono text-[11px]">
             <div class="bg-[#FF334B]/10 p-1.5 rounded border border-[#FF334B]/25">
-              <span class="text-[9px] text-[#FF334B] block">SL (${a.slPct}%)</span>
+              <span class="text-[9px] text-[#FF334B] block">SL</span>
               <strong class="text-[#FF334B]">$${a.sl.toFixed(a.decimals)}</strong>
             </div>
             <div class="bg-[#00FF66]/10 p-1.5 rounded border border-[#00FF66]/25">
-              <span class="text-[9px] text-[#00FF66] block">TP1 (${a.tp1Pct}%)</span>
+              <span class="text-[9px] text-[#00FF66] block">TP1</span>
               <strong class="text-[#00FF66]">$${a.tp1.toFixed(a.decimals)}</strong>
             </div>
-          </div>
-          <div class="text-[10px] font-mono text-gold-300 bg-[#08080A] px-2 py-1 rounded border border-gold-500/20 text-center">
-            ${a.adviceBadge}
           </div>
         </div>
       `).join('');
@@ -412,12 +318,8 @@
       document.getElementById('mSl').textContent = `$${asset.sl.toFixed(asset.decimals)}`;
       document.getElementById('mTp1Pct').textContent = `${asset.isLong ? '+' : '-'}${asset.tp1Pct}%`;
       document.getElementById('mTp1').textContent = `$${asset.tp1.toFixed(asset.decimals)}`;
-      document.getElementById('mTp2Pct').textContent = `${asset.isLong ? '+' : '-'}${asset.tp2Pct}%`;
       document.getElementById('mTp2').textContent = `$${asset.tp2.toFixed(asset.decimals)}`;
 
-      recalcSize();
-
-      // Caricamento Widget Reale TradingView sincronizzato
       const tvInterval = state.timeframe === '15m' ? '15' : state.timeframe === '4h' ? '240' : '60';
       document.getElementById('tvChartContainer').innerHTML = `
         <iframe src="https://s.tradingview.com/widgetembed/?frameElementId=tradingview_widget&symbol=${asset.tv}&interval=${tvInterval}&hidesidetoolbar=1&symboledit=0&saveimage=0&toolbarbg=030304&studies=RSI%40tv-basicstudies&theme=dark&style=1&timezone=Europe%2FRome"
@@ -434,43 +336,24 @@
       document.getElementById('assetModal').classList.remove('flex');
     }
 
-    function recalcSize() {
-      if (!state.selectedAsset) return;
-      const cap = parseFloat(document.getElementById('calcCap').value) || 0;
-      const riskPct = parseFloat(document.getElementById('calcRisk').value) || 0;
-      const riskDollar = cap * (riskPct / 100);
-      const slDist = Math.abs(state.selectedAsset.entry - state.selectedAsset.sl);
-      const units = slDist > 0 ? (riskDollar / slDist) : 0;
-      document.getElementById('calcResultUnits').textContent = `${units.toFixed(4)} ${state.selectedAsset.binance.replace('USDT', '')} ($${(units * state.selectedAsset.entry).toFixed(2)})`;
-    }
-
     window.addEventListener('DOMContentLoaded', () => {
-      fetchRealMarketData(false);
-      // Aggiornamento automatico reale ogni 10 secondi
-      setInterval(() => fetchRealMarketData(false), 10000);
+      fetchAllRealData(false);
+      setInterval(() => fetchAllRealData(false), 10000); // Aggiornamento automatico ogni 10 secondi dai server reali
 
-      // Orologio CET
       setInterval(() => {
         document.getElementById('liveCetClock').textContent = new Date().toLocaleTimeString('it-IT', { timeZone: 'Europe/Rome' }) + ' CET';
       }, 1000);
 
-      // Cambio Timeframe
       document.querySelectorAll('.tf-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
           document.querySelectorAll('.tf-btn').forEach(b => b.className = 'tf-btn px-2.5 py-1 rounded-lg text-xs font-mono text-slate-400 hover:text-gold-300');
           e.target.className = 'tf-btn active px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-gold-500/20 text-gold-300 border border-gold-500/40';
           state.timeframe = e.target.getAttribute('data-tf');
-          fetchRealMarketData(true);
+          fetchAllRealData(true);
         });
       });
 
       document.getElementById('searchInput').addEventListener('input', renderUI);
-
-      document.getElementById('audioToggleBtn').addEventListener('click', () => {
-        state.audioEnabled = !state.audioEnabled;
-        document.getElementById('audioToggleBtn').textContent = state.audioEnabled ? '🔊 Audio ON' : '🔇 Audio OFF';
-        if (state.audioEnabled) playBeep();
-      });
     });
   </script>
 </body>
