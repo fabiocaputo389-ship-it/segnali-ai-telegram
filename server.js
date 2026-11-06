@@ -1,12 +1,17 @@
+```javascript
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+
+// Serve i file statici (incluso index.html) dalla root
+app.use(express.static(path.join(__dirname)));
 
 const SYMBOLS = [
     { symbol: 'BTCUSDT', name: 'BTC (Bitcoin)', isBig: true, top: true },
@@ -155,10 +160,12 @@ app.get('/health', (req, res) => {
     res.json({ status: 'OK', uptime: process.uptime() });
 });
 
+// Apre direttamente la Dashboard index.html al link principale
 app.get('/', (req, res) => {
-    res.send('<h1>Crypto Race Backend Service Active 🚀</h1><p>API Endpoint: <code>/api/signals</code></p>');
+    res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 app.listen(PORT, () => {
     console.log(`Server attivo sulla porta ${PORT}`);
 });
+```
