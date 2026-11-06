@@ -70,6 +70,7 @@
   </header>
 
   <main class="flex-1 max-w-[1920px] w-full mx-auto px-3 sm:px-5 py-4 flex flex-col gap-4">
+    <!-- Sezione KPI -->
     <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
         <div class="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-gold-400">
@@ -101,24 +102,77 @@
       </div>
     </section>
 
-    <!-- Sezione principale con tabella screener -->
+    <!-- Sezione Master Entra Adesso -->
+    <section class="master-enter-section rounded-2xl p-4 sm:p-5">
+      <div class="flex items-center justify-between pb-3 mb-4 border-b border-gold-500/30">
+        <h2 class="text-sm sm:text-base font-extrabold uppercase text-gold-300">⚡ ENTRA ADESSO — Parametri Operativi</h2>
+        <span class="enter-now-badge px-2.5 py-0.5 rounded-md text-[10px] font-mono font-extrabold">6 SETUP ATTIVI</span>
+      </div>
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div class="bg-[#050506] border border-gold-500/45 rounded-2xl p-4">
+          <div class="flex justify-between items-center mb-2">
+            <span class="text-base font-bold text-white">BTC/USDT</span>
+            <span class="enter-now-badge px-2 py-0.5 rounded text-[10px] font-bold">⚡ ENTRA ADESSO</span>
+          </div>
+          <p class="text-xs text-slate-300">Optimal Entry: <strong class="text-gold-300">$94,280.50</strong></p>
+          <p class="text-xs text-[#FF334B] mt-1">Stop Loss: $93,250.00</p>
+          <p class="text-xs text-[#00FF66] mt-1">TP1 ETA: 12:38 CET (~32m)</p>
+        </div>
+        <div class="bg-[#050506] border border-gold-500/45 rounded-2xl p-4">
+          <div class="flex justify-between items-center mb-2">
+            <span class="text-base font-bold text-white">ETH/USDT</span>
+            <span class="enter-now-badge px-2 py-0.5 rounded text-[10px] font-bold">⚡ ENTRA ADESSO</span>
+          </div>
+          <p class="text-xs text-slate-300">Optimal Entry: <strong class="text-gold-300">$3,342.15</strong></p>
+          <p class="text-xs text-[#FF334B] mt-1">Stop Loss: $3,290.00</p>
+          <p class="text-xs text-[#00FF66] mt-1">TP1 ETA: 12:45 CET (~40m)</p>
+        </div>
+        <div class="bg-[#050506] border border-gold-500/45 rounded-2xl p-4">
+          <div class="flex justify-between items-center mb-2">
+            <span class="text-base font-bold text-white">SOL/USDT</span>
+            <span class="enter-now-badge px-2 py-0.5 rounded text-[10px] font-bold">⚡ ENTRA ADESSO</span>
+          </div>
+          <p class="text-xs text-slate-300">Optimal Entry: <strong class="text-gold-300">$218.60</strong></p>
+          <p class="text-xs text-[#FF334B] mt-1">Stop Loss: $211.50</p>
+          <p class="text-xs text-[#00FF66] mt-1">TP1 ETA: 13:02 CET (~25m)</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tabella Screener Completa -->
     <section class="terminal-card rounded-2xl p-4">
       <h2 class="text-sm font-bold text-white mb-3">Screener Multi-Asset &amp; Mercato Live</h2>
       <div class="overflow-x-auto">
-        <table class="w-full text-left text-xs border-collapse">
+        <table class="w-full text-left text-xs border-collapse font-mono">
           <thead>
             <tr class="border-b border-gold-500/25 text-[10px] font-bold uppercase text-gold-400">
               <th class="py-2 px-3">Asset</th>
               <th class="py-2 px-3 text-right">Prezzo Live</th>
+              <th class="py-2 px-3">RSI (14)</th>
               <th class="py-2 px-3">Sentiment</th>
               <th class="py-2 px-3">Stato Server</th>
             </tr>
           </thead>
-          <tbody id="liveTableBody" class="divide-y divide-gold-500/15 font-mono">
+          <tbody class="divide-y divide-gold-500/15">
             <tr>
               <td class="py-3 px-3 font-bold text-white">BTC/USDT (Bitcoin)</td>
-              <td id="liveBtcPrice" class="py-3 px-3 text-right text-gold-300 font-bold">$94,280.50</td>
+              <td class="py-3 px-3 text-right text-gold-300 font-bold">$94,280.50</td>
+              <td class="py-3 px-3 text-[#00FF66]">64.2 (Neutro)</td>
               <td class="py-3 px-3 text-[#00FF66]">Bullish Forte</td>
+              <td class="py-3 px-3 text-gold-400">Connesso a Render 🚀</td>
+            </tr>
+            <tr>
+              <td class="py-3 px-3 font-bold text-white">ETH/USDT (Ethereum)</td>
+              <td class="py-3 px-3 text-right text-gold-300 font-bold">$3,342.15</td>
+              <td class="py-3 px-3 text-[#00FF66]">58.7 (Neutro)</td>
+              <td class="py-3 px-3 text-[#00FF66]">Rialzista</td>
+              <td class="py-3 px-3 text-gold-400">Connesso a Render 🚀</td>
+            </tr>
+            <tr>
+              <td class="py-3 px-3 font-bold text-white">SOL/USDT (Solana)</td>
+              <td class="py-3 px-3 text-right text-gold-300 font-bold">$218.60</td>
+              <td class="py-3 px-3 text-[#FF334B]">72.8 (Ipercomprato)</td>
+              <td class="py-3 px-3 text-[#00FF66]">Bullish Estremo</td>
               <td class="py-3 px-3 text-gold-400">Connesso a Render 🚀</td>
             </tr>
           </tbody>
