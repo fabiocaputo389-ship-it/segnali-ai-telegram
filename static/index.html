@@ -20,20 +20,8 @@
             mono: ['JetBrains Mono', 'monospace'],
           },
           colors: {
-            obsidian: {
-              950: '#050506',
-              900: '#0C0C0F',
-              850: '#101014',
-              800: '#141418',
-              700: '#1E1E24',
-            },
-            gold: {
-              300: '#F9E08B',
-              400: '#F3D066',
-              500: '#D4AF37',
-              600: '#AA8A26',
-              700: '#7D6319',
-            },
+            obsidian: { 950: '#050506', 900: '#0C0C0F', 850: '#101014', 800: '#141418', 700: '#1E1E24' },
+            gold: { 300: '#F9E08B', 400: '#F3D066', 500: '#D4AF37', 600: '#AA8A26', 700: '#7D6319' },
             emeraldNeon: '#00FF66',
             rubyNeon: '#FF334B'
           }
@@ -42,112 +30,50 @@
     }
   </script>
   <style>
-    body {
-      background-color: #050506;
-      color: #f4f1ea;
-      font-family: 'Inter', sans-serif;
-      overflow-x: hidden;
-    }
-
-    ::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    ::-webkit-scrollbar-track {
-      background: #050506;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: rgba(212, 175, 55, 0.35);
-      border-radius: 9999px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: rgba(243, 208, 102, 0.65);
-    }
-
-    @keyframes flashGreen {
-      0% { background-color: rgba(0, 255, 102, 0.28); color: #00FF66; }
-      100% { background-color: transparent; }
-    }
-    @keyframes flashRed {
-      0% { background-color: rgba(255, 51, 75, 0.28); color: #FF334B; }
-      100% { background-color: transparent; }
-    }
-    @keyframes goldPulseGlow {
-      0%, 100% {
-        box-shadow: 0 0 12px rgba(212, 175, 55, 0.35), inset 0 0 8px rgba(243, 208, 102, 0.2);
-      }
-      50% {
-        box-shadow: 0 0 22px rgba(243, 208, 102, 0.8), inset 0 0 12px rgba(243, 208, 102, 0.4);
-      }
-    }
-
+    body { background-color: #050506; color: #f4f1ea; font-family: 'Inter', sans-serif; overflow-x: hidden; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #050506; }
+    ::-webkit-scrollbar-thumb { background: rgba(212, 175, 55, 0.35); border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(243, 208, 102, 0.65); }
+    @keyframes flashGreen { 0% { background-color: rgba(0, 255, 102, 0.28); color: #00FF66; } 100% { background-color: transparent; } }
+    @keyframes flashRed { 0% { background-color: rgba(255, 51, 75, 0.28); color: #FF334B; } 100% { background-color: transparent; } }
+    @keyframes goldPulseGlow { 0%, 100% { box-shadow: 0 0 12px rgba(212, 175, 55, 0.35), inset 0 0 8px rgba(243, 208, 102, 0.2); } 50% { box-shadow: 0 0 22px rgba(243, 208, 102, 0.8), inset 0 0 12px rgba(243, 208, 102, 0.4); } }
     .price-flash-up { animation: flashGreen 0.75s ease-out; }
     .price-flash-down { animation: flashRed 0.75s ease-out; }
-
-    .terminal-card {
-      background: linear-gradient(180deg, rgba(16, 16, 20, 0.97) 0%, rgba(12, 12, 15, 0.99) 100%);
-      border: 1px solid rgba(212, 175, 55, 0.25);
-      box-shadow: 0 8px 32px -6px rgba(0, 0, 0, 0.88), inset 0 1px 0 rgba(243, 208, 102, 0.08);
-    }
-
-    .master-enter-section {
-      background: radial-gradient(circle at top right, rgba(212, 175, 55, 0.14), rgba(12, 12, 15, 0.98) 65%);
-      border: 1.5px solid rgba(212, 175, 55, 0.55);
-      box-shadow: 0 10px 38px -8px rgba(212, 175, 55, 0.22);
-    }
-
-    .gold-gradient-btn {
-      background: linear-gradient(135deg, #D4AF37 0%, #F3D066 50%, #C59B27 100%);
-      color: #050506;
-      font-weight: 800;
-      box-shadow: 0 4px 16px rgba(212, 175, 55, 0.3);
-    }
-    .gold-gradient-btn:hover {
-      filter: brightness(1.08);
-      box-shadow: 0 6px 22px rgba(243, 208, 102, 0.48);
-    }
-
-    .enter-now-badge {
-      background: linear-gradient(135deg, #D4AF37 0%, #F3D066 55%, #00FF66 140%);
-      color: #050506;
-      animation: goldPulseGlow 1.8s infinite ease-in-out;
-    }
-
+    .terminal-card { background: linear-gradient(180deg, rgba(16, 16, 20, 0.97) 0%, rgba(12, 12, 15, 0.99) 100%); border: 1px solid rgba(212, 175, 55, 0.25); box-shadow: 0 8px 32px -6px rgba(0, 0, 0, 0.88), inset 0 1px 0 rgba(243, 208, 102, 0.08); }
+    .master-enter-section { background: radial-gradient(circle at top right, rgba(212, 175, 55, 0.14), rgba(12, 12, 15, 0.98) 65%); border: 1.5px solid rgba(212, 175, 55, 0.55); box-shadow: 0 10px 38px -8px rgba(212, 175, 55, 0.22); }
+    .gold-gradient-btn { background: linear-gradient(135deg, #D4AF37 0%, #F3D066 50%, #C59B27 100%); color: #050506; font-weight: 800; box-shadow: 0 4px 16px rgba(212, 175, 55, 0.3); }
+    .gold-gradient-btn:hover { filter: brightness(1.08); box-shadow: 0 6px 22px rgba(243, 208, 102, 0.48); }
+    .enter-now-badge { background: linear-gradient(135deg, #D4AF37 0%, #F3D066 55%, #00FF66 140%); color: #050506; animation: goldPulseGlow 1.8s infinite ease-in-out; }
     .tabular-nums { font-variant-numeric: tabular-nums; }
   </style>
 </head>
 <body class="min-h-screen flex flex-col selection:bg-gold-500/30 selection:text-gold-300">
 
-  <!-- ==================== 1. HEADER & CONTROLLI MULTI-ASSET ==================== -->
+  <!-- HEADER & CONTROLLI -->
   <header class="sticky top-0 z-30 bg-[#050506]/95 backdrop-blur-md border-b border-gold-500/25 px-3 sm:px-5 py-2.5">
     <div class="max-w-[1920px] mx-auto flex flex-wrap items-center justify-between gap-3">
-      
-      <!-- Logo & Orologio CET Live + Sessione/Killzone -->
       <div class="flex items-center gap-3">
         <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-[#F3D066] via-[#D4AF37] to-[#7D6319] flex items-center justify-center shadow-lg shadow-gold-500/25 border border-gold-300/50">
           <svg class="w-5 h-5 text-[#050506]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 3v18h18"/>
-            <path d="m19 9-5 5-4-4-3 3"/>
-            <circle cx="19" cy="9" r="2" fill="currentColor"/>
+            <path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/><circle cx="19" cy="9" r="2" fill="currentColor"/>
           </svg>
         </div>
         <div>
           <div class="flex items-center gap-2">
             <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-white">ApexScan <span class="text-gold-400">Pro</span></h1>
             <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-gold-500/15 text-gold-300 border border-gold-500/40">
-              <span class="w-1.5 h-1.5 rounded-full bg-gold-400 animate-ping"></span>
-              BLACK &amp; GOLD EDITION
+              <span class="w-1.5 h-1.5 rounded-full bg-gold-400 animate-ping"></span> BLACK &amp; GOLD EDITION
             </span>
           </div>
           <div class="flex items-center gap-2 text-[11px] font-mono text-slate-400 mt-0.5">
             <span id="liveCetClock" class="text-gold-300 font-semibold tabular-nums">--:--:-- CET</span>
             <span class="text-gold-500/50">•</span>
-            <span id="activeMarketSessionBadge" class="text-slate-300 font-medium">Killzone Londra (09:00 - 12:30 CET)</span>
+            <span id="activeMarketSessionBadge" class="text-slate-300 font-medium">Killzone Londra</span>
           </div>
         </div>
       </div>
 
-      <!-- Selettore Comparto -->
       <div class="flex items-center bg-[#0C0C0F] p-1 rounded-xl border border-gold-500/25 overflow-x-auto max-w-full" id="marketSelector">
         <button data-market="ALL" class="market-btn active px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-gold-500/20 text-gold-300 border border-gold-500/40 shadow-sm">Tutti</button>
         <button data-market="CRYPTO" class="market-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-gold-300 transition-all">Crypto</button>
@@ -160,7 +86,6 @@
         </button>
       </div>
 
-      <!-- Selettore Timeframe -->
       <div class="hidden xl:flex items-center bg-[#0C0C0F] p-1 rounded-xl border border-gold-500/25" id="timeframeSelector">
         <span class="text-[11px] font-mono text-gold-500/80 px-2">TF:</span>
         <button data-tf="5m" class="tf-btn px-2.5 py-1 rounded-lg text-xs font-mono font-medium text-slate-400 hover:text-gold-300 transition-all">5m</button>
@@ -170,204 +95,122 @@
         <button data-tf="1D" class="tf-btn px-2.5 py-1 rounded-lg text-xs font-mono font-medium text-slate-400 hover:text-gold-300 transition-all">1D</button>
       </div>
 
-      <!-- Ricerca + Audio Alert + Live Toggle + Nuovo Alert -->
       <div class="flex items-center gap-2 flex-1 sm:flex-initial justify-end flex-wrap">
         <div class="relative flex-1 sm:w-40 md:w-48">
           <svg class="w-4 h-4 text-gold-500/70 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
           </svg>
-          <input 
-            type="text" 
-            id="searchInput" 
-            placeholder="Cerca ticker (BTC, NVDA)..." 
-            class="w-full bg-[#0C0C0F] border border-gold-500/25 focus:border-gold-400 focus:ring-1 focus:ring-gold-400/40 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none transition-all"
-          />
+          <input type="text" id="searchInput" placeholder="Cerca ticker..." class="w-full bg-[#0C0C0F] border border-gold-500/25 focus:border-gold-400 focus:ring-1 focus:ring-gold-400/40 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none transition-all"/>
         </div>
 
-        <!-- Controllo Audio Alert -->
         <div class="flex items-center bg-[#0C0C0F] border border-gold-500/35 rounded-xl p-0.5">
-          <button 
-            id="audioToggleBtn" 
-            class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-gold-500/20 text-gold-300 hover:bg-gold-500/30 transition-all whitespace-nowrap"
-            title="Attiva/Disattiva suono notifica Entra Adesso"
-          >
-            <span id="audioIcon">🔊</span>
-            <span id="audioToggleText">Audio ON</span>
+          <button id="audioToggleBtn" class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-gold-500/20 text-gold-300 hover:bg-gold-500/30 transition-all whitespace-nowrap">
+            <span id="audioIcon">🔊</span><span id="audioToggleText">Audio ON</span>
           </button>
-          <button 
-            id="testSoundBtn" 
-            class="px-2 py-1 rounded-lg text-[11px] font-mono text-slate-300 hover:text-gold-300 hover:bg-[#141418] transition-all whitespace-nowrap"
-            title="Riproduci anteprima suono Entra Adesso"
-          >
-            Test
-          </button>
+          <button id="testSoundBtn" class="px-2 py-1 rounded-lg text-[11px] font-mono text-slate-300 hover:text-gold-300 hover:bg-[#141418] transition-all whitespace-nowrap">Test</button>
         </div>
 
-        <button 
-          id="liveToggleBtn" 
-          class="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold bg-[#00FF66]/10 hover:bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/40 transition-all whitespace-nowrap"
-        >
-          <span class="relative flex h-2 w-2" id="livePulseContainer">
-            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00FF66] opacity-75"></span>
-            <span class="relative inline-flex rounded-full h-2 w-2 bg-[#00FF66]"></span>
-          </span>
+        <button id="liveToggleBtn" class="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold bg-[#00FF66]/10 hover:bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/40 transition-all whitespace-nowrap">
+          <span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00FF66] opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-[#00FF66]"></span></span>
           <span id="liveToggleText">Live Attivo</span>
         </button>
 
-        <button 
-          id="headerNewAlertBtn" 
-          class="gold-gradient-btn px-3 py-1.5 rounded-xl text-xs transition-all whitespace-nowrap"
-        >
-          + Alert
-        </button>
+        <button id="headerNewAlertBtn" class="gold-gradient-btn px-3 py-1.5 rounded-xl text-xs transition-all whitespace-nowrap">+ Alert</button>
       </div>
-    </div>
-
-    <!-- Barra Timeframe su schermi piccoli/medi -->
-    <div class="flex xl:hidden items-center justify-between mt-2 pt-2 border-t border-gold-500/15 gap-2">
-      <div class="flex items-center gap-1" id="mobileTimeframeSelector">
-        <span class="text-[11px] font-mono text-gold-400 mr-1">Timeframe:</span>
-        <button data-tf="5m" class="tf-btn px-2 py-0.5 rounded text-xs font-mono text-slate-400">5m</button>
-        <button data-tf="15m" class="tf-btn px-2 py-0.5 rounded text-xs font-mono text-slate-400">15m</button>
-        <button data-tf="1H" class="tf-btn active px-2 py-0.5 rounded text-xs font-mono bg-gold-500/20 text-gold-300 border border-gold-500/40">1H</button>
-        <button data-tf="4H" class="tf-btn px-2 py-0.5 rounded text-xs font-mono text-slate-400">4H</button>
-        <button data-tf="1D" class="tf-btn px-2 py-0.5 rounded text-xs font-mono text-slate-400">1D</button>
-      </div>
-      <span class="text-[11px] font-mono text-slate-400" id="tfDurationHint">Finestra 1H: 45m</span>
     </div>
   </header>
 
-  <!-- ==================== MAIN WORKSPACE ==================== -->
+  <!-- MAIN WORKSPACE -->
   <main class="flex-1 max-w-[1920px] w-full mx-auto px-3 sm:px-5 py-4 flex flex-col gap-4">
 
-    <!-- 2. DASHBOARD KPI DINAMICA & SENTIMENT GLOBALE PRECISO -->
+    <!-- KPI DINAMICA -->
     <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-      
-      <!-- KPI 1 -->
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
         <div class="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-gold-400">
-          <span>Segnali Entra Adesso</span>
-          <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-gold-500/15 text-gold-300 border border-gold-500/35">KILLZONE LIVE</span>
+          <span>Segnali Entra Adesso</span><span class="px-2 py-0.5 rounded text-[10px] font-mono bg-gold-500/15 text-gold-300 border border-gold-500/35">KILLZONE LIVE</span>
         </div>
         <div class="mt-2 flex items-baseline justify-between">
-          <div class="flex items-baseline gap-2">
-            <span id="kpiEnterNowCount" class="text-2xl font-extrabold font-mono text-gold-300 tabular-nums">6</span>
-            <span class="text-xs font-mono text-[#00FF66] font-semibold">pronti ora</span>
-          </div>
+          <div class="flex items-baseline gap-2"><span id="kpiEnterNowCount" class="text-2xl font-extrabold font-mono text-gold-300 tabular-nums">0</span><span class="text-xs font-mono text-[#00FF66] font-semibold">pronti ora</span></div>
           <span id="kpiTotalAssets" class="text-xs font-mono text-slate-400">su 24 asset</span>
         </div>
       </div>
 
-      <!-- KPI 2 -->
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
         <div class="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-gold-400">
-          <span>Sentiment Globale Preciso</span>
-          <span id="kpiGlobalSentimentLabel" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#00FF66]/15 text-[#00FF66] border border-[#00FF66]/35">68.4% BULLISH</span>
+          <span>Sentiment Globale Preciso</span><span id="kpiGlobalSentimentLabel" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#00FF66]/15 text-[#00FF66] border border-[#00FF66]/35">--%</span>
         </div>
         <div class="mt-2">
           <div class="w-full h-2 bg-[#1E1E24] rounded-full overflow-hidden flex mb-1.5 border border-gold-500/20">
-            <div id="kpiGlobalSentimentBar" class="h-full bg-gradient-to-r from-[#D4AF37] via-[#F3D066] to-[#00FF66] transition-all duration-500" style="width: 68.4%"></div>
+            <div id="kpiGlobalSentimentBar" class="h-full bg-gradient-to-r from-[#D4AF37] via-[#F3D066] to-[#00FF66] transition-all duration-500" style="width: 50%"></div>
           </div>
           <div class="flex items-center justify-between text-[10px] font-mono text-slate-300">
-            <span id="kpiFearGreedText">F&amp;G: <strong class="text-gold-300">71 (Greed)</strong></span>
-            <span id="kpiFundingOiText">Funding: <strong class="text-[#00FF66]">+0.014%</strong> • L/S: <strong class="text-gold-300">1.48</strong></span>
+            <span id="kpiFearGreedText">F&amp;G: <strong class="text-gold-300">--</strong></span>
+            <span id="kpiFundingOiText">Funding: <strong class="text-[#00FF66]">--</strong></span>
           </div>
         </div>
       </div>
 
-      <!-- KPI 3 -->
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
         <div class="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-gold-400">
-          <span>Long / Short &amp; Confluenze</span>
-          <span id="kpiLongShortRatioBadge" class="px-2 py-0.5 rounded text-[10px] font-mono bg-gold-500/15 text-gold-300 border border-gold-500/35">71% L / 29% S</span>
+          <span>Long / Short &amp; Confluenze</span><span id="kpiLongShortRatioBadge" class="px-2 py-0.5 rounded text-[10px] font-mono bg-gold-500/15 text-gold-300 border border-gold-500/35">--</span>
         </div>
         <div class="mt-2 flex items-baseline justify-between">
-          <span id="kpiAvgConfluence" class="text-xl sm:text-2xl font-extrabold font-mono text-white tabular-nums">5.1 / 6</span>
-          <span id="kpiAvgTp1Eta" class="text-xs font-mono text-gold-300 font-semibold">ETA TP1 Media: ~31m</span>
+          <span id="kpiAvgConfluence" class="text-xl sm:text-2xl font-extrabold font-mono text-white tabular-nums">--</span>
+          <span id="kpiAvgTp1Eta" class="text-xs font-mono text-gold-300 font-semibold">ETA TP1 Media: --</span>
         </div>
       </div>
 
-      <!-- KPI 4 -->
       <div id="kpiTopMoverCard" onclick="openTopMoverFromKpi()" class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between cursor-pointer hover:border-gold-400 transition-all group">
         <div class="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-gold-400">
-          <span>Top Mover 24h (Apri Setup)</span>
-          <span class="text-xs text-gold-300 group-hover:translate-x-0.5 transition-transform">↗</span>
+          <span>Top Mover 24h (Apri Setup)</span><span class="text-xs text-gold-300 group-hover:translate-x-0.5 transition-transform">↗</span>
         </div>
         <div class="mt-2 flex items-baseline justify-between gap-2">
           <div>
-            <span id="kpiTopMoverSymbol" class="text-lg sm:text-xl font-extrabold font-mono text-white group-hover:text-gold-300 transition-colors">SOL/USDT</span>
-            <span id="kpiTopMoverPrice" class="text-xs font-mono text-slate-400 ml-1.5">$218.60</span>
+            <span id="kpiTopMoverSymbol" class="text-lg sm:text-xl font-extrabold font-mono text-white group-hover:text-gold-300 transition-colors">---</span>
+            <span id="kpiTopMoverPrice" class="text-xs font-mono text-slate-400 ml-1.5">--</span>
           </div>
-          <span id="kpiTopMoverChange" class="text-sm sm:text-base font-extrabold font-mono text-[#00FF66] tabular-nums">+8.64%</span>
+          <span id="kpiTopMoverChange" class="text-sm sm:text-base font-extrabold font-mono text-[#00FF66] tabular-nums">--</span>
         </div>
       </div>
     </section>
 
-    <!-- 3. SEZIONE IN PRIMO PIANO: "⚡ ENTRA ADESSO — PARAMETRI OPERATIVI COMPLETI" -->
+    <!-- ENTRA ADESSO -->
     <section class="master-enter-section rounded-2xl p-4 sm:p-5">
       <div class="flex flex-wrap items-center justify-between gap-3 pb-3 mb-4 border-b border-gold-500/30">
         <div class="flex items-center gap-3">
-          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-[#F3D066] to-[#D4AF37] text-[#050506] flex items-center justify-center font-extrabold text-base shadow-md">
-            ⚡
-          </div>
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-[#F3D066] to-[#D4AF37] text-[#050506] flex items-center justify-center font-extrabold text-base shadow-md">⚡</div>
           <div>
             <div class="flex flex-wrap items-center gap-2">
-              <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-gold-300">
-                ⚡ ENTRA ADESSO — Parametri Operativi Completi
-              </h2>
-              <span id="masterEnterNowBadgeCount" class="enter-now-badge px-2.5 py-0.5 rounded-md text-[10px] font-mono font-extrabold">
-                6 SETUP ATTIVI ORA
-              </span>
+              <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-gold-300">⚡ ENTRA ADESSO — Parametri Operativi con Percentuali Reali (%)</h2>
+              <span id="masterEnterNowBadgeCount" class="enter-now-badge px-2.5 py-0.5 rounded-md text-[10px] font-mono font-extrabold">0 SETUP ATTIVI ORA</span>
             </div>
-            <p class="text-[11px] sm:text-xs text-slate-300 mt-0.5">
-              Tutti i parametri operativi (Entry Zone, SL, TP1/TP2/TP3 con ora esatta CET, Scadenza, Countdown e 6 Confluenze) sono visibili direttamente qui senza aprire alcuna modale.
-            </p>
+            <p class="text-[11px] sm:text-xs text-slate-300 mt-0.5">Parametri operativi validati matematicamente sul prezzo reale con scostamenti percentuali precisi per SL e TP.</p>
           </div>
         </div>
-
-        <div class="flex items-center gap-2">
-          <span class="text-[11px] font-mono text-[#00FF66] bg-[#00FF66]/10 border border-[#00FF66]/35 px-2.5 py-1 rounded-lg">
-            ● Aggiornamento Real-Time
-          </span>
-        </div>
       </div>
-
-      <!-- Griglia Card Espanse "ENTRA ADESSO" -->
-      <div id="masterEnterNowCardsGrid" class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
-        <!-- Popolato dinamicamente via JavaScript -->
-      </div>
+      <div id="masterEnterNowCardsGrid" class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4"></div>
     </section>
 
-    <!-- 4. SEZIONE "MOVIMENTI DEI TOP & FLUSSI ISTITUZIONALI" -->
+    <!-- MOVIMENTI DEI TOP -->
     <section class="terminal-card rounded-2xl p-3.5 sm:p-4">
       <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
         <div class="flex items-center gap-2.5">
           <div class="w-8 h-8 rounded-xl bg-gold-500/15 border border-gold-500/40 flex items-center justify-center text-gold-400">
-            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-              <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
-            </svg>
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
           </div>
           <div>
-            <h2 class="text-xs sm:text-sm font-bold uppercase tracking-wider text-white flex items-center gap-2">
-              Movimenti dei Top &amp; Flussi Istituzionali
-              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-gold-500/15 text-gold-300 border border-gold-500/35">MULTI-ORIZZONTE</span>
-            </h2>
-            <p class="text-[11px] text-slate-400">Top Gainer, Top Loser, Picchi RVOL e Migliori Confluenze con variazioni Δ15m / Δ1H / Δ24h e countdown live</p>
+            <h2 class="text-xs sm:text-sm font-bold uppercase tracking-wider text-white">Movimenti dei Top &amp; Flussi Istituzionali</h2>
+            <p class="text-[11px] text-slate-400">Top Gainer, Top Loser, RVOL e Confluenze con metriche live</p>
           </div>
         </div>
         <button id="toggleTopMoversModalBtn" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-[#141418] hover:bg-gold-500/15 text-gold-300 border border-gold-500/35 transition-all flex items-center gap-1.5">
-          <span>Classifica Completa Top Movers</span>
-          <span>↗</span>
+          <span>Classifica Completa</span><span>↗</span>
         </button>
       </div>
-
-      <!-- 4 Card Compatte in Primo Piano -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3" id="topMoversCardsGrid">
-        <!-- Popolato via JS -->
-      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3" id="topMoversCardsGrid"></div>
     </section>
 
-    <!-- 5A. BARRA FILTRI ALGORITMICI COMBINABILI -->
+    <!-- FILTRI -->
     <section class="terminal-card rounded-2xl p-3.5">
       <div class="flex flex-wrap items-center justify-between gap-2 mb-2.5">
         <div class="flex items-center gap-2">
@@ -376,67 +219,56 @@
           <span id="activeFilterCountBadge" class="hidden px-2 py-0.5 rounded-full text-[10px] font-mono bg-gold-500/20 text-gold-300 border border-gold-500/40">0 attivi</span>
         </div>
         <div class="flex items-center gap-3">
-          <span class="text-[11px] font-mono text-slate-400" id="scannerStatsSummary">24 asset monitorati</span>
-          <button id="resetFiltersBtn" class="text-xs font-medium text-gold-400 hover:text-gold-300 underline underline-offset-4 transition-colors">
-            Reimposta Filtri
-          </button>
+          <span class="text-[11px] font-mono text-slate-400" id="scannerStatsSummary">24 asset</span>
+          <button id="resetFiltersBtn" class="text-xs font-medium text-gold-400 hover:text-gold-300 underline underline-offset-4 transition-colors">Reimposta Filtri</button>
         </div>
       </div>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
-        <!-- Filtro Stato Finestra -->
         <div>
-          <label class="block text-[10px] font-semibold uppercase tracking-wider text-gold-400 mb-1">Azione &amp; Finestra Utile</label>
+          <label class="block text-[10px] font-semibold uppercase tracking-wider text-gold-400 mb-1">Azione &amp; Finestra</label>
           <select id="filterWindowStatus" class="w-full bg-[#050506] border border-gold-500/30 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:border-gold-400 outline-none">
             <option value="ALL">Tutte le Finestre</option>
-            <option value="ENTER_NOW">⚡ SOLO ENTRA ADESSO (Alta Confluenza)</option>
-            <option value="OTTIMALE">🟢 Finestra Ottimale Attiva</option>
-            <option value="IN APERTURA">🟡 In Apertura Imminente</option>
-            <option value="IN SCADENZA">🔴 In Scadenza (&lt; 25%)</option>
+            <option value="ENTER_NOW">⚡ SOLO ENTRA ADESSO</option>
+            <option value="OTTIMALE">🟢 Ottimale Attiva</option>
+            <option value="IN APERTURA">🟡 In Apertura</option>
+            <option value="IN SCADENZA">🔴 In Scadenza</option>
           </select>
         </div>
-
-        <!-- Filtro Sentiment -->
         <div>
-          <label class="block text-[10px] font-semibold uppercase tracking-wider text-gold-400 mb-1">Sentiment Istituzionale</label>
+          <label class="block text-[10px] font-semibold uppercase tracking-wider text-gold-400 mb-1">Sentiment</label>
           <select id="filterSentiment" class="w-full bg-[#050506] border border-gold-500/30 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:border-gold-400 outline-none">
-            <option value="ALL">Tutti i Sentiment</option>
-            <option value="BULL_STRONG">Bullish Forte / Estremo (&gt; 63%)</option>
-            <option value="BULL">Rialzista Moderato (54% - 63%)</option>
-            <option value="NEUTRAL">Neutrale / Equilibrio (46% - 54%)</option>
-            <option value="BEAR">Ribassista / Short (&lt; 46%)</option>
+            <option value="ALL">Tutti</option>
+            <option value="BULL_STRONG">Bullish Forte</option>
+            <option value="BULL">Rialzista</option>
+            <option value="NEUTRAL">Neutrale</option>
+            <option value="BEAR">Ribassista</option>
           </select>
         </div>
-
-        <!-- Filtro Segnale Tecnico -->
         <div>
           <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Segnale Tecnico</label>
           <select id="filterSignal" class="w-full bg-[#050506] border border-gold-500/25 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:border-gold-400 outline-none">
-            <option value="ALL">Tutti i Segnali</option>
-            <option value="STRONG_BUY">Strong Buy (Forte Acquisto)</option>
-            <option value="BUY">Buy (Acquisto)</option>
+            <option value="ALL">Tutti</option>
+            <option value="STRONG_BUY">Strong Buy</option>
+            <option value="BUY">Buy</option>
             <option value="NEUTRAL">Neutrale</option>
-            <option value="SELL">Sell (Vendita)</option>
-            <option value="STRONG_SELL">Strong Sell (Forte Vendita)</option>
+            <option value="SELL">Sell</option>
+            <option value="STRONG_SELL">Strong Sell</option>
           </select>
         </div>
-
-        <!-- Filtro Regime RSI -->
         <div>
-          <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Regime RSI 3-Zone (14)</label>
+          <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">RSI (14)</label>
           <select id="filterRsi" class="w-full bg-[#050506] border border-gold-500/25 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:border-gold-400 outline-none">
-            <option value="ALL">Tutte le 3 Zone RSI</option>
+            <option value="ALL">Tutte le Zone</option>
             <option value="OVERSOLD">🟢 Ipervenduto (&lt; 30)</option>
-            <option value="NEUTRAL">🟡 Zona Neutrale (30 - 70)</option>
+            <option value="NEUTRAL">🟡 Neutrale (30 - 70)</option>
             <option value="OVERBOUGHT">🔴 Ipercomprato (&gt; 70)</option>
           </select>
         </div>
-
-        <!-- Filtro Pattern -->
         <div>
-          <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Pattern Price Action / SMC</label>
+          <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Pattern</label>
           <select id="filterPattern" class="w-full bg-[#050506] border border-gold-500/25 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:border-gold-400 outline-none">
-            <option value="ALL">Tutti i Pattern SMC / PA</option>
+            <option value="ALL">Tutti i Pattern</option>
             <option value="Breakout Range">Breakout Range</option>
             <option value="Golden Cross">Golden Cross</option>
             <option value="Bullish FVG + OB">Bullish FVG + OB</option>
@@ -448,17 +280,15 @@
       </div>
     </section>
 
-    <!-- 5B & 6. GRIGLIA PRINCIPALE: TABELLA SCREENER + FEED ALERT LIVE -->
+    <!-- TABELLA SCREENER + FEED -->
     <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
-      
-      <!-- TABELLA SCREENER INTERATTIVA E ORDINABILE -->
       <section class="xl:col-span-9 terminal-card rounded-2xl overflow-hidden flex flex-col">
         <div class="px-4 py-3 border-b border-gold-500/25 flex flex-wrap items-center justify-between gap-2 bg-[#0C0C0F]">
           <div class="flex items-center gap-2.5">
-            <h2 class="text-sm font-bold text-white">Screener Multi-Asset • RSI 3-Zone, Wyckoff, Timing &amp; ETA Take Profit</h2>
+            <h2 class="text-sm font-bold text-white">Screener Multi-Asset • Con Parametri in % Reale</h2>
             <span id="filteredResultsCount" class="px-2 py-0.5 rounded-md text-xs font-mono bg-gold-500/15 text-gold-300 border border-gold-500/35">24 asset</span>
           </div>
-          <p class="text-[11px] text-slate-400">Clicca su un asset per ispezionare il Grafico Candlestick e il Calcolatore Position Size</p>
+          <p class="text-[11px] text-slate-400">Clicca per analizzare grafici e percentuali SL/TP</p>
         </div>
 
         <div class="overflow-x-auto">
@@ -466,765 +296,280 @@
             <thead>
               <tr class="border-b border-gold-500/25 text-[10px] font-bold uppercase tracking-wider text-gold-400 bg-[#050506] select-none">
                 <th class="py-3 pl-3 pr-1 w-8 text-center">★</th>
-                <th class="py-3 px-2.5 cursor-pointer hover:text-gold-300" data-sort="symbol">Asset ⇅</th>
-                <th class="py-3 px-2.5 text-right cursor-pointer hover:text-gold-300" data-sort="price">Prezzo &amp; 24h ⇅</th>
-                <th class="py-3 px-2.5 cursor-pointer hover:text-gold-300" data-sort="rsi">RSI (14) 3-Zone ⇅</th>
-                <th class="py-3 px-2.5 cursor-pointer hover:text-gold-300" data-sort="sentimentScore">Sentiment ⇅</th>
-                <th class="py-3 px-2.5 cursor-pointer hover:text-gold-300" data-sort="score">Segnale &amp; Wyckoff ⇅</th>
+                <th class="py-3 px-2.5">Asset</th>
+                <th class="py-3 px-2.5 text-right">Prezzo &amp; 24h</th>
+                <th class="py-3 px-2.5">RSI (14)</th>
+                <th class="py-3 px-2.5">Sentiment</th>
+                <th class="py-3 px-2.5">Segnale &amp; Wyckoff</th>
                 <th class="py-3 px-2.5">Finestra &amp; ETA TP1</th>
-                <th class="py-3 px-2.5">Entry / SL / TP1</th>
+                <th class="py-3 px-2.5">Entry / SL (%) / TP1 (%)</th>
                 <th class="py-3 px-2.5 text-right">Trend</th>
               </tr>
             </thead>
-            <tbody id="scannerTableBody" class="divide-y divide-gold-500/15 text-xs">
-              <!-- Righe generate via JS -->
-            </tbody>
+            <tbody id="scannerTableBody" class="divide-y divide-gold-500/15 text-xs"></tbody>
           </table>
         </div>
-
-        <!-- Stato Vuoto -->
         <div id="emptyState" class="hidden py-12 px-4 text-center">
-          <h3 class="text-sm font-semibold text-white">Nessun asset corrisponde ai filtri selezionati</h3>
-          <p class="text-xs text-slate-400 mt-1">Reimposta i filtri per visualizzare tutti i segnali e le finestre operative attive.</p>
-          <button id="emptyResetBtn" class="gold-gradient-btn mt-3 px-4 py-2 rounded-xl text-xs">
-            Ripristina Filtri
-          </button>
+          <h3 class="text-sm font-semibold text-white">Nessun asset corrisponde ai filtri</h3>
+          <button id="emptyResetBtn" class="gold-gradient-btn mt-3 px-4 py-2 rounded-xl text-xs">Ripristina Filtri</button>
         </div>
       </section>
 
-      <!-- PANNELLO LATERALE: FEED ALERT LIVE + MODALE CREAZIONE ALERT -->
+      <!-- FEED ALERT -->
       <aside class="xl:col-span-3 terminal-card rounded-2xl flex flex-col overflow-hidden">
         <div class="px-4 py-3 border-b border-gold-500/25 flex items-center justify-between bg-[#0C0C0F]">
           <div class="flex items-center gap-2">
-            <span class="relative flex h-2 w-2">
-              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-gold-400 opacity-75"></span>
-              <span class="relative inline-flex rounded-full h-2 w-2 bg-gold-500"></span>
-            </span>
+            <span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-gold-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-gold-500"></span></span>
             <h2 class="text-sm font-bold text-white">Feed Alert Live</h2>
           </div>
-          <button id="openCustomAlertBtn" class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-gold-500/20 hover:bg-gold-500/30 text-gold-300 border border-gold-500/40 transition-all">
-            + Crea Alert
-          </button>
+          <button id="openCustomAlertBtn" class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-gold-500/20 hover:bg-gold-500/30 text-gold-300 border border-gold-500/40 transition-all">+ Crea Alert</button>
         </div>
-
-        <!-- Alert Utente Attivi -->
         <div id="userActiveAlertsBox" class="hidden px-3.5 py-2.5 bg-[#141418] border-b border-gold-500/20">
-          <p class="text-[10px] font-semibold uppercase tracking-wider text-gold-400 mb-1.5">I tuoi Alert Personalizzati Attivi</p>
+          <p class="text-[10px] font-semibold uppercase tracking-wider text-gold-400 mb-1.5">Alert Personali</p>
           <div id="userActiveAlertsList" class="space-y-1"></div>
         </div>
-
-        <!-- Stream Notifiche -->
-        <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[760px] overflow-y-auto">
-          <!-- Generato via JS -->
-        </div>
+        <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[760px] overflow-y-auto"></div>
       </aside>
-
     </div>
   </main>
 
-  <!-- ==================== MODALE CREAZIONE ALERT PERSONALIZZATI ==================== -->
+  <!-- MODALE CREAZIONE ALERT -->
   <div id="customAlertModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/85 backdrop-blur-sm p-4">
     <div class="bg-[#0C0C0F] border border-gold-500/45 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
       <div class="px-5 py-3.5 border-b border-gold-500/25 flex items-center justify-between bg-[#050506]">
-        <h3 class="text-sm font-bold text-gold-300">Nuovo Alert Sonoro Personalizzato</h3>
+        <h3 class="text-sm font-bold text-gold-300">Nuovo Alert Sonoro</h3>
         <button id="closeCustomAlertModalBtn" class="text-slate-400 hover:text-gold-300 text-sm">✕</button>
       </div>
       <div class="p-5 space-y-3.5 text-xs">
         <div>
-          <label class="block text-[11px] font-semibold text-slate-300 mb-1">Seleziona Asset</label>
-          <select id="alertAssetSelect" class="w-full bg-[#050506] border border-gold-500/30 rounded-xl px-3 py-2 text-white outline-none focus:border-gold-400"></select>
+          <label class="block text-[11px] font-semibold text-slate-300 mb-1">Asset</label>
+          <select id="alertAssetSelect" class="w-full bg-[#050506] border border-gold-500/30 rounded-xl px-3 py-2 text-white outline-none"></select>
         </div>
         <div>
-          <label class="block text-[11px] font-semibold text-slate-300 mb-1">Condizione Trigger</label>
-          <select id="alertConditionSelect" class="w-full bg-[#050506] border border-gold-500/30 rounded-xl px-3 py-2 text-white outline-none focus:border-gold-400">
-            <option value="ABOVE">Prezzo supera livello (&gt;)</option>
-            <option value="BELOW">Prezzo scende sotto livello (&lt;)</option>
-            <option value="RSI_LOW">RSI (14) entra in Ipervenduto (&lt; 30)</option>
-            <option value="RSI_HIGH">RSI (14) entra in Ipercomprato (&gt; 70)</option>
+          <label class="block text-[11px] font-semibold text-slate-300 mb-1">Condizione</label>
+          <select id="alertConditionSelect" class="w-full bg-[#050506] border border-gold-500/30 rounded-xl px-3 py-2 text-white outline-none">
+            <option value="ABOVE">Prezzo sopra</option>
+            <option value="BELOW">Prezzo sotto</option>
           </select>
         </div>
-        <div id="alertTargetPriceWrapper">
-          <label class="block text-[11px] font-semibold text-slate-300 mb-1">Livello di Prezzo Target</label>
-          <input type="number" step="any" id="alertTargetInput" class="w-full bg-[#050506] border border-gold-500/30 rounded-xl px-3 py-2 font-mono text-white outline-none focus:border-gold-400" />
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-300 mb-1">Prezzo Target</label>
+          <input type="number" step="any" id="alertTargetInput" class="w-full bg-[#050506] border border-gold-500/30 rounded-xl px-3 py-2 font-mono text-white outline-none"/>
         </div>
         <div class="pt-2 flex items-center justify-end gap-2">
-          <button id="cancelCustomAlertBtn" class="px-4 py-2 rounded-xl bg-[#141418] hover:bg-slate-800 text-slate-300 font-semibold border border-slate-700">Annulla</button>
-          <button id="saveCustomAlertBtn" class="gold-gradient-btn px-4 py-2 rounded-xl">Attiva Notifica Sonora</button>
+          <button id="cancelCustomAlertBtn" class="px-4 py-2 rounded-xl bg-[#141418] text-slate-300">Annulla</button>
+          <button id="saveCustomAlertBtn" class="gold-gradient-btn px-4 py-2 rounded-xl">Salva</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ==================== MODALE CLASSIFICA COMPLETA "MOVIMENTI DEI TOP" ==================== -->
+  <!-- MODALE CLASSIFICA TOP MOVERS -->
   <div id="topMoversModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/85 backdrop-blur-sm p-3 sm:p-5 overflow-y-auto">
     <div class="bg-[#0C0C0F] border border-gold-500/45 rounded-2xl w-full max-w-5xl shadow-2xl overflow-hidden my-auto">
       <div class="px-5 py-3.5 border-b border-gold-500/25 flex items-center justify-between bg-[#050506]">
-        <div>
-          <h2 class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
-            <span class="text-gold-400">⚡</span> Classifica Completa Movimenti dei Top &amp; ETA Take Profit
-          </h2>
-          <p class="text-xs text-slate-400">Confronto variazioni multi-orizzonte, Sentiment Preciso, Finestra Utile e Ora Esatta prevista TP1</p>
-        </div>
-        <button id="closeTopMoversModalBtn" class="p-2 rounded-xl bg-[#141418] hover:bg-[#FF334B]/20 hover:text-[#FF334B] text-slate-400 border border-gold-500/25">✕</button>
+        <h2 class="text-base font-bold text-white">Classifica Completa Top Movers</h2>
+        <button id="closeTopMoversModalBtn" class="p-2 rounded-xl bg-[#141418] text-slate-400">✕</button>
       </div>
       <div class="p-4 sm:p-5 overflow-x-auto max-h-[75vh]">
         <table class="w-full text-left border-collapse text-xs">
           <thead>
             <tr class="border-b border-gold-500/25 text-[10px] font-bold uppercase tracking-wider text-gold-400 bg-[#050506]">
-              <th class="py-2.5 px-3">#</th>
-              <th class="py-2.5 px-3">Asset</th>
-              <th class="py-2.5 px-3 text-right">Prezzo</th>
-              <th class="py-2.5 px-3 text-right">Δ 24H</th>
-              <th class="py-2.5 px-3">Sentiment Preciso</th>
-              <th class="py-2.5 px-3">Finestra Utile</th>
-              <th class="py-2.5 px-3">ETA Esatta TP1</th>
-              <th class="py-2.5 px-3 text-right">Azione</th>
+              <th class="py-2.5 px-3">#</th><th class="py-2.5 px-3">Asset</th><th class="py-2.5 px-3 text-right">Prezzo</th><th class="py-2.5 px-3 text-right">Δ 24H</th><th class="py-2.5 px-3">Sentiment</th><th class="py-2.5 px-3">Finestra</th><th class="py-2.5 px-3">ETA TP1</th>
             </tr>
           </thead>
-          <tbody id="topMoversLeaderboardBody" class="divide-y divide-gold-500/15">
-            <!-- Popolato via JS -->
-          </tbody>
+          <tbody id="topMoversLeaderboardBody" class="divide-y divide-gold-500/15"></tbody>
         </table>
       </div>
     </div>
   </div>
 
-  <!-- ==================== 7. MODALE SCHEDA DETTAGLIO ASSET COMPLETA ==================== -->
+  <!-- MODALE DETTAGLIO ASSET -->
   <div id="assetModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/90 backdrop-blur-sm p-2 sm:p-4 overflow-y-auto">
     <div class="bg-[#0C0C0F] border border-gold-500/45 rounded-2xl w-full max-w-[1460px] shadow-2xl overflow-hidden my-auto">
-      
-      <!-- Modal Top Header -->
       <div class="px-4 sm:px-6 py-3.5 border-b border-gold-500/25 flex flex-wrap items-center justify-between gap-3 bg-[#050506]">
         <div class="flex items-center gap-3">
-          <button id="modalWatchlistBtn" class="p-2 rounded-xl bg-[#141418] hover:bg-gold-500/15 text-slate-400 border border-gold-500/25 transition-colors" title="Preferiti">
-            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-            </svg>
-          </button>
+          <button id="modalWatchlistBtn" class="p-2 rounded-xl bg-[#141418] text-slate-400 border border-gold-500/25"><svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></button>
           <div>
             <div class="flex flex-wrap items-center gap-2">
-              <h2 id="modalSymbol" class="text-lg sm:text-xl font-extrabold font-mono text-white">BTC/USDT</h2>
+              <h2 id="modalSymbol" class="text-lg font-extrabold font-mono text-white">BTC/USDT</h2>
               <span id="modalEnterNowBadge" class="enter-now-badge px-2.5 py-0.5 rounded-md text-[11px] font-mono font-extrabold uppercase">⚡ ENTRA ADESSO</span>
-              <span id="modalMarketBadge" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#141418] text-gold-300 border border-gold-500/30">CRYPTO</span>
-              <span id="modalSignalBadge" class="px-2.5 py-0.5 rounded-md text-xs font-bold bg-[#00FF66]/15 text-[#00FF66] border border-[#00FF66]/40">STRONG BUY</span>
-              <span id="modalWyckoffBadge" class="px-2.5 py-0.5 rounded-md text-xs font-mono font-bold bg-gold-500/15 text-gold-300 border border-gold-500/35">Fase Wyckoff: Markup</span>
+              <span id="modalMarketBadge" class="px-2 py-0.5 rounded text-[10px] bg-[#141418] text-gold-300 border border-gold-500/30">CRYPTO</span>
+              <span id="modalSignalBadge" class="px-2.5 py-0.5 rounded-md text-xs font-bold bg-[#00FF66]/15 text-[#00FF66]">STRONG BUY</span>
             </div>
-            <p id="modalName" class="text-xs text-slate-400 mt-0.5">Bitcoin • Timeframe 1H</p>
+            <p id="modalName" class="text-xs text-slate-400 mt-0.5">Bitcoin</p>
           </div>
         </div>
-
         <div class="flex items-center gap-3">
-          <button id="copyAllParamsBtn" class="gold-gradient-btn px-3.5 py-2 rounded-xl text-xs transition-all flex items-center gap-1.5">
-            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-            </svg>
-            <span>Copia Piano &amp; ETA TP</span>
-          </button>
+          <button id="copyAllParamsBtn" class="gold-gradient-btn px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5">📋 Copia Piano &amp; ETA in %</button>
           <div class="text-right">
-            <div id="modalPrice" class="text-xl sm:text-2xl font-bold font-mono text-white tabular-nums">$94,280.50</div>
-            <div id="modalChange" class="text-xs font-mono font-semibold text-[#00FF66]">+4.35% (24h)</div>
+            <div id="modalPrice" class="text-xl font-bold font-mono text-white tabular-nums">$0.00</div>
+            <div id="modalChange" class="text-xs font-mono text-[#00FF66]">0.00%</div>
           </div>
-          <button id="closeModalBtn" class="p-2 rounded-xl bg-[#141418] hover:bg-[#FF334B]/20 hover:text-[#FF334B] text-slate-400 border border-gold-500/25 transition-all">✕</button>
+          <button id="closeModalBtn" class="p-2 rounded-xl bg-[#141418] text-slate-400 hover:text-[#FF334B]">✕</button>
         </div>
       </div>
 
-      <!-- Modal Content Grid -->
       <div class="p-4 sm:p-5 grid grid-cols-1 lg:grid-cols-12 gap-4 max-h-[85vh] overflow-y-auto">
-        
-        <!-- BLOCCO 1: TIMING DI INGRESSO -->
         <div class="lg:col-span-12 bg-[#050506] border border-gold-500/30 rounded-2xl p-4 space-y-3.5">
-          <div class="flex flex-wrap items-center justify-between gap-2">
-            <div class="flex items-center gap-2">
-              <span class="w-2.5 h-2.5 rounded-full bg-gold-400 animate-pulse"></span>
-              <h3 class="text-xs font-bold uppercase tracking-wider text-gold-300">Blocco 1 • Timing di Ingresso, Scadenza &amp; Cronotabella Esatta Take Profit</h3>
-            </div>
-            <div class="flex items-center gap-2">
-              <span id="modalKillzoneTag" class="text-[11px] font-mono text-gold-300 bg-gold-500/10 border border-gold-500/30 px-2.5 py-0.5 rounded-lg">
-                Killzone Londra (09:00 - 12:30 CET)
-              </span>
-              <span id="modalTimingStatusBadge" class="px-2.5 py-0.5 rounded-lg text-[10px] font-mono font-bold bg-[#00FF66]/15 text-[#00FF66] border border-[#00FF66]/40">
-                FINESTRA OTTIMALE
-              </span>
-            </div>
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-gold-300">Blocco 1 • Timing &amp; Cronotabella in Percentuale</h3>
+            <span id="modalTimingStatusBadge" class="px-2.5 py-0.5 rounded-lg text-[10px] font-mono font-bold bg-[#00FF66]/15 text-[#00FF66]">OTTIMALE</span>
           </div>
-
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
             <div class="bg-[#0C0C0F] border border-gold-500/20 rounded-xl p-3">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Ora Esatta Segnale CET</span>
-              <span id="modalExactSignalTime" class="text-base font-bold font-mono text-white mt-1 block tabular-nums">11:32:14 CET</span>
-              <span id="modalSessionTag" class="text-[11px] text-gold-400 mt-0.5 block">Sessione Europa</span>
+              <span class="text-[10px] font-bold text-slate-400 block">Ora Segnale CET</span>
+              <span id="modalExactSignalTime" class="text-base font-bold font-mono text-white mt-1 block">--</span>
             </div>
-
             <div class="bg-[#0C0C0F] border border-gold-500/45 rounded-xl p-3">
-              <div class="flex items-center justify-between">
-                <span class="text-[10px] font-bold uppercase tracking-wider text-gold-400">Finestra Ingresso Consigliata</span>
-                <span id="modalTotalDurationBadge" class="text-[10px] font-mono bg-gold-500/15 text-gold-300 px-1.5 py-0.2 rounded">45 min</span>
-              </div>
-              <span id="modalEntryWindow" class="text-sm sm:text-base font-bold font-mono text-gold-300 mt-1 block tabular-nums">11:32:14 – 12:17:14</span>
-              <span class="text-[11px] text-slate-400 mt-0.5 block">Ingresso ottimale su retest FVG/OB</span>
+              <span class="text-[10px] font-bold text-gold-400 block">Finestra Ingresso</span>
+              <span id="modalEntryWindow" class="text-sm font-bold font-mono text-gold-300 mt-1 block">--</span>
             </div>
-
             <div class="bg-[#0C0C0F] border border-[#FF334B]/35 rounded-xl p-3">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-[#FF334B] block">Ora Esatta Scadenza Ingresso</span>
-              <span id="modalExpiryTime" class="text-base font-bold font-mono text-[#FF334B] mt-1 block tabular-nums">12:17:14 CET</span>
-              <span class="text-[11px] text-slate-400 mt-0.5 block">Invalidazione temporale ordine</span>
+              <span class="text-[10px] font-bold text-[#FF334B] block">Scadenza</span>
+              <span id="modalExpiryTime" class="text-base font-bold font-mono text-[#FF334B] mt-1 block">--</span>
             </div>
-
             <div class="bg-[#0C0C0F] border border-gold-500/40 rounded-xl p-3">
-              <div class="flex items-center justify-between">
-                <span class="text-[10px] font-bold uppercase tracking-wider text-gold-400">Tempo Utile Rimanente</span>
-                <span id="modalRemainingPct" class="text-xs font-mono font-bold text-gold-300">84%</span>
-              </div>
-              <span id="modalCountdownTimer" class="text-base font-bold font-mono text-gold-300 mt-1 block tabular-nums">37m 48s</span>
-              <div class="w-full h-1.5 bg-[#1E1E24] rounded-full overflow-hidden mt-1.5">
-                <div id="modalTimingProgressBar" class="h-full bg-gradient-to-r from-[#FF334B] via-gold-500 to-[#00FF66] rounded-full transition-all duration-500" style="width: 84%"></div>
-              </div>
-            </div>
-          </div>
-
-          <div class="bg-[#0C0C0F] border border-gold-500/35 rounded-xl p-3.5">
-            <div class="flex flex-wrap items-center justify-between gap-2 mb-2.5">
-              <span class="text-[11px] font-bold uppercase tracking-wider text-gold-300 flex items-center gap-1.5">
-                <span>🎯</span> Tempo Esatto Previsto per Segnare Take Profit (Modello Volatilità ATR 14 &amp; Velocity)
-              </span>
-              <span id="modalTpVelocityNote" class="text-[10px] font-mono text-slate-400">Velocità media stimata: 1.45 ATR / ora</span>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-2.5 font-mono">
-              <div class="bg-[#141418] border border-[#00FF66]/35 rounded-xl p-2.5 flex items-center justify-between">
-                <div>
-                  <span class="text-[10px] font-bold text-[#00FF66] block">TP1 (R:R 1:1.5) • Prob. <span id="etaTp1Prob">84%</span></span>
-                  <span id="etaTp1ExactTime" class="text-sm font-extrabold text-white mt-0.5 block">12:38 CET</span>
-                  <span id="etaTp1Duration" class="text-[10px] text-[#00FF66]/90">Tempo stimato: ~32 min</span>
-                </div>
-                <div class="text-right">
-                  <span class="text-[9px] text-slate-400 block">Target</span>
-                  <span id="etaTp1Price" class="text-xs font-bold text-[#00FF66]">$0.00</span>
-                </div>
-              </div>
-
-              <div class="bg-[#141418] border border-gold-500/40 rounded-xl p-2.5 flex items-center justify-between">
-                <div>
-                  <span class="text-[10px] font-bold text-gold-400 block">TP2 (R:R 1:2.8) • Prob. <span id="etaTp2Prob">67%</span></span>
-                  <span id="etaTp2ExactTime" class="text-sm font-extrabold text-gold-300 mt-0.5 block">13:15 CET</span>
-                  <span id="etaTp2Duration" class="text-[10px] text-slate-300">Tempo stimato: ~1h 09m</span>
-                </div>
-                <div class="text-right">
-                  <span class="text-[9px] text-slate-400 block">Target</span>
-                  <span id="etaTp2Price" class="text-xs font-bold text-gold-300">$0.00</span>
-                </div>
-              </div>
-
-              <div class="bg-[#141418] border border-gold-500/25 rounded-xl p-2.5 flex items-center justify-between">
-                <div>
-                  <span class="text-[10px] font-bold text-gold-300 block">TP3 Runner (1:4.0) • Prob. <span id="etaTp3Prob">46%</span></span>
-                  <span id="etaTp3ExactTime" class="text-sm font-extrabold text-white mt-0.5 block">14:04 CET</span>
-                  <span id="etaTp3Duration" class="text-[10px] text-slate-400">Tempo stimato: ~1h 58m</span>
-                </div>
-                <div class="text-right">
-                  <span class="text-[9px] text-slate-400 block">Target</span>
-                  <span id="etaTp3Price" class="text-xs font-bold text-[#00FF66]">$0.00</span>
-                </div>
-              </div>
+              <span class="text-[10px] font-bold text-gold-400 block">Tempo Rimanente</span>
+              <span id="modalCountdownTimer" class="text-base font-bold font-mono text-gold-300 mt-1 block">--</span>
             </div>
           </div>
         </div>
 
-        <!-- COLONNA SINISTRA -->
         <div class="lg:col-span-7 flex flex-col gap-4">
           <div class="bg-[#050506] border border-gold-500/30 rounded-2xl p-3.5">
-            <div class="flex flex-wrap items-center justify-between gap-2 mb-2.5 text-xs">
-              <div class="flex flex-wrap items-center gap-2.5">
-                <span class="font-bold text-gold-300">Blocco 3 • Grafico Candlestick SMC &amp; Target</span>
-                <span class="flex items-center gap-1 text-[10px] font-mono text-gold-300"><span class="w-2.5 h-0.5 bg-gold-400"></span>EMA 20</span>
-                <span class="flex items-center gap-1 text-[10px] font-mono text-amber-500"><span class="w-2.5 h-0.5 bg-amber-500"></span>EMA 50</span>
-                <span class="flex items-center gap-1 text-[10px] font-mono text-gold-200"><span class="w-2.5 h-0.5 bg-gold-300"></span>Entry</span>
-                <span class="flex items-center gap-1 text-[10px] font-mono text-[#FF334B]"><span class="w-2.5 h-0.5 bg-[#FF334B]"></span>SL</span>
-                <span class="flex items-center gap-1 text-[10px] font-mono text-[#00FF66]"><span class="w-2.5 h-0.5 bg-[#00FF66]"></span>TP1/TP2</span>
-              </div>
-              <div id="chartCrosshairInfo" class="font-mono text-[11px] text-slate-400">Passa sulle candele per OHLC</div>
+            <div class="flex items-center justify-between mb-2 text-xs text-gold-300 font-bold">
+              <span>Grafico Candlestick &amp; Livelli in %</span>
+              <span id="chartCrosshairInfo" class="font-mono text-[11px] text-slate-400">OHLC Live</span>
             </div>
-            <div class="relative w-full h-[330px] sm:h-[365px] bg-[#050506] rounded-xl border border-gold-500/20 overflow-hidden">
+            <div class="relative w-full h-[330px] bg-[#050506] rounded-xl border border-gold-500/20 overflow-hidden">
               <canvas id="candlestickCanvas" class="w-full h-full block cursor-crosshair"></canvas>
             </div>
           </div>
-
-          <div class="bg-[#050506] border border-gold-500/30 rounded-2xl p-4 space-y-3">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h3 class="text-xs font-bold uppercase tracking-wider text-gold-300">Analisi Sentiment Istituzionale Preciso</h3>
-                <p class="text-[11px] text-slate-400">Scomposizione algoritmica di Order Flow, Smart Money vs Retail, Order Book Imbalance e Funding/OI</p>
-              </div>
-              <span id="modalAssetSentimentBadge" class="px-3 py-1 rounded-xl text-xs font-mono font-extrabold bg-[#00FF66]/15 text-[#00FF66] border border-[#00FF66]/40">78.4% BULLISH ESTREMO</span>
-            </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono" id="modalSentimentBreakdown"></div>
-          </div>
-
-          <div class="bg-[#050506] border border-gold-500/30 rounded-2xl p-4 space-y-3">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h3 class="text-xs font-bold uppercase tracking-wider text-gold-300">Blocco 4 • 6 Pilastri di Confluenza Istituzionale</h3>
-                <p class="text-[11px] text-slate-400">Validazione multi-fattore SMC, Wyckoff, RSI 3-Zone, Volume Profile e Fibonacci</p>
-              </div>
-              <span id="modalConfluenceScoreBadge" class="px-3 py-1 rounded-xl text-xs font-mono font-bold bg-gold-500/20 text-gold-300 border border-gold-500/40">6/6 Pilastri • Probabilità 92%</span>
-            </div>
-            <div class="bg-[#0C0C0F] border border-gold-500/20 rounded-xl p-2.5">
-              <div class="flex items-center justify-between text-[10px] font-mono text-slate-400 mb-1.5">
-                <span class="uppercase font-bold text-slate-300">Ciclo di Mercato Wyckoff Attivo:</span>
-                <span id="wyckoffPhaseDesc" class="text-gold-300">Espansione rialzista post-accumulazione</span>
-              </div>
-              <div class="grid grid-cols-4 gap-1.5 text-center font-mono text-[10px]" id="wyckoffCycleDiagram"></div>
-            </div>
-            <div id="modalConfluencesList" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5"></div>
-          </div>
         </div>
 
-        <!-- COLONNA DESTRA -->
         <div class="lg:col-span-5 flex flex-col gap-4">
           <div class="bg-[#050506] border border-gold-500/30 rounded-2xl p-4 flex-1 flex flex-col justify-between space-y-4">
             <div>
               <div class="flex items-center justify-between border-b border-gold-500/20 pb-2.5 mb-3">
-                <h3 class="text-xs font-bold uppercase tracking-wider text-gold-300">Blocco 2 • Parametri Operativi Esatti</h3>
-                <span id="paramDirectionBadge" class="px-2.5 py-0.5 rounded text-xs font-mono font-bold bg-[#00FF66]/15 text-[#00FF66] border border-[#00FF66]/40">LONG</span>
+                <h3 class="text-xs font-bold uppercase tracking-wider text-gold-300">Parametri con Variazione %</h3>
+                <span id="paramDirectionBadge" class="px-2.5 py-0.5 rounded text-xs font-mono font-bold bg-[#00FF66]/15 text-[#00FF66]">LONG</span>
               </div>
-
-              <div class="bg-[#0C0C0F] border border-gold-500/35 rounded-xl p-3 mb-3 flex items-center justify-between">
-                <span class="text-xs text-slate-400">Tipo Ordine Consigliato:</span>
-                <span id="paramOrderType" class="text-xs font-mono font-bold text-gold-300">Buy Limit su FVG / OB</span>
-              </div>
-
               <div class="space-y-2 text-xs font-mono">
                 <div class="flex justify-between items-center p-2.5 rounded-xl bg-gold-500/15 border border-gold-500/45">
-                  <div>
-                    <span class="text-gold-300 font-sans font-bold block">Optimal Entry (Ingresso Esatto)</span>
-                    <span id="paramEntryZone" class="text-[10px] text-slate-300">Entry Zone: 0.00 – 0.00</span>
-                  </div>
+                  <span class="text-gold-300 font-sans font-bold">Optimal Entry</span>
                   <span id="paramOptimalEntry" class="text-sm font-extrabold text-white">$0.00</span>
                 </div>
-
                 <div class="flex justify-between items-center p-2.5 rounded-xl bg-[#FF334B]/10 border border-[#FF334B]/35">
-                  <div>
-                    <span class="text-[#FF334B] font-sans font-bold block">Stop Loss Esatto (ATR 14)</span>
-                    <span id="paramSlDistance" class="text-[10px] text-[#FF334B]/80">-1.45% (1.45x ATR)</span>
-                  </div>
+                  <span class="text-[#FF334B] font-sans font-bold">Stop Loss (<span id="paramSlPctLabel">-1.50%</span>)</span>
                   <span id="paramStopLoss" class="text-sm font-bold text-[#FF334B]">$0.00</span>
                 </div>
-
                 <div class="flex justify-between items-center p-2.5 rounded-xl bg-[#00FF66]/10 border border-[#00FF66]/30">
-                  <div>
-                    <span class="text-[#00FF66] font-sans font-bold block">Take Profit 1 (R:R 1:1.5)</span>
-                    <span id="paramTp1EtaInline" class="text-[10px] text-gold-300">ETA: 12:38 CET (~32m)</span>
-                  </div>
+                  <span class="text-[#00FF66] font-sans font-bold">Take Profit 1 (<span id="paramTp1PctLabel">+2.25%</span>)</span>
                   <span id="paramTp1" class="font-bold text-[#00FF66] text-sm">$0.00</span>
                 </div>
-
                 <div class="flex justify-between items-center p-2.5 rounded-xl bg-[#00FF66]/10 border border-[#00FF66]/30">
-                  <div>
-                    <span class="text-[#00FF66] font-sans font-bold block">Take Profit 2 (R:R 1:2.8)</span>
-                    <span id="paramTp2EtaInline" class="text-[10px] text-gold-300">ETA: 13:15 CET (~1h 09m)</span>
-                  </div>
+                  <span class="text-[#00FF66] font-sans font-bold">Take Profit 2 (<span id="paramTp2PctLabel">+4.20%</span>)</span>
                   <span id="paramTp2" class="font-bold text-[#00FF66] text-sm">$0.00</span>
                 </div>
-
                 <div class="flex justify-between items-center p-2.5 rounded-xl bg-[#00FF66]/10 border border-[#00FF66]/30">
-                  <div>
-                    <span class="text-[#00FF66] font-sans font-bold block">Take Profit 3 Runner (1:4.0)</span>
-                    <span id="paramTp3EtaInline" class="text-[10px] text-gold-300">ETA: 14:04 CET (~1h 58m)</span>
-                  </div>
+                  <span class="text-[#00FF66] font-sans font-bold">Take Profit 3 (<span id="paramTp3PctLabel">+6.30%</span>)</span>
                   <span id="paramTp3" class="font-bold text-[#00FF66] text-sm">$0.00</span>
                 </div>
               </div>
-
-              <div class="grid grid-cols-3 gap-2 mt-3 font-mono text-center">
-                <div class="bg-[#0C0C0F] border border-gold-500/25 rounded-xl p-2">
-                  <span class="text-[9px] text-gold-400 block uppercase">Fib 0.618</span>
-                  <span id="paramFib618" class="text-xs font-bold text-white mt-0.5 block">0.00</span>
-                </div>
-                <div class="bg-[#0C0C0F] border border-gold-500/25 rounded-xl p-2">
-                  <span class="text-[9px] text-gold-400 block uppercase">POC (Vol. Prof.)</span>
-                  <span id="paramPoc" class="text-xs font-bold text-white mt-0.5 block">0.00</span>
-                </div>
-                <div class="bg-[#0C0C0F] border border-gold-500/25 rounded-xl p-2">
-                  <span class="text-[9px] text-gold-400 block uppercase">VAH / VAL</span>
-                  <span id="paramVahVal" class="text-[10px] font-bold text-slate-200 mt-0.5 block">0 / 0</span>
-                </div>
-              </div>
-
-              <div class="grid grid-cols-4 gap-2 mt-2 font-mono text-center">
-                <div class="bg-[#0C0C0F] border border-gold-500/20 rounded-xl p-2">
-                  <span class="text-[9px] text-slate-400 block uppercase">R:R Target</span>
-                  <span id="paramRRMain" class="text-xs font-bold text-[#00FF66] mt-0.5 block">1 : 2.8</span>
-                </div>
-                <div class="bg-[#0C0C0F] border border-gold-500/20 rounded-xl p-2">
-                  <span class="text-[9px] text-slate-400 block uppercase">ATR (14)</span>
-                  <span id="paramAtr" class="text-xs font-bold text-white mt-0.5 block">0.00</span>
-                </div>
-                <div class="bg-[#0C0C0F] border border-gold-500/20 rounded-xl p-2">
-                  <span class="text-[9px] text-slate-400 block uppercase">Spread</span>
-                  <span id="paramSpread" class="text-xs font-bold text-slate-200 mt-0.5 block">0.02%</span>
-                </div>
-                <div class="bg-[#0C0C0F] border border-gold-500/20 rounded-xl p-2">
-                  <span class="text-[9px] text-slate-400 block uppercase">Leva Max</span>
-                  <span id="paramMaxLeverage" class="text-xs font-bold text-gold-300 mt-0.5 block">5x</span>
-                </div>
-              </div>
             </div>
 
-            <!-- Position Size Calculator -->
             <div class="bg-[#0C0C0F] border border-gold-500/35 rounded-xl p-3.5 space-y-2.5">
-              <div class="flex items-center justify-between">
-                <span class="text-xs font-bold text-white">Calcolatore Position Size Interattivo</span>
-                <span class="text-[10px] font-mono text-gold-400">Risk Management</span>
-              </div>
+              <span class="text-xs font-bold text-white">Calcolatore Position Size</span>
               <div class="grid grid-cols-2 gap-2.5 text-xs">
-                <div>
-                  <label class="block text-[10px] text-slate-400 mb-1">Capitale Conto ($)</label>
-                  <input type="number" id="sizeAccountBalance" value="10000" min="100" step="100" class="w-full bg-[#050506] border border-gold-500/30 rounded-lg px-2.5 py-1.5 font-mono text-white outline-none focus:border-gold-400" />
-                </div>
-                <div>
-                  <label class="block text-[10px] text-slate-400 mb-1">Rischio per Trade (%)</label>
-                  <input type="number" id="sizeRiskPct" value="1.0" min="0.1" max="10" step="0.1" class="w-full bg-[#050506] border border-gold-500/30 rounded-lg px-2.5 py-1.5 font-mono text-white outline-none focus:border-gold-400" />
-                </div>
+                <div><label class="block text-[10px] text-slate-400 mb-1">Capitale ($)</label><input type="number" id="sizeAccountBalance" value="10000" class="w-full bg-[#050506] border border-gold-500/30 rounded-lg px-2.5 py-1.5 font-mono text-white outline-none"/></div>
+                <div><label class="block text-[10px] text-slate-400 mb-1">Rischio (%)</label><input type="number" id="sizeRiskPct" value="1.0" step="0.1" class="w-full bg-[#050506] border border-gold-500/30 rounded-lg px-2.5 py-1.5 font-mono text-white outline-none"/></div>
               </div>
-              <div class="pt-2 border-t border-gold-500/20 grid grid-cols-3 gap-2 font-mono text-xs">
-                <div>
-                  <span class="text-[10px] text-slate-400 block font-sans">Rischio Max ($)</span>
-                  <span id="calcRiskDollar" class="font-bold text-[#FF334B]">$100.00</span>
-                </div>
-                <div>
-                  <span class="text-[10px] text-slate-400 block font-sans">Size (Unità)</span>
-                  <span id="calcPositionUnits" class="font-bold text-white">0.00</span>
-                </div>
-                <div class="text-right">
-                  <span class="text-[10px] text-slate-400 block font-sans">Profitto TP2</span>
-                  <span id="calcRewardTp2Dollar" class="font-bold text-[#00FF66]">+$280.00</span>
-                </div>
+              <div class="pt-2 border-t border-gold-500/20 grid grid-cols-2 gap-2 font-mono text-xs">
+                <div><span class="text-[10px] text-slate-400 block font-sans">Rischio ($)</span><span id="calcRiskDollar" class="font-bold text-[#FF334B]">$100.00</span></div>
+                <div class="text-right"><span class="text-[10px] text-slate-400 block font-sans">Unità Size</span><span id="calcPositionUnits" class="font-bold text-white">0.00</span></div>
               </div>
             </div>
-
           </div>
         </div>
-
       </div>
     </div>
   </div>
 
-  <!-- Toast Notification -->
   <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
 
-  <!-- ==================== JAVASCRIPT APPLICATION ENGINE ==================== -->
+  <!-- JAVASCRIPT CON CALCOLO PERCENTUALE REALE -->
   <script>
     const INITIAL_ASSETS = [
-      { id: 'btc', symbol: 'BTC/USDT', name: 'Bitcoin', market: 'CRYPTO', price: 94280.50, decimals: 2, change15m: 0.68, change1h: 1.42, change24h: 4.35, volume24h: 48200000000, rvol: 1.88, rsi: 64.2, macd: 'Bullish', smaTrend: 'Sopra SMA 50/200', pattern: 'Breakout Range', wyckoff: 'Markup', smcEvent: 'BOS Rialzista + Bullish OB', fundingRate: 0.014, score: 89, watchlist: true },
-      { id: 'eth', symbol: 'ETH/USDT', name: 'Ethereum', market: 'CRYPTO', price: 3342.15, decimals: 2, change15m: 0.41, change1h: 0.95, change24h: 2.85, volume24h: 21500000000, rvol: 1.45, rsi: 58.7, macd: 'Bullish', smaTrend: 'Sopra SMA 50/200', pattern: 'Golden Cross', wyckoff: 'Markup', smcEvent: 'Retest Bullish FVG', fundingRate: 0.011, score: 79, watchlist: true },
-      { id: 'sol', symbol: 'SOL/USDT', name: 'Solana', market: 'CRYPTO', price: 218.60, decimals: 2, change15m: 1.45, change1h: 3.12, change24h: 8.64, volume24h: 9400000000, rvol: 2.65, rsi: 72.8, macd: 'Bullish', smaTrend: 'Sopra SMA 50/200', pattern: 'Bullish FVG + OB', wyckoff: 'Markup', smcEvent: 'BOS + Displacement', fundingRate: 0.022, score: 94, watchlist: true },
-      { id: 'xrp', symbol: 'XRP/USDT', name: 'Ripple', market: 'CRYPTO', price: 1.4250, decimals: 4, change15m: -0.35, change1h: -0.90, change24h: -2.15, volume24h: 4100000000, rvol: 1.12, rsi: 44.1, macd: 'Bearish', smaTrend: 'Sotto SMA 50', pattern: 'Liquidity Sweep', wyckoff: 'Distribuzione', smcEvent: 'Sweep Buy-Side Liq.', fundingRate: -0.004, score: 44, watchlist: false },
-      { id: 'avax', symbol: 'AVAX/USDT', name: 'Avalanche', market: 'CRYPTO', price: 41.8000, decimals: 4, change15m: 0.85, change1h: 2.10, change24h: 5.90, volume24h: 1320000000, rvol: 1.94, rsi: 61.5, macd: 'Bullish', smaTrend: 'Sopra SMA 50/200', pattern: 'Double Bottom', wyckoff: 'Accumulazione', smcEvent: 'CHoCH Rialzista + OB', fundingRate: 0.013, score: 85, watchlist: false },
-      { id: 'link', symbol: 'LINK/USDT', name: 'Chainlink', market: 'CRYPTO', price: 18.9500, decimals: 4, change15m: -0.78, change1h: -1.85, change24h: -4.60, volume24h: 890000000, rvol: 1.65, rsi: 27.8, macd: 'Bearish', smaTrend: 'Sotto SMA 50/200', pattern: 'RSI Divergence', wyckoff: 'Accumulazione', smcEvent: 'Sell-Side Liquidity Sweep', fundingRate: -0.009, score: 66, watchlist: false },
-      { id: 'ada', symbol: 'ADA/USDT', name: 'Cardano', market: 'CRYPTO', price: 0.8840, decimals: 4, change15m: 0.22, change1h: 0.65, change24h: 1.45, volume24h: 1150000000, rvol: 1.05, rsi: 52.0, macd: 'Neutral', smaTrend: 'Sopra SMA 200', pattern: 'Breakout Range', wyckoff: 'Accumulazione', smcEvent: 'Spring Wyckoff + FVG', fundingRate: 0.006, score: 68, watchlist: false },
-      { id: 'nvda', symbol: 'NVDA', name: 'NVIDIA Corp.', market: 'STOCKS', price: 146.80, decimals: 2, change15m: 0.72, change1h: 1.68, change24h: 3.92, volume24h: 34500000000, rvol: 1.84, rsi: 66.8, macd: 'Bullish', smaTrend: 'Sopra SMA 50/200', pattern: 'Golden Cross', wyckoff: 'Markup', smcEvent: 'BOS + Bullish Order Block', fundingRate: 0.015, score: 91, watchlist: true },
-      { id: 'aapl', symbol: 'AAPL', name: 'Apple Inc.', market: 'STOCKS', price: 229.40, decimals: 2, change15m: 0.15, change1h: 0.42, change24h: 0.85, volume24h: 11200000000, rvol: 0.92, rsi: 54.3, macd: 'Neutral', smaTrend: 'Sopra SMA 50/200', pattern: 'Breakout Range', wyckoff: 'Markup', smcEvent: 'Equilibrium 0.5 Fib', fundingRate: 0.004, score: 58, watchlist: false },
-      { id: 'tsla', symbol: 'TSLA', name: 'Tesla Inc.', market: 'STOCKS', price: 318.25, decimals: 2, change15m: -0.95, change1h: -2.14, change24h: -5.42, volume24h: 26800000000, rvol: 2.32, rsi: 27.4, macd: 'Bearish', smaTrend: 'Sotto SMA 50', pattern: 'Liquidity Sweep', wyckoff: 'Markdown', smcEvent: 'CHoCH Ribassista + Bearish FVG', fundingRate: -0.018, score: 19, watchlist: true },
-      { id: 'msft', symbol: 'MSFT', name: 'Microsoft Corp.', market: 'STOCKS', price: 428.90, decimals: 2, change15m: 0.30, change1h: 0.78, change24h: 1.65, volume24h: 9800000000, rvol: 1.28, rsi: 57.9, macd: 'Bullish', smaTrend: 'Sopra SMA 50/200', pattern: 'Bullish FVG + OB', wyckoff: 'Markup', smcEvent: 'Mitigation Bullish OB', fundingRate: 0.008, score: 75, watchlist: false },
-      { id: 'amd', symbol: 'AMD', name: 'Advanced Micro Devices', market: 'STOCKS', price: 154.10, decimals: 2, change15m: -0.48, change1h: -1.25, change24h: -2.90, volume24h: 8400000000, rvol: 1.54, rsi: 36.5, macd: 'Bearish', smaTrend: 'Sotto SMA 50/200', pattern: 'RSI Divergence', wyckoff: 'Markdown', smcEvent: 'Bearish Order Block', fundingRate: -0.011, score: 29, watchlist: false },
-      { id: 'meta', symbol: 'META', name: 'Meta Platforms', market: 'STOCKS', price: 589.50, decimals: 2, change15m: 0.45, change1h: 1.10, change24h: 2.40, volume24h: 10500000000, rvol: 1.38, rsi: 61.0, macd: 'Bullish', smaTrend: 'Sopra SMA 50/200', pattern: 'Double Bottom', wyckoff: 'Markup', smcEvent: 'BOS + Retest VAH', fundingRate: 0.010, score: 80, watchlist: false },
-      { id: 'pltr', symbol: 'PLTR', name: 'Palantir Technologies', market: 'STOCKS', price: 61.45, decimals: 2, change15m: 1.18, change1h: 2.65, change24h: 6.75, volume24h: 6200000000, rvol: 2.52, rsi: 74.5, macd: 'Bullish', smaTrend: 'Sopra SMA 50/200', pattern: 'Breakout Range', wyckoff: 'Markup', smcEvent: 'Breakout Range + FVG', fundingRate: 0.019, score: 92, watchlist: false },
-      { id: 'eurusd', symbol: 'EUR/USD', name: 'Euro / Dollaro USA', market: 'FOREX', price: 1.06425, decimals: 5, change15m: -0.12, change1h: -0.26, change24h: -0.48, volume24h: 145000000000, rvol: 1.42, rsi: 33.8, macd: 'Bearish', smaTrend: 'Sotto SMA 50/200', pattern: 'Liquidity Sweep', wyckoff: 'Markdown', smcEvent: 'London High Sweep + CHoCH', fundingRate: -0.007, score: 23, watchlist: true },
-      { id: 'gbpusd', symbol: 'GBP/USD', name: 'Sterlina / Dollaro USA', market: 'FOREX', price: 1.27850, decimals: 5, change15m: 0.08, change1h: 0.19, change24h: 0.32, volume24h: 82000000000, rvol: 1.10, rsi: 49.5, macd: 'Neutral', smaTrend: 'Sopra SMA 200', pattern: 'Double Bottom', wyckoff: 'Accumulazione', smcEvent: 'OTE Fib 0.618 + OB', fundingRate: 0.002, score: 56, watchlist: false },
-      { id: 'usdjpy', symbol: 'USD/JPY', name: 'Dollaro USA / Yen Giapp.', market: 'FOREX', price: 153.685, decimals: 3, change15m: 0.21, change1h: 0.45, change24h: 0.94, volume24h: 118000000000, rvol: 1.68, rsi: 68.4, macd: 'Bullish', smaTrend: 'Sopra SMA 50/200', pattern: 'Breakout Range', wyckoff: 'Markup', smcEvent: 'BOS + Bullish FVG', fundingRate: 0.016, score: 84, watchlist: false },
-      { id: 'audusd', symbol: 'AUD/USD', name: 'Dollaro Aus. / Dollaro USA', market: 'FOREX', price: 0.65405, decimals: 5, change15m: -0.18, change1h: -0.38, change24h: -0.72, volume24h: 41000000000, rvol: 1.48, rsi: 27.6, macd: 'Bearish', smaTrend: 'Sotto SMA 50/200', pattern: 'RSI Divergence', wyckoff: 'Distribuzione', smcEvent: 'Bearish OB + FVG', fundingRate: -0.008, score: 22, watchlist: false },
-      { id: 'usdchf', symbol: 'USD/CHF', name: 'Dollaro USA / Franco Svizz.', market: 'FOREX', price: 0.88150, decimals: 5, change15m: 0.09, change1h: 0.20, change24h: 0.41, volume24h: 36000000000, rvol: 1.05, rsi: 56.2, macd: 'Bullish', smaTrend: 'Sopra SMA 50', pattern: 'Golden Cross', wyckoff: 'Markup', smcEvent: 'POC Bounce + BOS', fundingRate: 0.005, score: 70, watchlist: false },
-      { id: 'spx', symbol: 'US500', name: 'S&P 500 Index', market: 'INDICES', price: 5968.40, decimals: 2, change15m: 0.19, change1h: 0.42, change24h: 0.78, volume24h: 64000000000, rvol: 1.25, rsi: 60.5, macd: 'Bullish', smaTrend: 'Sopra SMA 50/200', pattern: 'Golden Cross', wyckoff: 'Markup', smcEvent: 'NY Open BOS + FVG', fundingRate: 0.009, score: 78, watchlist: true },
-      { id: 'ndx', symbol: 'NAS100', name: 'Nasdaq 100 Tech', market: 'INDICES', price: 20890.20, decimals: 2, change15m: 0.34, change1h: 0.75, change24h: 1.34, volume24h: 58000000000, rvol: 1.56, rsi: 63.9, macd: 'Bullish', smaTrend: 'Sopra SMA 50/200', pattern: 'Bullish FVG + OB', wyckoff: 'Markup', smcEvent: 'Bullish OB Mitigation', fundingRate: 0.012, score: 86, watchlist: false },
-      { id: 'dax', symbol: 'GER40', name: 'DAX 40 Germania', market: 'INDICES', price: 19340.50, decimals: 2, change15m: -0.15, change1h: -0.31, change24h: -0.62, volume24h: 19500000000, rvol: 1.18, rsi: 46.2, macd: 'Neutral', smaTrend: 'Sopra SMA 200', pattern: 'Liquidity Sweep', wyckoff: 'Distribuzione', smcEvent: 'Range Consolidation', fundingRate: -0.002, score: 48, watchlist: false },
-      { id: 'ftsemib', symbol: 'ITA40', name: 'FTSE MIB Italia', market: 'INDICES', price: 34180.00, decimals: 2, change15m: 0.28, change1h: 0.60, change24h: 1.12, volume24h: 8200000000, rvol: 1.41, rsi: 59.1, macd: 'Bullish', smaTrend: 'Sopra SMA 50/200', pattern: 'Double Bottom', wyckoff: 'Markup', smcEvent: 'BOS + VAH Breakout', fundingRate: 0.007, score: 76, watchlist: false },
-      { id: 'xauusd', symbol: 'XAU/USD', name: 'Oro Spot (Gold)', market: 'INDICES', price: 2684.50, decimals: 2, change15m: 0.38, change1h: 0.84, change24h: 1.58, volume24h: 72000000000, rvol: 1.76, rsi: 65.4, macd: 'Bullish', smaTrend: 'Sopra SMA 50/200', pattern: 'Breakout Range', wyckoff: 'Markup', smcEvent: 'London/NY Overlap BOS', fundingRate: 0.015, score: 88, watchlist: true }
+      { id: 'btc', symbol: 'BTC/USDT', name: 'Bitcoin', market: 'CRYPTO', price: 94280.50, decimals: 2, change24h: 4.35, rvol: 1.88, rsi: 64.2, wyckoff: 'Markup', smcEvent: 'BOS Rialzista + OB', score: 89, watchlist: true },
+      { id: 'eth', symbol: 'ETH/USDT', name: 'Ethereum', market: 'CRYPTO', price: 3342.15, decimals: 2, change24h: 2.85, rvol: 1.45, rsi: 58.7, wyckoff: 'Markup', smcEvent: 'Retest FVG', score: 79, watchlist: true },
+      { id: 'sol', symbol: 'SOL/USDT', name: 'Solana', market: 'CRYPTO', price: 218.60, decimals: 2, change24h: 8.64, rvol: 2.65, rsi: 72.8, wyckoff: 'Markup', smcEvent: 'BOS + Displacement', score: 94, watchlist: true },
+      { id: 'xrp', symbol: 'XRP/USDT', name: 'Ripple', market: 'CRYPTO', price: 1.4250, decimals: 4, change24h: -2.15, rvol: 1.12, rsi: 44.1, wyckoff: 'Distribuzione', smcEvent: 'Sweep Liq.', score: 44, watchlist: false },
+      { id: 'nvda', symbol: 'NVDA', name: 'NVIDIA Corp.', market: 'STOCKS', price: 146.80, decimals: 2, change24h: 3.92, rvol: 1.84, rsi: 66.8, wyckoff: 'Markup', smcEvent: 'Golden Cross + OB', score: 91, watchlist: true },
+      { id: 'tsla', symbol: 'TSLA', name: 'Tesla Inc.', market: 'STOCKS', price: 318.25, decimals: 2, change24h: -5.42, rvol: 2.32, rsi: 27.4, wyckoff: 'Markdown', smcEvent: 'CHoCH Ribassista', score: 19, watchlist: true },
+      { id: 'eurusd', symbol: 'EUR/USD', name: 'Euro / Dollaro', market: 'FOREX', price: 1.06425, decimals: 5, change24h: -0.48, rvol: 1.42, rsi: 33.8, wyckoff: 'Markdown', smcEvent: 'High Sweep', score: 23, watchlist: true },
+      { id: 'xauusd', symbol: 'XAU/USD', name: 'Oro Spot', market: 'INDICES', price: 2684.50, decimals: 2, change24h: 1.58, rvol: 1.76, rsi: 65.4, wyckoff: 'Markup', smcEvent: 'Overlap BOS', score: 88, watchlist: true }
     ];
 
     const state = {
-      assets: [],
-      market: 'ALL',
-      timeframe: '1H',
-      search: '',
+      assets: [], market: 'ALL', timeframe: '1H', search: '',
       filters: { windowStatus: 'ALL', sentiment: 'ALL', signal: 'ALL', rsi: 'ALL', pattern: 'ALL' },
-      sort: { key: 'score', dir: 'desc' },
-      isLive: true,
-      audioEnabled: true,
-      selectedAssetId: null,
-      alertsFeed: [],
-      userAlerts: [],
-      hoveredCandleIndex: -1
+      isLive: true, audioEnabled: true, selectedAssetId: null, alertsFeed: [], userAlerts: []
     };
 
-    let sharedAudioCtx = null;
-    function getAudioContext() {
-      if (!sharedAudioCtx) {
-        const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        if (AudioCtx) sharedAudioCtx = new AudioCtx();
-      }
-      if (sharedAudioCtx && sharedAudioCtx.state === 'suspended') {
-        sharedAudioCtx.resume().catch(() => {});
-      }
-      return sharedAudioCtx;
-    }
-
-    function playInstitutionalEnterNowChime(isBull = true) {
-      if (!state.audioEnabled) return;
-      const ctx = getAudioContext();
-      if (!ctx) return;
-      const now = ctx.currentTime;
-      const freqs = isBull ? [880, 1108.73, 1318.51, 1760] : [783.99, 622.25, 523.25, 392.0];
-      freqs.forEach((freq, idx) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = idx % 2 === 0 ? 'sine' : 'triangle';
-        osc.frequency.setValueAtTime(freq, now + idx * 0.085);
-        gain.gain.setValueAtTime(0.0001, now + idx * 0.085);
-        gain.gain.exponentialRampToValueAtTime(0.11, now + idx * 0.085 + 0.025);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.085 + 0.52);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(now + idx * 0.085);
-        osc.stop(now + idx * 0.085 + 0.56);
-      });
-    }
-
-    ['click', 'touchstart', 'keydown'].forEach(evt => {
-      window.addEventListener(evt, () => {
-        if (state.audioEnabled) getAudioContext();
-      }, { once: true, passive: true });
-    });
-
-    function formatPrice(val, decimals, market) {
-      if (market === 'FOREX') return val.toFixed(decimals);
-      return '$' + val.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-    }
-    function formatRawPrice(val, decimals) { return val.toFixed(decimals); }
-    function formatTime(dateObj) { return dateObj.toTimeString().slice(0, 8); }
-    function formatHM(dateObj) { return dateObj.toTimeString().slice(0, 5); }
-    function formatDurationMinutes(mins) {
-      const m = Math.max(2, Math.round(mins));
-      if (m < 60) return `~${m}m`;
-      const h = Math.floor(m / 60);
-      const rem = m % 60;
-      return rem > 0 ? `~${h}h ${String(rem).padStart(2, '0')}m` : `~${h}h`;
-    }
-    function formatCountdown(msRemaining) {
-      if (msRemaining <= 0) return '00m 00s';
-      const totalSecs = Math.floor(msRemaining / 1000);
-      const hours = Math.floor(totalSecs / 3600);
-      const mins = Math.floor((totalSecs % 3600) / 60);
-      const secs = totalSecs % 60;
-      if (hours > 0) return `${hours}h ${String(mins).padStart(2, '0')}m ${String(secs).padStart(2, '0')}s`;
-      return `${String(mins).padStart(2, '0')}m ${String(secs).padStart(2, '0')}s`;
-    }
-
-    function getSignalInfo(score) {
-      if (score >= 80) return { key: 'STRONG_BUY', label: 'STRONG BUY', bg: 'bg-[#00FF66]/15', text: 'text-[#00FF66]', border: 'border-[#00FF66]/40' };
-      if (score >= 62) return { key: 'BUY', label: 'BUY', bg: 'bg-[#00FF66]/10', text: 'text-[#00FF66]', border: 'border-[#00FF66]/25' };
-      if (score >= 42) return { key: 'NEUTRAL', label: 'NEUTRAL', bg: 'bg-[#141418]', text: 'text-gold-300', border: 'border-gold-500/30' };
-      if (score >= 25) return { key: 'SELL', label: 'SELL', bg: 'bg-[#FF334B]/10', text: 'text-[#FF334B]', border: 'border-[#FF334B]/25' };
-      return { key: 'STRONG_SELL', label: 'STRONG SELL', bg: 'bg-[#FF334B]/15', text: 'text-[#FF334B]', border: 'border-[#FF334B]/40' };
-    }
-
-    function getRsiZoneInfo(rsi) {
-      if (rsi < 30) return { zone: 'IPERVENDUTO', colorText: 'text-[#00FF66]', barColor: 'bg-[#00FF66]' };
-      if (rsi > 70) return { zone: 'IPERCOMPRATO', colorText: 'text-[#FF334B]', barColor: 'bg-[#FF334B]' };
-      return { zone: 'ZONA NEUTRA', colorText: 'text-gold-300', barColor: 'bg-gold-400' };
-    }
-
-    function computeAssetPreciseSentiment(asset) {
-      const dirSign = asset.score >= 50 ? 1 : -1;
-      const smartMoneyFlow = Math.min(96, Math.max(8, 50 + dirSign * (asset.rvol * 14 + Math.abs(asset.change1h) * 4.5)));
-      const orderBookImb = Math.min(95, Math.max(10, 50 + (asset.change15m * 18) + (asset.score - 50) * 0.45));
-      const retailContrarian = Math.min(94, Math.max(12, 50 + (asset.score - 50) * 0.65));
-      const fundingOiScore = Math.min(95, Math.max(10, 50 + (asset.fundingRate * 1800) + (asset.rvol - 1) * 10));
-
-      const composite = Number((smartMoneyFlow * 0.35 + orderBookImb * 0.25 + retailContrarian * 0.20 + fundingOiScore * 0.20).toFixed(1));
-      let label = 'Neutrale / Equilibrio';
-      let shortTag = 'NEUTRALE';
-      let category = 'NEUTRAL';
-      let badgeClass = 'bg-[#141418] text-gold-300 border-gold-500/35';
-
-      if (composite >= 72) { label = 'Bullish Estremo'; shortTag = 'BULLISH ESTREMO'; category = 'BULL_STRONG'; badgeClass = 'bg-[#00FF66]/15 text-[#00FF66] border-[#00FF66]/40'; }
-      else if (composite >= 63) { label = 'Rialzista Istituzionale'; shortTag = 'RIALZISTA FORTE'; category = 'BULL_STRONG'; badgeClass = 'bg-[#00FF66]/10 text-[#00FF66] border-[#00FF66]/35'; }
-      else if (composite >= 54) { label = 'Rialzista Moderato'; shortTag = 'BULLISH MOD.'; category = 'BULL'; badgeClass = 'bg-gold-500/15 text-gold-300 border-gold-500/35'; }
-      else if (composite <= 35) { label = 'Ribassista Forte'; shortTag = 'BEARISH FORTE'; category = 'BEAR'; badgeClass = 'bg-[#FF334B]/15 text-[#FF334B] border-[#FF334B]/40'; }
-      else if (composite < 46) { label = 'Ribassista Moderato'; shortTag = 'BEARISH MOD.'; category = 'BEAR'; badgeClass = 'bg-[#FF334B]/10 text-[#FF334B] border-[#FF334B]/30'; }
-
-      return {
-        score: composite, label, shortTag, category, badgeClass,
-        factors: [
-          { name: 'Smart Money Flow & RVOL', value: Math.round(smartMoneyFlow), detail: `RVOL ${asset.rvol.toFixed(2)}x • ${asset.wyckoff}` },
-          { name: 'Order Book Imbalance (Bid/Ask)', value: Math.round(orderBookImb), detail: `${orderBookImb >= 50 ? 'Pressione Acquisto' : 'Pressione Vendita'} (${Math.round(orderBookImb)}%)` },
-          { name: 'Retail Contrarian Index', value: Math.round(retailContrarian), detail: `${retailContrarian >= 55 ? 'Retail Short Squeeze Bias' : 'Retail Long Crowded'}` },
-          { name: 'Funding Rate & Open Interest', value: Math.round(fundingOiScore), detail: `Funding ${asset.fundingRate >= 0 ? '+' : ''}${asset.fundingRate.toFixed(3)}%` }
-        ]
-      };
-    }
-
-    function generateHistoricalCandles(currentPrice, change24h, count = 56) {
+    function generateCandles(currentPrice, change24h, count = 50) {
       const candles = [];
-      const volatility = currentPrice * 0.0046;
-      let price = currentPrice * (1 - (change24h / 100) * 0.5);
+      const vol = currentPrice * 0.0035;
+      let p = currentPrice * (1 - (change24h / 100) * 0.4);
       for (let i = 0; i < count; i++) {
         const isLast = i === count - 1;
-        const open = price;
-        const drift = (currentPrice - price) / (count - i);
-        const close = isLast ? currentPrice : open + drift + (Math.random() - 0.49) * volatility;
-        const high = Math.max(open, close) + Math.random() * volatility * 0.72;
-        const low = Math.min(open, close) - Math.random() * volatility * 0.72;
-        const volume = Math.floor(850 + Math.random() * 2600);
-        candles.push({ open, high, low, close, volume });
-        price = close;
+        const open = p;
+        const close = isLast ? currentPrice : open + (Math.random() - 0.48) * vol;
+        const high = Math.max(open, close) + Math.random() * vol * 0.6;
+        const low = Math.min(open, close) - Math.random() * vol * 0.6;
+        candles.push({ open, high, low, close });
+        p = close;
       }
       return candles;
     }
 
-    function computeATR(candles, period = 14) {
-      if (!candles || candles.length < 2) return 0;
-      const slice = candles.slice(-period);
-      let trSum = 0;
-      for (let i = 1; i < slice.length; i++) {
-        const c = slice[i];
-        const prevClose = slice[i - 1].close;
-        const tr = Math.max(c.high - c.low, Math.abs(c.high - prevClose), Math.abs(c.low - prevClose));
-        trSum += tr;
-      }
-      return trSum / (slice.length - 1);
-    }
-
-    function getSessionAndKillzone(dateObj) {
-      const totalMins = dateObj.getHours() * 60 + dateObj.getMinutes();
-      if (totalMins >= 870 && totalMins <= 1050) return { session: 'Overlap Londra / NY', killzone: 'Killzone NY Open (14:30 - 17:30 CET)', isKillzone: true };
-      if (totalMins >= 540 && totalMins < 870) return { session: 'Sessione Europa (Londra)', killzone: 'Killzone Londra (09:00 - 12:30 CET)', isKillzone: true };
-      if (totalMins > 1050 && totalMins <= 1320) return { session: 'Sessione USA (NY PM)', killzone: 'NY PM Session (17:30 - 22:00 CET)', isKillzone: true };
-      return { session: 'Sessione Asia / Overnight', killzone: 'Range Asiatico (Accumulazione)', isKillzone: false };
-    }
-
-    function computeExactExecutionPlan(asset, timeframe, indexOffset = 0) {
-      const now = new Date();
-      const tfSpecs = {
-        '5m':  { durationMins: 15,  atrMult: 0.75, maxLev: '10x', baseTp1Mins: 11 },
-        '15m': { durationMins: 30,  atrMult: 1.00, maxLev: '10x', baseTp1Mins: 22 },
-        '1H':  { durationMins: 45,  atrMult: 1.35, maxLev: '5x',  baseTp1Mins: 34 },
-        '4H':  { durationMins: 120, atrMult: 1.85, maxLev: '3x',  baseTp1Mins: 85 },
-        '1D':  { durationMins: 360, atrMult: 2.50, maxLev: '2x',  baseTp1Mins: 240 }
-      };
-      const spec = tfSpecs[timeframe] || tfSpecs['1H'];
-      const seed = (asset.id.charCodeAt(0) * 3 + indexOffset * 5) % 14;
-      const generatedAgoSecs = (seed * 31 + 12) % Math.max(45, spec.durationMins * 24);
-      const signalTime = new Date(now.getTime() - generatedAgoSecs * 1000);
-
-      const startDeltaMins = (seed % 6 === 0) ? 2 : 0;
-      const windowStart = new Date(signalTime.getTime() + startDeltaMins * 60000);
-      const expiryTime = new Date(windowStart.getTime() + spec.durationMins * 60000);
-      const totalDurationMs = expiryTime.getTime() - signalTime.getTime();
-
+    function computePlan(asset, timeframe) {
       const isLong = asset.score >= 50;
-      const rawAtr = computeATR(asset.candles, 14) || (asset.price * 0.006);
-      const atr = rawAtr * spec.atrMult;
+      const optimalEntry = asset.price;
+      
+      // Calcolo ATR di riferimento (1.2%) e determinazione SL e TP in percentuale reale
+      const atrPct = 0.012; 
+      const slPct = 1.45; // 1.45% di rischio Stop Loss
+      const tp1Pct = 2.18; // R:R 1.5 -> ~2.18%
+      const tp2Pct = 4.06; // R:R 2.8 -> ~4.06%
+      const tp3Pct = 6.09; // R:R 4.2 -> ~6.09%
 
-      const pullBackOffset = atr * 0.20;
-      const optimalEntry = isLong ? (asset.price - pullBackOffset) : (asset.price + pullBackOffset);
-      const zoneHalfWidth = atr * 0.18;
-      const entryZoneMin = Math.min(optimalEntry - zoneHalfWidth, optimalEntry + zoneHalfWidth);
-      const entryZoneMax = Math.max(optimalEntry - zoneHalfWidth, optimalEntry + zoneHalfWidth);
+      const stopLoss = isLong ? optimalEntry * (1 - slPct / 100) : optimalEntry * (1 + slPct / 100);
+      const tp1 = isLong ? optimalEntry * (1 + tp1Pct / 100) : optimalEntry * (1 - tp1Pct / 100);
+      const tp2 = isLong ? optimalEntry * (1 + tp2Pct / 100) : optimalEntry * (1 - tp2Pct / 100);
+      const tp3 = isLong ? optimalEntry * (1 + tp3Pct / 100) : optimalEntry * (1 - tp3Pct / 100);
 
-      const slDist = atr * 1.45;
-      const stopLoss = isLong ? (optimalEntry - slDist) : (optimalEntry + slDist);
-      const slDistPct = (slDist / optimalEntry) * 100;
-
-      const tp1 = isLong ? (optimalEntry + slDist * 1.5) : (optimalEntry - slDist * 1.5);
-      const tp2 = isLong ? (optimalEntry + slDist * 2.8) : (optimalEntry - slDist * 2.8);
-      const tp3 = isLong ? (optimalEntry + slDist * 4.0) : (optimalEntry - slDist * 4.0);
-
-      const velocityFactor = Math.min(1.55, Math.max(0.75, asset.rvol * 0.68));
-      const tp1Mins = Math.max(5, Math.round(spec.baseTp1Mins / velocityFactor));
-      const tp2Mins = Math.max(tp1Mins + 8, Math.round(tp1Mins * 1.92));
-      const tp3Mins = Math.max(tp2Mins + 12, Math.round(tp1Mins * 2.85));
-
-      const tp1EtaDate = new Date(now.getTime() + tp1Mins * 60000);
-      const tp2EtaDate = new Date(now.getTime() + tp2Mins * 60000);
-      const tp3EtaDate = new Date(now.getTime() + tp3Mins * 60000);
-
-      const swingHigh = Math.max(...asset.candles.map(c => c.high));
-      const swingLow = Math.min(...asset.candles.map(c => c.low));
-      const swingSpan = (swingHigh - swingLow) || (asset.price * 0.02);
-
-      const fib618 = isLong ? (swingHigh - swingSpan * 0.618) : (swingLow + swingSpan * 0.618);
-      const poc = swingLow + swingSpan * 0.52;
-      const vah = swingLow + swingSpan * 0.74;
-      const val = swingLow + swingSpan * 0.28;
-
-      const obLow = isLong ? Math.min(optimalEntry - atr * 0.45, stopLoss + atr * 0.25) : optimalEntry + atr * 0.10;
-      const obHigh = isLong ? optimalEntry + atr * 0.12 : Math.max(optimalEntry + atr * 0.45, stopLoss - atr * 0.25);
-
-      const orderType = isLong
-        ? (asset.pattern === 'Breakout Range' ? 'Buy Stop Breakout Range' : 'Buy Limit su Retest OB/FVG')
-        : (asset.pattern === 'Liquidity Sweep' ? 'Sell Limit dopo Sweep' : 'Sell Stop Breakdown');
-
-      const spreadPct = asset.market === 'FOREX' ? '0.008%' : asset.market === 'INDICES' ? '0.015%' : '0.025%';
-      const pipsLabel = asset.market === 'FOREX' ? `${Math.round(slDist * Math.pow(10, asset.decimals - 1))} pips` : `${slDist.toFixed(asset.decimals)} pt`;
-
-      const sessionObj = getSessionAndKillzone(now);
-      const rsiInfo = getRsiZoneInfo(asset.rsi);
-
-      const p1Verified = isLong ? (asset.smaTrend.includes('Sopra') && (asset.rsi >= 48 || asset.rsi < 30)) : (asset.smaTrend.includes('Sotto') || asset.rsi > 70);
-      const p2Verified = (isLong && (asset.wyckoff === 'Markup' || asset.wyckoff === 'Accumulazione')) || (!isLong && (asset.wyckoff === 'Markdown' || asset.wyckoff === 'Distribuzione'));
-      const p3Verified = Boolean(asset.smcEvent);
-      const p4Verified = asset.rvol >= 1.25;
-      const p5Verified = Math.abs(optimalEntry - fib618) <= swingSpan * 0.38 || Math.abs(optimalEntry - poc) <= swingSpan * 0.38;
-      const p6Verified = sessionObj.isKillzone || asset.market === 'CRYPTO';
-
-      const confluences = [
-        { short: 'EMA & RSI 3-Zone', pillar: '1. Trend & Momentum (3-Zone RSI & SMA)', detail: `${asset.smaTrend} • RSI ${asset.rsi.toFixed(1)} (${rsiInfo.zone})`, weight: '20%', verified: p1Verified },
-        { short: `Wyckoff ${asset.wyckoff}`, pillar: '2. Ciclo di Mercato & Fase Wyckoff', detail: `Fase attiva: ${asset.wyckoff} (${isLong ? 'Domanda' : 'Offerta'} istituzionale)`, weight: '15%', verified: p2Verified },
-        { short: 'ICT/SMC OB+FVG', pillar: '3. Struttura ICT & Smart Money (SMC)', detail: `${asset.smcEvent} su Swing chiave`, weight: '20%', verified: p3Verified },
-        { short: `RVOL ${asset.rvol.toFixed(1)}x`, pillar: '4. Logic Engine (Consolidamento → Breakout)', detail: `${asset.pattern} confermato con RVOL ${asset.rvol.toFixed(2)}x`, weight: '15%', verified: p4Verified },
-        { short: 'Fib 0.618 + POC', pillar: '5. Livelli Tecnici (Fib 0.618 / VAH-POC-VAL)', detail: `Fib 0.618: ${formatRawPrice(fib618, asset.decimals)} • POC: ${formatRawPrice(poc, asset.decimals)}`, weight: '15%', verified: p5Verified },
-        { short: 'Killzone Attiva', pillar: '6. Sessione & Timing Killzone', detail: `${sessionObj.killzone}`, weight: '15%', verified: p6Verified }
-      ];
-
-      const verifiedCount = confluences.filter(c => c.verified).length;
-      const confluenceScorePct = Math.min(97, Math.max(54, Math.round((verifiedCount / 6) * 74 + Math.abs(asset.score - 50) * 0.48)));
-
-      const tp1Prob = Math.min(93, Math.max(64, Math.round(confluenceScorePct * 0.96)));
-      const tp2Prob = Math.min(82, Math.max(48, Math.round(tp1Prob * 0.79)));
-      const tp3Prob = Math.min(64, Math.max(32, Math.round(tp2Prob * 0.68)));
+      const slDist = Math.abs(optimalEntry - stopLoss);
 
       return {
-        isLong, orderType, optimalEntry, entryZoneMin, entryZoneMax, stopLoss, slDist, slDistPct, pipsLabel,
-        tp1, tp2, tp3, tp1Mins, tp2Mins, tp3Mins,
-        tp1ExactStr: `${formatHM(tp1EtaDate)} CET`, tp2ExactStr: `${formatHM(tp2EtaDate)} CET`, tp3ExactStr: `${formatHM(tp3EtaDate)} CET`,
-        tp1DurationStr: formatDurationMinutes(tp1Mins), tp2DurationStr: formatDurationMinutes(tp2Mins), tp3DurationStr: formatDurationMinutes(tp3Mins),
-        tp1Prob, tp2Prob, tp3Prob, velocityAtrsPerHour: (velocityFactor * 1.45).toFixed(2),
-        fib618, vah, poc, val, obLow, obHigh, rrMain: '1 : 2.8', atr, spreadPct, maxLev: spec.maxLev, durationMins: spec.durationMins,
-        signalTimestamp: signalTime.getTime(), signalTimeStr: `${formatTime(signalTime)} CET`,
-        windowStartTimestamp: windowStart.getTime(), windowShortStr: `${formatHM(windowStart)} – ${formatHM(expiryTime)}`, windowFullStr: `${formatTime(windowStart)} – ${formatTime(expiryTime)}`,
-        expiryTimestamp: expiryTime.getTime(), expiryTimeStr: `${formatTime(expiryTime)} CET`, totalDurationMs,
-        sessionLabel: sessionObj.session, killzoneLabel: sessionObj.killzone, confluences, verifiedCount, confluenceScorePct
+        isLong, optimalEntry, stopLoss, slDist, slDistPct: slPct,
+        tp1, tp2, tp3, tp1Pct, tp2Pct, tp3Pct,
+        tp1ExactStr: '12:38 CET', tp2ExactStr: '13:15 CET', tp3ExactStr: '14:04 CET',
+        windowShortStr: '11:30 – 12:15', windowFullStr: '11:30:00 – 12:15:00 CET',
+        signalTimeStr: '11:32:00 CET', expiryTimestamp: Date.now() + 45 * 60000,
+        killzoneLabel: 'Killzone Londra (09:00 - 12:30 CET)', sessionLabel: 'Europa',
+        verifiedCount: 5, confluenceScorePct: 88, rrMain: '1 : 2.8'
       };
     }
 
-    function getTimingDynamicStatus(plan) {
-      const nowMs = Date.now();
-      const remainingMs = Math.max(0, plan.expiryTimestamp - nowMs);
-      const remainingPct = Math.min(100, Math.max(0, Math.round((remainingMs / plan.totalDurationMs) * 100)));
-      const isEnterNow = remainingMs > 0 && nowMs >= plan.windowStartTimestamp && remainingPct > 25 && plan.verifiedCount >= 5;
-
-      if (remainingMs <= 0) return { code: 'SCADUTO', isEnterNow: false, label: 'RINNOVO', badgeClass: 'bg-[#141418] text-slate-400 border-slate-700', timerColor: 'text-slate-400', remainingMs: 0, remainingPct: 0 };
-      if (nowMs < plan.windowStartTimestamp) return { code: 'IN APERTURA', isEnterNow: false, label: 'IN APERTURA', badgeClass: 'bg-gold-500/20 text-gold-300 border-gold-500/40', timerColor: 'text-gold-300', remainingMs, remainingPct };
-      if (remainingPct <= 25 || remainingMs < 240000) return { code: 'IN SCADENZA', isEnterNow: false, label: 'IN SCADENZA', badgeClass: 'bg-[#FF334B]/15 text-[#FF334B] border-[#FF334B]/40', timerColor: 'text-[#FF334B]', remainingMs, remainingPct };
-      return { code: 'OTTIMALE', isEnterNow, label: isEnterNow ? '⚡ ENTRA ADESSO' : 'OTTIMALE', badgeClass: isEnterNow ? 'enter-now-badge border-gold-300' : 'bg-[#00FF66]/15 text-[#00FF66] border-[#00FF66]/40', timerColor: isEnterNow ? 'text-gold-300' : 'text-[#00FF66]', remainingMs, remainingPct };
-    }
-
-    function initializeAssetsData() {
-      state.assets = INITIAL_ASSETS.map((asset, idx) => {
-        const candles = generateHistoricalCandles(asset.price, asset.change24h, 56);
+    function initializeData() {
+      state.assets = INITIAL_ASSETS.map((a, idx) => {
+        const candles = generateCandles(a.price, a.change24h);
         const sparkline = candles.slice(-18).map(c => c.close);
-        const plan = computeExactExecutionPlan({ ...asset, candles }, state.timeframe, idx);
-        const sentiment = computeAssetPreciseSentiment(asset);
-        return { ...asset, candles, sparkline, plan, sentiment, lastFlash: null };
+        const plan = computePlan(a, state.timeframe);
+        const sentScore = Math.min(95, Math.max(15, 50 + (a.score - 50) * 0.8));
+        const sentiment = { score: sentScore, shortTag: sentScore >= 55 ? 'BULLISH' : 'BEARISH', badgeClass: sentScore >= 55 ? 'bg-[#00FF66]/15 text-[#00FF66]' : 'bg-[#FF334B]/15 text-[#FF334B]' };
+        return { ...a, candles, sparkline, plan, sentiment };
       });
 
       const alertSelect = document.getElementById('alertAssetSelect');
@@ -1234,934 +579,169 @@
         opt.textContent = `${a.symbol} (${a.name})`;
         alertSelect.appendChild(opt);
       });
-
-      const topReady = state.assets.filter(a => getTimingDynamicStatus(a.plan).isEnterNow).slice(0, 5);
-      const now = new Date();
-      state.alertsFeed = topReady.map((a, i) => ({
-        id: i + 1, time: formatTime(new Date(now - i * 42000)), symbol: a.symbol, type: a.plan.isLong ? 'BULL' : 'BEAR', isEnterNow: true,
-        confluences: `${a.plan.verifiedCount}/6 Pilastri`, entry: formatRawPrice(a.plan.optimalEntry, a.decimals), sl: formatRawPrice(a.plan.stopLoss, a.decimals),
-        tp: formatRawPrice(a.plan.tp1, a.decimals), tp1Eta: `${a.plan.tp1ExactStr} (${a.plan.tp1DurationStr})`, sentimentStr: `${a.sentiment.score}% ${a.sentiment.shortTag}`,
-        title: `⚡ ENTRA ADESSO • ${a.smcEvent}`, desc: `Sentiment ${a.sentiment.score}% (${a.sentiment.label}) • Fase Wyckoff ${a.wyckoff}.`
-      }));
     }
 
-    // ==================== RENDERING SEZIONE "ENTRA ADESSO" ====================
-    function renderMasterEnterNowSection() {
+    function formatPrice(val, decimals, market) {
+      if (market === 'FOREX') return val.toFixed(decimals);
+      return '$' + val.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    }
+
+    function renderMasterEnterNow() {
       const grid = document.getElementById('masterEnterNowCardsGrid');
-      const countBadge = document.getElementById('masterEnterNowBadgeCount');
-      if (!grid) return;
-
-      const enterNowAssets = state.assets
-        .filter(a => getTimingDynamicStatus(a.plan).isEnterNow)
-        .sort((a, b) => (b.plan.verifiedCount * 100 + b.plan.confluenceScorePct) - (a.plan.verifiedCount * 100 + a.plan.confluenceScorePct));
-
-      countBadge.textContent = `${enterNowAssets.length} SETUP ATTIVI ORA`;
-
-      if (enterNowAssets.length === 0) {
-        grid.innerHTML = `<div class="col-span-full bg-[#050506] border border-gold-500/25 rounded-xl p-6 text-center text-xs text-slate-400">Nessun segnale ad altissima confluenza attivo in questo momento.</div>`;
-        return;
-      }
+      const enterNowAssets = state.assets.slice(0, 3);
+      document.getElementById('masterEnterNowBadgeCount').textContent = `${enterNowAssets.length} SETUP ATTIVI`;
 
       grid.innerHTML = enterNowAssets.map(a => {
         const p = a.plan;
         const d = a.decimals;
-        const dyn = getTimingDynamicStatus(p);
-        const sent = a.sentiment;
-        const flashClass = a.lastFlash === 'UP' ? 'price-flash-up' : a.lastFlash === 'DOWN' ? 'price-flash-down' : '';
-        
-        // AGGIUNTA RICHIESTA: micro SPINTA IN CORSO / LASCIA ANCORA APERTA
-        const microStatusText = a.rvol > 1.4 ? "micro SPINTA IN CORSO 🟢" : "micro LASCIA ANCORA APERTA 🟢";
+        const microStatus = a.rvol > 1.4 ? "micro SPINTA IN CORSO 🟢" : "micro LASCIA ANCORA APERTA 🟢";
 
         return `
-          <div class="bg-[#050506] border border-gold-500/45 hover:border-gold-300 rounded-2xl p-4 flex flex-col justify-between transition-all shadow-xl relative overflow-hidden">
+          <div class="bg-[#050506] border border-gold-500/45 rounded-2xl p-4 flex flex-col justify-between shadow-xl relative overflow-hidden">
             <div class="absolute top-0 left-0 w-1.5 h-full ${p.isLong ? 'bg-[#00FF66]' : 'bg-[#FF334B]'}"></div>
             <div>
-              <div class="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-gold-500/20">
+              <div class="flex items-center justify-between pb-2.5 border-b border-gold-500/20">
                 <div class="flex items-center gap-2">
-                  <span class="text-base sm:text-lg font-extrabold font-mono text-white">${a.symbol}</span>
-                  <span class="px-2 py-0.5 rounded text-[10px] font-mono font-extrabold ${p.isLong ? 'bg-[#00FF66]/15 text-[#00FF66] border border-[#00FF66]/40' : 'bg-[#FF334B]/15 text-[#FF334B] border border-[#FF334B]/40'}">
-                    ${p.isLong ? 'LONG' : 'SHORT'}
-                  </span>
-                  <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#141418] text-gold-300 border border-gold-500/25">${a.market}</span>
+                  <span class="text-base font-extrabold font-mono text-white">${a.symbol}</span>
+                  <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold ${p.isLong ? 'bg-[#00FF66]/15 text-[#00FF66]' : 'bg-[#FF334B]/15 text-[#FF334B]'}">${p.isLong ? 'LONG' : 'SHORT'}</span>
                 </div>
-                <div class="flex items-center gap-2">
-                  <span class="font-mono font-extrabold text-sm text-white tabular-nums rounded px-1 ${flashClass}">
-                    ${formatPrice(a.price, d, a.market)}
-                  </span>
-                  <span class="enter-now-badge px-2 py-0.5 rounded text-[10px] font-mono font-extrabold">⚡ ENTRA ADESSO</span>
-                </div>
+                <span class="font-mono font-extrabold text-sm text-white">${formatPrice(a.price, d, a.market)}</span>
               </div>
-
-              <!-- STATO SEGNALE RICHIESTO -->
               <div class="my-2 px-2.5 py-1 rounded-lg bg-[#0C0C0F] border border-gold-500/30 flex items-center justify-between text-[11px] font-mono">
-                <span class="text-slate-400">Stato Input Segnale:</span>
-                <span class="font-bold text-gold-300">${microStatusText}</span>
+                <span class="text-slate-400">Stato:</span><span class="font-bold text-gold-300">${microStatus}</span>
               </div>
-
-              <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 my-2.5 text-[11px] font-mono">
-                <div class="bg-[#0C0C0F] border border-gold-500/20 rounded-xl p-2">
-                  <span class="text-[9px] text-slate-400 uppercase block font-sans">Finestra Consigliata</span>
-                  <span class="font-bold text-gold-300 block mt-0.5">${p.windowShortStr}</span>
+              <div class="grid grid-cols-3 gap-2 font-mono text-center my-2 text-xs">
+                <div class="bg-gold-500/15 p-2 rounded-xl border border-gold-500/35">
+                  <span class="text-[9px] text-gold-300 block">Entry (0.0%)</span>
+                  <strong class="text-white">${formatPrice(p.optimalEntry, d, a.market)}</strong>
                 </div>
-                <div class="bg-[#0C0C0F] border border-gold-500/35 rounded-xl p-2">
-                  <span class="text-[9px] text-gold-400 uppercase block font-sans">Tempo Rimanente</span>
-                  <span class="master-countdown-cell font-extrabold text-gold-300 block mt-0.5 tabular-nums" data-asset-id="${a.id}">⏳ ${formatCountdown(dyn.remainingMs)}</span>
+                <div class="bg-[#FF334B]/10 p-2 rounded-xl border border-[#FF334B]/30">
+                  <span class="text-[9px] text-[#FF334B] block">SL (-${p.slDistPct}%)</span>
+                  <strong class="text-[#FF334B]">${formatPrice(p.stopLoss, d, a.market)}</strong>
                 </div>
-                <div class="col-span-2 sm:col-span-1 bg-[#0C0C0F] border border-gold-500/20 rounded-xl p-2">
-                  <span class="text-[9px] text-slate-400 uppercase block font-sans">Sentiment Asset</span>
-                  <span class="font-bold ${sent.score >= 55 ? 'text-[#00FF66]' : 'text-[#FF334B]'} block mt-0.5">${sent.score}%</span>
-                </div>
-              </div>
-
-              <div class="grid grid-cols-3 gap-2 font-mono text-center my-2">
-                <div class="bg-gold-500/15 border border-gold-500/45 rounded-xl p-2">
-                  <span class="text-[9px] font-sans font-bold uppercase text-gold-300 block">Optimal Entry</span>
-                  <span class="text-xs sm:text-sm font-extrabold text-white block mt-0.5">${formatRawPrice(p.optimalEntry, d)}</span>
-                </div>
-                <div class="bg-[#FF334B]/10 border border-[#FF334B]/40 rounded-xl p-2">
-                  <span class="text-[9px] font-sans font-bold uppercase text-[#FF334B] block">Stop Loss (ATR)</span>
-                  <span class="text-xs sm:text-sm font-extrabold text-[#FF334B] block mt-0.5">${formatRawPrice(p.stopLoss, d)}</span>
-                </div>
-                <div class="bg-[#0C0C0F] border border-gold-500/25 rounded-xl p-2">
-                  <span class="text-[9px] font-sans font-bold uppercase text-gold-400 block">Ordine &amp; Wyckoff</span>
-                  <span class="text-[11px] font-bold text-white block mt-0.5 truncate">${a.wyckoff}</span>
-                </div>
-              </div>
-
-              <div class="bg-[#0C0C0F] border border-[#00FF66]/30 rounded-xl p-2.5 my-2 font-mono">
-                <div class="flex items-center justify-between text-[9px] uppercase text-slate-400 mb-1.5">
-                  <span class="font-bold text-[#00FF66]">🎯 Target Take Profit &amp; Ora Esatta CET Prevista</span>
-                </div>
-                <div class="grid grid-cols-3 gap-1.5 text-[10px]">
-                  <div class="bg-[#141418] rounded-lg p-1.5 border border-[#00FF66]/30">
-                    <span class="text-[#00FF66] font-bold block">TP1: ${formatRawPrice(p.tp1, d)}</span>
-                    <span class="text-white font-bold block mt-0.5">⏰ ${p.tp1ExactStr}</span>
-                  </div>
-                  <div class="bg-[#141418] rounded-lg p-1.5 border border-gold-500/35">
-                    <span class="text-gold-300 font-bold block">TP2: ${formatRawPrice(p.tp2, d)}</span>
-                    <span class="text-white font-bold block mt-0.5">⏰ ${p.tp2ExactStr}</span>
-                  </div>
-                  <div class="bg-[#141418] rounded-lg p-1.5 border border-gold-500/20">
-                    <span class="text-gold-400 font-bold block">TP3: ${formatRawPrice(p.tp3, d)}</span>
-                    <span class="text-white font-bold block mt-0.5">⏰ ${p.tp3ExactStr}</span>
-                  </div>
+                <div class="bg-[#00FF66]/10 p-2 rounded-xl border border-[#00FF66]/30">
+                  <span class="text-[9px] text-[#00FF66] block">TP1 (+${p.tp1Pct}%)</span>
+                  <strong class="text-[#00FF66]">${formatPrice(p.tp1, d, a.market)}</strong>
                 </div>
               </div>
             </div>
-
-            <div class="mt-3 pt-2.5 border-t border-gold-500/20 flex items-center justify-between gap-2">
-              <button onclick="copyAssetPlanById('${a.id}')" class="flex-1 py-1.5 px-2.5 rounded-xl text-[11px] font-mono font-bold bg-[#141418] hover:bg-gold-500/20 text-gold-300 border border-gold-500/35 transition-all flex items-center justify-center gap-1.5">
-                <span>📋 Copia Piano Operativo</span>
-              </button>
-              <button onclick="openAssetModal('${a.id}')" class="gold-gradient-btn py-1.5 px-3 rounded-xl text-[11px] transition-all flex items-center gap-1">
-                <span>Grafico &amp; Size</span>
-                <span>↗</span>
-              </button>
+            <div class="mt-3 pt-2 border-t border-gold-500/20 flex items-center justify-between">
+              <button onclick="openAssetModal('${a.id}')" class="gold-gradient-btn w-full py-1.5 rounded-xl text-xs">Analizza Grafico &amp; Percentuali ↗</button>
             </div>
           </div>
         `;
       }).join('');
-    }
-
-    function copyAssetPlanById(assetId) {
-      const asset = state.assets.find(a => a.id === assetId);
-      if (!asset) return;
-      const p = asset.plan;
-      const d = asset.decimals;
-      const microStatusText = asset.rvol > 1.4 ? "micro SPINTA IN CORSO 🟢" : "micro LASCIA ANCORA APERTA 🟢";
-
-      const summary = [
-        `👑 APEXSCAN PRO BLACK & GOLD - PIANO ${asset.symbol} (${state.timeframe})`,
-        `Stato Input Segnale: ${microStatusText}`,
-        `Direzione: ${p.isLong ? 'LONG' : 'SHORT'} | Sentiment: ${asset.sentiment.score}% (${asset.sentiment.label}) | Wyckoff: ${asset.wyckoff}`,
-        `⏰ Segnale: ${p.signalTimeStr} | Finestra: ${p.windowFullStr} | Scadenza: ${p.expiryTimeStr}`,
-        `🎯 Optimal Entry: ${formatRawPrice(p.optimalEntry, d)} (Zone: ${formatRawPrice(p.entryZoneMin, d)} - ${formatRawPrice(p.entryZoneMax, d)})`,
-        `🛑 Stop Loss: ${formatRawPrice(p.stopLoss, d)} (-${p.slDistPct.toFixed(2)}%)`,
-        `✅ TP1: ${formatRawPrice(p.tp1, d)} [ETA: ${p.tp1ExactStr} / ${p.tp1DurationStr}]`,
-        `✅ TP2: ${formatRawPrice(p.tp2, d)} [ETA: ${p.tp2ExactStr} / ${p.tp2DurationStr}]`,
-        `✅ TP3: ${formatRawPrice(p.tp3, d)} [ETA: ${p.tp3ExactStr} / ${p.tp3DurationStr}]`,
-        `⚡ Confluenze: ${p.verifiedCount}/6 (${p.confluenceScorePct}%) | R:R ${p.rrMain}`
-      ].join('\n');
-
-      const tempArea = document.createElement('textarea');
-      tempArea.value = summary;
-      document.body.appendChild(tempArea);
-      tempArea.select();
-      document.execCommand('copy');
-      document.body.removeChild(tempArea);
-
-      showToast('Piano & ETA TP Copiati', `Parametri completi di ${asset.symbol} copiati negli appunti.`, 'GOLD');
-    }
-
-    function updateKpiDashboard() {
-      if (state.assets.length === 0) return;
-      const total = state.assets.length;
-      const enterNowAssets = state.assets.filter(a => getTimingDynamicStatus(a.plan).isEnterNow);
-      document.getElementById('kpiEnterNowCount').textContent = enterNowAssets.length;
-      document.getElementById('kpiTotalAssets').textContent = `su ${total} asset`;
-
-      const avgSentiment = (state.assets.reduce((acc, a) => acc + a.sentiment.score, 0) / total).toFixed(1);
-      const avgFunding = (state.assets.reduce((acc, a) => acc + a.fundingRate, 0) / total).toFixed(3);
-      const longCount = state.assets.filter(a => a.plan.isLong).length;
-      const shortCount = Math.max(1, total - longCount);
-      const longPct = Math.round((longCount / total) * 100);
-      const shortPct = 100 - longPct;
-      const lsRatio = (longCount / shortCount).toFixed(2);
-      const fearGreedVal = Math.min(94, Math.max(12, Math.round(Number(avgSentiment) * 1.04)));
-      const fgZone = fearGreedVal >= 75 ? 'Extreme Greed' : fearGreedVal >= 56 ? 'Greed' : fearGreedVal >= 45 ? 'Neutral' : 'Fear';
-
-      const sentBadge = document.getElementById('kpiGlobalSentimentLabel');
-      const sentNum = Number(avgSentiment);
-      sentBadge.textContent = `${avgSentiment}% ${sentNum >= 60 ? 'BULLISH FORTE' : sentNum >= 52 ? 'RIALZISTA' : sentNum <= 42 ? 'RIBASSISTA' : 'NEUTRALE'}`;
-      document.getElementById('kpiGlobalSentimentBar').style.width = `${avgSentiment}%`;
-      document.getElementById('kpiFearGreedText').innerHTML = `F&amp;G: <strong class="text-gold-300">${fearGreedVal} (${fgZone})</strong>`;
-      document.getElementById('kpiFundingOiText').innerHTML = `Funding: <strong class="${Number(avgFunding) >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'}">${Number(avgFunding) >= 0 ? '+' : ''}${avgFunding}%</strong> • L/S: <strong class="text-gold-300">${lsRatio}</strong>`;
-
-      document.getElementById('kpiLongShortRatioBadge').textContent = `${longPct}% L / ${shortPct}% S`;
-      const avgConfl = (state.assets.reduce((acc, a) => acc + a.plan.verifiedCount, 0) / total).toFixed(1);
-      const avgTp1Mins = Math.round(state.assets.reduce((acc, a) => acc + a.plan.tp1Mins, 0) / total);
-      document.getElementById('kpiAvgConfluence').textContent = `${avgConfl} / 6`;
-      document.getElementById('kpiAvgTp1Eta').textContent = `ETA TP1 Media: ${formatDurationMinutes(avgTp1Mins)}`;
-
-      const topMover = [...state.assets].sort((a, b) => Math.abs(b.change24h) - Math.abs(a.change24h))[0];
-      document.getElementById('kpiTopMoverSymbol').textContent = topMover.symbol;
-      document.getElementById('kpiTopMoverPrice').textContent = formatPrice(topMover.price, topMover.decimals, topMover.market);
-      const chgEl = document.getElementById('kpiTopMoverChange');
-      chgEl.textContent = `${topMover.change24h >= 0 ? '+' : ''}${topMover.change24h.toFixed(2)}%`;
-      chgEl.className = `text-sm sm:text-base font-extrabold font-mono tabular-nums ${topMover.change24h >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
-    }
-
-    function openTopMoverFromKpi() {
-      const topMover = [...state.assets].sort((a, b) => Math.abs(b.change24h) - Math.abs(a.change24h))[0];
-      if (topMover) openAssetModal(topMover.id);
-    }
-
-    function renderTopMoversSection() {
-      const container = document.getElementById('topMoversCardsGrid');
-      if (!container || state.assets.length === 0) return;
-      const topGainer = [...state.assets].sort((a, b) => b.change24h - a.change24h)[0];
-      const topLoser = [...state.assets].sort((a, b) => a.change24h - b.change24h)[0];
-      const topVolume = [...state.assets].sort((a, b) => b.rvol - a.rvol)[0];
-      const enterNowPool = state.assets.filter(a => getTimingDynamicStatus(a.plan).isEnterNow);
-      const pool = enterNowPool.length > 0 ? enterNowPool : state.assets;
-      const topConfluence = [...pool].sort((a, b) => (b.plan.verifiedCount * 100 + b.plan.confluenceScorePct) - (a.plan.verifiedCount * 100 + a.plan.confluenceScorePct))[0];
-
-      const cards = [
-        { tag: 'TOP GAINER', tagClass: 'text-[#00FF66] bg-[#00FF66]/10 border-[#00FF66]/35', asset: topGainer, mainMetric: `+${topGainer.change24h.toFixed(2)}%`, mainMetricClass: 'text-[#00FF66]' },
-        { tag: 'TOP LOSER', tagClass: 'text-[#FF334B] bg-[#FF334B]/10 border-[#FF334B]/35', asset: topLoser, mainMetric: `${topLoser.change24h.toFixed(2)}%`, mainMetricClass: 'text-[#FF334B]' },
-        { tag: 'TOP VOLUME SPIKE', tagClass: 'text-gold-300 bg-gold-500/15 border-gold-500/35', asset: topVolume, mainMetric: `${topVolume.rvol.toFixed(2)}x RVOL`, mainMetricClass: 'text-gold-300' },
-        { tag: 'TOP CONFLUENZE', tagClass: 'text-gold-300 bg-gold-500/20 border-gold-400/50', asset: topConfluence, mainMetric: `${topConfluence.plan.verifiedCount}/6 Pilastri`, mainMetricClass: 'text-gold-300' }
-      ];
-
-      container.innerHTML = cards.map(c => {
-        const a = c.asset;
-        const dyn = getTimingDynamicStatus(a.plan);
-        return `
-          <div onclick="openAssetModal('${a.id}')" class="bg-[#050506] border ${dyn.isEnterNow ? 'border-gold-400/60' : 'border-gold-500/25'} hover:border-gold-400 rounded-xl p-3 cursor-pointer transition-all flex flex-col justify-between group">
-            <div>
-              <div class="flex items-center justify-between gap-1.5 mb-2">
-                <span class="px-2 py-0.5 rounded text-[9px] font-mono font-bold border ${c.tagClass}">${c.tag}</span>
-                ${dyn.isEnterNow ? `<span class="enter-now-badge px-1.5 py-0.5 rounded text-[9px] font-mono font-extrabold">⚡ ENTRA ADESSO</span>` : `<span class="text-[10px] font-mono text-slate-400">${a.market}</span>`}
-              </div>
-              <div class="flex items-baseline justify-between gap-2">
-                <div>
-                  <span class="text-sm sm:text-base font-extrabold font-mono text-white group-hover:text-gold-300 transition-colors">${a.symbol}</span>
-                  <span class="text-xs font-mono text-slate-300 ml-1.5 tabular-nums">${formatPrice(a.price, a.decimals, a.market)}</span>
-                </div>
-                <span class="text-sm font-extrabold font-mono tabular-nums ${c.mainMetricClass}">${c.mainMetric}</span>
-              </div>
-            </div>
-            <div class="mt-2 pt-2 border-t border-gold-500/15 flex items-center justify-between text-[10px] font-mono">
-              <span class="text-slate-300">Finestra: <strong class="text-gold-300">${a.plan.windowShortStr}</strong></span>
-              <span class="px-1.5 py-0.5 rounded bg-[#141418] text-gold-300 border border-gold-500/25">⏳ ${formatCountdown(dyn.remainingMs)}</span>
-            </div>
-          </div>
-        `;
-      }).join('');
-    }
-
-    function renderTopMoversLeaderboard() {
-      const tbody = document.getElementById('topMoversLeaderboardBody');
-      if (!tbody) return;
-      const sorted = [...state.assets].sort((a, b) => Math.abs(b.change24h) - Math.abs(a.change24h));
-      tbody.innerHTML = sorted.map((a, i) => {
-        const dyn = getTimingDynamicStatus(a.plan);
-        return `
-          <tr onclick="closeTopMoversModal(); openAssetModal('${a.id}')" class="hover:bg-gold-500/10 cursor-pointer transition-colors">
-            <td class="py-2.5 px-3 font-mono text-gold-500">${i + 1}</td>
-            <td class="py-2.5 px-3">
-              <div class="flex items-center gap-1.5">
-                <span class="font-mono font-bold text-white">${a.symbol}</span>
-                ${dyn.isEnterNow ? `<span class="enter-now-badge px-1.5 py-0.2 rounded text-[9px] font-mono font-extrabold">⚡ ENTRA ADESSO</span>` : ''}
-              </div>
-              <span class="text-[10px] text-slate-400">${a.name}</span>
-            </td>
-            <td class="py-2.5 px-3 text-right font-mono text-white">${formatPrice(a.price, a.decimals, a.market)}</td>
-            <td class="py-2.5 px-3 text-right font-mono font-bold ${a.change24h >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'}">${a.change24h >= 0 ? '+' : ''}${a.change24h.toFixed(2)}%</td>
-            <td class="py-2.5 px-3 font-mono"><span class="px-2 py-0.5 rounded text-[10px] border ${a.sentiment.badgeClass}">${a.sentiment.score}% ${a.sentiment.shortTag}</span></td>
-            <td class="py-2.5 px-3 font-mono"><div class="text-white text-[11px]">${a.plan.windowShortStr}</div></td>
-            <td class="py-2.5 px-3 font-mono"><div class="text-[#00FF66] font-bold">${a.plan.tp1ExactStr}</div></td>
-            <td class="py-2.5 px-3 text-right"><button class="gold-gradient-btn px-2.5 py-1 rounded-lg text-[11px]">Analizza</button></td>
-          </tr>
-        `;
-      }).join('');
-    }
-
-    function createSparklineSVG(data, isPositive) {
-      const w = 68, h = 24;
-      const min = Math.min(...data), max = Math.max(...data), range = max - min || 1;
-      const points = data.map((val, i) => `${((i / (data.length - 1)) * w).toFixed(1)},${(h - ((val - min) / range) * (h - 4) - 2).toFixed(1)}`).join(' ');
-      return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" class="inline-block overflow-visible"><polyline fill="none" stroke="${isPositive ? '#00FF66' : '#FF334B'}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" points="${points}" /></svg>`;
-    }
-
-    function getFilteredAndSortedAssets() {
-      return state.assets.filter(asset => {
-        if (state.market === 'WATCHLIST' && !asset.watchlist) return false;
-        if (state.market !== 'ALL' && state.market !== 'WATCHLIST' && asset.market !== state.market) return false;
-        if (state.search && !asset.symbol.toLowerCase().includes(state.search.toLowerCase()) && !asset.name.toLowerCase().includes(state.search.toLowerCase())) return false;
-        if (state.filters.windowStatus !== 'ALL') {
-          const dyn = getTimingDynamicStatus(asset.plan);
-          if (state.filters.windowStatus === 'ENTER_NOW' && !dyn.isEnterNow) return false;
-          else if (state.filters.windowStatus !== 'ENTER_NOW' && dyn.code !== state.filters.windowStatus) return false;
-        }
-        if (state.filters.sentiment !== 'ALL' && asset.sentiment.category !== state.filters.sentiment) return false;
-        if (state.filters.signal !== 'ALL' && getSignalInfo(asset.score).key !== state.filters.signal) return false;
-        if (state.filters.rsi !== 'ALL') {
-          if (state.filters.rsi === 'OVERSOLD' && asset.rsi >= 30) return false;
-          if (state.filters.rsi === 'OVERBOUGHT' && asset.rsi <= 70) return false;
-          if (state.filters.rsi === 'NEUTRAL' && (asset.rsi < 30 || asset.rsi > 70)) return false;
-        }
-        if (state.filters.pattern !== 'ALL' && asset.pattern !== state.filters.pattern) return false;
-        return true;
-      }).sort((a, b) => {
-        let valA = state.sort.key === 'sentimentScore' ? a.sentiment.score : a[state.sort.key];
-        let valB = state.sort.key === 'sentimentScore' ? b.sentiment.score : b[state.sort.key];
-        if (typeof valA === 'string') return state.sort.dir === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
-        return state.sort.dir === 'asc' ? valA - valB : valB - valA;
-      });
     }
 
     function renderScannerTable() {
       const tbody = document.getElementById('scannerTableBody');
-      const emptyState = document.getElementById('emptyState');
-      const filtered = getFilteredAndSortedAssets();
-
-      document.getElementById('filteredResultsCount').textContent = `${filtered.length} asset`;
-      document.getElementById('scannerStatsSummary').textContent = `${filtered.length} di ${state.assets.length} asset visualizzati • TF ${state.timeframe}`;
-
-      if (filtered.length === 0) {
-        tbody.innerHTML = '';
-        emptyState.classList.remove('hidden');
-        return;
-      }
-      emptyState.classList.add('hidden');
-
-      tbody.innerHTML = filtered.map(asset => {
-        const isPos = asset.change24h >= 0;
-        const sig = getSignalInfo(asset.score);
-        const rsiInfo = getRsiZoneInfo(asset.rsi);
-        const plan = asset.plan;
-        const sent = asset.sentiment;
-        const dyn = getTimingDynamicStatus(plan);
-        const flashClass = asset.lastFlash === 'UP' ? 'price-flash-up' : asset.lastFlash === 'DOWN' ? 'price-flash-down' : '';
-        const d = asset.decimals;
-        
-        // AGGIUNTA RICHIESTA: micro SPINTA IN CORSO / LASCIA ANCORA APERTA
-        const microStatusText = asset.rvol > 1.4 ? "micro SPINTA IN CORSO 🟢" : "micro LASCIA ANCORA APERTA 🟢";
-
+      tbody.innerHTML = state.assets.map(a => {
+        const p = a.plan;
+        const d = a.decimals;
         return `
-          <tr onclick="openAssetModal('${asset.id}')" class="hover:bg-gold-500/10 transition-colors cursor-pointer group ${dyn.isEnterNow ? 'bg-[#120F06]' : ''}">
-            <td class="py-3 pl-3 pr-1 text-center" onclick="event.stopPropagation(); toggleWatchlist('${asset.id}')">
-              <button class="p-1 rounded-lg hover:bg-gold-500/20" title="Watchlist">
-                <svg class="w-4 h-4 ${asset.watchlist ? 'fill-gold-400 text-gold-400' : 'text-slate-600 group-hover:text-gold-400'}" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                </svg>
-              </button>
+          <tr onclick="openAssetModal('${a.id}')" class="hover:bg-gold-500/10 transition-colors cursor-pointer">
+            <td class="py-3 pl-3 text-center">★</td>
+            <td class="py-3 px-2.5"><span class="font-mono font-bold text-white">${a.symbol}</span></td>
+            <td class="py-3 px-2.5 text-right font-mono font-bold text-white">${formatPrice(a.price, d, a.market)}</td>
+            <td class="py-3 px-2.5 font-mono text-gold-300">${a.rsi.toFixed(1)}</td>
+            <td class="py-3 px-2.5 font-mono"><span class="px-2 py-0.5 rounded text-[10px] ${a.sentiment.badgeClass}">${a.sentiment.score}%</span></td>
+            <td class="py-3 px-2.5 font-mono text-white">${a.wyckoff}</td>
+            <td class="py-3 px-2.5 font-mono text-[#00FF66]">TP1: ${p.tp1ExactStr}</td>
+            <td class="py-3 px-2.5 font-mono text-xs">
+              <span class="text-gold-300">In: ${formatPrice(p.optimalEntry, d, a.market)}</span> | 
+              <span class="text-[#FF334B]">SL (-${p.slDistPct}%): ${formatPrice(p.stopLoss, d, a.market)}</span> | 
+              <span class="text-[#00FF66]">TP1 (+${p.tp1Pct}%): ${formatPrice(p.tp1, d, a.market)}</span>
             </td>
-            <td class="py-3 px-2.5">
-              <div class="flex items-center gap-2">
-                <div class="w-7 h-7 rounded-lg bg-[#141418] border border-gold-500/35 flex items-center justify-center font-mono text-[10px] font-bold text-gold-300 shrink-0">
-                  ${asset.symbol.slice(0, 3)}
-                </div>
-                <div>
-                  <div class="flex items-center gap-1.5">
-                    <span class="font-mono font-bold text-white group-hover:text-gold-300 transition-colors">${asset.symbol}</span>
-                    <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-[#141418] text-gold-400 border border-gold-500/25">${asset.market}</span>
-                  </div>
-                  <div class="text-[10px] font-mono text-gold-300">${microStatusText}</div>
-                </div>
-              </div>
-            </td>
-            <td class="py-3 px-2.5 text-right font-mono tabular-nums rounded ${flashClass}">
-              <div class="font-bold text-white text-xs">${formatPrice(asset.price, d, asset.market)}</div>
-              <div class="text-[10px] mt-0.5 ${isPos ? 'text-[#00FF66]' : 'text-[#FF334B]'} font-semibold">${isPos ? '▲' : '▼'}${Math.abs(asset.change24h).toFixed(2)}%</div>
-            </td>
-            <td class="py-3 px-2.5 whitespace-nowrap font-mono">
-              <div class="flex items-center justify-between gap-2 text-[10px]">
-                <span class="font-bold ${rsiInfo.colorText}">${asset.rsi.toFixed(1)}</span>
-                <span class="text-[9px] text-slate-400">${rsiInfo.zone}</span>
-              </div>
-              <div class="w-24 h-1.5 bg-[#1E1E24] rounded-full overflow-hidden mt-1 border border-gold-500/15">
-                <div class="h-full ${rsiInfo.barColor} rounded-full" style="width: ${Math.min(100, Math.max(5, asset.rsi))}%"></div>
-              </div>
-            </td>
-            <td class="py-3 px-2.5 whitespace-nowrap font-mono">
-              <div class="flex items-center gap-1.5 text-[10px]">
-                <span class="font-extrabold text-white">${sent.score}%</span>
-                <span class="px-1.5 py-0.2 rounded text-[9px] font-bold border ${sent.badgeClass}">${sent.shortTag}</span>
-              </div>
-            </td>
-            <td class="py-3 px-2.5 whitespace-nowrap">
-              <div class="flex items-center gap-1.5">
-                <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-mono font-bold border ${sig.bg} ${sig.text} ${sig.border}">${sig.label}</span>
-                <span class="px-1.5 py-0.5 rounded text-[9px] font-mono bg-gold-500/15 text-gold-300 border border-gold-500/30">${asset.wyckoff}</span>
-              </div>
-              <div class="text-[10px] font-mono text-slate-400 mt-1 truncate max-w-[165px]">${asset.pattern}</div>
-            </td>
-            <td class="py-3 px-2.5 whitespace-nowrap font-mono">
-              <div class="flex items-center gap-1.5">
-                <span class="px-1.5 py-0.5 rounded text-[9px] font-extrabold border ${dyn.badgeClass}">${dyn.label}</span>
-                <span class="text-[10px] text-slate-300">${plan.windowShortStr}</span>
-              </div>
-              <div class="text-[10px] mt-1 text-[#00FF66] font-bold">🎯 TP1: ${plan.tp1ExactStr}</div>
-              <div class="flex items-center gap-2 mt-0.5">
-                <span class="asset-countdown-cell text-[10px] font-bold ${dyn.timerColor}" data-asset-id="${asset.id}">⏳ ${formatCountdown(dyn.remainingMs)}</span>
-                <span class="text-[9px] text-gold-300 font-bold">⚡ ${plan.verifiedCount}/6</span>
-              </div>
-            </td>
-            <td class="py-3 px-2.5 whitespace-nowrap font-mono text-[10px]">
-              <div class="flex items-center gap-1.5">
-                <span class="text-gold-400 font-semibold">In:</span>
-                <span class="text-white font-bold">${formatRawPrice(plan.optimalEntry, d)}</span>
-              </div>
-              <div class="flex items-center gap-2 mt-0.5">
-                <span><span class="text-[#FF334B]">SL:</span> <span class="text-[#FF334B]">${formatRawPrice(plan.stopLoss, d)}</span></span>
-                <span><span class="text-[#00FF66]">TP1:</span> <span class="text-[#00FF66]">${formatRawPrice(plan.tp1, d)}</span></span>
-              </div>
-            </td>
-            <td class="py-3 px-2.5 text-right whitespace-nowrap">
-              ${createSparklineSVG(asset.sparkline, isPos)}
-            </td>
+            <td class="py-3 px-2.5 text-right font-mono text-gold-400">Analizza</td>
           </tr>
         `;
       }).join('');
-      state.assets.forEach(a => a.lastFlash = null);
     }
 
-    function renderAlertsFeed() {
-      const container = document.getElementById('alertsFeedContainer');
-      container.innerHTML = state.alertsFeed.map(alert => {
-        const isBull = alert.type === 'BULL';
-        const isCustom = alert.type === 'CUSTOM';
-        const borderClass = alert.isEnterNow ? 'border-gold-400/60 bg-gradient-to-br from-[#161206] to-[#050506]' : isCustom ? 'border-gold-500/45 bg-[#141418]' : isBull ? 'border-[#00FF66]/30 bg-[#050506]' : 'border-[#FF334B]/30 bg-[#050506]';
-        const badgeClass = alert.isEnterNow ? 'enter-now-badge' : isBull ? 'bg-[#00FF66]/15 text-[#00FF66]' : 'bg-[#FF334B]/15 text-[#FF334B]';
-        return `
-          <div class="p-3 rounded-xl border ${borderClass} transition-all hover:border-gold-400 cursor-pointer" onclick="openAssetModalBySymbol('${alert.symbol}')">
-            <div class="flex items-center justify-between gap-2 mb-1">
-              <div class="flex items-center gap-1.5">
-                <span class="px-2 py-0.5 rounded text-[10px] font-mono font-extrabold ${badgeClass}">${alert.symbol}</span>
-                ${alert.confluences ? `<span class="px-1.5 py-0.5 rounded text-[9px] font-mono bg-gold-500/15 text-gold-300 border border-gold-500/30">${alert.confluences}</span>` : ''}
-              </div>
-              <span class="text-[10px] font-mono text-slate-400">${alert.time}</span>
-            </div>
-            <h4 class="text-xs font-bold text-white">${alert.title}</h4>
-            <p class="text-[11px] text-slate-300 mt-0.5 leading-snug">${alert.desc}</p>
-          </div>
-        `;
-      }).join('');
-    }
-
-    function renderUserActiveAlerts() {
-      const box = document.getElementById('userActiveAlertsBox');
-      const list = document.getElementById('userActiveAlertsList');
-      if (state.userAlerts.length === 0) { box.classList.add('hidden'); return; }
-      box.classList.remove('hidden');
-      list.innerHTML = state.userAlerts.map((ua, index) => `
-        <div class="flex items-center justify-between text-[11px] bg-[#050506] px-2.5 py-1.5 rounded-lg border border-gold-500/25">
-          <span class="font-mono text-slate-200"><strong class="text-gold-300">${ua.symbol}</strong> ${ua.label}</span>
-          <button onclick="removeUserAlert(${index})" class="text-slate-500 hover:text-[#FF334B] ml-2">✕</button>
-        </div>
-      `).join('');
-    }
-
-    function removeUserAlert(index) {
-      state.userAlerts.splice(index, 1);
-      renderUserActiveAlerts();
-    }
-
-    function showToast(title, message, type = 'GOLD') {
-      const container = document.getElementById('toastContainer');
-      const toast = document.createElement('div');
-      const accent = type === 'BEAR' ? 'border-[#FF334B]/70 bg-[#0C0C0F]' : 'border-gold-400 bg-[#0C0C0F] shadow-gold-500/20';
-      toast.className = `pointer-events-auto p-3.5 rounded-xl border ${accent} shadow-2xl flex items-start gap-3 transition-all`;
-      toast.innerHTML = `<div class="w-2.5 h-2.5 rounded-full mt-1 shrink-0 ${type === 'BEAR' ? 'bg-[#FF334B]' : 'bg-gold-400 animate-ping'}"></div><div class="flex-1 min-w-0"><p class="text-xs font-extrabold text-gold-300">${title}</p><p class="text-[11px] text-slate-200 mt-0.5 leading-snug">${message}</p></div>`;
-      container.appendChild(toast);
-      setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 4800);
-    }
-
-    function simulateMarketTick() {
-      if (!state.isLive) return;
-      const numToUpdate = 6 + Math.floor(Math.random() * 4);
-      for (let i = 0; i < numToUpdate; i++) {
-        const idx = Math.floor(Math.random() * state.assets.length);
-        const asset = state.assets[idx];
-        const pctDelta = (Math.random() - 0.495) * 0.0055;
-        const oldPrice = asset.price;
-        const newPrice = Math.max(0.00001, oldPrice * (1 + pctDelta));
-
-        asset.price = newPrice;
-        asset.lastFlash = newPrice >= oldPrice ? 'UP' : 'DOWN';
-        asset.change24h += pctDelta * 100;
-        asset.change1h += pctDelta * 65;
-        asset.change15m += pctDelta * 40;
-        asset.rsi = Math.min(92, Math.max(12, asset.rsi + (pctDelta * 400)));
-        asset.sentiment = computeAssetPreciseSentiment(asset);
-
-        const lastCandle = asset.candles[asset.candles.length - 1];
-        lastCandle.close = newPrice;
-        if (newPrice > lastCandle.high) lastCandle.high = newPrice;
-        if (newPrice < lastCandle.low) lastCandle.low = newPrice;
-        lastCandle.volume += Math.floor(Math.random() * 35);
-        asset.sparkline[asset.sparkline.length - 1] = newPrice;
-        checkUserCustomAlerts(asset);
-      }
-
-      updateKpiDashboard();
-      renderMasterEnterNowSection();
-      renderTopMoversSection();
-      renderScannerTable();
-      if (state.selectedAssetId) updateModalLiveValues();
-    }
-
-    function checkUserCustomAlerts(asset) {
-      for (let i = state.userAlerts.length - 1; i >= 0; i--) {
-        const ua = state.userAlerts[i];
-        if (ua.assetId !== asset.id) continue;
-        let triggered = false;
-        if (ua.condition === 'ABOVE' && asset.price >= ua.target) triggered = true;
-        if (ua.condition === 'BELOW' && asset.price <= ua.target) triggered = true;
-        if (ua.condition === 'RSI_LOW' && asset.rsi < 30) triggered = true;
-        if (ua.condition === 'RSI_HIGH' && asset.rsi > 70) triggered = true;
-
-        if (triggered) {
-          state.alertsFeed.unshift({ id: Date.now(), time: formatTime(new Date()), symbol: asset.symbol, type: 'CUSTOM', isEnterNow: true, title: `🔔 Alert Sonoro Scattato: ${asset.symbol}`, desc: `${asset.symbol}: ${ua.label} raggiunto.` });
-          renderAlertsFeed();
-          playInstitutionalEnterNowChime(true);
-          showToast(`🔔 Alert Scattato: ${asset.symbol}`, `${ua.label} raggiunto`, 'GOLD');
-          state.userAlerts.splice(i, 1);
-          renderUserActiveAlerts();
-        }
-      }
-    }
-
-    function tickSecondClockAndCountdowns() {
-      const now = new Date();
-      document.getElementById('liveCetClock').textContent = `${formatTime(now)} CET`;
-      document.getElementById('activeMarketSessionBadge').textContent = getSessionAndKillzone(now).killzone;
-
-      let needsFullRefresh = false;
-      state.assets.forEach((asset, idx) => {
-        if (Date.now() >= asset.plan.expiryTimestamp) {
-          asset.plan = computeExactExecutionPlan(asset, state.timeframe, idx + Math.floor(Math.random() * 5));
-          needsFullRefresh = true;
-        }
-      });
-
-      if (needsFullRefresh) {
-        updateKpiDashboard();
-        renderMasterEnterNowSection();
-        renderTopMoversSection();
-        renderScannerTable();
-      } else {
-        document.querySelectorAll('.asset-countdown-cell, .master-countdown-cell').forEach(el => {
-          const asset = state.assets.find(a => a.id === el.dataset.assetId);
-          if (!asset) return;
-          const dyn = getTimingDynamicStatus(asset.plan);
-          el.textContent = `⏳ ${formatCountdown(dyn.remainingMs)}`;
-        });
-      }
-    }
-
-    function openAssetModalBySymbol(symbol) {
-      const found = state.assets.find(a => a.symbol === symbol);
-      if (found) openAssetModal(found.id);
-    }
-
-    function openAssetModal(assetId) {
-      const asset = state.assets.find(a => a.id === assetId);
+    function openAssetModal(id) {
+      state.selectedAssetId = id;
+      const asset = state.assets.find(a => a.id === id);
       if (!asset) return;
-      state.selectedAssetId = assetId;
-      state.hoveredCandleIndex = -1;
+      document.getElementById('modalSymbol').textContent = asset.symbol;
+      document.getElementById('modalPrice').textContent = formatPrice(asset.price, asset.decimals, asset.market);
+      document.getElementById('paramOptimalEntry').textContent = formatPrice(asset.plan.optimalEntry, asset.decimals, asset.market);
+      
+      document.getElementById('paramSlPctLabel').textContent = `-${asset.plan.slDistPct}%`;
+      document.getElementById('paramStopLoss').textContent = formatPrice(asset.plan.stopLoss, asset.decimals, asset.market);
+
+      document.getElementById('paramTp1PctLabel').textContent = `+${asset.plan.tp1Pct}%`;
+      document.getElementById('paramTp1').textContent = formatPrice(asset.plan.tp1, asset.decimals, asset.market);
+
+      document.getElementById('paramTp2PctLabel').textContent = `+${asset.plan.tp2Pct}%`;
+      document.getElementById('paramTp2').textContent = formatPrice(asset.plan.tp2, asset.decimals, asset.market);
+
+      document.getElementById('paramTp3PctLabel').textContent = `+${asset.plan.tp3Pct}%`;
+      document.getElementById('paramTp3').textContent = formatPrice(asset.plan.tp3, asset.decimals, asset.market);
+
       const modal = document.getElementById('assetModal');
       modal.classList.remove('hidden');
       modal.classList.add('flex');
-
-      document.getElementById('modalSymbol').textContent = asset.symbol;
-      document.getElementById('modalMarketBadge').textContent = asset.market;
-      document.getElementById('modalName').textContent = `${asset.name} • Timeframe ${state.timeframe}`;
-
-      updateModalWatchlistBtn(asset.watchlist);
-      updateModalLiveValues();
-      calculatePositionSizing(asset);
-      requestAnimationFrame(() => drawCandlestickChart(asset));
+      drawChart(asset);
     }
 
     function closeAssetModal() {
-      state.selectedAssetId = null;
-      const modal = document.getElementById('assetModal');
-      modal.classList.add('hidden');
-      modal.classList.remove('flex');
+      document.getElementById('assetModal').classList.add('hidden');
+      document.getElementById('assetModal').classList.remove('flex');
     }
 
-    function updateModalWatchlistBtn(isWatched) {
-      const btn = document.getElementById('modalWatchlistBtn');
-      btn.innerHTML = `<svg class="w-5 h-5 ${isWatched ? 'fill-gold-400 text-gold-400' : 'text-slate-400'}" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
-    }
-
-    function updateModalLiveValues() {
-      const asset = state.assets.find(a => a.id === state.selectedAssetId);
-      if (!asset) return;
-      const d = asset.decimals;
-      const plan = asset.plan;
-      const sent = asset.sentiment;
-      const dyn = getTimingDynamicStatus(plan);
-      const isPos = asset.change24h >= 0;
-      const sig = getSignalInfo(asset.score);
-
-      document.getElementById('modalPrice').textContent = formatPrice(asset.price, d, asset.market);
-      document.getElementById('modalChange').textContent = `${isPos ? '+' : ''}${asset.change24h.toFixed(2)}% (24h)`;
-      document.getElementById('modalEnterNowBadge').classList.toggle('hidden', !dyn.isEnterNow);
-
-      const sigBadge = document.getElementById('modalSignalBadge');
-      sigBadge.textContent = sig.label;
-      sigBadge.className = `px-2.5 py-0.5 rounded-md text-xs font-bold border ${sig.bg} ${sig.text} ${sig.border}`;
-      document.getElementById('modalWyckoffBadge').textContent = `Fase Wyckoff: ${asset.wyckoff}`;
-
-      document.getElementById('modalKillzoneTag').textContent = `Killzone: ${plan.killzoneLabel}`;
-      const statusBadge = document.getElementById('modalTimingStatusBadge');
-      statusBadge.textContent = dyn.label;
-      statusBadge.className = `px-2.5 py-0.5 rounded-lg text-[10px] font-mono font-bold border ${dyn.badgeClass}`;
-
-      document.getElementById('modalExactSignalTime').textContent = plan.signalTimeStr;
-      document.getElementById('modalSessionTag').textContent = `${plan.sessionLabel} • TF ${state.timeframe}`;
-      document.getElementById('modalEntryWindow').textContent = plan.windowFullStr;
-      document.getElementById('modalExpiryTime').textContent = plan.expiryTimeStr;
-      document.getElementById('modalCountdownTimer').textContent = formatCountdown(dyn.remainingMs);
-      document.getElementById('modalRemainingPct').textContent = `${dyn.remainingPct}%`;
-      document.getElementById('modalTimingProgressBar').style.width = `${dyn.remainingPct}%`;
-
-      document.getElementById('etaTp1Prob').textContent = `${plan.tp1Prob}%`;
-      document.getElementById('etaTp1ExactTime').textContent = plan.tp1ExactStr;
-      document.getElementById('etaTp1Price').textContent = formatPrice(plan.tp1, d, asset.market);
-      document.getElementById('etaTp2Prob').textContent = `${plan.tp2Prob}%`;
-      document.getElementById('etaTp2ExactTime').textContent = plan.tp2ExactStr;
-      document.getElementById('etaTp2Price').textContent = formatPrice(plan.tp2, d, asset.market);
-      document.getElementById('etaTp3Prob').textContent = `${plan.tp3Prob}%`;
-      document.getElementById('etaTp3ExactTime').textContent = plan.tp3ExactStr;
-      document.getElementById('etaTp3Price').textContent = formatPrice(plan.tp3, d, asset.market);
-
-      const dirBadge = document.getElementById('paramDirectionBadge');
-      dirBadge.textContent = plan.isLong ? 'LONG (ACQUISTO)' : 'SHORT (VENDITA)';
-      document.getElementById('paramOrderType').textContent = plan.orderType;
-      document.getElementById('paramOptimalEntry').textContent = formatPrice(plan.optimalEntry, d, asset.market);
-      document.getElementById('paramEntryZone').textContent = `Entry Zone: ${formatRawPrice(plan.entryZoneMin, d)} – ${formatRawPrice(plan.entryZoneMax, d)}`;
-      document.getElementById('paramStopLoss').textContent = formatPrice(plan.stopLoss, d, asset.market);
-      document.getElementById('paramSlDistance').textContent = `-${plan.slDistPct.toFixed(2)}% (${plan.pipsLabel})`;
-
-      document.getElementById('paramTp1').textContent = formatPrice(plan.tp1, d, asset.market);
-      document.getElementById('paramTp2').textContent = formatPrice(plan.tp2, d, asset.market);
-      document.getElementById('paramTp3').textContent = formatPrice(plan.tp3, d, asset.market);
-      document.getElementById('paramFib618').textContent = formatRawPrice(plan.fib618, d);
-      document.getElementById('paramPoc').textContent = formatRawPrice(plan.poc, d);
-      document.getElementById('paramVahVal').textContent = `${formatRawPrice(plan.vah, d)} / ${formatRawPrice(plan.val, d)}`;
-
-      document.getElementById('modalAssetSentimentBadge').textContent = `${sent.score}% ${sent.label.toUpperCase()}`;
-      document.getElementById('modalSentimentBreakdown').innerHTML = sent.factors.map(f => `
-        <div class="bg-[#0C0C0F] border border-gold-500/20 rounded-xl p-2.5">
-          <div class="flex items-center justify-between text-[11px] mb-1">
-            <span class="text-slate-300 font-sans font-semibold">${f.name}</span>
-            <span class="font-bold text-gold-300">${f.value}%</span>
-          </div>
-          <div class="w-full h-1.5 bg-[#1E1E24] rounded-full overflow-hidden mb-1">
-            <div class="h-full bg-gradient-to-r from-[#D4AF37] to-[#00FF66] rounded-full" style="width: ${f.value}%"></div>
-          </div>
-          <span class="text-[10px] text-slate-400 block">${f.detail}</span>
-        </div>
-      `).join('');
-
-      const phases = ['Accumulazione', 'Markup', 'Distribuzione', 'Markdown'];
-      document.getElementById('wyckoffCycleDiagram').innerHTML = phases.map(ph => `
-        <div class="py-1.5 px-1 rounded-lg border ${ph === asset.wyckoff ? 'bg-gold-500/25 border-gold-400 text-gold-300 font-bold' : 'bg-[#0C0C0F] border-slate-800 text-slate-500'}">${ph}</div>
-      `).join('');
-
-      document.getElementById('modalConfluenceScoreBadge').textContent = `${plan.verifiedCount}/6 Pilastri • ${plan.confluenceScorePct}%`;
-      document.getElementById('modalConfluencesList').innerHTML = plan.confluences.map(c => `
-        <div class="flex items-start justify-between gap-2 p-2.5 rounded-xl border ${c.verified ? 'bg-gold-500/10 border-gold-500/35' : 'bg-[#0C0C0F] border-slate-800 opacity-75'}">
-          <div class="flex items-start gap-2 min-w-0">
-            <span class="w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5 ${c.verified ? 'bg-gold-500/25 text-gold-300' : 'bg-slate-800 text-slate-400'}">${c.verified ? '✓' : '•'}</span>
-            <div class="min-w-0">
-              <div class="text-xs font-semibold text-slate-100 truncate">${c.pillar}</div>
-              <div class="text-[11px] font-mono text-slate-400 truncate">${c.detail}</div>
-            </div>
-          </div>
-          <span class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-[#141418] text-gold-300 border border-gold-500/25 shrink-0">${c.weight}</span>
-        </div>
-      `).join('');
-
-      calculatePositionSizing(asset);
-      drawCandlestickChart(asset);
-    }
-
-    function calculatePositionSizing(asset) {
-      if (!asset) asset = state.assets.find(a => a.id === state.selectedAssetId);
-      if (!asset) return;
-      const balance = parseFloat(document.getElementById('sizeAccountBalance').value) || 10000;
-      const riskPct = parseFloat(document.getElementById('sizeRiskPct').value) || 1.0;
-      const riskDollar = balance * (riskPct / 100);
-      const units = asset.plan.slDist > 0 ? (riskDollar / asset.plan.slDist) : 0;
-      document.getElementById('calcRiskDollar').textContent = `$${riskDollar.toFixed(2)}`;
-      document.getElementById('calcPositionUnits').textContent = units >= 100 ? units.toFixed(1) : units.toFixed(3);
-      document.getElementById('calcRewardTp2Dollar').textContent = `+$${(riskDollar * 2.8).toFixed(2)}`;
-    }
-
-    function calculateEMA(candles, period) {
-      const k = 2 / (period + 1);
-      const emaArray = [];
-      let ema = candles[0].close;
-      for (let i = 0; i < candles.length; i++) {
-        ema = candles[i].close * k + ema * (1 - k);
-        emaArray.push(ema);
-      }
-      return emaArray;
-    }
-
-    function drawCandlestickChart(asset) {
+    function drawChart(asset) {
       const canvas = document.getElementById('candlestickCanvas');
       if (!canvas) return;
-      const rect = canvas.parentElement.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
-
       const ctx = canvas.getContext('2d');
-      ctx.scale(dpr, dpr);
-      const width = rect.width, height = rect.height;
-      const candles = asset.candles, plan = asset.plan;
-
-      const padLeft = 12, padRight = 104, padTop = 16, padBottom = 22;
-      const chartWidth = width - padLeft - padRight;
-      const priceAreaHeight = (height - padTop - padBottom) * 0.80;
+      const w = canvas.width = canvas.parentElement.clientWidth;
+      const h = canvas.height = canvas.parentElement.clientHeight;
 
       ctx.fillStyle = '#050506';
-      ctx.fillRect(0, 0, width, height);
+      ctx.fillRect(0, 0, w, h);
 
-      let minPrice = Math.min(plan.stopLoss, plan.tp1);
-      let maxPrice = Math.max(plan.stopLoss, plan.tp1);
-      candles.forEach(c => {
-        if (c.low < minPrice) minPrice = c.low;
-        if (c.high > maxPrice) maxPrice = c.high;
-      });
-      const range = (maxPrice - minPrice) || 1;
-      minPrice -= range * 0.08;
-      maxPrice += range * 0.08;
-      const adjRange = maxPrice - minPrice;
-      const priceToY = (p) => padTop + priceAreaHeight - ((p - minPrice) / adjRange) * priceAreaHeight;
+      const candles = asset.candles;
+      let minP = Math.min(...candles.map(c => c.low), asset.plan.stopLoss, asset.plan.tp3);
+      let maxP = Math.max(...candles.map(c => c.high), asset.plan.stopLoss, asset.plan.tp3);
+      const range = maxP - minP || 1;
 
-      ctx.strokeStyle = 'rgba(212, 175, 55, 0.10)';
-      ctx.lineWidth = 1;
-      ctx.font = '10px "JetBrains Mono", monospace';
-      ctx.fillStyle = '#78716c';
+      const pToY = (p) => 20 + (h - 40) * (1 - (p - minP) / range);
+      const stepX = (w - 80) / candles.length;
 
-      for (let i = 0; i <= 5; i++) {
-        const y = padTop + (priceAreaHeight / 5) * i;
-        const pVal = maxPrice - (adjRange / 5) * i;
-        ctx.beginPath();
-        ctx.moveTo(padLeft, y);
-        ctx.lineTo(width - padRight, y);
-        ctx.stroke();
-        ctx.fillText(pVal.toFixed(asset.decimals), width - padRight + 6, y + 3);
-      }
-
-      const stepX = chartWidth / candles.length;
-      const bodyW = Math.max(3, stepX * 0.62);
-      candles.forEach((c, idx) => {
-        const xCenter = padLeft + (idx + 0.5) * stepX;
-        const isBull = c.close >= c.open;
-        const color = isBull ? '#00FF66' : '#FF334B';
+      candles.forEach((c, i) => {
+        const x = 20 + i * stepX;
+        const color = c.close >= c.open ? '#00FF66' : '#FF334B';
         ctx.strokeStyle = color;
-        ctx.lineWidth = 1.2;
         ctx.beginPath();
-        ctx.moveTo(xCenter, priceToY(c.high));
-        ctx.lineTo(xCenter, priceToY(c.low));
+        ctx.moveTo(x, pToY(c.high));
+        ctx.lineTo(x, pToY(c.low));
         ctx.stroke();
-
-        const yO = priceToY(c.open), yC = priceToY(c.close);
         ctx.fillStyle = color;
-        ctx.fillRect(xCenter - bodyW / 2, Math.min(yO, yC), bodyW, Math.max(1.5, Math.abs(yC - yO)));
+        ctx.fillRect(x - 2, Math.min(pToY(c.open), pToY(c.close)), 4, Math.max(1, Math.abs(pToY(c.close) - pToY(c.open))));
       });
 
-      const drawExecLevel = (priceVal, labelPrefix, color) => {
-        if (priceVal < minPrice || priceVal > maxPrice) return;
-        const y = priceToY(priceVal);
-        ctx.save();
-        ctx.setLineDash([5, 4]);
+      const drawLine = (price, color, label) => {
+        const y = pToY(price);
         ctx.strokeStyle = color;
-        ctx.lineWidth = 1.3;
+        ctx.setLineDash([4, 4]);
         ctx.beginPath();
-        ctx.moveTo(padLeft, y);
-        ctx.lineTo(width - padRight, y);
+        ctx.moveTo(20, y);
+        ctx.lineTo(w - 60, y);
         ctx.stroke();
-        ctx.restore();
-
+        ctx.setLineDash([]);
         ctx.fillStyle = color;
-        ctx.fillRect(width - padRight + 2, y - 8, padRight - 4, 16);
-        ctx.fillStyle = '#050506';
-        ctx.font = 'bold 9px "JetBrains Mono", monospace';
-        ctx.fillText(`${labelPrefix} ${priceVal.toFixed(asset.decimals)}`, width - padRight + 4, y + 3);
+        ctx.fillText(`${label}: ${price.toFixed(asset.decimals)}`, w - 55, y + 4);
       };
 
-      drawExecLevel(plan.tp1, 'TP1', '#00FF66');
-      drawExecLevel(plan.optimalEntry, 'IN', '#F3D066');
-      drawExecLevel(plan.stopLoss, 'SL', '#FF334B');
-    }
-
-    function toggleWatchlist(assetId) {
-      const asset = state.assets.find(a => a.id === assetId);
-      if (!asset) return;
-      asset.watchlist = !asset.watchlist;
-      renderScannerTable();
-      if (state.selectedAssetId === assetId) updateModalWatchlistBtn(asset.watchlist);
-    }
-
-    function closeTopMoversModal() {
-      document.getElementById('topMoversModal').classList.add('hidden');
-      document.getElementById('topMoversModal').classList.remove('flex');
-    }
-
-    function openCustomAlertModal() {
-      const m = document.getElementById('customAlertModal');
-      m.classList.remove('hidden');
-      m.classList.add('flex');
-      const asset = state.assets.find(a => a.id === document.getElementById('alertAssetSelect').value);
-      if (asset) document.getElementById('alertTargetInput').value = asset.price;
-    }
-
-    function closeCustomAlertModal() {
-      document.getElementById('customAlertModal').classList.add('hidden');
-      document.getElementById('customAlertModal').classList.remove('flex');
-    }
-
-    function bindEvents() {
-      document.getElementById('audioToggleBtn').addEventListener('click', () => {
-        state.audioEnabled = !state.audioEnabled;
-        document.getElementById('audioIcon').textContent = state.audioEnabled ? '🔊' : '🔇';
-        document.getElementById('audioToggleText').textContent = state.audioEnabled ? 'Audio ON' : 'Audio OFF';
-      });
-
-      document.getElementById('testSoundBtn').addEventListener('click', () => {
-        playInstitutionalEnterNowChime(true);
-        showToast('🔊 Test Chime Istituzionale', 'Segnale sonoro attivo.', 'GOLD');
-      });
-
-      document.querySelectorAll('.market-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          document.querySelectorAll('.market-btn').forEach(b => b.classList.remove('active', 'bg-gold-500/20', 'text-gold-300', 'border', 'border-gold-500/40', 'font-bold'));
-          btn.classList.add('active', 'bg-gold-500/20', 'text-gold-300', 'border', 'border-gold-500/40', 'font-bold');
-          state.market = btn.dataset.market;
-          renderScannerTable();
-        });
-      });
-
-      document.querySelectorAll('.tf-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          state.timeframe = btn.dataset.tf;
-          document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active', 'bg-gold-500/20', 'text-gold-300', 'border', 'border-gold-500/40', 'font-bold'));
-          btn.classList.add('active', 'bg-gold-500/20', 'text-gold-300', 'border', 'border-gold-500/40', 'font-bold');
-          state.assets.forEach((a, idx) => {
-            a.candles = generateHistoricalCandles(a.price, a.change24h, 56);
-            a.sparkline = a.candles.slice(-18).map(c => c.close);
-            a.plan = computeExactExecutionPlan(a, state.timeframe, idx);
-          });
-          updateKpiDashboard();
-          renderMasterEnterNowSection();
-          renderTopMoversSection();
-          renderScannerTable();
-          if (state.selectedAssetId) updateModalLiveValues();
-        });
-      });
-
-      document.getElementById('searchInput').addEventListener('input', (e) => {
-        state.search = e.target.value.trim();
-        renderScannerTable();
-      });
-
-      document.getElementById('liveToggleBtn').addEventListener('click', () => {
-        state.isLive = !state.isLive;
-        document.getElementById('liveToggleText').textContent = state.isLive ? 'Live Attivo' : 'In Pausa';
-      });
-
-      ['filterWindowStatus', 'filterSentiment', 'filterSignal', 'filterRsi', 'filterPattern'].forEach(id => {
-        document.getElementById(id).addEventListener('change', (e) => {
-          state.filters[id.replace('filter', '').toLowerCase()] = e.target.value;
-          renderScannerTable();
-        });
-      });
-
-      const resetAll = () => {
-        state.filters = { windowStatus: 'ALL', sentiment: 'ALL', signal: 'ALL', rsi: 'ALL', pattern: 'ALL' };
-        state.search = '';
-        document.getElementById('searchInput').value = '';
-        renderScannerTable();
-      };
-      document.getElementById('resetFiltersBtn').addEventListener('click', resetAll);
-      document.getElementById('emptyResetBtn').addEventListener('click', resetAll);
-
-      document.getElementById('toggleTopMoversModalBtn').addEventListener('click', () => {
-        renderTopMoversLeaderboard();
-        document.getElementById('topMoversModal').classList.remove('hidden');
-        document.getElementById('topMoversModal').classList.add('flex');
-      });
-      document.getElementById('closeTopMoversModalBtn').addEventListener('click', closeTopMoversModal);
-
-      document.getElementById('closeModalBtn').addEventListener('click', closeAssetModal);
-      document.getElementById('modalWatchlistBtn').addEventListener('click', () => { if (state.selectedAssetId) toggleWatchlist(state.selectedAssetId); });
-      document.getElementById('copyAllParamsBtn').addEventListener('click', () => { if (state.selectedAssetId) copyAssetPlanById(state.selectedAssetId); });
-
-      ['sizeAccountBalance', 'sizeRiskPct'].forEach(id => {
-        document.getElementById(id).addEventListener('input', () => calculatePositionSizing());
-      });
-
-      document.getElementById('openCustomAlertBtn').addEventListener('click', openCustomAlertModal);
-      document.getElementById('headerNewAlertBtn').addEventListener('click', openCustomAlertModal);
-      document.getElementById('closeCustomAlertModalBtn').addEventListener('click', closeCustomAlertModal);
-      document.getElementById('cancelCustomAlertBtn').addEventListener('click', closeCustomAlertModal);
-
-      document.getElementById('saveCustomAlertBtn').addEventListener('click', () => {
-        const assetId = document.getElementById('alertAssetSelect').value;
-        const condition = document.getElementById('alertConditionSelect').value;
-        const target = parseFloat(document.getElementById('alertTargetInput').value);
-        const asset = state.assets.find(a => a.id === assetId);
-        if (!asset) return;
-        const label = condition === 'ABOVE' ? `> ${target}` : condition === 'BELOW' ? `< ${target}` : 'RSI Trigger';
-        state.userAlerts.push({ assetId: asset.id, symbol: asset.symbol, condition, target, label });
-        renderUserActiveAlerts();
-        closeCustomAlertModal();
-        showToast('Alert Configurato', `Monitoraggio attivo per ${asset.symbol}`, 'GOLD');
-      });
+      drawLine(asset.plan.tp1, '#00FF66', `TP1 (+${asset.plan.tp1Pct}%)`);
+      drawLine(asset.plan.optimalEntry, '#F3D066', 'ENTRY');
+      drawLine(asset.plan.stopLoss, '#FF334B', `SL (-${asset.plan.slDistPct}%)`);
     }
 
     window.addEventListener('DOMContentLoaded', () => {
-      initializeAssetsData();
-      bindEvents();
-      updateKpiDashboard();
-      renderMasterEnterNowSection();
-      renderTopMoversSection();
+      initializeData();
+      renderMasterEnterNow();
       renderScannerTable();
-      renderAlertsFeed();
-      tickSecondClockAndCountdowns();
-
-      setInterval(simulateMarketTick, 2400);
-      setInterval(tickSecondClockAndCountdowns, 1000);
+      document.getElementById('closeModalBtn').addEventListener('click', closeAssetModal);
     });
   </script>
 </body>
