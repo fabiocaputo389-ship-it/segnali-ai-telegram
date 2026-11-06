@@ -1,14 +1,14 @@
 {
-  "name": "crypto-race-backend",
-  "version": "1.0.0",
-  "description": "Crypto Race Backend Scanner",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
-  "dependencies": {
-    "axios": "1.6.8",
-    "cors": "2.8.5",
-    "express": "4.19.2"
-  }
+"name": "crypto-race-backend",
+"version": "1.0.0",
+"description": "Crypto Race Trading Scanner Backend",
+"main": "server.js",
+"scripts": {
+"start": "node server.js"
+},
+"dependencies": {
+"axios": "1.6.8",
+"cors": "2.8.5",
+"express": "4.19.2"
+}
 }
