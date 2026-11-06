@@ -160,9 +160,24 @@ app.get('/health', (req, res) => {
     res.json({ status: 'OK', uptime: process.uptime() });
 });
 
-// Apre direttamente la Dashboard index.html al link principale
+// Apre la Dashboard index.html in sicurezza (senza crashare se non presente)
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+    const indexPath = path.join(__dirname, 'index.html');
+    if (require('fs').existsSync(indexPath)) {
+        res.sendFile(indexPath);
+    } else {
+        res.send(`
+            <!DOCTYPE html>
+            <html>
+            <head><title>Crypto Scanner Server</title></head>
+            <body style="background:#000;color:#fff;font-family:sans-serif;padding:40px;text-align:center;">
+                <h1 style="color:#00e676;">Backend Service Active 🚀</h1>
+                <p style="color:#a1a1aa;">Il server funziona correttamente su Render.</p>
+                <p>Per vedere la Dashboard, crea il file <code>index.html</code> nel tuo repository GitHub.</p>
+            </body>
+            </html>
+        `);
+    }
 });
 
 app.listen(PORT, () => {
