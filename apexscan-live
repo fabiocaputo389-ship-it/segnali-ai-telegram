@@ -1,0 +1,6 @@
+apexscan-live/
+├── app.py              # Il server backend in Python (FastAPI + WebSocket + CCXT)
+├── requirements.txt    # Le librerie Python richieste
+├── Dockerfile          # Per configurare il container su Render
+└── static/
+    └── index.html      # La nostra dashboard ApexScan Pro Nero & Oro (con i segnali "Entra Adesso" in primo piano)
