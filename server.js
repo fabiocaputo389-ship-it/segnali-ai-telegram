@@ -74,7 +74,7 @@ app.get('/api/signals', async (req, res) => {
     try {
         const signalPromises = SYMBOLS.map(async (item) => {
             const url = `https://api.binance.com/api/v3/klines?symbol=${item.symbol}&interval=1h&limit=50`;
-            const response = await axios.get(url);
+            const response = await axios.get(url, { timeout: 5000 });
             const data = response.data;
 
             const closes = data.map(d => parseFloat(d[4]));
@@ -163,7 +163,7 @@ app.get('/health', (req, res) => {
     res.json({ status: 'OK', uptime: process.uptime() });
 });
 
-// Benvenuto
+// Root
 app.get('/', (req, res) => {
     res.send('<h1>Crypto Race Backend Service Active 🚀</h1><p>API Endpoint: <code>/api/signals</code></p>');
 });
