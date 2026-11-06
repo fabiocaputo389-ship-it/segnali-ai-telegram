@@ -1,4 +1,3 @@
-```javascript
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
@@ -163,4 +162,3 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
     console.log(`Server attivo sulla porta ${PORT}`);
 });
-```
