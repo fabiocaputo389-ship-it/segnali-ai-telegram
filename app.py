@@ -1,4 +1,5 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 import asyncio
 import json
@@ -6,14 +7,21 @@ import datetime
 import requests
 import ccxt
 import pandas as pd
-import numpy as np
 
 app = FastAPI(title="ApexScan Pro Live API & Risk Engine")
 
-# Serviamo la cartella static come frontend web
+# Serviamo la cartella static come file statici
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Inizializziamo l'exchange CCXT in modalità pubblica
+# Rotta principale per aprire direttamente la dashboard
+@app.get("/", response_class=HTMLResponse)
+def read_root():
+    try:
+        with open("static/index.html", "r", encoding="utf-8") as f:
+            return f.read()
+    except Exception as e:
+        return f"<h3>Errore caricamento dashboard: {e}</h3><p>Assicurati che il file static/index.html esista nel repository.</p>"
+
 exchange = ccxt.binance({
     'enableRateLimit': True,
     'options': {'defaultType': 'spot'}
@@ -29,28 +37,21 @@ def get_fear_and_greed():
     except:
         return {"value": 58, "classification": "Greed"}
 
-# Funzione per calcolare l'ATR (Average True Range) e i livelli operativi
 def calculate_atr_and_levels(symbol='BTC/USDT'):
     try:
-        # Scarichiamo le ultime candele storiche (Timeframe 1h)
         ohlcv = exchange.fetch_ohlcv(symbol, timeframe='1h', limit=30)
         df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-        
-        # Calcolo True Range
         df['tr1'] = df['high'] - df['low']
         df['tr2'] = abs(df['high'] - df['close'].shift())
         df['tr3'] = abs(df['low'] - df['close'].shift())
         df['tr'] = df[['tr1', 'tr2', 'tr3']].max(axis=1)
-        
-        # ATR a 14 periodi
         atr_14 = df['tr'].rolling(window=14).mean().iloc[-1]
         current_price = df['close'].iloc[-1]
         
-        # Calcolo dinamico di Entry, SL e TP basati su ATR
         entry = current_price
-        sl = entry - (1.5 * atr_14)  # Stop loss basato su volatilità effettiva
-        tp1 = entry + (2.0 * atr_14) # Take Profit 1
-        tp2 = entry + (3.5 * atr_14) # Take Profit 2
+        sl = entry - (1.5 * atr_14)
+        tp1 = entry + (2.0 * atr_14)
+        tp2 = entry + (3.5 * atr_14)
         
         return {
             "price": round(current_price, 2),
@@ -61,7 +62,6 @@ def calculate_atr_and_levels(symbol='BTC/USDT'):
             "tp2": round(tp2, 2)
         }
     except Exception as e:
-        print(f"Errore calcolo ATR per {symbol}:", e)
         return {"price": 94000.0, "atr": 450.0, "entry": 94000.0, "sl": 93250.0, "tp1": 95100.0, "tp2": 96200.0}
 
 @app.get("/api/market-status")
@@ -76,7 +76,6 @@ def market_status():
         "active_engine": "Python Pandas + CCXT ATR Risk Engine Active"
     }
 
-# WebSocket per lo streaming in tempo reale dei dati calcolati
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
@@ -84,7 +83,6 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             fng = get_fear_and_greed()
             metrics = calculate_atr_and_levels('BTC/USDT')
-            
             payload = {
                 "type": "MARKET_TICK",
                 "timestamp": datetime.datetime.now().strftime("%H:%M:%S"),
@@ -92,9 +90,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 "fear_greed_text": fng["classification"],
                 "market_data": metrics
             }
-            
             await websocket.send_text(json.dumps(payload))
             await asyncio.sleep(5)
-            
     except WebSocketDisconnect:
-        print("Client disconnesso dal flusso WebSocket")
+        print("Client disconnesso")
