@@ -6,11 +6,9 @@ const axios = require('axios');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Lista Coppie Crypto da Scansionare
 const SYMBOLS = [
     { symbol: 'BTCUSDT', name: 'BTC (Bitcoin)', isBig: true, top: true },
     { symbol: 'ETHUSDT', name: 'ETH (Ethereum)', isBig: true, top: true },
@@ -24,7 +22,6 @@ const SYMBOLS = [
     { symbol: 'NEARUSDT', name: 'NEAR (Near Protocol)', isBig: false, top: false }
 ];
 
-// Helper Calcolo RSI
 function calculateRSI(prices, period = 14) {
     let gains = 0, losses = 0;
     for (let i = 1; i <= period; i++) {
@@ -39,7 +36,6 @@ function calculateRSI(prices, period = 14) {
     return Math.round(100 - (100 / (1 + rs)));
 }
 
-// Helper Calcolo EMA
 function calculateEMA(prices, period) {
     const k = 2 / (period + 1);
     let ema = prices[0];
@@ -49,7 +45,6 @@ function calculateEMA(prices, period) {
     return ema;
 }
 
-// Helper Calcolo ATR
 function calculateATR(highs, lows, closes, period = 14) {
     let trSum = 0;
     for (let i = closes.length - period; i < closes.length; i++) {
@@ -69,7 +64,6 @@ function getDecimals(price) {
     return 6;
 }
 
-// API Segnali Live
 app.get('/api/signals', async (req, res) => {
     try {
         const signalPromises = SYMBOLS.map(async (item) => {
@@ -158,12 +152,10 @@ app.get('/api/signals', async (req, res) => {
     }
 });
 
-// Health check
 app.get('/health', (req, res) => {
     res.json({ status: 'OK', uptime: process.uptime() });
 });
 
-// Root
 app.get('/', (req, res) => {
     res.send('<h1>Crypto Race Backend Service Active 🚀</h1><p>API Endpoint: <code>/api/signals</code></p>');
 });
