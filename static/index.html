@@ -13,15 +13,11 @@
       darkMode: 'class',
       theme: {
         extend: {
-          fontFamily: {
-            sans: ['Inter', 'sans-serif'],
-            mono: ['JetBrains Mono', 'monospace'],
-          },
+          fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
           colors: {
             obsidian: { 950: '#050506', 900: '#0C0C0F', 850: '#101014', 800: '#141418', 700: '#1E1E24' },
             gold: { 300: '#F9E08B', 400: '#F3D066', 500: '#D4AF37', 600: '#AA8A26', 700: '#7D6319' },
-            emeraldNeon: '#00FF66',
-            rubyNeon: '#FF334B'
+            emeraldNeon: '#00FF66', rubyNeon: '#FF334B'
           }
         }
       }
@@ -64,9 +60,7 @@
         </div>
       </div>
       <div class="flex items-center gap-2">
-        <div class="flex items-center bg-[#0C0C0F] border border-gold-500/35 rounded-xl p-0.5">
-          <button id="audioToggleBtn" class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-gold-500/20 text-gold-300">🔊 Audio ON</button>
-        </div>
+        <button id="audioToggleBtn" class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-gold-500/20 text-gold-300">🔊 Audio ON</button>
         <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold bg-[#00FF66]/10 text-[#00FF66] border border-[#00FF66]/40">
           <span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00FF66] opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-[#00FF66]"></span></span>
           <span>Live Attivo</span>
@@ -106,31 +100,43 @@
         </div>
       </div>
     </section>
+
+    <!-- Sezione principale con tabella screener -->
+    <section class="terminal-card rounded-2xl p-4">
+      <h2 class="text-sm font-bold text-white mb-3">Screener Multi-Asset &amp; Mercato Live</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs border-collapse">
+          <thead>
+            <tr class="border-b border-gold-500/25 text-[10px] font-bold uppercase text-gold-400">
+              <th class="py-2 px-3">Asset</th>
+              <th class="py-2 px-3 text-right">Prezzo Live</th>
+              <th class="py-2 px-3">Sentiment</th>
+              <th class="py-2 px-3">Stato Server</th>
+            </tr>
+          </thead>
+          <tbody id="liveTableBody" class="divide-y divide-gold-500/15 font-mono">
+            <tr>
+              <td class="py-3 px-3 font-bold text-white">BTC/USDT (Bitcoin)</td>
+              <td id="liveBtcPrice" class="py-3 px-3 text-right text-gold-300 font-bold">$94,280.50</td>
+              <td class="py-3 px-3 text-[#00FF66]">Bullish Forte</td>
+              <td class="py-3 px-3 text-gold-400">Connesso a Render 🚀</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
   </main>
 
   <script>
-    // Sincronizzazione orologio e WebSocket sicuro WSS per Render
-    function updateClock() {
-      const now = new Date();
-      document.getElementById('liveCetClock').textContent = now.toTimeString().slice(0, 8) + " CET";
-    }
-    setInterval(updateClock, 1000);
-    updateClock();
-
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/ws`;
 
     function connectWebSocket() {
       const socket = new WebSocket(wsUrl);
       
-      socket.onopen = function() {
-        console.log("WebSocket connesso con successo al server Python!");
-      };
-
       socket.onmessage = function(event) {
         const data = JSON.parse(event.data);
         if(data.type === 'MARKET_TICK') {
-          console.log("Dati live ricevuti dal server:", data);
           if(data.timestamp) {
             document.getElementById('liveCetClock').textContent = data.timestamp + " CET";
           }
@@ -141,12 +147,7 @@
       };
 
       socket.onclose = function() {
-        console.log("Connessione WebSocket chiusa. Tentativo di riconnessione tra 3 secondi...");
         setTimeout(connectWebSocket, 3000);
-      };
-
-      socket.onerror = function(error) {
-        console.error("Errore WebSocket:", error);
       };
     }
 
