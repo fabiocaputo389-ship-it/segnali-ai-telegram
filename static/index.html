@@ -153,7 +153,6 @@ function formatPrice(val, decimals, market) {
 }
 
 function renderApp() {
-  // Master grid
   const masterGrid = document.getElementById('masterEnterNowCardsGrid');
   masterGrid.innerHTML = assets.slice(0, 3).map(a => `
     <div class="bg-[#050506] border border-gold-500/45 rounded-2xl p-4">
@@ -166,7 +165,6 @@ function renderApp() {
     </div>
   `).join('');
 
-  // Table
   const tbody = document.getElementById('scannerTableBody');
   tbody.innerHTML = assets.map(a => {
     const flashClass = a.flash === 'UP' ? 'price-flash-up' : a.flash === 'DOWN' ? 'price-flash-down' : '';
@@ -181,7 +179,6 @@ function renderApp() {
     `;
   }).join('');
   
-  // Rimuovi flag flash dopo il rendering
   assets.forEach(a => a.flash = null);
 }
 
@@ -190,7 +187,6 @@ function updateClock() {
   document.getElementById('liveCetClock').textContent = now.toTimeString().slice(0, 8) + " CET";
 }
 
-// Motore di simulazione Real-Time in tempo reale
 function simulateRealtimeTicks() {
   assets.forEach(a => {
     const delta = (Math.random() - 0.48) * (a.price * 0.0012);
@@ -202,11 +198,10 @@ function simulateRealtimeTicks() {
 }
 
 setInterval(updateClock, 1000);
-setInterval(simulateRealtimeTicks, 1800); // Aggiorna i prezzi ogni 1.8 secondi in tempo reale
+setInterval(simulateRealtimeTicks, 1800);
 updateClock();
 renderApp();
 
-// WebSocket di backup per Render
 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 const wsUrl = `${protocol}//${window.location.host}/ws`;
 
