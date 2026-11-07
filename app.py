@@ -95,28 +95,27 @@ def imposta_leva_bingx(simbolo: str, leva: int, lato: str):
 
 def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingresso: float, prezzo_tp: float, prezzo_sl: float, leva: int = 3, timeframe: str = "1h / 4h"):
     """
-    CERVELLO PHANTOM - INGRESSO CHIRURGICO: 
-    Imposta la leva e piazza un ordine condizionato (STOP_MARKET) al prezzo esatto, 
-    allegando contestualmente TP e SL protettivi.
+    CERVELLO PHANTOM - ESECUZIONE SICURA BINGX:
+    Imposta la leva, apre l'ordine a mercato immediato ed invia i TP e SL protettivi 
+    evitando l'errore 'position not exist'.
     """
     if not API_KEY or not SECRET_KEY:
         print("[PHANTOM ERROR] BINGX_API_KEY o BINGX_SECRET_KEY non trovate nelle variabili d'ambiente di Render!")
         return {"code": -1, "msg": "API keys missing in Render Environment Variables"}
 
+    # 0. Imposta la leva scelta
     imposta_leva_bingx(simbolo, leva, lato)
 
     endpoint = "/openApi/swap/v2/trade/order"
     url = BASE_URL + endpoint
     timestamp = str(int(time.time() * 1000))
     
+    # 1. Apertura immediata a mercato per garantire la creazione istantanea della posizione su BingX
     payload_ordine = {
         "symbol": simbolo,
         "side": lato,
         "positionSide": "LONG" if lato == "BUY" else "SHORT",
-        "type": "STOP_MARKET",
-        "stopPrice": str(prezzo_ingresso),
-        "price": str(prezzo_ingresso),
-        "workingType": "MARK_PRICE",
+        "type": "MARKET",
         "quantity": str(quantita),
         "timestamp": timestamp
     }
@@ -129,10 +128,13 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingress
         risultato = response.json()
         
         if risultato.get("code") == 0:
-            print(f"[PHANTOM SUCCESS] Ingresso chirurgico [{timeframe}] programmato su {simbolo} a ${prezzo_ingresso} (Leva {leva}x)")
-            time.sleep(0.3)
+            print(f"[PHANTOM SUCCESS] Posizione aperta su {simbolo} [{timeframe}] con leva {leva}x!")
+            
+            # Breve pausa per sincronizzazione sul server BingX
+            time.sleep(0.6)
             lato_chiusura = "SELL" if lato == "BUY" else "BUY"
             
+            # 2. Invio ordini protettivi TP e SL
             if prezzo_sl > 0:
                 _imposta_ordine_protettivo(simbolo, lato_chiusura, prezzo_sl, "STOP_MARKET", lato)
             if prezzo_tp > 0:
@@ -344,7 +346,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="w-9 h-9 rounded-xl bg-[#FFCC00] text-black flex items-center justify-center font-extrabold animate-bounce">⚡</div>
           <div>
             <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">⚡ SEGNALE PRIORITARIO DA APRIRE A MERCATO ORA</h2>
-            <p class="text-[11px] text-[#FFCC00]"> सेटअप ad altissima confluenza con attivazione istantanea</p>
+            <p class="text-[11px] text-[#FFCC00]">Setup ad altissima confluenza con attivazione istantanea</p>
           </div>
         </div>
         <span class="px-2.5 py-1 rounded-md text-xs font-mono font-extrabold bg-[#FFCC00] text-black animate-pulse">CONFERMATO</span>
