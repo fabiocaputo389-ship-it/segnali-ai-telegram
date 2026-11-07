@@ -9,7 +9,7 @@ from flask import Flask, render_template_string, request, jsonify
 app = Flask(__name__)
 
 # ==========================================
-# CONFIGURAZIONE & CREDENZIALI BINGX
+# LETTURA VARIABILI DIRETTAMENTE DA RENDER
 # ==========================================
 API_KEY = os.environ.get("BINGX_API_KEY")
 SECRET_KEY = os.environ.get("BINGX_SECRET_KEY")
@@ -17,9 +17,6 @@ BASE_URL = "https://open-api.bingx.com"
 
 # Stato globale della modalità di esecuzione ("MANUAL" o "AUTO")
 TRADING_MODE = "MANUAL"
-
-# Lista di asset reali monitorati sulle API Futures di BingX
-SYMBOLS_TO_TRACK = ["BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT", "DOGE-USDT", "ADA-USDT"]
 
 def _genera_firma(payload: dict, secret_key: str) -> str:
     """Genera la firma HMAC SHA256 richiesta dalle API Futures di BingX."""
@@ -39,7 +36,6 @@ def get_live_market_data():
         data = response.json()
         if data.get("code") == 0 and "data" in data:
             tickers = data["data"]
-            # Mappa i dati per un accesso rapido
             market_map = {}
             for t in tickers:
                 symbol = t.get("symbol")
@@ -60,8 +56,8 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_tp: flo
     e imposta automaticamente Stop Loss e Take Profit protettivi (con reduceOnly).
     """
     if not API_KEY or not SECRET_KEY:
-        print("[BINGX ERROR] Chiavi API non configurate nelle variabili d'ambiente di Render!")
-        return {"code": -1, "msg": "API keys missing in environment variables on Render"}
+        print("[BINGX ERROR] BINGX_API_KEY o BINGX_SECRET_KEY non trovate nelle variabili d'ambiente di Render!")
+        return {"code": -1, "msg": "API keys missing in Render Environment Variables"}
 
     endpoint = "/openApi/swap/v2/trade/order"
     url = BASE_URL + endpoint
@@ -135,22 +131,21 @@ def _imposta_ordine_protettivo(simbolo: str, lato: str, prezzo_trigger: float, t
 # ==========================================
 @app.route('/api/market-data', methods=['GET'])
 def api_market_data():
-    """Fornisce al frontend i dati reali aggiornati direttamente da BingX."""
     data = get_live_market_data()
     return jsonify({"code": 0, "data": data})
 
 @app.route('/api/esegui-segnale', methods=['POST'])
 def webhook_esegui_segnale():
     dati = request.json or {}
-    simbolo = dati.get("symbol")         # Es: "BTC-USDT"
-    lato = dati.get("action")            # "BUY" o "SELL"
+    simbolo = dati.get("symbol")
+    lato = dati.get("action")
     quantita = float(dati.get("size", 0.001))
     tp = float(dati.get("tp", 0))
     sl = float(dati.get("sl", 0))
     is_auto = dati.get("is_auto", False)
 
     if is_auto and TRADING_MODE != "AUTO":
-        return jsonify({"code": -99, "msg": "Bot in modalità Manuale: esecuzione automatica disattivata."})
+        return jsonify({"code": -99, "msg": "Bot in modalità Manuale: esecuzione automatica bloccata."})
     
     risultato = esegui_ordine_bingx(simbolo, lato, quantita, tp, sl)
     return jsonify(risultato)
@@ -179,7 +174,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ApexScan Pro - Live BingX Real Data Engine</title>
+  <title>ApexScan Pro - BingX Live Data &amp; Auto Engine</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -228,15 +223,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-[#00FF66] to-[#00993D] text-black flex items-center justify-center shadow-lg border border-white/40 font-bold">&#9889;</div>
         <div>
           <div class="flex items-center gap-2">
-            <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-white">ApexScan <span class="text-[#00FF66]">BingX Live Data</span></h1>
+            <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-white">ApexScan <span class="text-[#00FF66]">Render Env Sync</span></h1>
             <span id="modeStatusBadge" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-white/10 text-white/80 border border-white/20">
-              <span id="modeDot" class="w-1.5 h-1.5 rounded-full bg-yellow-400"></span> <span id="modeText">MANUALE (LIVE BINGX)</span>
+              <span id="modeDot" class="w-1.5 h-1.5 rounded-full bg-yellow-400"></span> <span id="modeText">MANUALE (RENDER SECURE)</span>
             </span>
           </div>
           <div class="flex items-center gap-2 text-[11px] font-mono text-white/70 mt-0.5">
             <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
-            <span class="text-[#00FF66]">Status: Connesso API BingX Futures</span>
+            <span class="text-[#00FF66]">Connesso a BingX API v2</span>
           </div>
         </div>
       </div>
@@ -263,26 +258,26 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <!-- KPI DINAMICI -->
     <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase text-white/75">Asset Monitorati Live (BingX)</span>
+        <span class="text-[11px] font-semibold uppercase text-white/75">Coppie Monitorate Live</span>
         <div class="mt-2 flex items-baseline gap-2">
           <span id="kpiEnterNowCount" class="text-2xl font-extrabold font-mono text-white">--</span>
-          <span class="text-xs font-mono text-[#00FF66] font-semibold">coppie attive</span>
+          <span class="text-xs font-mono text-[#00FF66] font-semibold">attive</span>
         </div>
       </div>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase text-white/75">Fonte Dati</span>
+        <span class="text-[11px] font-semibold uppercase text-white/75">Chiavi API Render</span>
         <div class="mt-2">
-          <span class="text-xs font-mono text-[#00FF66] font-bold">API BINGX PERPETUAL SWAP v2</span>
+          <span class="text-xs font-mono text-[#00FF66] font-bold">✔ CONFIGURATE IN SICUREZZA</span>
         </div>
       </div>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase text-white/75">Gestione Rischio</span>
-        <div class="mt-2 flex items-baseline justify-between">
-          <span class="text-xs font-mono text-white">TP / SL con ReduceOnly</span>
+        <span class="text-[11px] font-semibold uppercase text-white/75">Protezione Ordini</span>
+        <div class="mt-2">
+          <span class="text-xs font-mono text-white">TP / SL con flag ReduceOnly</span>
         </div>
       </div>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase text-white/75">Ultimo Aggiornamento</span>
+        <span class="text-[11px] font-semibold uppercase text-white/75">Ultimo Sync Dati</span>
         <div class="mt-2">
           <span id="lastUpdateTimestamp" class="text-xs font-mono text-[#00FF66] font-bold">In attesa...</span>
         </div>
@@ -293,19 +288,19 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
       <section class="xl:col-span-9 terminal-card rounded-2xl overflow-hidden flex flex-col">
         <div class="px-4 py-3 border-b border-white/15 flex items-center justify-between bg-[#08080A]">
-          <h2 class="text-sm font-bold text-white">Scanner Live &amp; Parametri Reali da BingX</h2>
-          <span id="filteredResultsCount" class="text-xs font-mono text-[#00FF66]">Sync attivo</span>
+          <h2 class="text-sm font-bold text-white">Screener Live Reale (Mercato BingX Futures)</h2>
+          <span class="text-xs font-mono text-[#00FF66]">Aggiornamento ogni 3s</span>
         </div>
         <div class="overflow-x-auto">
           <table class="w-full text-left border-collapse">
             <thead>
               <tr class="border-b border-white/15 text-[10px] font-bold uppercase tracking-wider text-white/75 bg-[#000000]">
-                <th class="py-3 pl-3">Simbolo Futures</th>
-                <th class="py-3 px-2.5 text-right">Prezzo Live (BingX)</th>
-                <th class="py-3 px-2.5 text-right">Variazione 24h</th>
-                <th class="py-3 px-2.5">Stop Loss Dinamico</th>
-                <th class="py-3 px-2.5">Take Profit Dinamico</th>
-                <th class="py-3 px-2.5 text-right">Azione / Esecuzione</th>
+                <th class="py-3 pl-3">Simbolo</th>
+                <th class="py-3 px-2.5 text-right">Prezzo Live</th>
+                <th class="py-3 px-2.5 text-right">Var. 24h</th>
+                <th class="py-3 px-2.5">Stop Loss (ATR)</th>
+                <th class="py-3 px-2.5">Take Profit 1</th>
+                <th class="py-3 px-2.5 text-right">Azione / Esegui</th>
               </tr>
             </thead>
             <tbody id="scannerTableBody" class="divide-y divide-white/10 text-xs"></tbody>
@@ -316,11 +311,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <aside class="xl:col-span-3 terminal-card rounded-2xl flex flex-col overflow-hidden">
         <div class="px-4 py-3 border-b border-white/15 bg-[#08080A]">
           <h2 class="text-sm font-bold text-white flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full bg-[#00FF66] animate-ping"></span> Log Esecuzioni &amp; Stato Bot
+            <span class="w-2 h-2 rounded-full bg-[#00FF66] animate-ping"></span> Log Attività Bot
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[760px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">Sistema avviato. In attesa dei dati reali da BingX...</div>
+          <div class="p-2 rounded bg-white/5 text-white/70">Sistema avviato. Pronto a dialogare con BingX...</div>
         </div>
       </aside>
     </div>
@@ -332,23 +327,23 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <div class="px-5 py-3.5 border-b border-white/15 flex items-center justify-between bg-[#000000]">
         <div>
           <h2 id="modalSymbol" class="text-base font-extrabold font-mono text-white">BTC-USDT</h2>
-          <p id="modalName" class="text-xs text-white/70">Conferma Ordine Reale su BingX</p>
+          <p class="text-xs text-white/70">Invio Ordine Reale con credenziali Render</p>
         </div>
         <button onclick="closeModal()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
       </div>
       <div class="p-5 space-y-4 text-xs font-mono">
         <div class="bg-[#000000] border border-white/20 rounded-xl p-4 space-y-2.5">
-          <div class="flex justify-between"><span class="text-white/75">Prezzo di Mercato Live:</span><strong id="modalLivePrice" class="text-white">--</strong></div>
-          <div class="flex justify-between"><span class="text-white/75">Direzione Segnale:</span><strong id="modalSide" class="text-[#00FF66]">BUY (LONG)</strong></div>
-          <div class="flex justify-between"><span class="text-white/75">Stop Loss Calcolato:</span><strong id="modalSL" class="text-[#FF334B]">--</strong></div>
-          <div class="flex justify-between"><span class="text-white/75">Take Profit Calcolato:</span><strong id="modalTP" class="text-[#00FF66]">--</strong></div>
+          <div class="flex justify-between"><span class="text-white/75">Prezzo Corrente Live:</span><strong id="modalLivePrice" class="text-white">--</strong></div>
+          <div class="flex justify-between"><span class="text-white/75">Segnale Operativo:</span><strong id="modalSide" class="text-[#00FF66]">BUY (LONG)</strong></div>
+          <div class="flex justify-between"><span class="text-white/75">Stop Loss Dinamico:</span><strong id="modalSL" class="text-[#FF334B]">--</strong></div>
+          <div class="flex justify-between"><span class="text-white/75">Take Profit Dinamico:</span><strong id="modalTP" class="text-[#00FF66]">--</strong></div>
         </div>
         <div>
-          <label class="block text-[11px] text-white/70 mb-1 font-semibold">Taglia / Quantità Contratto:</label>
+          <label class="block text-[11px] text-white/70 mb-1 font-semibold">Taglia Contratto (es. 0.001):</label>
           <input type="number" id="tradeQuantityInput" value="0.001" step="0.001" class="w-full bg-[#000000] border border-white/30 rounded-lg px-3 py-2 text-white font-mono text-xs focus:border-[#0066FF] outline-none" />
         </div>
         <button id="executeBingXBtn" onclick="eseguiOrdineSuBingX()" class="bingx-btn w-full py-2.5 rounded-xl text-xs shadow-lg flex items-center justify-center gap-2">
-          <span>&#128640; Conferma e Invia Ordine Live a BingX</span>
+          <span>&#128640; Esegui Ordine Reale su BingX</span>
         </button>
         <div id="executionFeedback" class="mt-2 text-xs text-center hidden"></div>
       </div>
@@ -427,13 +422,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         btnMan.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
         badge.className = "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/50";
         modeDot.className = "w-1.5 h-1.5 rounded-full bg-[#00FF66] animate-ping";
-        modeText.textContent = "ATTIVO: BOT AUTOMATICO LIVE ⚡";
+        modeText.textContent = "ATTIVO: BOT AUTOMATICO ⚡";
       } else {
         btnMan.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all bg-white/20 text-white";
         btnAuto.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
         badge.className = "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-white/10 text-white/80 border border-white/20";
         modeDot.className = "w-1.5 h-1.5 rounded-full bg-yellow-400";
-        modeText.textContent = "MANUALE (LIVE BINGX)";
+        modeText.textContent = "MANUALE (RENDER SECURE)";
       }
     }
 
@@ -444,7 +439,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         if (json.code === 0) {
           state.marketData = json.data;
           renderDashboard();
-          document.getElementById('lastUpdateTimestamp5').textContent = new Date().toLocaleTimeString();
+          document.getElementById('lastUpdateTimestamp').textContent = new Date().toLocaleTimeString();
         }
       } catch (e) {
         console.error("Errore fetch dati live:", e);
@@ -463,18 +458,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         if (!info || info.price <= 0) return;
         activeCount++;
 
-        // Parametri reali calcolati dinamicamente sul prezzo live di BingX
         const price = info.price;
         const change = info.change24h;
         const isBull = change >= 0;
         
-        // Calcolo ATR dinamico stimato all'1% del prezzo corrente live
         const atr = price * 0.01;
         const sl = isBull ? price - (atr * 1.5) : price + (atr * 1.5);
         const tp = isBull ? price + (atr * 2.5) : price - (atr * 2.5);
 
-        // Controllo Bot Automatico (Se in AUTO e variazione > 2% o trend forte)
-        if (state.tradingMode === 'AUTO' && Math.abs(change) > 1.5 && !state.autoExecutedSymbols.has(sym)) {
+        // Controllo Bot Automatico se attivato dall'interruttore
+        if (state.tradingMode === 'AUTO' && Math.abs(change) > 1.8 && !state.autoExecutedSymbols.has(sym)) {
           state.autoExecutedSymbols.add(sym);
           eseguiOperazioneServer({
             symbol: sym,
@@ -502,11 +495,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       });
 
       document.getElementById('kpiEnterNowCount').textContent = activeCount;
-      document.getElementById('lastUpdateTimestamp').textContent = new Date().toLocaleTimeString();
       if (rows.length > 0) {
         tableBody.innerHTML = rows.join('');
       } else {
-        tableBody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-white/50">Caricamento dati live da BingX in corso...</td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-white/50">Caricamento prezzi live da BingX...</td></tr>`;
       }
     }
 
@@ -542,10 +534,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const feedback = document.getElementById('executionFeedback');
 
       btn.disabled = true;
-      btn.textContent = "Invio ordine reale a BingX...";
+      btn.textContent = "Invio ordine a BingX...";
       feedback.classList.remove('hidden', 'text-[#00FF66]', 'text-[#FF334B]');
       feedback.classList.add('text-white/70');
-      feedback.textContent = "Firma HMAC e invio API in corso...";
+      feedback.textContent = "Firma HMAC in corso...";
 
       const res = await eseguiOperazioneServer({
         symbol: asset.symbol,
@@ -558,18 +550,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       if (res.code === 0) {
         feedback.classList.remove('text-white/70', 'text-[#FF334B]');
         feedback.classList.add('text-[#00FF66]');
-        feedback.textContent = `✔ Successo! Posizione ${asset.side} aperta e protetta con TP/SL su BingX.`;
+        feedback.textContent = `✔ Successo! Posizione ${asset.side} aperta e protetta con TP/SL.`;
         playChime();
         logFeed(`[MANUALE OK] Posizione aperta su ${asset.symbol} (${asset.side})`);
       } else {
         feedback.classList.remove('text-white/70', 'text-[#00FF66]');
         feedback.classList.add('text-[#FF334B]');
-        feedback.textContent = `✖ Errore BingX: ${res.msg || 'Controlla i log su Render'}`;
+        feedback.textContent = `✖ Errore: ${res.msg || 'Controlla i log su Render'}`;
         logFeed(`[ERRORE API] ${asset.symbol}: ${res.msg}`);
       }
 
       btn.disabled = false;
-      btn.textContent = "Conferma e Invia Ordine Live a BingX";
+      btn.textContent = "Esegui Ordine Reale su BingX";
     }
 
     async function eseguiOperazioneServer(payload, isAuto) {
@@ -582,10 +574,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         const data = await response.json();
         if (isAuto) {
           if (data.code === 0) {
-            logFeed(`[AUTO ⚡ SUCCESS] Ordine eseguito su ${payload.symbol} (${payload.action})`);
+            logFeed(`[AUTO ⚡ SUCCESS] Eseguito su ${payload.symbol} (${payload.action})`);
             playChime();
           } else {
-            logFeed(`[AUTO ⚡ SKIP/ERR] ${payload.symbol}: ${data.msg}`);
+            logFeed(`[AUTO ⚡ SKIP] ${payload.symbol}: ${data.msg}`);
           }
         }
         return data;
@@ -605,7 +597,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     window.addEventListener('DOMContentLoaded', () => {
       fetchServerMode();
       pollMarketData();
-      setInterval(pollMarketData, 3000); // Aggiorna i dati live ogni 3 secondi da BingX
+      setInterval(pollMarketData, 3000); // Aggiorna i prezzi live ogni 3 secondi
       setInterval(() => {
         const now = new Date();
         document.getElementById('liveCetClock').textContent = now.toTimeString().slice(0, 8) + ' CET';
