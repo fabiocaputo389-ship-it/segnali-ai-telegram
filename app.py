@@ -1,9 +1,14 @@
-<!DOCTYPE html>
+import os
+from flask import Flask, render_template_string
+
+app = Flask(__name__)
+
+HTML_TEMPLATE = """<!DOCTYPE html>
 <html lang="it" class="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ApexScan Pro • Live &amp; Real-Time Engine</title>
+  <title>ApexScan Pro - Live &amp; Real-Time Engine</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -47,7 +52,7 @@
   <header class="sticky top-0 z-30 bg-[#000000]/95 backdrop-blur-md border-b border-white/15 px-3 sm:px-5 py-2.5">
     <div class="max-w-[1920px] mx-auto flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3">
-        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-[#00FF66] to-[#00993D] text-black flex items-center justify-center shadow-lg border border-white/40 font-bold">⚡</div>
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-[#00FF66] to-[#00993D] text-black flex items-center justify-center shadow-lg border border-white/40 font-bold">&#9889;</div>
         <div>
           <div class="flex items-center gap-2">
             <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-white">ApexScan <span class="text-[#00FF66]">Pro Live</span></h1>
@@ -57,7 +62,7 @@
           </div>
           <div class="flex items-center gap-2 text-[11px] font-mono text-white/70 mt-0.5">
             <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
-            <span>•</span>
+            <span>|</span>
             <span id="recalibrationTimerLabel" class="text-[#00FF66]">Prossimo ricalcolo ATR: 02:00</span>
           </div>
         </div>
@@ -75,7 +80,7 @@
       <!-- CONTROLLI AUDIO & LIVE -->
       <div class="flex items-center gap-2">
         <button id="audioToggleBtn" class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-white/10 text-white border border-white/25 hover:border-[#00FF66]/50">
-          <span id="audioIcon">🔊</span><span id="audioToggleText">Audio ON</span>
+          <span id="audioIcon">&#128266;</span><span id="audioToggleText">Audio ON</span>
         </button>
       </div>
     </div>
@@ -122,9 +127,9 @@
     <section class="master-enter-section rounded-2xl p-4 sm:p-5">
       <div class="flex items-center justify-between pb-3 mb-4 border-b border-white/15">
         <div class="flex items-center gap-3">
-          <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold">⚡</div>
+          <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold">&#9889;</div>
           <div>
-            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">⚡ <span class="text-[#00FF66]">ENTRA ADESSO</span> — Segnali Certi &amp; Parametri Reali</h2>
+            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">&#9889; <span class="text-[#00FF66]">ENTRA ADESSO</span> - Segnali Certi &amp; Parametri Reali</h2>
             <p class="text-[11px] text-white/70">Analisi Smart Money e studi volumetrici live aggiornati in tempo reale.</p>
           </div>
         </div>
@@ -138,7 +143,7 @@
       <section class="xl:col-span-9 terminal-card rounded-2xl overflow-hidden flex flex-col">
         <div class="px-4 py-3 border-b border-white/15 flex items-center justify-between bg-[#08080A]">
           <h2 class="text-sm font-bold text-white">Screener Multi-Asset &amp; Studi di Mercato Live</h2>
-          <span id="filteredResultsCount" class="text-xs font-mono text-[#00FF66]">24 asset</span>
+          <span id="filteredResultsCount" class="text-xs font-mono text-[#00FF66]">8 asset</span>
         </div>
         <div class="overflow-x-auto">
           <table class="w-full text-left border-collapse">
@@ -178,7 +183,7 @@
           <h2 id="modalSymbol" class="text-base font-extrabold font-mono text-white">BTC/USDT</h2>
           <p id="modalName" class="text-xs text-white/70">Studio di Mercato &amp; Parametri Reali</p>
         </div>
-        <button onclick="closeModal()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">✕</button>
+        <button onclick="closeModal()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
       </div>
       <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
         <div class="bg-[#000000] border border-white/20 rounded-xl p-4 space-y-3">
@@ -281,7 +286,6 @@
       document.getElementById('kpiEnterNowCount').textContent = activeEnterNow.length;
       document.getElementById('masterEnterNowBadgeCount').textContent = `${activeEnterNow.length} SETUP ATTIVI ORA`;
 
-      // Master Enter Now Cards
       enterNowGrid.innerHTML = activeEnterNow.map(a => {
         const flashClass = a.lastFlash === 'UP' ? 'price-flash-up' : a.lastFlash === 'DOWN' ? 'price-flash-down' : '';
         return `
@@ -301,16 +305,15 @@
                 <div class="bg-[#00FF66]/15 border border-[#00FF66]/40 rounded-xl p-2"><span class="text-[9px] text-[#00FF66] block font-bold">Take Profit 1</span><strong class="text-[#00FF66] text-xs">${formatPrice(a.plan.tp1, a.decimals, a.market)}</strong></div>
               </div>
               <div class="bg-[#08080A] border border-[#00FF66]/35 rounded-xl p-2 font-mono text-[10px] flex items-center justify-between">
-                <span class="text-[#00FF66] font-bold">🎯 ETA TP1: ${a.plan.tp1ExactStr}</span>
+                <span class="text-[#00FF66] font-bold">ETA TP1: ${a.plan.tp1ExactStr}</span>
                 <span class="text-white font-bold">Confluenze: 4/4 OK</span>
               </div>
             </div>
-            <button onclick="openModal('${a.id}')" class="green-gradient-btn w-full mt-3 py-1.5 px-3 rounded-xl text-xs transition-all">Apri Analisi &amp; Studi Reali ↗</button>
+            <button onclick="openModal('${a.id}')" class="green-gradient-btn w-full mt-3 py-1.5 px-3 rounded-xl text-xs transition-all">Apri Analisi &amp; Studi Reali &#8599;</button>
           </div>
         `;
       }).join('');
 
-      // Screener Table
       const filtered = state.assets.filter(a => state.market === 'ALL' || a.market === state.market);
       document.getElementById('filteredResultsCount').textContent = `${filtered.length} asset`;
       tableBody.innerHTML = filtered.map(a => {
@@ -323,20 +326,19 @@
             <td class="py-3 px-2.5 font-mono font-bold text-white">${a.rsi.toFixed(1)}</td>
             <td class="py-3 px-2.5 font-mono font-extrabold text-white">${a.score}%</td>
             <td class="py-3 px-2.5"><span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold ${isBull ? 'bg-[#00FF66]/15 text-[#00FF66]' : 'bg-[#FF334B]/15 text-[#FF334B]'}">${isBull ? 'STRONG BUY' : 'STRONG SELL'}</span></td>
-            <td class="py-3 px-2.5 font-mono text-[10px]"><span class="enter-now-badge px-1.5 py-0.5 rounded font-extrabold">⚡ ENTRA ADESSO</span><div class="text-[#00FF66] font-bold mt-1">TP1: ${a.plan.tp1ExactStr}</div></td>
+            <td class="py-3 px-2.5 font-mono text-[10px]"><span class="enter-now-badge px-1.5 py-0.5 rounded font-extrabold">&#9889; ENTRA ADESSO</span><div class="text-[#00FF66] font-bold mt-1">TP1: ${a.plan.tp1ExactStr}</div></td>
             <td class="py-3 px-2.5 font-mono text-[10px]"><span class="text-white">In: ${formatPrice(a.plan.optimalEntry, a.decimals, a.market)}</span><div class="text-[#FF334B]">SL: ${formatPrice(a.plan.stopLoss, a.decimals, a.market)}</div></td>
             <td class="py-3 px-2.5 text-right font-mono text-white/80">${a.smaTrend}</td>
           </tr>
         `;
       }).join('');
 
-      // Live Feed
       alertsContainer.innerHTML = activeEnterNow.map(a => `
         <div class="p-3 rounded-xl border border-[#00FF66]/45 bg-[#000000]">
           <div class="flex items-center justify-between text-[10px] font-mono text-[#00FF66] mb-1">
-            <span>⚡ SEGNALE CERTO LIVE</span><span class="text-white/60">Ora</span>
+            <span>&#9889; SEGNALE CERTO LIVE</span><span class="text-white/60">Ora</span>
           </div>
-          <h4 class="text-xs font-bold text-white">${a.symbol} — ${a.smcEvent}</h4>
+          <h4 class="text-xs font-bold text-white">${a.symbol} - ${a.smcEvent}</h4>
           <p class="text-[11px] text-white/75 mt-1">Entry: <span class="text-white font-semibold">${formatPrice(a.plan.optimalEntry, a.decimals, a.market)}</span> | TP1: <span class="text-[#00FF66] font-semibold">${formatPrice(a.plan.tp1, a.decimals, a.market)}</span></p>
         </div>
       `).join('');
@@ -348,7 +350,7 @@
       const asset = state.assets.find(a => a.id === id);
       if (!asset) return;
       document.getElementById('modalSymbol').textContent = asset.symbol;
-      document.getElementById('modalName').textContent = `${asset.name} • Studio Istituzionale Reale`;
+      document.getElementById('modalName').textContent = `${asset.name} - Studio Istituzionale Reale`;
       document.getElementById('modalEntry').textContent = formatPrice(asset.plan.optimalEntry, asset.decimals, asset.market);
       document.getElementById('modalSL').textContent = formatPrice(asset.plan.stopLoss, asset.decimals, asset.market);
       document.getElementById('modalTP1').textContent = formatPrice(asset.plan.tp1, asset.decimals, asset.market);
@@ -422,4 +424,12 @@
     });
   </script>
 </body>
-</html>
+</html>"""
+
+@app.route('/')
+def home():
+    return render_template_string(HTML_TEMPLATE)
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port)
