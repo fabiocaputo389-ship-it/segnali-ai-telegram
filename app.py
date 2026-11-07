@@ -97,7 +97,7 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingress
     """
     CERVELLO PHANTOM - ESECUZIONE SICURA BINGX:
     Imposta la leva, apre l'ordine a mercato immediato ed invia i TP e SL protettivi 
-    evitando l'errore 'position not exist'.
+    garantendo il perfetto aggancio alla posizione aperta.
     """
     if not API_KEY or not SECRET_KEY:
         print("[PHANTOM ERROR] BINGX_API_KEY o BINGX_SECRET_KEY non trovate nelle variabili d'ambiente di Render!")
@@ -110,7 +110,7 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingress
     url = BASE_URL + endpoint
     timestamp = str(int(time.time() * 1000))
     
-    # 1. Apertura immediata a mercato per garantire la creazione istantanea della posizione su BingX
+    # 1. Apertura immediata a mercato
     payload_ordine = {
         "symbol": simbolo,
         "side": lato,
@@ -128,17 +128,18 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingress
         risultato = response.json()
         
         if risultato.get("code") == 0:
-            print(f"[PHANTOM SUCCESS] Posizione aperta su {simbolo} [{timeframe}] con leva {leva}x!")
+            print(f"[PHANTOM SUCCESS] Posizione aperta su {simbolo} [{timeframe}] con taglia {quantita} e leva {leva}x!")
             
-            # Breve pausa per sincronizzazione sul server BingX
-            time.sleep(0.6)
+            # Pausa di sicurezza di 0.8s per la propagazione della posizione sul server BingX
+            time.sleep(0.8)
             lato_chiusura = "SELL" if lato == "BUY" else "BUY"
+            position_side = "LONG" if lato == "BUY" else "SHORT"
             
-            # 2. Invio ordini protettivi TP e SL
+            # 2. Invio ordini protettivi TP e SL con parametri espliciti dedicati alla posizione
             if prezzo_sl > 0:
-                _imposta_ordine_protettivo(simbolo, lato_chiusura, prezzo_sl, "STOP_MARKET", lato)
+                _imposta_ordine_protettivo(simbolo, lato_chiusura, prezzo_sl, "STOP_MARKET", position_side)
             if prezzo_tp > 0:
-                _imposta_ordine_protettivo(simbolo, lato_chiusura, prezzo_tp, "TAKE_PROFIT_MARKET", lato)
+                _imposta_ordine_protettivo(simbolo, lato_chiusura, prezzo_tp, "TAKE_PROFIT_MARKET", position_side)
         else:
             print(f"[PHANTOM API ERROR] Risposta: {risultato}")
         
@@ -147,7 +148,7 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingress
         print(f"[EXCEPT] Errore di connessione a BingX: {e}")
         return {"code": -1, "msg": str(e)}
 
-def _imposta_ordine_protettivo(simbolo: str, lato_chiusura: str, prezzo_trigger: float, tipo_ordine: str, lato_apertura: str):
+def _imposta_ordine_protettivo(simbolo: str, lato_chiusura: str, prezzo_trigger: float, tipo_ordine: str, position_side: str):
     endpoint = "/openApi/swap/v2/trade/order"
     url = BASE_URL + endpoint
     timestamp = str(int(time.time() * 1000))
@@ -155,7 +156,7 @@ def _imposta_ordine_protettivo(simbolo: str, lato_chiusura: str, prezzo_trigger:
     payload = {
         "symbol": simbolo,
         "side": lato_chiusura,
-        "positionSide": "LONG" if lato_apertura == "BUY" else "SHORT",
+        "positionSide": position_side,
         "type": tipo_ordine,
         "stopPrice": str(prezzo_trigger),
         "workingType": "MARK_PRICE",
@@ -170,7 +171,7 @@ def _imposta_ordine_protettivo(simbolo: str, lato_chiusura: str, prezzo_trigger:
         resp = requests.post(f"{url}?{query_string}", headers=headers)
         res_data = resp.json()
         if res_data.get("code") == 0:
-            print(f"[PROTECT SUCCESS] {tipo_ordine} impostato a {prezzo_trigger} per {simbolo}")
+            print(f"[PROTECT SUCCESS] {tipo_ordine} impostato a {prezzo_trigger} per {simbolo} ({position_side})")
         else:
             print(f"[PROTECT ERROR] Impossibile impostare {tipo_ordine} su {simbolo}: {res_data.get('msg')}")
     except Exception as e:
@@ -228,7 +229,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ApexScan Pro - Phantom Brain &amp; Scia BTC Pro</title>
+  <title>ApexScan Pro - Phantom Brain &amp; Min Size Engine</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -444,8 +445,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
 
         <div>
-          <label class="block text-[11px] text-white/70 mb-1 font-semibold">Taglia Contratto (es. 0.001):</label>
-          <input type="number" id="tradeQuantityInput" value="0.001" step="0.001" class="w-full bg-[#000000] border border-white/30 rounded-lg px-3 py-2 text-white font-mono text-xs focus:border-[#0066FF] outline-none" />
+          <div class="flex justify-between items-center mb-1">
+            <label class="text-[11px] text-white/70 font-semibold">Taglia Contratto Consigliata (Min Sicuro):</label>
+            <span id="suggestedMinSizeLabel" class="text-[10px] font-mono text-[#00FF66]">Min: --</span>
+          </div>
+          <input type="number" id="tradeQuantityInput" value="0.01" step="0.001" class="w-full bg-[#000000] border border-white/30 rounded-lg px-3 py-2 text-white font-mono text-xs focus:border-[#0066FF] outline-none font-bold" />
         </div>
 
         <button id="executeBingXBtn" onclick="eseguiOrdineSuBingX()" class="bingx-btn w-full py-2.5 rounded-xl text-xs shadow-lg flex items-center justify-center gap-2">
@@ -662,9 +666,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         const sl = Number((isBull ? c.price - (atr * 1.5) : c.price + (atr * 1.5)).toFixed(2));
         const tp = Number((isBull ? c.price + (atr * 2.5) : c.price - (atr * 2.5)).toFixed(2));
 
+        let safeMinSize = 0.001;
+        if (c.price > 0) {
+          let targetNotional = 10.0;
+          safeMinSize = Math.max(0.001, Number((targetNotional / c.price).toFixed(4)));
+        }
+
         if (state.tradingMode === 'AUTO' && Math.abs(c.change24h) > 4.5 && !state.autoExecutedSymbols.has(c.symbol)) {
           state.autoExecutedSymbols.add(c.symbol);
-          eseguiOperazioneServer({ symbol: c.symbol, action: isBull ? 'BUY' : 'SELL', size: 0.001, entry: c.price, tp: tp, sl: sl, leverage: 3, timeframe: tf }, true);
+          eseguiOperazioneServer({ symbol: c.symbol, action: isBull ? 'BUY' : 'SELL', size: safeMinSize, entry: c.price, tp: tp, sl: sl, leverage: 3, timeframe: tf }, true);
         }
 
         return `
@@ -693,7 +703,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     }
 
     function openModal(symbol, livePrice, tp, sl, side, tf, category) {
-      state.currentSelectedAsset = { symbol, livePrice, tp, sl, side, tf, category };
+      let minSize = 0.001;
+      if (livePrice > 0) {
+        minSize = Math.max(0.001, Number((10.0 / livePrice).toFixed(4)));
+        if (minSize < 0.001) minSize = 0.001;
+      }
+
+      state.currentSelectedAsset = { symbol, livePrice, tp, sl, side, tf, category, minSize };
       document.getElementById('modalSymbol').textContent = symbol;
       document.getElementById('modalCategory').textContent = category;
       document.getElementById('modalTF').textContent = tf;
@@ -703,6 +719,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('modalSL').textContent = `$${sl.toLocaleString()}`;
       document.getElementById('modalTP').textContent = `$${tp.toLocaleString()}`;
       
+      document.getElementById('tradeQuantityInput').value = minSize;
+      document.getElementById('suggestedMinSizeLabel').textContent = `Min Sicuro: ${minSize}`;
+
       const feedback = document.getElementById('executionFeedback');
       feedback.classList.add('hidden');
       feedback.textContent = '';
@@ -720,7 +739,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     async function eseguiOrdineSuBingX() {
       if (!state.currentSelectedAsset) return;
       const asset = state.currentSelectedAsset;
-      const quantity = parseFloat(document.getElementById('tradeQuantityInput').value) || 0.001;
+      const quantity = parseFloat(document.getElementById('tradeQuantityInput').value) || asset.minSize;
       const leverage = state.selectedLeverage;
 
       const btn = document.getElementById('executeBingXBtn');
@@ -748,11 +767,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         feedback.classList.add('text-[#00FF66]');
         feedback.textContent = `✔ Successo! Posizione aperta a mercato con TP/SL protettivi su BingX.`;
         playChime();
-        logFeed(`[BINGX LIVE] Posizione aperta su ${asset.symbol} (${asset.side}) - Leva ${leverage}x`);
+        logFeed(`[BINGX LIVE] Posizione aperta su ${asset.symbol} (${asset.side}) - Taglia: ${quantity}`);
       } else {
         feedback.classList.remove('text-white/70', 'text-[#00FF66]');
         feedback.classList.add('text-[#FF334B]');
-        feedback.textContent = `✖ Errore: ${res.msg || 'Controlla le credenziali API su Render'}`;
+        feedback.textContent = `✖ Errore: ${res.msg || 'Margine insufficiente o saldo non disponibile'}`;
         logFeed(`[BINGX ERRORE] ${asset.symbol}: ${res.msg}`);
       }
 
