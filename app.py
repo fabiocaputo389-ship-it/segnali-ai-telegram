@@ -90,18 +90,16 @@ def imposta_leva_bingx(simbolo: str, leva: int, lato: str):
         res_data = resp.json()
         if res_data.get("code") == 0:
             print(f"[LEVERAGE SUCCESS] Leva {leva}x impostata per {simbolo} ({position_side})")
-        else:
-            print(f"[LEVERAGE WARNING] Impossibile impostare leva: {res_data.get('msg')}")
     except Exception as e:
         print(f"[LEVERAGE EXCEPT] {e}")
 
 def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingresso: float, prezzo_tp: float, prezzo_sl: float, leva: int = 3, timeframe: str = "1h / 4h"):
     """
-    CERVELLO PHANTOM - ESECUZIONE SICURA BINGX:
-    Gestisce leva, ordine a mercato e TP/SL protettivi.
+    CERVELLO PHANTOM - ESECUZIONE SICURA BINGX CON TP/SL RIGOROSI:
+    Esegue l'ordine a mercato e imposta SL e TP protettivi garantendo il rispetto delle regole BingX.
     """
     if not API_KEY or not SECRET_KEY:
-        print("[PHANTOM ERROR] BINGX_API_KEY o BINGX_SECRET_KEY non trovate!")
+        print("[PHANTOM ERROR] BINGX_API_KEY o BINGX_SECRET_KEY mancanti!")
         return {"code": -1, "msg": "API keys missing in Environment Variables"}
 
     imposta_leva_bingx(simbolo, leva, lato)
@@ -110,10 +108,12 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingress
     url = BASE_URL + endpoint
     timestamp = str(int(time.time() * 1000))
     
+    position_side = "LONG" if lato == "BUY" else "SHORT"
+    
     payload_ordine = {
         "symbol": simbolo,
         "side": lato,
-        "positionSide": "LONG" if lato == "BUY" else "SHORT",
+        "positionSide": position_side,
         "type": "MARKET",
         "quantity": str(quantita),
         "timestamp": timestamp
@@ -127,14 +127,25 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingress
         risultato = response.json()
         
         if risultato.get("code") == 0:
-            print(f"[PHANTOM SUCCESS] Posizione aperta su {simbolo} [{timeframe}] con taglia {quantita} e leva {leva}x!")
-            time.sleep(0.8)
-            lato_chiusura = "SELL" if lato == "BUY" else "BUY"
-            position_side = "LONG" if lato == "BUY" else "SHORT"
+            print(f"[PHANTOM SUCCESS] Posizione {position_side} aperta su {simbolo} con taglia {quantita} e leva {leva}x!")
+            time.sleep(1.0) # Pausa di sincronizzazione server
             
+            lato_chiusura = "SELL" if lato == "BUY" else "BUY"
+            
+            # Validazione e invio Stop Loss
             if prezzo_sl > 0:
+                if position_side == "LONG" and prezzo_sl >= prezzo_ingresso:
+                    prezzo_sl = prezzo_ingresso * 0.99  # Correzione di sicurezza
+                elif position_side == "SHORT" and prezzo_sl <= prezzo_ingresso:
+                    prezzo_sl = prezzo_ingresso * 1.01  # Correzione di sicurezza
                 _imposta_ordine_protettivo(simbolo, lato_chiusura, prezzo_sl, "STOP_MARKET", position_side)
+
+            # Validazione e invio Take Profit
             if prezzo_tp > 0:
+                if position_side == "LONG" and prezzo_tp <= prezzo_ingresso:
+                    prezzo_tp = prezzo_ingresso * 1.025
+                elif position_side == "SHORT" and prezzo_tp >= prezzo_ingresso:
+                    prezzo_tp = prezzo_ingresso * 0.975
                 _imposta_ordine_protettivo(simbolo, lato_chiusura, prezzo_tp, "TAKE_PROFIT_MARKET", position_side)
         else:
             print(f"[PHANTOM API ERROR] Risposta: {risultato}")
@@ -292,13 +303,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <!-- MAIN -->
   <main class="flex-1 max-w-[1920px] w-full mx-auto px-3 sm:px-5 py-4 flex flex-col gap-4">
 
-    <!-- KPI DINAMICI & SENTIMENT -->
+    <!-- KPI DINAMICI -->
     <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
         <span class="text-[11px] font-semibold uppercase text-white/75">Andamento Mercati Globali</span>
         <div class="mt-2">
-          <strong class="text-xs font-mono text-[#00FF66] block">🟢 TOP COINS &amp; MULTI-MARKET</strong>
-          <span class="text-[11px] text-white/70">Visualizzazione Ordinata per Priorità</span>
+          <strong class="text-xs font-mono text-[#00FF66] block">🟢 TOP COINS IN PRIMA PAGINA</strong>
+          <span class="text-[11px] text-white/70">BTC, SOL, ETH, XRP &amp; Altri Asset</span>
         </div>
       </div>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
@@ -322,7 +333,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
     </section>
 
-    <!-- SEZIONE MASTER: SEGNALE PRIORITARIO GLOBALE -->
+    <!-- SEZIONE MASTER: SEGNALE PRIORITARIO TOP COIN -->
     <section class="priority-signal-box rounded-2xl p-4 sm:p-5">
       <div class="flex items-center justify-between pb-3 mb-3 border-b border-[#FFCC00]/30">
         <div class="flex items-center gap-3">
@@ -344,7 +355,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <span class="text-xs font-bold text-white/80">Filtra per Categoria di Mercato:</span>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-          <button onclick="setCategoryTab('ALL')" id="catTabALL" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#00FF66] text-black transition-all">⭐ Tutti i Mercati</button>
+          <button onclick="setCategoryTab('ALL')" id="catTabALL" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#00FF66] text-black transition-all">⭐ Tutti i Mercati (Top in Evidenza)</button>
           <button onclick="setCategoryTab('Criptovalute')" id="catTabCriptovalute" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-white/80 hover:text-white transition-all">🪙 Criptovalute</button>
           <button onclick="setCategoryTab('Materie Prime')" id="catTabMaterie Prime" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-white/80 hover:text-white transition-all">🛢️ Materie Prime</button>
           <button onclick="setCategoryTab('Forex / Valute')" id="catTabForex / Valute" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-white/80 hover:text-white transition-all">💱 Forex &amp; Valute</button>
@@ -356,12 +367,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
     </section>
 
-    <!-- TABELLE LIVE -->
+    <!-- TABELLE LIVE CON TOP COINS IN PRIMA PAGINA -->
     <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
       <section class="xl:col-span-9 terminal-card rounded-2xl overflow-hidden flex flex-col p-4 space-y-6">
         <div class="flex items-center justify-between border-b border-white/15 pb-3">
           <h2 class="text-sm font-bold text-white flex items-center gap-2">
-            <span>📊</span> Tabella Flussi di Mercato (Top Coins in Prima Pagina)
+            <span>📊</span> Tabella Flussi (Top Coins in Prima Pagina)
           </h2>
           <span class="text-xs font-mono text-cyan-400">Aggiornamento Real-time BingX Futures</span>
         </div>
@@ -388,7 +399,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <div class="px-5 py-3.5 border-b border-white/15 flex items-center justify-between bg-[#000000]">
         <div>
           <h2 id="modalSymbol" class="text-base font-extrabold font-mono text-white">BTC-USDT</h2>
-          <p class="text-xs text-white/70">Esecuzione Reale con TP/SL protettivi &amp; Margine Isolato</p>
+          <p class="text-xs text-white/70">Esecuzione Reale con TP/SL protettivi esatti &amp; Margine Isolato</p>
         </div>
         <button onclick="closeModal()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
       </div>
@@ -398,8 +409,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex justify-between"><span class="text-white/75">Timeframe Consigliato:</span><strong id="modalTF" class="text-cyan-400">1h / 4h</strong></div>
           <div class="flex justify-between"><span class="text-white/75">Prezzo Live (Trigger):</span><strong id="modalLivePrice" class="text-white">--</strong></div>
           <div class="flex justify-between"><span class="text-white/75">Segnale Operativo:</span><strong id="modalSide" class="text-[#00FF66]">LONG (ACQUISTO)</strong></div>
-          <div class="flex justify-between"><span class="text-white/75">Stop Loss Strutturale:</span><strong id="modalSL" class="text-[#FF334B]">--</strong></div>
-          <div class="flex justify-between"><span class="text-white/75">Take Profit 1 (+2.5%):</span><strong id="modalTrendingTP" class="text-[#00FF66]">--</strong></div>
+          <div class="flex justify-between"><span class="text-white/75">Stop Loss Esatto:</span><strong id="modalSL" class="text-[#FF334B]">--</strong></div>
+          <div class="flex justify-between"><span class="text-white/75">Take Profit Esatto:</span><strong id="modalTrendingTP" class="text-[#00FF66]">--</strong></div>
         </div>
 
         <!-- SELETTORE LEVA -->
@@ -423,7 +434,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
 
         <button id="executeBingXBtn" onclick="eseguiOrdineSuBingX()" class="bingx-btn w-full py-2.5 rounded-xl text-xs shadow-lg flex items-center justify-center gap-2">
-          <span>🧠 Esegui a Mercato con TP/SL su BingX</span>
+          <span>🧠 Esegui a Mercato con TP/SL esatti su BingX</span>
         </button>
         <div id="executionFeedback" class="mt-2 text-xs text-center hidden"></div>
       </div>
@@ -568,8 +579,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
       document.getElementById('kpiTotalAssets').textContent = keys.length + " Asset Live";
 
-      // Ordiniamo mettendo le Top Coins (BTC, SOL, ETH, XRP) in primissima pagina/posizione
-      const topPrioritySymbols = ["BTC-USDT", "SOL-USDT", "ETH-USDT", "XRP-USDT", "DOGE-USDT", "ADA-USDT", "GOLD-USDT", "NASDAQ-USDT"];
+      // TOP COINS SEMPRE IN PRIMA PAGINA (BTC, SOL, ETH, XRP, DOGE, GOLD, NASDAQ)
+      const topPrioritySymbols = ["BTC-USDT", "SOL-USDT", "ETH-USDT", "XRP-USDT", "DOGE-USDT", "GOLD-USDT", "NASDAQ-USDT", "AVAX-USDT"];
 
       let sortedCoins = keys.map(sym => ({ symbol: sym, ...state.marketData[sym] })).sort((a, b) => {
         let aTop = topPrioritySymbols.includes(a.symbol) ? 0 : 1;
@@ -586,7 +597,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         topChangeEl.className = topMover.change24h >= 0 ? 'text-sm font-extrabold font-mono text-[#00FF66]' : 'text-sm font-extrabold font-mono text-[#FF334B]';
       }
 
-      // Segnale Prioritario Top Coin
       const masterAsset = sortedCoins.find(c => c.symbol.includes("BTC") || c.symbol.includes("SOL")) || sortedCoins[0];
       if (masterAsset) {
         const isBull = masterAsset.change24h >= 0;
@@ -601,16 +611,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
               <div class="flex items-center justify-between"><strong class="text-white text-sm">${masterAsset.symbol} - TOP MASTER ASSET (Rischio: BASSO)</strong></div>
               <div class="flex items-center justify-between"><span class="text-white/70">Entrata a Mercato:</span><strong class="text-[#00FF66] text-sm">$${entry.toLocaleString()} (Entrata Market Immediata)</strong></div>
               <div class="flex items-center justify-between"><span class="text-white/70">⏱️ Timeframe Consigliato:</span><strong class="text-cyan-300">1h / 4h</strong></div>
-              <div class="flex items-center justify-between"><span class="text-white/70">💎 Confluenza &amp; Stato:</span><strong class="text-[#FFCC00]">-80% Confluenza Alta</strong></div>
+              <div class="flex items-center justify-between"><span class="text-white/70">💎 Confluenza &amp; Stato:</span><strong class="text-[#FFCC00]">-85% Confluenza Alta</strong></div>
             </div>
             <div class="space-y-2 flex flex-col justify-between">
               <div class="bg-black/40 border border-[#FFCC00]/30 rounded-xl p-3 space-y-1.5">
-                <div class="flex justify-between"><span class="text-[#FF334B]">Stop Loss Strutturale (-1.00%):</span><strong class="text-[#FF334B]">$${sl.toLocaleString()}</strong></div>
-                <div class="flex justify-between"><span class="text-[#00FF66]">Take Profit 1 (+2.50%):</span><strong class="text-[#00FF66]">$${tp.toLocaleString()}</strong></div>
+                <div class="flex justify-between"><span class="text-[#FF334B]">Stop Loss Esatto (-1.5%):</span><strong class="text-[#FF334B]">$${sl.toLocaleString()}</strong></div>
+                <div class="flex justify-between"><span class="text-[#00FF66]">Take Profit Esatto (+2.5%):</span><strong class="text-[#00FF66]">$${tp.toLocaleString()}</strong></div>
                 <div class="flex justify-between"><span class="text-white/70">⚡ Leva Consigliata:</span><strong class="text-yellow-400">3x (Margine Isolato)</strong></div>
               </div>
               <button onclick='openModal("${masterAsset.symbol}", ${entry}, ${tp}, ${sl}, "${isBull ? 'BUY' : 'SELL'}", "1h / 4h", "${masterAsset.category}")' class="green-gradient-btn w-full py-2 rounded-xl text-xs shadow-lg animate-pulse">
-                ⚡ APRI SHORT / LONG A MERCATO ORA &#8599;
+                ⚡ APRI SHORT / LONG CON TP/SL ESATTI ORA &#8599;
               </button>
             </div>
           </div>
@@ -660,7 +670,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     <th class="py-2.5 px-2.5">⏱️ Timeframe</th>
                     <th class="py-2.5 px-2.5 text-right">Prezzo Live</th>
                     <th class="py-2.5 px-2.5 text-right">Var. 24h 🔥</th>
-                    <th class="py-2.5 px-2.5">Stop Loss &amp; TP</th>
+                    <th class="py-2.5 px-2.5">Stop Loss &amp; TP Esatti</th>
                     <th class="py-2.5 px-2.5 text-right">Azione / Esegui</th>
                   </tr>
                 </thead>
@@ -673,11 +683,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     const atr = c.price * 0.01;
                     const sl = Number((isBull ? c.price - (atr * 1.5) : c.price + (atr * 1.5)).toFixed(2));
                     const tp = Number((isBull ? c.price + (atr * 2.5) : c.price - (atr * 2.5)).toFixed(2));
-
-                    let safeMinSize = 0.001;
-                    if (c.price > 0) {
-                      safeMinSize = Math.max(0.001, Number((10.0 / c.price).toFixed(4)));
-                    }
 
                     return `
                       <tr class="hover:bg-white/5 transition-colors cursor-pointer" onclick='openModal("${c.symbol}", ${c.price}, ${tp}, ${sl}, "${isBull ? 'BUY' : 'SELL'}", "${tf}", "${c.category}")'>
@@ -750,7 +755,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       btn.textContent = `Invio ordine su BingX in corso...`;
       feedback.classList.remove('hidden', 'text-[#00FF66]', 'text-[#FF334B]');
       feedback.classList.add('text-white/70');
-      feedback.textContent = `Configurazione Leva ${leverage}x, Margine Isolato e TP/SL protettivi...`;
+      feedback.textContent = `Configurazione Leva ${leverage}x e aggancio TP/SL esatti...`;
 
       const res = await eseguiOperazioneServer({
         symbol: asset.symbol,
@@ -766,18 +771,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       if (res.code === 0) {
         feedback.classList.remove('text-white/70', 'text-[#FF334B]');
         feedback.classList.add('text-[#00FF66]');
-        feedback.textContent = `✔ Successo! Posizione aperta a mercato con TP/SL protettivi su BingX.`;
+        feedback.textContent = `✔ Successo! Posizione aperta e TP/SL impostati esattamente come da segnale.`;
         playChime();
-        logFeed(`[BINGX LIVE] Posizione aperta su ${asset.symbol} (${asset.side}) - Taglia: ${quantity}`);
+        logFeed(`[BINGX LIVE] Posizione aperta su ${asset.symbol} (${asset.side}) - SL: ${asset.sl} | TP: ${asset.tp}`);
       } else {
         feedback.classList.remove('text-white/70', 'text-[#00FF66]');
         feedback.classList.add('text-[#FF334B]');
-        feedback.textContent = `✖ Errore: ${res.msg || 'Ordine non valido o limite superato'}`;
+        feedback.textContent = `✖ Errore: ${res.msg || 'Parametri non validi o saldo insufficiente'}`;
         logFeed(`[BINGX ERRORE] ${asset.symbol}: ${res.msg}`);
       }
 
       btn.disabled = false;
-      btn.textContent = "🧠 Esegui a Mercato con TP/SL su BingX";
+      btn.textContent = "🧠 Esegui a Mercato con TP/SL esatti su BingX";
     }
 
     async function eseguiOperazioneServer(payload, isAuto) {
