@@ -29,7 +29,7 @@ def _genera_firma(payload: dict, secret_key: str) -> str:
     return query_string + "&signature=" + signature
 
 def get_live_market_data():
-    """Scarica tutte le coppie di mercato live dalle API pubbliche di BingX Futures e le categorizza."""
+    """Scarica tutte le coppie di mercato live dalle API pubbliche di BingX Futures."""
     url = f"{BASE_URL}/openApi/swap/v2/quote/ticker"
     try:
         response = requests.get(url, timeout=5)
@@ -46,15 +46,12 @@ def get_live_market_data():
                     high = float(t.get("highPrice", price))
                     low = float(t.get("lowPrice", price))
                     
-                    # Logica di categorizzazione asset
                     category = "Criptovalute"
                     sym_upper = symbol.upper()
                     if any(mat in sym_upper for mat in ["GOLD", "SILVER", "OIL", "XAU", "XAG"]):
                         category = "Materie Prime"
                     elif any(fx in sym_upper for fx in ["EUR", "GBP", "JPY", "AUD"]):
                         category = "Forex / Valute"
-                    elif any(idx in sym_upper for idx in ["BTC", "ETH", "SOL", "XRP", "DOGE", "PEPE", "ADA", "AVAX"]):
-                        category = "Criptovalute"
 
                     market_map[symbol] = {
                         "price": price,
@@ -72,7 +69,7 @@ def get_live_market_data():
 def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_tp: float, prezzo_sl: float):
     """
     CERVELLO PHANTOM: Apre la posizione a mercato reale su BingX 
-    e imposta automaticamente Stop Loss e Take Profit protettivi (con reduceOnly).
+    e invia separatamente TP e SL protettivi con parametri compatibili con le API v2.
     """
     if not API_KEY or not SECRET_KEY:
         print("[PHANTOM ERROR] BINGX_API_KEY o BINGX_SECRET_KEY non trovate nelle variabili d'ambiente di Render!")
@@ -100,9 +97,13 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_tp: flo
         
         if risultato.get("code") == 0:
             print(f"[PHANTOM SUCCESS] Posizione reale {lato} aperta su {simbolo}!")
+            time.sleep(0.3)
             lato_chiusura = "SELL" if lato == "BUY" else "BUY"
-            _imposta_ordine_protettivo(simbolo, lato_chiusura, prezzo_sl, "STOP_MARKET")
-            _imposta_ordine_protettivo(simbolo, lato_chiusura, prezzo_tp, "TAKE_PROFIT_MARKET")
+            
+            if prezzo_sl > 0:
+                _imposta_ordine_protettivo(simbolo, lato_chiusura, prezzo_sl, "STOP_MARKET", lato)
+            if prezzo_tp > 0:
+                _imposta_ordine_protettivo(simbolo, lato_chiusura, prezzo_tp, "TAKE_PROFIT_MARKET", lato)
         else:
             print(f"[PHANTOM API ERROR] Risposta: {risultato}")
         
@@ -111,15 +112,15 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_tp: flo
         print(f"[EXCEPT] Errore di connessione a BingX: {e}")
         return {"code": -1, "msg": str(e)}
 
-def _imposta_ordine_protettivo(simbolo: str, lato: str, prezzo_trigger: float, tipo_ordine: str):
+def _imposta_ordine_protettivo(simbolo: str, lato_chiusura: str, prezzo_trigger: float, tipo_ordine: str, lato_apertura: str):
     endpoint = "/openApi/swap/v2/trade/order"
     url = BASE_URL + endpoint
     timestamp = str(int(time.time() * 1000))
     
     payload = {
         "symbol": simbolo,
-        "side": lato,
-        "positionSide": "LONG" if lato == "SELL" else "SHORT",
+        "side": lato_chiusura,
+        "positionSide": "LONG" if lato_apertura == "BUY" else "SHORT",
         "type": tipo_ordine,
         "stopPrice": str(prezzo_trigger),
         "workingType": "MARK_PRICE",
@@ -131,7 +132,12 @@ def _imposta_ordine_protettivo(simbolo: str, lato: str, prezzo_trigger: float, t
     headers = {"X-BX-APIKEY": API_KEY}
     
     try:
-        requests.post(f"{url}?{query_string}", headers=headers)
+        resp = requests.post(f"{url}?{query_string}", headers=headers)
+        res_data = resp.json()
+        if res_data.get("code") == 0:
+            print(f"[PROTECT SUCCESS] {tipo_ordine} impostato a {prezzo_trigger} per {simbolo}")
+        else:
+            print(f"[PROTECT ERROR] Impossibile impostare {tipo_ordine} su {simbolo}: {res_data.get('msg')}")
     except Exception as e:
         print(f"[PROTECT EXCEPT] {e}")
 
@@ -227,7 +233,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <header class="sticky top-0 z-30 bg-[#000000]/95 backdrop-blur-md border-b border-white/15 px-3 sm:px-5 py-2.5">
     <div class="max-w-[1920px] mx-auto flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3.5">
-        <!-- LOGO CERVELLO PHANTOM INIZIALE -->
         <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#00FF66] via-[#00CC52] to-[#006622] text-black flex items-center justify-center shadow-2xl border-2 border-[#00FF66] font-extrabold text-xl animate-pulse">
           🧠
         </div>
@@ -298,14 +303,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
     </section>
 
-    <!-- SEZIONE MASTER: ENTRA ADESSO ANIMATA (DIAMANTE CON CORONA 💎👑) -->
+    <!-- SEZIONE MASTER: ENTRA ADESSO ANIMATA -->
     <section class="master-enter-section rounded-2xl p-4 sm:p-5">
       <div class="flex items-center justify-between pb-3 mb-4 border-b border-white/15">
         <div class="flex items-center gap-3">
           <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-bounce">💎👑</div>
           <div>
             <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">🧠 Cervello Phantom: <span class="text-[#00FF66]">💎👑 ENTRA ADESSO</span></h2>
-            <p class="text-[11px] text-white/70">Segnali ad altissima confluenza suddivisi per categorie di mercato.</p>
+            <p class="text-[11px] text-white/70">Segnali ad altissima confluenza con TP e SL protettivi integrati.</p>
           </div>
         </div>
         <span id="masterEnterNowBadgeCount" class="px-2.5 py-1 rounded-md text-xs font-mono font-extrabold bg-[#00FF66] text-black animate-pulse">SETUP 💎👑 ATTIVI</span>
@@ -313,14 +318,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <div id="masterEnterNowCardsGrid" class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4"></div>
     </section>
 
-    <!-- SEZIONE TABELLE SUDDIVISE PER CATEGORIE (Criptovalute, Materie Prime, Forex) -->
+    <!-- SEZIONE TABELLE SUDDIVISE PER CATEGORIE (CON CRIPTO PRINCIPALI IN PRIMA LINEA) -->
     <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
       <section class="xl:col-span-9 terminal-card rounded-2xl overflow-hidden flex flex-col p-4 space-y-6">
         <div class="flex items-center justify-between border-b border-white/15 pb-3">
           <h2 class="text-sm font-bold text-white flex items-center gap-2">
-            <span>📊</span> Flussi di Mercato Live Suddivisi per Categoria
+            <span>📊</span> Flussi di Mercato Live (BTC, ETH, SOL &amp; Top Cripto in Prima Linea)
           </h2>
-          <!-- TAB SELETTORE CATEGORIA -->
           <div class="flex items-center gap-1.5 bg-[#000000] p-1 rounded-xl border border-white/20">
             <button onclick="setCategoryFilter('ALL')" id="catBtnALL" class="px-3 py-1 rounded-lg text-xs font-bold transition-all bg-[#00FF66] text-black">Tutti</button>
             <button onclick="setCategoryFilter('Criptovalute')" id="catBtnCriptovalute" class="px-3 py-1 rounded-lg text-xs font-bold transition-all text-white/60 hover:text-white">Cripto</button>
@@ -353,7 +357,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[760px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">[Phantom] Analisi flussi multi-categoria avviata...</div>
+          <div class="p-2 rounded bg-white/5 text-white/70">[Phantom] Ordinamento prioritario BTC/SOL avviato...</div>
         </div>
       </aside>
     </div>
@@ -365,7 +369,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <div class="px-5 py-3.5 border-b border-white/15 flex items-center justify-between bg-[#000000]">
         <div>
           <h2 id="modalSymbol" class="text-base font-extrabold font-mono text-white">BTC-USDT</h2>
-          <p class="text-xs text-white/70">Esecuzione Reale gestita dal Cervello Phantom</p>
+          <p class="text-xs text-white/70">Esecuzione Reale con TP/SL protettivi</p>
         </div>
         <button onclick="closeModal()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
       </div>
@@ -384,7 +388,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <input type="number" id="tradeQuantityInput" value="0.001" step="0.001" class="w-full bg-[#000000] border border-white/30 rounded-lg px-3 py-2 text-white font-mono text-xs focus:border-[#0066FF] outline-none" />
         </div>
         <button id="executeBingXBtn" onclick="eseguiOrdineSuBingX()" class="bingx-btn w-full py-2.5 rounded-xl text-xs shadow-lg flex items-center justify-center gap-2">
-          <span>🧠 Esegui con Cervello Phantom (Live BingX)</span>
+          <span>🧠 Esegui con TP e SL protettivi su BingX</span>
         </button>
         <div id="executionFeedback" class="mt-2 text-xs text-center hidden"></div>
       </div>
@@ -512,9 +516,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('kpiTotalCoins').textContent = keys.length;
       if (keys.length === 0) return;
 
-      let sortedCoins = keys.map(sym => ({ symbol: sym, ...state.marketData[sym] })).sort((a, b) => Math.abs(b.change24h) - Math.abs(a.change24h));
-      let topMover = sortedCoins[0];
+      // Priorità assoluta per le crypto più forti in cima (BTC, SOL, ETH, XRP, ecc.)
+      const prioritySymbols = ["BTC-USDT", "SOL-USDT", "ETH-USDT", "XRP-USDT", "DOGE-USDT", "ADA-USDT", "PEPE-USDT", "AVAX-USDT"];
 
+      let sortedCoins = keys.map(sym => ({ symbol: sym, ...state.marketData[sym] })).sort((a, b) => {
+        let aIsPriority = prioritySymbols.includes(a.symbol);
+        let bIsPriority = prioritySymbols.includes(b.symbol);
+        if (aIsPriority && !bIsPriority) return -1;
+        if (!aIsPriority && bIsPriority) return 1;
+        if (aIsPriority && bIsPriority) {
+          return prioritySymbols.indexOf(a.symbol) - prioritySymbols.indexOf(b.symbol);
+        }
+        return Math.abs(b.change24h) - Math.abs(a.change24h);
+      });
+
+      let topMover = sortedCoins[0];
       if (topMover) {
         document.getElementById('kpiTopMoverSymbol').textContent = topMover.symbol;
         const topChangeEl = document.getElementById('kpiTopMoverChange');
@@ -522,13 +538,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         topChangeEl.className = topMover.change24h >= 0 ? 'text-sm font-extrabold font-mono text-[#00FF66]' : 'text-sm font-extrabold font-mono text-[#FF334B]';
       }
 
-      // Sentiment Globale
       let bullishCount = sortedCoins.filter(c => c.change24h > 0).length;
       let bullishPercent = Math.round((bullishCount / sortedCoins.length) * 100) || 50;
       document.getElementById('kpiSentimentBar').style.width = bullishPercent + '%';
       document.getElementById('kpiSentimentLabel').textContent = `${bullishPercent}% BULLISH (LIVE)`;
 
-      // Sezione Entra Adesso (💎👑)
       const enterNowGrid = document.getElementById('masterEnterNowCardsGrid');
       let enterNowCoins = sortedCoins.filter(c => Math.abs(c.change24h) >= 2.5).slice(0, 3);
       
@@ -536,8 +550,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         const isBull = c.change24h >= 0;
         const tf = Math.abs(c.change24h) > 5 ? 'TF 5M' : Math.abs(c.change24h) > 3 ? 'TF 15M' : 'TF 1H';
         const atr = c.price * 0.012;
-        const sl = isBull ? c.price - (atr * 1.5) : c.price + (atr * 1.5);
-        const tp = isBull ? c.price + (atr * 2.5) : c.price - (atr * 2.5);
+        const decimals = c.price < 1 ? 4 : 2;
+        const sl = Number((isBull ? c.price - (atr * 1.5) : c.price + (atr * 1.5)).toFixed(decimals));
+        const tp = Number((isBull ? c.price + (atr * 2.5) : c.price - (atr * 2.5)).toFixed(decimals));
         const slPercent = ((Math.abs(c.price - sl) / c.price) * 100).toFixed(2);
         const tpPercent = ((Math.abs(tp - c.price) / c.price) * 100).toFixed(2);
         const confidence = Math.min(98, Math.round(85 + Math.abs(c.change24h) * 1.5));
@@ -560,11 +575,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
               <div class="grid grid-cols-2 gap-2 font-mono text-center my-2">
                 <div class="bg-[#FF334B]/15 border border-[#FF334B]/40 rounded-xl p-2">
                   <span class="text-[9px] text-[#FF334B] block font-bold">Stop Loss (-${slPercent}%)</span>
-                  <strong class="text-[#FF334B] text-xs">$${sl.toLocaleString(undefined, {minimumFractionDigits: 2})}</strong>
+                  <strong class="text-[#FF334B] text-xs">$${sl.toLocaleString()}</strong>
                 </div>
                 <div class="bg-[#00FF66]/15 border border-[#00FF66]/40 rounded-xl p-2">
                   <span class="text-[9px] text-[#00FF66] block font-bold">Take Profit (+${tpPercent}%)</span>
-                  <strong class="text-[#00FF66] text-xs">$${tp.toLocaleString(undefined, {minimumFractionDigits: 2})}</strong>
+                  <strong class="text-[#00FF66] text-xs">$${tp.toLocaleString()}</strong>
                 </div>
               </div>
             </div>
@@ -573,7 +588,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         `;
       }).join('');
 
-      // Filtra in base alla categoria scelta
       let filteredCoins = sortedCoins;
       if (state.currentCategoryFilter !== 'ALL') {
         filteredCoins = sortedCoins.filter(c => c.category === state.currentCategoryFilter);
@@ -583,10 +597,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       tableBody.innerHTML = filteredCoins.map(c => {
         const isBull = c.change24h >= 0;
         const isTopMover = Math.abs(c.change24h) >= 3.0;
+        const isPriority = prioritySymbols.includes(c.symbol);
         const tf = Math.abs(c.change24h) > 5 ? 'TF 5M' : Math.abs(c.change24h) > 3 ? 'TF 15M' : 'TF 1H';
         const atr = c.price * 0.01;
-        const sl = isBull ? c.price - (atr * 1.5) : c.price + (atr * 1.5);
-        const tp = isBull ? c.price + (atr * 2.5) : c.price - (atr * 2.5);
+        const decimals = c.price < 1 ? 4 : 2;
+        const sl = Number((isBull ? c.price - (atr * 1.5) : c.price + (atr * 1.5)).toFixed(decimals));
+        const tp = Number((isBull ? c.price + (atr * 2.5) : c.price - (atr * 2.5)).toFixed(decimals));
         const slPercent = ((Math.abs(c.price - sl) / c.price) * 100).toFixed(2);
         const tpPercent = ((Math.abs(tp - c.price) / c.price) * 100).toFixed(2);
         const confidence = Math.min(95, Math.round(75 + Math.abs(c.change24h)));
@@ -597,18 +613,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }
 
         return `
-          <tr class="hover:bg-white/5 transition-colors cursor-pointer" onclick='openModal("${c.symbol}", ${c.price}, ${tp}, ${sl}, "${isBull ? 'BUY' : 'SELL'}", ${confidence}, "${tf}", "${c.category}")'>
+          <tr class="hover:bg-white/5 transition-colors cursor-pointer ${isPriority ? 'bg-white/[0.02]' : ''}" onclick='openModal("${c.symbol}", ${c.price}, ${tp}, ${sl}, "${isBull ? 'BUY' : 'SELL'}", ${confidence}, "${tf}", "${c.category}")'>
             <td class="py-3 pl-3 font-mono font-bold text-white">
               <div class="flex items-center gap-1.5">
-                ${c.symbol} ${isTopMover ? '🔥' : ''}
+                ${isPriority ? '<span class="text-xs">⭐</span>' : ''} ${c.symbol} ${isTopMover ? '🔥' : ''}
               </div>
               <span class="text-[10px] text-white/50">${c.category}</span>
             </td>
             <td class="py-3 px-2.5 font-mono text-cyan-300 font-bold">${tf}</td>
             <td class="py-3 px-2.5 text-right font-mono tabular-nums text-white font-bold">$${c.price.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
             <td class="py-3 px-2.5 text-right font-mono tabular-nums ${isBull ? 'text-[#00FF66]' : 'text-[#FF334B]'} font-extrabold">${isBull ? '+' : ''}${c.change24h.toFixed(2)}% ${Math.abs(c.change24h)>=2?'🔥':''}</td>
-            <td class="py-3 px-2.5 font-mono text-[#FF334B]">$${sl.toLocaleString(undefined, {minimumFractionDigits: 2})} <span class="text-[10px] opacity-80">(-${slPercent}%)</span></td>
-            <td class="py-3 px-2.5 font-mono text-[#00FF66]">$${tp.toLocaleString(undefined, {minimumFractionDigits: 2})} <span class="text-[10px] opacity-80">(+${tpPercent}%)</span></td>
+            <td class="py-3 px-2.5 font-mono text-[#FF334B]">$${sl.toLocaleString()} <span class="text-[10px] opacity-80">(-${slPercent}%)</span></td>
+            <td class="py-3 px-2.5 font-mono text-[#00FF66]">$${tp.toLocaleString()} <span class="text-[10px] opacity-80">(+${tpPercent}%)</span></td>
             <td class="py-3 px-2.5 text-right">
               <button class="px-3 py-1 rounded-lg bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/50 font-bold text-xs hover:bg-[#00FF66] hover:text-black transition-all">
                 Esegui ⚡
@@ -657,7 +673,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       btn.textContent = "Cervello Phantom in esecuzione...";
       feedback.classList.remove('hidden', 'text-[#00FF66]', 'text-[#FF334B]');
       feedback.classList.add('text-white/70');
-      feedback.textContent = "Firmando richiesta HMAC per BingX...";
+      feedback.textContent = "Invio ordine e impostazione TP/SL protettivi...";
 
       const res = await eseguiOperazioneServer({
         symbol: asset.symbol,
@@ -670,9 +686,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       if (res.code === 0) {
         feedback.classList.remove('text-white/70', 'text-[#FF334B]');
         feedback.classList.add('text-[#00FF66]');
-        feedback.textContent = `✔ Successo! Posizione ${asset.side} aperta e protetta con TP/SL.`;
+        feedback.textContent = `✔ Successo! Posizione ${asset.side} aperta con TP e SL protettivi su BingX.`;
         playChime();
-        logFeed(`[PHANTOM MANUALE] Posizione aperta su ${asset.symbol} (${asset.side})`);
+        logFeed(`[PHANTOM MANUALE] Posizione aperta su ${asset.symbol} (${asset.side}) con TP/SL`);
       } else {
         feedback.classList.remove('text-white/70', 'text-[#00FF66]');
         feedback.classList.add('text-[#FF334B]');
@@ -681,7 +697,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       }
 
       btn.disabled = false;
-      btn.textContent = "🧠 Esegui con Cervello Phantom (Live BingX)";
+      btn.textContent = "🧠 Esegui con TP e SL protettivi su BingX";
     }
 
     async function eseguiOperazioneServer(payload, isAuto) {
@@ -694,7 +710,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         const data = await response.json();
         if (isAuto) {
           if (data.code === 0) {
-            logFeed(`[PHANTOM AUTO ⚡] Eseguito su ${payload.symbol} (${payload.action})`);
+            logFeed(`[PHANTOM AUTO ⚡] Eseguito su ${payload.symbol} (${payload.action}) con TP/SL`);
             playChime();
           } else {
             logFeed(`[PHANTOM AUTO SKIP] ${payload.symbol}: ${data.msg}`);
