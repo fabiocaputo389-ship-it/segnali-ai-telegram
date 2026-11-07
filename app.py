@@ -1,3 +1,150 @@
+import time
+import hmac
+import hashlib
+import threading
+import requests
+from datetime import datetime
+from flask import Flask, render_template_string, request, jsonify
+
+app = Flask(__name__)
+
+BINGX_LIVE_URL = "https://open-api.bingx.com"
+BINGX_VST_URL = "https://open-api-vst.bingx.com"
+
+scanner_state = {
+    "assets": [],
+    "last_scan": "In attesa...",
+    "total": 0,
+    "config": {"env": "VST", "api_key": "", "secret_key": "", "margin": 100, "leverage": 10, "auto_bot": False},
+    "logs": []
+}
+
+def add_log(msg, level="INFO"):
+    t = datetime.now().strftime("%H:%M:%S")
+    scanner_state["logs"].insert(0, {"time": t, "msg": msg, "level": level})
+    scanner_state["logs"] = scanner_state["logs"][:40]
+
+def background_bingx_fetcher():
+    while True:
+        try:
+            res = requests.get(f"{BINGX_LIVE_URL}/openApi/swap/v2/quote/ticker", timeout=8).json()
+            if res.get("code") == 0 and isinstance(res.get("data"), list):
+                tickers = res["data"]
+                scanner_state["total"] = len(tickers)
+                
+                valid = []
+                for t in tickers:
+                    sym = t.get("symbol", "")
+                    if not sym.endswith("-USDT"):
+                        continue
+                    price = float(t.get("lastPrice", 0))
+                    change = float(t.get("priceChangePercent", 0))
+                    vol = float(t.get("quoteVolume", 0))
+                    if price <= 0:
+                        continue
+
+                    cat = "L1"
+                    if any(x in sym for x in ["AAVE", "LINK", "UNI", "PENDLE"]): cat = "DEFI"
+                    elif any(x in sym for x in ["DOGE", "PEPE", "SHIB", "BONK", "WIF"]): cat = "MEME"
+
+                    abs_chg = abs(change)
+                    diamond = min(99, max(45, int(60 + abs_chg * 3.5)))
+                    dollar = round(min(98.5, max(50.0, 60.0 + abs_chg * 3.2)), 1)
+                    entra_ora = diamond >= 82 and dollar >= 80.0
+
+                    decimals = 2 if price >= 10 else (4 if price >= 0.1 else 6)
+
+                    valid.append({
+                        "symbol": sym.replace("-", "/"),
+                        "raw_symbol": sym,
+                        "name": sym.split("-")[0],
+                        "category": cat,
+                        "price": price,
+                        "decimals": decimals,
+                        "change24h": change,
+                        "diamondScore": diamond,
+                        "dollarConfluence": dollar,
+                        "entraOra": entra_ora
+                    })
+
+                valid.sort(key=lambda x: (x["entraOra"], x["diamondScore"]), reverse=True)
+                scanner_state["assets"] = valid[:50]
+                scanner_state["last_scan"] = datetime.now().strftime("%H:%M:%S CET")
+        except Exception as e:
+            add_log(f"Errore fetch BingX: {str(e)}", "ERROR")
+        time.sleep(5)
+
+threading.Thread(target=background_bingx_fetcher, daemon=True).start()
+
+@app.route("/")
+def index():
+    return render_template_string(EXACT_HTML_TEMPLATE)
+
+@app.route("/api/data")
+def api_data():
+    return jsonify(scanner_state)
+
+@app.route("/api/trade", methods=["POST"])
+def api_trade():
+    data = request.json
+    cfg = scanner_state["config"]
+    if not cfg["api_key"] or not cfg["secret_key"]:
+        return jsonify({"code": -1, "msg": "Chiavi API BingX mancanti!"})
+    
+    try:
+        base = BINGX_LIVE_URL if cfg["env"] == "LIVE" else BINGX_VST_URL
+        sym = data.get("symbol")
+        price = float(data.get("price"))
+        is_long = data.get("isLong")
+        
+        side = "BUY" if is_long else "SELL"
+        pos = "LONG" if is_long else "SHORT"
+        notional = float(cfg["margin"]) * int(cfg["leverage"])
+        qty = round(notional / price, 3 if price > 50 else 1)
+        
+        atr = price * 0.015
+        sl = round(price - atr if is_long else price + atr, 2)
+        tp = round(price + atr * 1.8 if is_long else price - atr * 1.8, 2)
+
+        params = {
+            "symbol": sym.replace("/", "-"),
+            "side": side,
+            "positionSide": pos,
+            "type": "MARKET",
+            "quantity": str(qty),
+            "stopLoss": f'{{"type":"STOP_MARKET","stopPrice":{sl},"workingType":"MARK_PRICE"}}',
+            "takeProfit": f'{{"type":"TAKE_PROFIT_MARKET","stopPrice":{tp},"workingType":"MARK_PRICE"}}',
+            "timestamp": str(int(time.time() * 1000))
+        }
+
+        q_str = "&".join([f"{k}={params[k]}" for k in sorted(params.keys())])
+        sig = hmac.new(cfg["secret_key"].encode("utf-8"), q_str.encode("utf-8"), hashlib.sha256).hexdigest()
+        
+        url = f"{base}/openApi/swap/v2/trade/order?{q_str}&signature={sig}"
+        res = requests.post(url, headers={"X-BX-APIKEY": cfg["api_key"], "Content-Type": "application/json"}, timeout=10).json()
+        
+        if res.get("code") == 0:
+            add_log(f"Ordine eseguito su BingX per {sym} ({pos})", "SUCCESS")
+        else:
+            add_log(f"Rifiuto BingX {sym}: {res.get('msg')}", "ERROR")
+        return jsonify(res)
+    except Exception as e:
+        return jsonify({"code": -1, "msg": str(e)})
+
+@app.route("/api/config", methods=["POST"])
+def api_config():
+    d = request.json
+    cfg = scanner_state["config"]
+    if "env" in d: cfg["env"] = d["env"]
+    if d.get("apiKey"): cfg["api_key"] = d["apiKey"].strip()
+    if d.get("secretKey"): cfg["secret_key"] = d["secretKey"].strip()
+    if "margin" in d: cfg["margin"] = float(d["margin"])
+    if "leverage" in d: cfg["leverage"] = int(d["leverage"])
+    if "autoBot" in d: cfg["auto_bot"] = bool(d["autoBot"])
+    add_log("Configurazione API BingX aggiornata.", "INFO")
+    return jsonify({"status": "ok"})
+
+EXACT_HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="it" class="dark">
 <head>
@@ -45,10 +192,10 @@
           <div class="flex items-center gap-2">
             <h1 class="text-base font-extrabold tracking-tight text-white">ApexScan <span class="text-neonGreen">PRO</span></h1>
             <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-neonGreen/10 text-neonGreen border border-neonGreen/30 live-glow">
-              <span class="w-1.5 h-1.5 rounded-full bg-neonGreen animate-ping"></span> FULL PARAMETERS LIVE
+              <span class="w-1.5 h-1.5 rounded-full bg-neonGreen animate-ping"></span> BINGX LIVE REAL
             </span>
           </div>
-          <p class="text-[11px] font-mono text-slate-400 mt-0.5" id="liveClock">--:--:-- CET • Binance Spot Live Feed</p>
+          <p class="text-[11px] font-mono text-slate-400 mt-0.5" id="liveClock">--:--:-- CET • BingX Perpetual Live Feed</p>
         </div>
       </div>
 
@@ -61,7 +208,8 @@
       </div>
 
       <div class="flex items-center gap-2">
-        <input type="text" id="searchInput" placeholder="Cerca ticker (es. BTC, SOL)..." class="bg-[#08080A] border border-[#1E1E24] focus:border-white rounded-xl px-3 py-1.5 text-xs text-white outline-none w-48"/>
+        <input type="text" id="searchInput" placeholder="Cerca ticker (es. BTC, SOL)..." class="bg-[#08080A] border border-[#1E1E24] focus:border-white rounded-xl px-3 py-1.5 text-xs text-white outline-none w-44"/>
+        <button onclick="openConfigModal()" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-white text-black hover:bg-slate-200">⚙️ API BingX</button>
       </div>
     </div>
   </header>
@@ -72,30 +220,30 @@
     <!-- KPI GLOBALI -->
     <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
       <div class="terminal-box rounded-2xl p-4 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Capitalizzazione Globale</span>
+        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Contratti BingX Live</span>
         <div class="mt-2 flex items-baseline justify-between">
-          <span class="text-2xl font-extrabold font-mono text-white">$2.64 Trillion</span>
-          <span class="text-xs font-mono text-neonGreen font-semibold">+0.3% (24h)</span>
+          <span id="kpiTotal" class="text-2xl font-extrabold font-mono text-white">0</span>
+          <span class="text-xs font-mono text-neonGreen font-semibold">Reali 100%</span>
         </div>
       </div>
       <div class="terminal-box rounded-2xl p-4 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Dominance Bitcoin (BTC)</span>
+        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Segnali 💎 ENTRA ORA</span>
         <div class="mt-2 flex items-baseline justify-between">
-          <span class="text-2xl font-extrabold font-mono text-white">57.6%</span>
-          <span class="text-xs font-mono text-slate-300">ETH: 10.3%</span>
+          <span id="kpiEnterNow" class="text-2xl font-extrabold font-mono text-neonGreen">0</span>
+          <span class="text-xs font-mono text-slate-300">Confluenza alta</span>
         </div>
       </div>
       <div class="terminal-box rounded-2xl p-4 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Fear &amp; Greed Index</span>
+        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Stato API BingX</span>
         <div class="mt-2 flex items-baseline justify-between">
-          <span class="text-2xl font-extrabold font-mono text-neonGreen">41 (Fear)</span>
-          <span class="text-xs font-mono text-slate-400">Accumulo Istituzionale</span>
+          <span id="kpiApiStatus" class="text-lg font-extrabold font-mono text-white">Pronto</span>
+          <span id="kpiEnvTag" class="text-xs font-mono text-slate-400">VST</span>
         </div>
       </div>
       <div class="terminal-box rounded-2xl p-4 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Volume Spot 24h</span>
+        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Ultimo Scan Server</span>
         <div class="mt-2 flex items-baseline justify-between">
-          <span class="text-2xl font-extrabold font-mono text-white">$93.6 Billion</span>
+          <span id="lastScanTime" class="text-lg font-extrabold font-mono text-white">--:--:--</span>
           <span class="text-xs font-mono text-neonGreen">Attivo</span>
         </div>
       </div>
@@ -103,12 +251,10 @@
 
     <!-- GRIGLIA PRINCIPALE: SCREENER CRYPTO ESTESO CON PARAMETRI IN CHIARO -->
     <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
-      
-      <!-- TABELLA COMPLETA CRYPTO CON SETUP VISIBILI -->
       <section class="xl:col-span-12 terminal-box rounded-2xl overflow-hidden flex flex-col">
         <div class="px-4 py-3.5 border-b border-[#1E1E24] flex items-center justify-between bg-[#08080A]">
           <div class="flex items-center gap-2">
-            <h2 class="text-sm font-bold text-white">Screener Completo • Tutti i Parametri Operativi in Chiaro</h2>
+            <h2 class="text-sm font-bold text-white">Screener Completo • Tutti i Parametri Operativi in Chiaro &amp; Esecuzione BingX</h2>
             <span id="cryptoCountBadge" class="px-2 py-0.5 rounded text-xs font-mono bg-white/10 text-white">0 asset</span>
           </div>
           <span class="text-[11px] font-mono text-slate-400">Diamante 💎 &amp; Dollaro 💲 integrati</span>
@@ -119,53 +265,82 @@
               <tr class="border-b border-[#1E1E24] text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-black">
                 <th class="py-3 pl-4">Asset</th>
                 <th class="py-3 px-3">Cat.</th>
-                <th class="py-3 px-3 text-right">Prezzo Spot</th>
+                <th class="py-3 px-3 text-right">Prezzo Reale</th>
                 <th class="py-3 px-3 text-right">24h %</th>
                 <th class="py-3 px-3 text-center">💎 Diamante</th>
                 <th class="py-3 px-3 text-center">💲 Dollaro</th>
                 <th class="py-3 px-3 text-right">Optimal Entry</th>
                 <th class="py-3 px-3 text-right">Stop Loss (SL)</th>
                 <th class="py-3 px-3 text-right">Take Profit 1 (TP1)</th>
-                <th class="py-3 px-3 text-right pr-4">Take Profit 2 (TP2)</th>
+                <th class="py-3 px-3 text-right">Take Profit 2 (TP2)</th>
+                <th class="py-3 px-3 text-right pr-4">Azione BingX</th>
               </tr>
             </thead>
             <tbody id="cryptoTableBody" class="divide-y divide-[#121216] text-xs font-mono"></tbody>
           </table>
         </div>
       </section>
-
     </div>
+
+    <section class="terminal-box rounded-2xl overflow-hidden p-4">
+      <h3 class="text-xs font-bold uppercase text-white mb-2">Log Attività BingX</h3>
+      <div id="logsBox" class="bg-black p-3 rounded-xl font-mono text-[11px] space-y-1 max-h-36 overflow-y-auto text-slate-400"></div>
+    </section>
   </main>
+
+  <!-- MODALE CONFIG -->
+  <div id="configModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/90 p-4">
+    <div class="terminal-box rounded-2xl w-full max-w-md p-5 space-y-3 text-xs">
+      <h2 class="text-sm font-bold text-white">Configurazione API BingX</h2>
+      <select id="cfgEnv" class="w-full bg-black border border-[#1E1E24] rounded p-2 text-white font-mono">
+        <option value="VST">Demo VST</option>
+        <option value="LIVE">Live Reale</option>
+      </select>
+      <input type="password" id="cfgApiKey" placeholder="API Key" class="w-full bg-black border border-[#1E1E24] rounded p-2 text-white font-mono"/>
+      <input type="password" id="cfgSecretKey" placeholder="Secret Key" class="w-full bg-black border border-[#1E1E24] rounded p-2 text-white font-mono"/>
+      <div class="grid grid-cols-2 gap-2">
+        <input type="number" id="cfgMargin" value="100" placeholder="Margine USDT" class="w-full bg-black border border-[#1E1E24] rounded p-2 text-white font-mono"/>
+        <input type="number" id="cfgLev" value="10" placeholder="Leva" class="w-full bg-black border border-[#1E1E24] rounded p-2 text-white font-mono"/>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closeConfigModal()" class="px-3 py-1.5 bg-[#121216] text-slate-300 rounded">Annulla</button>
+        <button onclick="saveConfig()" class="px-3 py-1.5 bg-white text-black font-bold rounded">Salva</button>
+      </div>
+    </div>
+  </div>
 
   <!-- SCRIPT ENGINE -->
   <script>
-    const CRYPTO_MARKET = [
-      { symbol: 'BTC/USDT', name: 'Bitcoin', category: 'L1', price: 78330.00, decimals: 2, change24h: 1.87, diamondScore: 94, dollarConfluence: 92.5, entraOra: true },
-      { symbol: 'ETH/USDT', name: 'Ethereum', category: 'L1', price: 3342.15, decimals: 2, change24h: 2.41, diamondScore: 89, dollarConfluence: 88.0, entraOra: true },
-      { symbol: 'SOL/USDT', name: 'Solana', category: 'L1', price: 218.60, decimals: 2, change24h: 8.64, diamondScore: 97, dollarConfluence: 95.2, entraOra: true },
-      { symbol: 'BNB/USDT', name: 'BNB', category: 'L1', price: 645.20, decimals: 2, change24h: 0.85, diamondScore: 75, dollarConfluence: 74.0, entraOra: false },
-      { symbol: 'XRP/USDT', name: 'Ripple', category: 'L1', price: 1.4250, decimals: 4, change24h: -1.25, diamondScore: 48, dollarConfluence: 52.4, entraOra: false },
-      { symbol: 'TRX/USDT', name: 'TRON', category: 'L1', price: 0.2340, decimals: 4, change24h: 1.12, diamondScore: 78, dollarConfluence: 76.5, entraOra: false },
-      { symbol: 'ADA/USDT', name: 'Cardano', category: 'L1', price: 0.8840, decimals: 4, change24h: 0.45, diamondScore: 68, dollarConfluence: 65.0, entraOra: false },
-      { symbol: 'AVAX/USDT', name: 'Avalanche', category: 'L1', price: 41.80, decimals: 2, change24h: 3.10, diamondScore: 85, dollarConfluence: 83.2, entraOra: true },
-      { symbol: 'HYPE/USDT', name: 'Hyperliquid', category: 'DEFI', price: 34.50, decimals: 2, change24h: 12.40, diamondScore: 98, dollarConfluence: 96.8, entraOra: true },
-      { symbol: 'LINK/USDT', name: 'Chainlink', category: 'DEFI', price: 18.95, decimals: 2, change24h: -0.75, diamondScore: 62, dollarConfluence: 60.1, entraOra: false },
-      { symbol: 'ZEC/USDT', name: 'Zcash', category: 'MEME', price: 58.20, decimals: 2, change24h: 7.80, diamondScore: 91, dollarConfluence: 89.4, entraOra: true },
-      { symbol: 'DOGE/USDT', name: 'Dogecoin', category: 'MEME', price: 0.3850, decimals: 4, change24h: 4.15, diamondScore: 79, dollarConfluence: 77.0, entraOra: false },
-      { symbol: 'SHIB/USDT', name: 'Shiba Inu', category: 'MEME', price: 0.0000245, decimals: 7, change24h: 2.10, diamondScore: 71, dollarConfluence: 69.2, entraOra: false }
-    ];
-
+    let globalData = { assets: [], logs: [], config: {} };
     let currentCategory = 'ALL';
 
     function formatPrice(val, decimals) {
       return '$' + val.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
     }
 
+    async function fetchData() {
+      try {
+        const res = await fetch('/api/data');
+        globalData = await res.json();
+
+        document.getElementById('kpiTotal').textContent = globalData.total || 0;
+        document.getElementById('kpiEnterNow').textContent = globalData.assets.filter(a => a.entraOra).length;
+        document.getElementById('lastScanTime').textContent = globalData.last_scan;
+        
+        const cfg = globalData.config;
+        document.getElementById('kpiEnvTag').textContent = cfg.env;
+        document.getElementById('kpiApiStatus').textContent = cfg.api_key ? 'Connesso' : 'Pronto';
+
+        renderTable();
+        renderLogs();
+      } catch (e) { console.error(e); }
+    }
+
     function renderTable() {
       const tbody = document.getElementById('cryptoTableBody');
       const searchVal = document.getElementById('searchInput').value.toLowerCase();
       
-      const filtered = CRYPTO_MARKET.filter(c => {
+      const filtered = globalData.assets.filter(c => {
         if (currentCategory !== 'ALL' && c.category !== currentCategory) return false;
         if (searchVal && !c.symbol.toLowerCase().includes(searchVal) && !c.name.toLowerCase().includes(searchVal)) return false;
         return true;
@@ -173,13 +348,18 @@
 
       document.getElementById('cryptoCountBadge').textContent = `${filtered.length} asset`;
 
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="11" class="text-center py-6 text-slate-500">Sincronizzazione contratti BingX in corso...</td></tr>`;
+        return;
+      }
+
       tbody.innerHTML = filtered.map(c => {
         const isPos = c.change24h >= 0;
         const atr = c.price * 0.015;
-        const entry = c.price * 0.992;
-        const sl = entry - atr;
-        const tp1 = entry + (atr * 1.8);
-        const tp2 = entry + (atr * 3.2);
+        const entry = c.price;
+        const sl = isPos ? entry - atr : entry + atr;
+        const tp1 = isPos ? entry + (atr * 1.8) : entry - (atr * 1.8);
+        const tp2 = isPos ? entry + (atr * 3.2) : entry - (atr * 3.2);
 
         const diamondBadge = c.entraOra 
           ? `<span class="px-2 py-0.5 rounded bg-neonGreen/15 text-neonGreen font-bold border border-neonGreen/30">💎 ENTRA ORA (${c.diamondScore}%)</span>`
@@ -213,32 +393,62 @@
             <td class="py-3 px-3 text-right text-neonGreen font-bold tabular-nums">
               ${formatPrice(tp1, c.decimals)}
             </td>
-            <td class="py-3 px-3 text-right text-neonGreen font-bold tabular-nums pr-4">
+            <td class="py-3 px-3 text-right text-neonGreen font-bold tabular-nums">
               ${formatPrice(tp2, c.decimals)}
+            </td>
+            <td class="py-3 px-3 text-right pr-4">
+              <button onclick="executeTrade('${c.symbol}', ${c.price}, ${isPos})" class="px-2.5 py-1 bg-white text-black hover:bg-neonGreen font-bold text-[10px] rounded transition-all">⚡ Esegui</button>
             </td>
           </tr>
         `;
       }).join('');
     }
 
+    function renderLogs() {
+      const box = document.getElementById('logsBox');
+      box.innerHTML = globalData.logs.map(l => `<div>[${l.time}] ${l.msg}</div>`).join('');
+    }
+
+    async function executeTrade(symbol, price, isLong) {
+      const res = await (await fetch('/api/trade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbol, price, isLong })
+      })).json();
+      alert(res.code === 0 ? '✅ Ordine inviato con successo su BingX!' : '❌ Errore: ' + res.msg);
+    }
+
+    function openConfigModal() { document.getElementById('configModal').classList.remove('hidden'); document.getElementById('configModal').classList.add('flex'); }
+    function closeConfigModal() { document.getElementById('configModal').classList.add('hidden'); document.getElementById('configModal').classList.remove('flex'); }
+
+    async function saveConfig() {
+      await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          env: document.getElementById('cfgEnv').value,
+          apiKey: document.getElementById('cfgApiKey').value,
+          secretKey: document.getElementById('cfgSecretKey').value,
+          margin: document.getElementById('cfgMargin').value,
+          leverage: document.getElementById('cfgLev').value
+        })
+      });
+      closeConfigModal();
+      alert('Configurazione API salvata!');
+      fetchData();
+    }
+
     window.addEventListener('DOMContentLoaded', () => {
-      renderTable();
+      fetchData();
+      setInterval(fetchData, 4000);
 
       setInterval(() => {
-        document.getElementById('liveClock').textContent = new Date().toLocaleTimeString('it-IT') + ' CET • Binance Spot Live Feed';
-        CRYPTO_MARKET.forEach(c => {
-          const delta = (Math.random() - 0.495) * 0.002;
-          c.price = Math.max(0.000001, c.price * (1 + delta));
-          c.change24h += delta * 20;
-        });
-        renderTable();
-      }, 2500);
+        document.getElementById('liveClock').textContent = new Date().toLocaleTimeString('it-IT') + ' CET • BingX Perpetual Live';
+      }, 1000);
 
       document.querySelectorAll('.cat-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-          document.querySelectorAll('.cat-btn').forEach(b => {
-            b.className = 'cat-btn px-3 py-1.5 rounded-lg font-medium text-slate-400 hover:text-white transition-all';
-          });
+          document.querySelectorAll('.cat-btn').forEach(b => b.className = 'cat-btn px-3 py-1.5 rounded-lg font-medium text-slate-400 hover:text-white transition-all');
           e.target.className = 'cat-btn px-3 py-1.5 rounded-lg font-bold bg-white text-black transition-all';
           currentCategory = e.target.getAttribute('data-cat');
           renderTable();
@@ -250,3 +460,7 @@
   </script>
 </body>
 </html>
+"""
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
