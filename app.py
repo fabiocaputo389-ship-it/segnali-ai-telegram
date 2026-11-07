@@ -15,8 +15,7 @@
         extend: {
           fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
           colors: {
-            obsidian: { 950: '#050506', 900: '#0C0C0F', 850: '#101014', 800: '#141418', 700: '#1E1E24' },
-            gold: { 300: '#F9E08B', 400: '#F3D066', 500: '#D4AF37', 600: '#AA8A26', 700: '#7D6319' },
+            obsidian: { 950: '#000000', 900: '#08080A', 850: '#0E0E11', 800: '#141418', 700: '#1E1E24' },
             emeraldNeon: '#00FF66',
             rubyNeon: '#FF334B'
           }
@@ -25,56 +24,57 @@
     }
   </script>
   <style>
-    body { background-color: #050506; color: #f4f1ea; font-family: 'Inter', sans-serif; overflow-x: hidden; }
+    body { background-color: #000000; color: #FFFFFF; font-family: 'Inter', sans-serif; overflow-x: hidden; }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: #050506; }
-    ::-webkit-scrollbar-thumb { background: rgba(212, 175, 55, 0.35); border-radius: 9999px; }
-    @keyframes flashGreen { 0% { background-color: rgba(0, 255, 102, 0.28); color: #00FF66; } 100% { background-color: transparent; } }
-    @keyframes flashRed { 0% { background-color: rgba(255, 51, 75, 0.28); color: #FF334B; } 100% { background-color: transparent; } }
-    @keyframes goldPulseGlow { 0%, 100% { box-shadow: 0 0 12px rgba(212, 175, 55, 0.35), inset 0 0 8px rgba(243, 208, 102, 0.2); } 50% { box-shadow: 0 0 22px rgba(243, 208, 102, 0.8), inset 0 0 12px rgba(243, 208, 102, 0.4); } }
+    ::-webkit-scrollbar-track { background: #000000; }
+    ::-webkit-scrollbar-thumb { background: rgba(0, 255, 102, 0.35); border-radius: 9999px; }
+    @keyframes flashGreen { 0% { background-color: rgba(0, 255, 102, 0.3); color: #00FF66; } 100% { background-color: transparent; } }
+    @keyframes flashRed { 0% { background-color: rgba(255, 51, 75, 0.3); color: #FF334B; } 100% { background-color: transparent; } }
+    @keyframes greenPulseGlow { 0%, 100% { box-shadow: 0 0 12px rgba(0, 255, 102, 0.35), inset 0 0 8px rgba(0, 255, 102, 0.2); } 50% { box-shadow: 0 0 22px rgba(0, 255, 102, 0.8), inset 0 0 12px rgba(0, 255, 102, 0.4); } }
     .price-flash-up { animation: flashGreen 0.75s ease-out; }
     .price-flash-down { animation: flashRed 0.75s ease-out; }
-    .terminal-card { background: linear-gradient(180deg, rgba(16, 16, 20, 0.97) 0%, rgba(12, 12, 15, 0.99) 100%); border: 1px solid rgba(212, 175, 55, 0.25); box-shadow: 0 8px 32px -6px rgba(0, 0, 0, 0.88); }
-    .master-enter-section { background: radial-gradient(circle at top right, rgba(212, 175, 55, 0.16), rgba(12, 12, 15, 0.98) 65%); border: 1.5px solid rgba(212, 175, 55, 0.6); box-shadow: 0 10px 38px -8px rgba(212, 175, 55, 0.25); }
-    .gold-gradient-btn { background: linear-gradient(135deg, #D4AF37 0%, #F3D066 50%, #C59B27 100%); color: #050506; font-weight: 800; }
-    .enter-now-badge { background: linear-gradient(135deg, #D4AF37 0%, #F3D066 55%, #00FF66 140%); color: #050506; animation: goldPulseGlow 1.8s infinite ease-in-out; }
+    .terminal-card { background: linear-gradient(180deg, rgba(14, 14, 17, 0.98) 0%, rgba(8, 8, 10, 0.99) 100%); border: 1px solid rgba(255, 255, 255, 0.16); box-shadow: 0 8px 32px -6px rgba(0, 0, 0, 0.95); }
+    .master-enter-section { background: radial-gradient(circle at top right, rgba(0, 255, 102, 0.14), rgba(8, 8, 10, 0.99) 65%); border: 1.5px solid rgba(0, 255, 102, 0.55); box-shadow: 0 10px 38px -8px rgba(0, 255, 102, 0.2); }
+    .green-gradient-btn { background: linear-gradient(135deg, #00FF66 0%, #00CC52 100%); color: #000000; font-weight: 800; }
+    .green-gradient-btn:hover { background: linear-gradient(135deg, #33FF85 0%, #00E65C 100%); }
+    .enter-now-badge { background: linear-gradient(135deg, #00FF66 0%, #FFFFFF 140%); color: #000000; animation: greenPulseGlow 1.8s infinite ease-in-out; }
     .tabular-nums { font-variant-numeric: tabular-nums; }
   </style>
 </head>
-<body class="min-h-screen flex flex-col selection:bg-gold-500/30 selection:text-gold-300">
+<body class="min-h-screen flex flex-col selection:bg-[#00FF66]/30 selection:text-white">
 
   <!-- HEADER -->
-  <header class="sticky top-0 z-30 bg-[#050506]/95 backdrop-blur-md border-b border-gold-500/25 px-3 sm:px-5 py-2.5">
+  <header class="sticky top-0 z-30 bg-[#000000]/95 backdrop-blur-md border-b border-white/15 px-3 sm:px-5 py-2.5">
     <div class="max-w-[1920px] mx-auto flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3">
-        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-[#F3D066] via-[#D4AF37] to-[#7D6319] flex items-center justify-center shadow-lg border border-gold-300/50">⚡</div>
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-[#00FF66] to-[#00993D] text-black flex items-center justify-center shadow-lg border border-white/40 font-bold">⚡</div>
         <div>
           <div class="flex items-center gap-2">
-            <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-white">ApexScan <span class="text-gold-400">Pro Live</span></h1>
+            <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-white">ApexScan <span class="text-[#00FF66]">Pro Live</span></h1>
             <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-[#00FF66]/15 text-[#00FF66] border border-[#00FF66]/40">
               <span class="w-1.5 h-1.5 rounded-full bg-[#00FF66] animate-ping"></span> LIVE SYNC 2M
             </span>
           </div>
-          <div class="flex items-center gap-2 text-[11px] font-mono text-slate-400 mt-0.5">
-            <span id="liveCetClock" class="text-gold-300 font-semibold tabular-nums">--:--:-- CET</span>
+          <div class="flex items-center gap-2 text-[11px] font-mono text-white/70 mt-0.5">
+            <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
             <span>•</span>
-            <span id="recalibrationTimerLabel" class="text-gold-400">Prossimo ricalcolo ATR: 02:00</span>
+            <span id="recalibrationTimerLabel" class="text-[#00FF66]">Prossimo ricalcolo ATR: 02:00</span>
           </div>
         </div>
       </div>
 
       <!-- SELETTORE MERCATO -->
-      <div class="flex items-center bg-[#0C0C0F] p-1 rounded-xl border border-gold-500/25 overflow-x-auto" id="marketSelector">
-        <button data-market="ALL" class="market-btn active px-3 py-1.5 rounded-lg text-xs font-bold bg-gold-500/20 text-gold-300 border border-gold-500/40">Tutti</button>
-        <button data-market="CRYPTO" class="market-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-gold-300">Crypto</button>
-        <button data-market="STOCKS" class="market-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-gold-300">Azioni USA</button>
-        <button data-market="FOREX" class="market-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-gold-300">Forex</button>
-        <button data-market="INDICES" class="market-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-gold-300">Indici</button>
+      <div class="flex items-center bg-[#08080A] p-1 rounded-xl border border-white/20 overflow-x-auto" id="marketSelector">
+        <button data-market="ALL" class="market-btn active px-3 py-1.5 rounded-lg text-xs font-bold bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/50">Tutti</button>
+        <button data-market="CRYPTO" class="market-btn px-3 py-1.5 rounded-lg text-xs font-medium text-white/60 hover:text-white">Crypto</button>
+        <button data-market="STOCKS" class="market-btn px-3 py-1.5 rounded-lg text-xs font-medium text-white/60 hover:text-white">Azioni USA</button>
+        <button data-market="FOREX" class="market-btn px-3 py-1.5 rounded-lg text-xs font-medium text-white/60 hover:text-white">Forex</button>
+        <button data-market="INDICES" class="market-btn px-3 py-1.5 rounded-lg text-xs font-medium text-white/60 hover:text-white">Indici</button>
       </div>
 
       <!-- CONTROLLI AUDIO & LIVE -->
       <div class="flex items-center gap-2">
-        <button id="audioToggleBtn" class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-gold-500/20 text-gold-300 border border-gold-500/40">
+        <button id="audioToggleBtn" class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-white/10 text-white border border-white/25 hover:border-[#00FF66]/50">
           <span id="audioIcon">🔊</span><span id="audioToggleText">Audio ON</span>
         </button>
       </div>
@@ -87,30 +87,30 @@
     <!-- KPI DINAMICI -->
     <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase text-gold-400">Segnali Entra Adesso Attivi</span>
+        <span class="text-[11px] font-semibold uppercase text-white/75">Segnali Entra Adesso Attivi</span>
         <div class="mt-2 flex items-baseline gap-2">
-          <span id="kpiEnterNowCount" class="text-2xl font-extrabold font-mono text-gold-300">--</span>
+          <span id="kpiEnterNowCount" class="text-2xl font-extrabold font-mono text-white">--</span>
           <span class="text-xs font-mono text-[#00FF66] font-semibold">pronti ora</span>
         </div>
       </div>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase text-gold-400">Sentiment Globale Mercato</span>
+        <span class="text-[11px] font-semibold uppercase text-white/75">Sentiment Globale Mercato</span>
         <div class="mt-2">
-          <div class="w-full h-2 bg-[#1E1E24] rounded-full overflow-hidden flex mb-1">
-            <div id="kpiGlobalSentimentBar" class="h-full bg-gradient-to-r from-[#D4AF37] to-[#00FF66]" style="width: 74%"></div>
+          <div class="w-full h-2 bg-white/10 rounded-full overflow-hidden flex mb-1">
+            <div id="kpiGlobalSentimentBar" class="h-full bg-gradient-to-r from-white to-[#00FF66]" style="width: 74%"></div>
           </div>
-          <span id="kpiGlobalSentimentLabel" class="text-xs font-mono text-gold-300 font-bold">74% BULLISH ESTREMO</span>
+          <span id="kpiGlobalSentimentLabel" class="text-xs font-mono text-[#00FF66] font-bold">74% BULLISH ESTREMO</span>
         </div>
       </div>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase text-gold-400">Rapporto Long / Short</span>
+        <span class="text-[11px] font-semibold uppercase text-white/75">Rapporto Long / Short</span>
         <div class="mt-2 flex items-baseline justify-between">
-          <span id="kpiLongShortRatioBadge" class="text-lg font-extrabold font-mono text-white">78% L / 22% S</span>
-          <span class="text-xs font-mono text-gold-300">Confluenza Media: 5.4/6</span>
+          <span id="kpiLongShortRatioBadge" class="text-lg font-extrabold font-mono text-white">78% <span class="text-[#00FF66]">L</span> / 22% <span class="text-[#FF334B]">S</span></span>
+          <span class="text-xs font-mono text-white/80">Confluenza Media: 5.4/6</span>
         </div>
       </div>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase text-gold-400">Top Mover Live</span>
+        <span class="text-[11px] font-semibold uppercase text-white/75">Top Mover Live</span>
         <div class="mt-2 flex items-baseline justify-between">
           <span id="kpiTopMoverSymbol" class="text-base font-extrabold font-mono text-white">SOL/USDT</span>
           <span id="kpiTopMoverChange" class="text-base font-extrabold font-mono text-[#00FF66]">+8.64%</span>
@@ -120,12 +120,12 @@
 
     <!-- SEZIONE MASTER: ENTRA ADESSO -->
     <section class="master-enter-section rounded-2xl p-4 sm:p-5">
-      <div class="flex items-center justify-between pb-3 mb-4 border-b border-gold-500/30">
+      <div class="flex items-center justify-between pb-3 mb-4 border-b border-white/15">
         <div class="flex items-center gap-3">
-          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-[#F3D066] to-[#D4AF37] text-[#050506] flex items-center justify-center font-extrabold">⚡</div>
+          <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold">⚡</div>
           <div>
-            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-gold-300">⚡ ENTRA ADESSO — Segnali Certi &amp; Parametri Reali</h2>
-            <p class="text-[11px] text-slate-300">Analisi Smart Money e studi volumetrici live aggiornati in tempo reale.</p>
+            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">⚡ <span class="text-[#00FF66]">ENTRA ADESSO</span> — Segnali Certi &amp; Parametri Reali</h2>
+            <p class="text-[11px] text-white/70">Analisi Smart Money e studi volumetrici live aggiornati in tempo reale.</p>
           </div>
         </div>
         <span id="masterEnterNowBadgeCount" class="enter-now-badge px-2.5 py-1 rounded-md text-xs font-mono font-extrabold">ATTIVI ORA</span>
@@ -136,14 +136,14 @@
     <!-- TABELLA SCREENER E STUDI LIVE -->
     <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
       <section class="xl:col-span-9 terminal-card rounded-2xl overflow-hidden flex flex-col">
-        <div class="px-4 py-3 border-b border-gold-500/25 flex items-center justify-between bg-[#0C0C0F]">
+        <div class="px-4 py-3 border-b border-white/15 flex items-center justify-between bg-[#08080A]">
           <h2 class="text-sm font-bold text-white">Screener Multi-Asset &amp; Studi di Mercato Live</h2>
-          <span id="filteredResultsCount" class="text-xs font-mono text-gold-300">24 asset</span>
+          <span id="filteredResultsCount" class="text-xs font-mono text-[#00FF66]">24 asset</span>
         </div>
         <div class="overflow-x-auto">
           <table class="w-full text-left border-collapse">
             <thead>
-              <tr class="border-b border-gold-500/25 text-[10px] font-bold uppercase tracking-wider text-gold-400 bg-[#050506]">
+              <tr class="border-b border-white/15 text-[10px] font-bold uppercase tracking-wider text-white/75 bg-[#000000]">
                 <th class="py-3 pl-3">Asset</th>
                 <th class="py-3 px-2.5 text-right">Prezzo Live &amp; 24h</th>
                 <th class="py-3 px-2.5">RSI (14)</th>
@@ -154,13 +154,13 @@
                 <th class="py-3 px-2.5 text-right">Trend / Studio</th>
               </tr>
             </thead>
-            <tbody id="scannerTableBody" class="divide-y divide-gold-500/15 text-xs"></tbody>
+            <tbody id="scannerTableBody" class="divide-y divide-white/10 text-xs"></tbody>
           </table>
         </div>
       </section>
 
       <aside class="xl:col-span-3 terminal-card rounded-2xl flex flex-col overflow-hidden">
-        <div class="px-4 py-3 border-b border-gold-500/25 bg-[#0C0C0F]">
+        <div class="px-4 py-3 border-b border-white/15 bg-[#08080A]">
           <h2 class="text-sm font-bold text-white flex items-center gap-2">
             <span class="w-2 h-2 rounded-full bg-[#00FF66] animate-ping"></span> Feed Alert &amp; Studi Live
           </h2>
@@ -172,24 +172,24 @@
 
   <!-- MODALE STUDIO DETTAGLIO -->
   <div id="assetModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/90 backdrop-blur-sm p-3 overflow-y-auto">
-    <div class="bg-[#0C0C0F] border border-gold-500/45 rounded-2xl w-full max-w-[1000px] shadow-2xl overflow-hidden my-auto">
-      <div class="px-5 py-3.5 border-b border-gold-500/25 flex items-center justify-between bg-[#050506]">
+    <div class="bg-[#08080A] border border-white/30 rounded-2xl w-full max-w-[1000px] shadow-2xl overflow-hidden my-auto">
+      <div class="px-5 py-3.5 border-b border-white/15 flex items-center justify-between bg-[#000000]">
         <div>
           <h2 id="modalSymbol" class="text-base font-extrabold font-mono text-white">BTC/USDT</h2>
-          <p id="modalName" class="text-xs text-slate-400">Studio di Mercato &amp; Parametri Reali</p>
+          <p id="modalName" class="text-xs text-white/70">Studio di Mercato &amp; Parametri Reali</p>
         </div>
-        <button onclick="closeModal()" class="p-2 rounded-xl bg-[#141418] text-slate-400 hover:text-white">✕</button>
+        <button onclick="closeModal()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">✕</button>
       </div>
       <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
-        <div class="bg-[#050506] border border-gold-500/30 rounded-xl p-4 space-y-3">
-          <h3 class="text-xs font-bold uppercase text-gold-300">Parametri di Esecuzione Live</h3>
-          <div class="flex justify-between p-2 rounded bg-gold-500/10 border border-gold-500/30"><span>Optimal Entry:</span><strong id="modalEntry" class="text-white">--</strong></div>
-          <div class="flex justify-between p-2 rounded bg-[#FF334B]/10 border border-[#FF334B]/30"><span>Stop Loss (ATR):</span><strong id="modalSL" class="text-[#FF334B]">--</strong></div>
-          <div class="flex justify-between p-2 rounded bg-[#00FF66]/10 border border-[#00FF66]/30"><span>Take Profit 1:</span><strong id="modalTP1" class="text-[#00FF66]">--</strong></div>
-          <div class="flex justify-between p-2 rounded bg-[#00FF66]/10 border border-[#00FF66]/30"><span>Take Profit 2:</span><strong id="modalTP2" class="text-[#00FF66]">--</strong></div>
+        <div class="bg-[#000000] border border-white/20 rounded-xl p-4 space-y-3">
+          <h3 class="text-xs font-bold uppercase text-white">Parametri di Esecuzione Live</h3>
+          <div class="flex justify-between p-2 rounded bg-white/10 border border-white/25"><span class="text-white/80">Optimal Entry:</span><strong id="modalEntry" class="text-white">--</strong></div>
+          <div class="flex justify-between p-2 rounded bg-[#FF334B]/15 border border-[#FF334B]/40"><span class="text-white/80">Stop Loss (ATR):</span><strong id="modalSL" class="text-[#FF334B]">--</strong></div>
+          <div class="flex justify-between p-2 rounded bg-[#00FF66]/15 border border-[#00FF66]/40"><span class="text-white/80">Take Profit 1:</span><strong id="modalTP1" class="text-[#00FF66]">--</strong></div>
+          <div class="flex justify-between p-2 rounded bg-[#00FF66]/15 border border-[#00FF66]/40"><span class="text-white/80">Take Profit 2:</span><strong id="modalTP2" class="text-[#00FF66]">--</strong></div>
         </div>
-        <div class="bg-[#050506] border border-gold-500/30 rounded-xl p-4 space-y-3">
-          <h3 class="text-xs font-bold uppercase text-gold-300">Studi &amp; Confluenze SMC</h3>
+        <div class="bg-[#000000] border border-white/20 rounded-xl p-4 space-y-3">
+          <h3 class="text-xs font-bold uppercase text-white">Studi &amp; Confluenze SMC</h3>
           <div id="modalConfluencesList" class="space-y-2"></div>
         </div>
       </div>
@@ -285,10 +285,10 @@
       enterNowGrid.innerHTML = activeEnterNow.map(a => {
         const flashClass = a.lastFlash === 'UP' ? 'price-flash-up' : a.lastFlash === 'DOWN' ? 'price-flash-down' : '';
         return `
-          <div class="bg-[#050506] border border-gold-500/45 hover:border-gold-300 rounded-2xl p-4 flex flex-col justify-between transition-all shadow-xl relative overflow-hidden">
+          <div class="bg-[#000000] border border-white/25 hover:border-[#00FF66] rounded-2xl p-4 flex flex-col justify-between transition-all shadow-xl relative overflow-hidden">
             <div class="absolute top-0 left-0 w-1.5 h-full ${a.plan.isLong ? 'bg-[#00FF66]' : 'bg-[#FF334B]'}"></div>
             <div>
-              <div class="flex items-center justify-between pb-2.5 border-b border-gold-500/20">
+              <div class="flex items-center justify-between pb-2.5 border-b border-white/15">
                 <div class="flex items-center gap-2">
                   <span class="text-base font-extrabold font-mono text-white">${a.symbol}</span>
                   <span class="px-2 py-0.5 rounded text-[10px] font-mono font-extrabold ${a.plan.isLong ? 'bg-[#00FF66]/15 text-[#00FF66]' : 'bg-[#FF334B]/15 text-[#FF334B]'}">${a.plan.isLong ? 'LONG' : 'SHORT'}</span>
@@ -296,46 +296,48 @@
                 <span class="font-mono font-extrabold text-sm text-white rounded px-1 ${flashClass}">${formatPrice(a.price, a.decimals, a.market)}</span>
               </div>
               <div class="grid grid-cols-3 gap-2 font-mono text-center my-3">
-                <div class="bg-gold-500/15 border border-gold-500/45 rounded-xl p-2"><span class="text-[9px] text-gold-300 block font-bold">Optimal Entry</span><strong class="text-white text-xs">${formatPrice(a.plan.optimalEntry, a.decimals, a.market)}</strong></div>
-                <div class="bg-[#FF334B]/10 border border-[#FF334B]/40 rounded-xl p-2"><span class="text-[9px] text-[#FF334B] block font-bold">Stop Loss</span><strong class="text-[#FF334B] text-xs">${formatPrice(a.plan.stopLoss, a.decimals, a.market)}</strong></div>
-                <div class="bg-[#00FF66]/10 border border-[#00FF66]/30 rounded-xl p-2"><span class="text-[9px] text-[#00FF66] block font-bold">Take Profit 1</span><strong class="text-[#00FF66] text-xs">${formatPrice(a.plan.tp1, a.decimals, a.market)}</strong></div>
+                <div class="bg-white/10 border border-white/30 rounded-xl p-2"><span class="text-[9px] text-white/80 block font-bold">Optimal Entry</span><strong class="text-white text-xs">${formatPrice(a.plan.optimalEntry, a.decimals, a.market)}</strong></div>
+                <div class="bg-[#FF334B]/15 border border-[#FF334B]/40 rounded-xl p-2"><span class="text-[9px] text-[#FF334B] block font-bold">Stop Loss</span><strong class="text-[#FF334B] text-xs">${formatPrice(a.plan.stopLoss, a.decimals, a.market)}</strong></div>
+                <div class="bg-[#00FF66]/15 border border-[#00FF66]/40 rounded-xl p-2"><span class="text-[9px] text-[#00FF66] block font-bold">Take Profit 1</span><strong class="text-[#00FF66] text-xs">${formatPrice(a.plan.tp1, a.decimals, a.market)}</strong></div>
               </div>
-              <div class="bg-[#0C0C0F] border border-[#00FF66]/30 rounded-xl p-2 font-mono text-[10px] flex items-center justify-between">
+              <div class="bg-[#08080A] border border-[#00FF66]/35 rounded-xl p-2 font-mono text-[10px] flex items-center justify-between">
                 <span class="text-[#00FF66] font-bold">🎯 ETA TP1: ${a.plan.tp1ExactStr}</span>
-                <span class="text-gold-300 font-bold">Confluenze: 4/4 OK</span>
+                <span class="text-white font-bold">Confluenze: 4/4 OK</span>
               </div>
             </div>
-            <button onclick="openModal('${a.id}')" class="gold-gradient-btn w-full mt-3 py-1.5 px-3 rounded-xl text-xs">Apri Analisi &amp; Studi Reali ↗</button>
+            <button onclick="openModal('${a.id}')" class="green-gradient-btn w-full mt-3 py-1.5 px-3 rounded-xl text-xs transition-all">Apri Analisi &amp; Studi Reali ↗</button>
           </div>
         `;
       }).join('');
 
       // Screener Table
       const filtered = state.assets.filter(a => state.market === 'ALL' || a.market === state.market);
+      document.getElementById('filteredResultsCount').textContent = `${filtered.length} asset`;
       tableBody.innerHTML = filtered.map(a => {
         const flashClass = a.lastFlash === 'UP' ? 'price-flash-up' : a.lastFlash === 'DOWN' ? 'price-flash-down' : '';
+        const isBull = a.score >= 50;
         return `
-          <tr onclick="openModal('${a.id}')" class="hover:bg-gold-500/10 transition-colors cursor-pointer">
-            <td class="py-3 pl-3 font-mono font-bold text-white">${a.symbol}<span class="text-[9px] block text-slate-400">${a.market}</span></td>
+          <tr onclick="openModal('${a.id}')" class="hover:bg-white/5 transition-colors cursor-pointer">
+            <td class="py-3 pl-3 font-mono font-bold text-white">${a.symbol}<span class="text-[9px] block text-white/50">${a.market}</span></td>
             <td class="py-3 px-2.5 text-right font-mono tabular-nums ${flashClass}"><div class="font-bold text-white">${formatPrice(a.price, a.decimals, a.market)}</div><div class="text-[10px] ${a.change24h>=0?'text-[#00FF66]':'text-[#FF334B]'}">${a.change24h>=0?'+':''}${a.change24h.toFixed(2)}%</div></td>
-            <td class="py-3 px-2.5 font-mono font-bold text-gold-300">${a.rsi.toFixed(1)}</td>
+            <td class="py-3 px-2.5 font-mono font-bold text-white">${a.rsi.toFixed(1)}</td>
             <td class="py-3 px-2.5 font-mono font-extrabold text-white">${a.score}%</td>
-            <td class="py-3 px-2.5"><span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#00FF66]/15 text-[#00FF66]">STRONG BUY</span></td>
+            <td class="py-3 px-2.5"><span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold ${isBull ? 'bg-[#00FF66]/15 text-[#00FF66]' : 'bg-[#FF334B]/15 text-[#FF334B]'}">${isBull ? 'STRONG BUY' : 'STRONG SELL'}</span></td>
             <td class="py-3 px-2.5 font-mono text-[10px]"><span class="enter-now-badge px-1.5 py-0.5 rounded font-extrabold">⚡ ENTRA ADESSO</span><div class="text-[#00FF66] font-bold mt-1">TP1: ${a.plan.tp1ExactStr}</div></td>
-            <td class="py-3 px-2.5 font-mono text-[10px]"><span class="text-gold-300">In: ${formatPrice(a.plan.optimalEntry, a.decimals, a.market)}</span><div class="text-[#FF334B]">SL: ${formatPrice(a.plan.stopLoss, a.decimals, a.market)}</div></td>
-            <td class="py-3 px-2.5 text-right font-mono text-slate-300">${a.smaTrend}</td>
+            <td class="py-3 px-2.5 font-mono text-[10px]"><span class="text-white">In: ${formatPrice(a.plan.optimalEntry, a.decimals, a.market)}</span><div class="text-[#FF334B]">SL: ${formatPrice(a.plan.stopLoss, a.decimals, a.market)}</div></td>
+            <td class="py-3 px-2.5 text-right font-mono text-white/80">${a.smaTrend}</td>
           </tr>
         `;
       }).join('');
 
       // Live Feed
       alertsContainer.innerHTML = activeEnterNow.map(a => `
-        <div class="p-3 rounded-xl border border-gold-400/60 bg-[#050506]">
-          <div class="flex items-center justify-between text-[10px] font-mono text-gold-300 mb-1">
-            <span>⚡ SEGNALE CERTO LIVE</span><span>Ora</span>
+        <div class="p-3 rounded-xl border border-[#00FF66]/45 bg-[#000000]">
+          <div class="flex items-center justify-between text-[10px] font-mono text-[#00FF66] mb-1">
+            <span>⚡ SEGNALE CERTO LIVE</span><span class="text-white/60">Ora</span>
           </div>
           <h4 class="text-xs font-bold text-white">${a.symbol} — ${a.smcEvent}</h4>
-          <p class="text-[11px] text-slate-300 mt-1">Entry: ${formatPrice(a.plan.optimalEntry, a.decimals, a.market)} | TP1: ${formatPrice(a.plan.tp1, a.decimals, a.market)}</p>
+          <p class="text-[11px] text-white/75 mt-1">Entry: <span class="text-white font-semibold">${formatPrice(a.plan.optimalEntry, a.decimals, a.market)}</span> | TP1: <span class="text-[#00FF66] font-semibold">${formatPrice(a.plan.tp1, a.decimals, a.market)}</span></p>
         </div>
       `).join('');
 
@@ -354,9 +356,9 @@
 
       const confList = document.getElementById('modalConfluencesList');
       confList.innerHTML = asset.plan.confluences.map(c => `
-        <div class="flex justify-between p-2 rounded bg-[#0C0C0F] border border-gold-500/20">
-          <span class="text-slate-300">${c.name}:</span>
-          <strong class="text-gold-300">${c.desc}</strong>
+        <div class="flex justify-between p-2 rounded bg-[#08080A] border border-white/15">
+          <span class="text-white/75">${c.name}:</span>
+          <strong class="text-[#00FF66]">${c.desc}</strong>
         </div>
       `).join('');
 
@@ -401,8 +403,12 @@
 
       document.querySelectorAll('.market-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-          document.querySelectorAll('.market-btn').forEach(b => { b.classList.remove('active', 'bg-gold-500/20', 'text-gold-300', 'border'); });
-          e.currentTarget.classList.add('active', 'bg-gold-500/20', 'text-gold-300', 'border', 'border-gold-500/40');
+          document.querySelectorAll('.market-btn').forEach(b => {
+            b.classList.remove('active', 'bg-[#00FF66]/20', 'text-[#00FF66]', 'border', 'border-[#00FF66]/50', 'font-bold');
+            b.classList.add('text-white/60', 'font-medium');
+          });
+          e.currentTarget.classList.remove('text-white/60', 'font-medium');
+          e.currentTarget.classList.add('active', 'bg-[#00FF66]/20', 'text-[#00FF66]', 'border', 'border-[#00FF66]/50', 'font-bold');
           state.market = e.currentTarget.getAttribute('data-market');
           renderDashboard();
         });
