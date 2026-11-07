@@ -1,9 +1,13 @@
-DOCTYPE html>
+from flask import Flask, render_template_string
+
+app = Flask(__name__)
+
+HTML_TEMPLATE = """<!DOCTYPE html>
 <html lang="it" class="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ApexScan Pro • Real Binance Live Engine</title>
+  <title>ApexScan Pro - Real Binance Live Engine</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -206,7 +210,6 @@ DOCTYPE html>
           const lastC = candles[candles.length - 1];
           const prevC = candles[candles.length - 2];
 
-          // Direzione reale guidata dal trend di mercato effettivo
           const isLong = currentPrice > ema20 && lastC.close >= prevC.close;
 
           const slDist = atr * 1.3;
@@ -338,7 +341,7 @@ DOCTYPE html>
 
     window.addEventListener('DOMContentLoaded', () => {
       fetchAllRealData(false);
-      setInterval(() => fetchAllRealData(false), 10000); // Aggiornamento automatico ogni 10 secondi dai server reali
+      setInterval(() => fetchAllRealData(false), 10000);
 
       setInterval(() => {
         document.getElementById('liveCetClock').textContent = new Date().toLocaleTimeString('it-IT', { timeZone: 'Europe/Rome' }) + ' CET';
@@ -358,3 +361,11 @@ DOCTYPE html>
   </script>
 </body>
 </html>
+"""
+
+@app.route("/")
+def index():
+    return render_template_string(HTML_TEMPLATE)
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
