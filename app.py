@@ -93,16 +93,16 @@ def imposta_leva_bingx(simbolo: str, leva: int, lato: str):
     except Exception as e:
         print(f"[LEVERAGE EXCEPT] {e}")
 
-def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_tp: float, prezzo_sl: float, leva: int = 3):
+def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_tp: float, prezzo_sl: float, leva: int = 3, timeframe: str = "TF 15M"):
     """
     CERVELLO PHANTOM: Imposta la leva, apre la posizione a mercato reale su BingX 
-    e invia separatamente TP e SL protettivi.
+    integrando il timeframe esatto e inviando TP e SL protettivi.
     """
     if not API_KEY or not SECRET_KEY:
         print("[PHANTOM ERROR] BINGX_API_KEY o BINGX_SECRET_KEY non trovate nelle variabili d'ambiente di Render!")
         return {"code": -1, "msg": "API keys missing in Render Environment Variables"}
 
-    # 0. Imposta la leva di rischio scelta dall'utente
+    # 0. Imposta la leva scelta
     imposta_leva_bingx(simbolo, leva, lato)
 
     endpoint = "/openApi/swap/v2/trade/order"
@@ -127,7 +127,7 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_tp: flo
         risultato = response.json()
         
         if risultato.get("code") == 0:
-            print(f"[PHANTOM SUCCESS] Posizione reale {lato} aperta su {simbolo} con leva {leva}x!")
+            print(f"[PHANTOM SUCCESS] Posizione {lato} aperta su {simbolo} [{timeframe}] con leva {leva}x!")
             time.sleep(0.3)
             lato_chiusura = "SELL" if lato == "BUY" else "BUY"
             
@@ -190,12 +190,13 @@ def webhook_esegui_segnale():
     tp = float(dati.get("tp", 0))
     sl = float(dati.get("sl", 0))
     leva = int(dati.get("leverage", 3))
+    timeframe = dati.get("timeframe", "TF 15M")
     is_auto = dati.get("is_auto", False)
 
     if is_auto and TRADING_MODE != "AUTO":
         return jsonify({"code": -99, "msg": "Cervello Phantom in modalità Manuale: esecuzione automatica bloccata."})
     
-    risultato = esegui_ordine_bingx(simbolo, lato, quantita, tp, sl, leva)
+    risultato = esegui_ordine_bingx(simbolo, lato, quantita, tp, sl, leva, timeframe)
     return jsonify(risultato)
 
 @app.route('/api/set-mode', methods=['POST'])
@@ -222,7 +223,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ApexScan Pro - Phantom Brain &amp; Leverage Manager</title>
+  <title>ApexScan Pro - Phantom Brain &amp; Timeframe Engine</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -342,7 +343,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-bounce">💎👑</div>
           <div>
             <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">🧠 Cervello Phantom: <span class="text-[#00FF66]">💎👑 ENTRA ADESSO</span></h2>
-            <p class="text-[11px] text-white/70">Segnali ad altissima confluenza con TP e SL protettivi integrati.</p>
+            <p class="text-[11px] text-white/70">Segnali ad altissima confluenza con Timeframe Esatto e TP/SL protettivi.</p>
           </div>
         </div>
         <span id="masterEnterNowBadgeCount" class="px-2.5 py-1 rounded-md text-xs font-mono font-extrabold bg-[#00FF66] text-black animate-pulse">SETUP 💎👑 ATTIVI</span>
@@ -369,7 +370,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <thead>
               <tr class="border-b border-white/15 text-[10px] font-bold uppercase tracking-wider text-white/75 bg-[#000000]">
                 <th class="py-3 pl-3">Asset / Categoria</th>
-                <th class="py-3 px-2.5">Timeframe</th>
+                <th class="py-3 px-2.5">Timeframe Esatto</th>
                 <th class="py-3 px-2.5 text-right">Prezzo Live</th>
                 <th class="py-3 px-2.5 text-right">Var. 24h 🔥</th>
                 <th class="py-3 px-2.5">Stop Loss &amp; %</th>
@@ -389,26 +390,26 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[760px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">[Phantom] Gestione Leva e Rischio attiva...</div>
+          <div class="p-2 rounded bg-white/5 text-white/70">[Phantom] Gestione Timeframe e Leva attiva...</div>
         </div>
       </aside>
     </div>
   </main>
 
-  <!-- MODALE DI CONFERMA ESECUZIONE CON LEVA DI RISCHIO E MANUALE -->
+  <!-- MODALE DI CONFERMA ESECUZIONE -->
   <div id="assetModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/90 backdrop-blur-sm p-3 overflow-y-auto">
     <div class="bg-[#08080A] border border-white/30 rounded-2xl w-full max-w-[600px] shadow-2xl overflow-hidden my-auto">
       <div class="px-5 py-3.5 border-b border-white/15 flex items-center justify-between bg-[#000000]">
         <div>
           <h2 id="modalSymbol" class="text-base font-extrabold font-mono text-white">BTC-USDT</h2>
-          <p class="text-xs text-white/70">Gestione Rischio &amp; Leva Finanziaria su BingX</p>
+          <p class="text-xs text-white/70">Esecuzione con Timeframe Esatto e TP/SL protettivi</p>
         </div>
         <button onclick="closeModal()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
       </div>
       <div class="p-5 space-y-4 text-xs font-mono">
         <div class="bg-[#000000] border border-white/20 rounded-xl p-4 space-y-2.5">
           <div class="flex justify-between"><span class="text-white/75">Categoria:</span><strong id="modalCategory" class="text-[#00FF66]">Criptovalute</strong></div>
-          <div class="flex justify-between"><span class="text-white/75">Timeframe Operativo:</span><strong id="modalTF" class="text-cyan-400">TF 15M</strong></div>
+          <div class="flex justify-between"><span class="text-white/75">Timeframe Esatto Segnale:</span><strong id="modalTF" class="text-cyan-400 font-bold text-sm">TF 15M</strong></div>
           <div class="flex justify-between"><span class="text-white/75">Prezzo Live:</span><strong id="modalLivePrice" class="text-white">--</strong></div>
           <div class="flex justify-between"><span class="text-white/75">Segnale Phantom:</span><strong id="modalSide" class="text-[#00FF66]">BUY (LONG)</strong></div>
           <div class="flex justify-between"><span class="text-white/75">Confidenza Calcolata:</span><strong id="modalConfidence" class="text-[#00FF66]">--</strong></div>
@@ -438,7 +439,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
 
         <button id="executeBingXBtn" onclick="eseguiOrdineSuBingX()" class="bingx-btn w-full py-2.5 rounded-xl text-xs shadow-lg flex items-center justify-center gap-2">
-          <span>🧠 Esegui con Leva Scelta e TP/SL protettivi</span>
+          <span>🧠 Esegui con TF Esatto, Leva e TP/SL</span>
         </button>
         <div id="executionFeedback" class="mt-2 text-xs text-center hidden"></div>
       </div>
@@ -630,7 +631,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       
       enterNowGrid.innerHTML = enterNowCoins.map(c => {
         const isBull = c.change24h >= 0;
-        const tf = Math.abs(c.change24h) > 5 ? 'TF 5M' : Math.abs(c.change24h) > 3 ? 'TF 15M' : 'TF 1H';
+        const tf = Math.abs(c.change24h) > 6 ? 'TF 5M' : Math.abs(c.change24h) > 3 ? 'TF 15M' : 'TF 1H';
         const atr = c.price * 0.012;
         const decimals = c.price < 1 ? 4 : 2;
         const sl = Number((isBull ? c.price - (atr * 1.5) : c.price + (atr * 1.5)).toFixed(decimals));
@@ -680,7 +681,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         const isBull = c.change24h >= 0;
         const isTopMover = Math.abs(c.change24h) >= 3.0;
         const isPriority = prioritySymbols.includes(c.symbol);
-        const tf = Math.abs(c.change24h) > 5 ? 'TF 5M' : Math.abs(c.change24h) > 3 ? 'TF 15M' : 'TF 1H';
+        const tf = Math.abs(c.change24h) > 6 ? 'TF 5M' : Math.abs(c.change24h) > 3 ? 'TF 15M' : 'TF 1H';
         const atr = c.price * 0.01;
         const decimals = c.price < 1 ? 4 : 2;
         const sl = Number((isBull ? c.price - (atr * 1.5) : c.price + (atr * 1.5)).toFixed(decimals));
@@ -689,9 +690,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         const tpPercent = ((Math.abs(tp - c.price) / c.price) * 100).toFixed(2);
         const confidence = Math.min(95, Math.round(75 + Math.abs(c.change24h)));
 
-        if (state.tradingMode === 'AUTO' && Math.abs(c.change24h) > 4.0 && !state.autoExecutedSymbols.has(c.symbol)) {
+        if (state.tradingMode === 'AUTO' && Math.abs(c.change24h) > 5.0 && !state.autoExecutedSymbols.has(c.symbol)) {
           state.autoExecutedSymbols.add(c.symbol);
-          eseguiOperazioneServer({ symbol: c.symbol, action: isBull ? 'BUY' : 'SELL', size: 0.001, tp: tp, sl: sl, leverage: 3 }, true);
+          eseguiOperazioneServer({ symbol: c.symbol, action: isBull ? 'BUY' : 'SELL', size: 0.001, tp: tp, sl: sl, leverage: 3, timeframe: tf }, true);
         }
 
         return `
@@ -748,15 +749,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const asset = state.currentSelectedAsset;
       const quantity = parseFloat(document.getElementById('tradeQuantityInput').value) || 0.001;
       const leverage = state.selectedLeverage;
+      const timeframe = asset.tf;
 
       const btn = document.getElementById('executeBingXBtn');
       const feedback = document.getElementById('executionFeedback');
 
       btn.disabled = true;
-      btn.textContent = `Impostazione leva ${leverage}x e ordine in corso...`;
+      btn.textContent = `Invio ordine [${timeframe}] con leva ${leverage}x...`;
       feedback.classList.remove('hidden', 'text-[#00FF66]', 'text-[#FF334B]');
       feedback.classList.add('text-white/70');
-      feedback.textContent = `Invio leva ${leverage}x e ordine con TP/SL protettivi...`;
+      feedback.textContent = `Applicazione timeframe ${timeframe}, leva ${leverage}x e TP/SL protettivi...`;
 
       const res = await eseguiOperazioneServer({
         symbol: asset.symbol,
@@ -764,15 +766,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         size: quantity,
         tp: asset.tp,
         sl: asset.sl,
-        leverage: leverage
+        leverage: leverage,
+        timeframe: timeframe
       }, false);
 
       if (res.code === 0) {
         feedback.classList.remove('text-white/70', 'text-[#FF334B]');
         feedback.classList.add('text-[#00FF66]');
-        feedback.textContent = `✔ Successo! Posizione ${asset.side} aperta con leva ${leverage}x e TP/SL protettivi.`;
+        feedback.textContent = `✔ Successo! Posizione ${asset.side} aperta [${timeframe}] con leva ${leverage}x e TP/SL.`;
         playChime();
-        logFeed(`[PHANTOM MANUALE] Posizione aperta su ${asset.symbol} (${asset.side}) con leva ${leverage}x`);
+        logFeed(`[PHANTOM MANUALE] Posizione aperta su ${asset.symbol} (${asset.side}) - [${timeframe}] - Leva ${leverage}x`);
       } else {
         feedback.classList.remove('text-white/70', 'text-[#00FF66]');
         feedback.classList.add('text-[#FF334B]');
@@ -781,7 +784,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       }
 
       btn.disabled = false;
-      btn.textContent = "🧠 Esegui con Leva Scelta e TP/SL protettivi";
+      btn.textContent = "🧠 Esegui con TF Esatto, Leva e TP/SL";
     }
 
     async function eseguiOperazioneServer(payload, isAuto) {
@@ -794,7 +797,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         const data = await response.json();
         if (isAuto) {
           if (data.code === 0) {
-            logFeed(`[PHANTOM AUTO ⚡] Eseguito su ${payload.symbol} (${payload.action}) con leva ${payload.leverage}x`);
+            logFeed(`[PHANTOM AUTO ⚡] Eseguito su ${payload.symbol} (${payload.action}) [${payload.timeframe}] con leva ${payload.leverage}x`);
             playChime();
           } else {
             logFeed(`[PHANTOM AUTO SKIP] ${payload.symbol}: ${data.msg}`);
