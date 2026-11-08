@@ -16,7 +16,7 @@ DEFAULT_SECRET_KEY = os.environ.get("BINGX_SECRET_KEY", "")
 BASE_URL = "https://open-api.bingx.com"
 
 TRADING_MODE = "MANUAL"
-MARKET_TYPE = "FUTURES"  # "FUTURES" o "SPOT"
+MARKET_TYPE = "FUTURES"  # "FUTURES", "SPOT" o "STANDARD_FUTURES"
 
 
 def _genera_firma(payload: dict, secret_key: str) -> str:
@@ -86,7 +86,7 @@ def _calcola_atr_reale(highs: list, lows: list, closes: list, periodo: int = 14)
 
 
 def get_klines_precision(simbolo: str, market_type: str = "FUTURES", interval: str = "15m", limit: int = 50):
-    """Scarica candele OHLCV reali da BingX (Futures o Spot) e calcola indicatori millimetrici."""
+    """Scarica candele OHLCV reali da BingX e calcola indicatori millimetrici."""
     try:
         if market_type == "SPOT":
             url = f"{BASE_URL}/openApi/spot/v1/market/kline"
@@ -173,7 +173,6 @@ def get_klines_precision(simbolo: str, market_type: str = "FUTURES", interval: s
             tp = round(last_price + (atr14 * tp_mult), dec) if is_bull else round(last_price - (atr14 * tp_mult), dec)
 
         atr_pct = round((atr14 / last_price) * 100, 3) if last_price > 0 else 0.0
-
         tp_dist = abs(tp - last_price)
         candele_stimate = max(2, round(tp_dist / (atr14 * 0.40))) if atr14 > 0 else 10
         minuti_stimati = candele_stimate * 15
@@ -255,11 +254,8 @@ def get_klines_precision(simbolo: str, market_type: str = "FUTURES", interval: s
 
 
 def get_live_market_data(market_type: str = "FUTURES"):
-    """Scarica tutte le coppie di mercato live da BingX (Futures o Spot) in tempo reale."""
-    if market_type == "SPOT":
-        url = f"{BASE_URL}/openApi/spot/v1/ticker/24hr"
-    else:
-        url = f"{BASE_URL}/openApi/swap/v2/quote/ticker"
+    """Scarica tutte le coppie di mercato live da BingX in tempo reale."""
+    url = f"{BASE_URL}/openApi/spot/v1/ticker/24hr" if market_type == "SPOT" else f"{BASE_URL}/openApi/swap/v2/quote/ticker"
 
     try:
         response = requests.get(url, timeout=4)
@@ -294,12 +290,12 @@ def get_live_market_data(market_type: str = "FUTURES"):
 
                 category = "Criptovalute"
                 sym_upper = symbol.upper()
-                if market_type == "FUTURES":
+                if market_type != "SPOT":
                     if any(mat in sym_upper for mat in ["GOLD", "SILVER", "OIL", "XAU", "XAG", "WTI", "BRENT", "COPPER"]):
                         category = "Materie Prime"
                     elif any(fx in sym_upper for fx in ["EUR", "GBP", "JPY", "AUD", "NZD", "CAD", "CHF"]):
                         category = "Forex / Valute"
-                    elif any(st in sym_upper for st in ["NASDAQ", "SP500", "AAPL", "TSLA", "NVDA", "AMZN", "MSFT", "GOLDEN", "US30"]):
+                    elif any(st in sym_upper for st in ["NASDAQ", "SP500", "AAPL", "TSLA", "NVDA", "AMZN", "MSFT", "US30"]):
                         category = "Azioni & Indici (TradFi)"
 
                 market_map[symbol] = {
@@ -314,7 +310,7 @@ def get_live_market_data(market_type: str = "FUTURES"):
                 }
             return market_map
     except Exception as e:
-        print(f"[MARKET DATA ERROR] ({market_type}) Errore connessione BingX: {e}")
+        print(f"[MARKET DATA ERROR] ({market_type}): {e}")
     return {}
 
 
@@ -332,10 +328,7 @@ def imposta_leva_bingx(simbolo: str, leva: int, lato: str, api_key: str, secret_
     query_string = _genera_firma(payload, secret_key)
     headers = {"X-BX-APIKEY": api_key}
     try:
-        resp = requests.post(f"{url}?{query_string}", headers=headers)
-        res_data = resp.json()
-        if res_data.get("code") == 0:
-            print(f"[LEVERAGE SUCCESS] Leva {leva}x impostata per {simbolo} ({position_side})")
+        requests.post(f"{url}?{query_string}", headers=headers)
     except Exception as e:
         print(f"[LEVERAGE EXCEPT] {e}")
 
@@ -345,9 +338,9 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingress
     active_secret = secret_key if secret_key else DEFAULT_SECRET_KEY
 
     if not active_api or not active_secret:
-        return {"code": -1, "msg": "API Key o Secret Key BingX mancanti. Inserisci le tue chiavi personali nel pannello in alto a destra."}
+        return {"code": -1, "msg": "API Key o Secret Key BingX mancanti. Inserisci le tue chiavi personali."}
 
-    if market_type == "FUTURES":
+    if market_type in ["FUTURES", "STANDARD_FUTURES"]:
         imposta_leva_bingx(simbolo, leva, lato, active_api, active_secret)
         endpoint = "/openApi/swap/v2/trade/order"
         position_side = "LONG" if lato == "BUY" else "SHORT"
@@ -377,7 +370,7 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingress
         response = requests.post(f"{url}?{query_string}", headers=headers)
         risultato = response.json()
 
-        if risultato.get("code") == 0 and market_type == "FUTURES":
+        if risultato.get("code") == 0 and market_type in ["FUTURES", "STANDARD_FUTURES"]:
             time.sleep(0.8)
             lato_chiusura = "SELL" if lato == "BUY" else "BUY"
             if prezzo_sl > 0:
@@ -418,9 +411,10 @@ def _imposta_ordine_protettivo(simbolo: str, lato_chiusura: str, prezzo_trigger:
 @app.route('/api/market-data', methods=['GET'])
 def api_market_data():
     mtype = request.args.get("marketType", MARKET_TYPE).upper()
-    if mtype not in ["FUTURES", "SPOT"]:
+    if mtype not in ["FUTURES", "SPOT", "STANDARD_FUTURES"]:
         mtype = "FUTURES"
-    data = get_live_market_data(mtype)
+    fetch_type = "FUTURES" if mtype == "STANDARD_FUTURES" else mtype
+    data = get_live_market_data(fetch_type)
     return jsonify({"code": 0, "marketType": mtype, "data": data})
 
 
@@ -428,11 +422,13 @@ def api_market_data():
 def api_deep_scan():
     simbolo = request.args.get("symbol", "BTC-USDT")
     mtype = request.args.get("marketType", MARKET_TYPE).upper()
+    fetch_type = "FUTURES" if mtype == "STANDARD_FUTURES" else mtype
     interval = request.args.get("interval", "15m")
-    analysis = get_klines_precision(simbolo, mtype, interval, 50)
+    analysis = get_klines_precision(simbolo, fetch_type, interval, 50)
     if analysis:
+        analysis["marketType"] = mtype
         return jsonify({"code": 0, "data": analysis})
-    return jsonify({"code": -1, "msg": "Dati candele OHLCV non disponibili per questo asset."})
+    return jsonify({"code": -1, "msg": "Dati candele OHLCV non disponibili."})
 
 
 @app.route('/api/esegui-segnale', methods=['POST'])
@@ -480,7 +476,7 @@ def set_market_type():
     global MARKET_TYPE
     dati = request.json or {}
     mtype = dati.get("marketType")
-    if mtype in ["FUTURES", "SPOT"]:
+    if mtype in ["FUTURES", "SPOT", "STANDARD_FUTURES"]:
         MARKET_TYPE = mtype
         return jsonify({"code": 0, "marketType": MARKET_TYPE})
     return jsonify({"code": -1, "msg": "Mercato non valido"})
@@ -553,26 +549,27 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex items-center gap-2 text-[11px] font-mono text-white/70 mt-0.5">
             <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
-            <span class="text-[#00FF66]">1. Entrata • 2. Rimanere a mercato • 3. Uscire (Precisione Dati 🟢)</span>
+            <span class="text-[#00FF66]">1. Entrata • 2. Rimanere • 3. Uscire (1 pos. max 🔒)</span>
           </div>
         </div>
       </div>
 
       <div class="flex items-center gap-3 flex-wrap">
-        <div class="flex items-center bg-[#08080A] p-1.5 rounded-xl border border-white/20 gap-1.5">
+        <div class="flex items-center bg-[#08080A] p-1.5 rounded-xl border border-white/20 gap-1.5 flex-wrap">
           <span class="text-xs font-mono font-bold text-white/70 px-1">Mercato:</span>
-          <button id="btnMarketFutures" onclick="switchMarketType('FUTURES')" class="px-3 py-1 rounded-lg text-xs font-bold transition-all bg-[#0066FF] text-white">FUTURES</button>
-          <button id="btnMarketSpot" onclick="switchMarketType('SPOT')" class="px-3 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white">SPOT 🪙</button>
+          <button id="btnMarketFutures" onclick="switchMarketType('FUTURES')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-[#0066FF] text-white">FUTURES</button>
+          <button id="btnMarketStandard" onclick="switchMarketType('STANDARD_FUTURES')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white">STD FUTURES 📊</button>
+          <button id="btnMarketSpot" onclick="switchMarketType('SPOT')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white">SPOT 🪙</button>
         </div>
 
-        <button onclick="toggleApiModal()" class="px-3.5 py-1.5 rounded-xl text-xs font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 hover:bg-cyan-500/30 transition-all flex items-center gap-1.5">
-          <span>🔑</span> <span id="apiStatusText">Collega API Personali</span>
+        <button onclick="toggleApiModal()" class="px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 hover:bg-cyan-500/30 transition-all flex items-center gap-1.5">
+          <span>🔑</span> <span id="apiStatusText">Collega API</span>
         </button>
 
         <div class="flex items-center bg-[#08080A] p-1.5 rounded-xl border border-white/20 gap-1.5">
           <span class="text-xs font-mono font-bold text-white/70 px-1">Esecuzione:</span>
-          <button id="btnModeManual" onclick="switchMode('MANUAL')" class="px-3 py-1 rounded-lg text-xs font-bold transition-all bg-white/20 text-white">MANUALE</button>
-          <button id="btnModeAuto" onclick="switchMode('AUTO')" class="px-3 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white">AUTO ⚡</button>
+          <button id="btnModeManual" onclick="switchMode('MANUAL')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-white/20 text-white">MANUALE</button>
+          <button id="btnModeAuto" onclick="switchMode('AUTO')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white">AUTO ⚡</button>
         </div>
       </div>
     </div>
@@ -602,11 +599,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse">⚡</div>
           <div>
             <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">🟢 ADVISOR LIVE &amp; GESTIONE POSIZIONE (<span id="advSymbol">BTC-USDT</span>)</h2>
-            <p class="text-[11px] text-[#00FF66]">Controllo millimetrico: 1. Entrata • 2. Rimanere a mercato • 3. Uscire con dati precisi</p>
+            <p class="text-[11px] text-[#00FF66]">Controllo 1 posizione max: 1. Entrata • 2. Rimanere a mercato • 3. Uscire</p>
           </div>
         </div>
         <button onclick="chiudiPosizioneMonitorata()" class="px-3.5 py-1.5 rounded-xl bg-red-500/20 text-[#FF334B] border border-red-500/50 hover:bg-red-500/30 text-xs font-bold transition-all">
-          Chiudi / Deseleziona Monitoraggio ✕
+          Chiudi / Libera Slot ✕
         </button>
       </div>
 
@@ -675,9 +672,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
       </div>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase text-white/75">Asset Monitorati Live</span>
+        <span class="text-[11px] font-semibold uppercase text-white/75">Slot Posizioni Auto 🔒</span>
         <div class="mt-2">
-          <span id="kpiTotalAssets" class="text-base font-mono text-cyan-400 font-extrabold">-- Asset Live</span>
+          <span id="kpiAutoSlotStatus" class="text-xs font-mono text-[#00FF66] font-extrabold">🟢 Slot Libero (1 max)</span>
         </div>
       </div>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
@@ -688,9 +685,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
       </div>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase text-white/75">Precisione Dati Engine</span>
+        <span class="text-[11px] font-semibold uppercase text-white/75">Categoria Attiva Engine</span>
         <div class="mt-2">
-          <span id="kpiMarketBadge" class="text-xs font-mono text-cyan-400 font-bold">🟢 OHLCV 15m + Fee Real</span>
+          <span id="kpiMarketBadge" class="text-xs font-mono text-cyan-400 font-bold">🟢 FUTURES (1 Pos. Max)</span>
         </div>
       </div>
     </section>
@@ -751,7 +748,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[800px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">[Precision Engine] Scanner e Advisor con dati avanzati pronti...</div>
+          <div class="p-2 rounded bg-white/5 text-white/70">[Precision Engine] Scanner e Advisor con 1 posizione max attiva pronti...</div>
         </div>
       </aside>
     </div>
@@ -910,7 +907,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       } else {
         statusEl.textContent = "⚠️ API Personali non inserite";
         statusEl.className = "text-xs font-mono text-yellow-400 block";
-        textBtn.textContent = "Collega API Personali";
+        textBtn.textContent = "Collega API";
       }
     }
 
@@ -1133,6 +1130,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       };
 
       document.getElementById('activePositionAdvisorBox').classList.remove('hidden');
+      document.getElementById('kpiAutoSlotStatus').textContent = "🔒 1 Posizione Attiva (Blocco Auto)";
+      document.getElementById('kpiAutoSlotStatus').className = "text-xs font-mono text-yellow-400 font-extrabold";
+
       document.getElementById('advSymbol').textContent = symbol;
       document.getElementById('advEntryPrice').textContent = `$${formatPrice(entryPrice)}`;
       
@@ -1147,14 +1147,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
       aggiornaAdvisorLoop();
       state.advisorInterval = setInterval(aggiornaAdvisorLoop, 2000);
-      logFeed(`[ADVISOR ATTIVO] 1. Entrata registrata per ${symbol} (${side}) @ $${formatPrice(entryPrice)}`);
+      logFeed(`[ADVISOR ATTIVO] 1. Entrata registrata per ${symbol} (${side}) @ $${formatPrice(entryPrice)} | Slot Auto bloccato (1 pos. max)`);
     }
 
     function chiudiPosizioneMonitorata() {
       if (state.advisorInterval) clearInterval(state.advisorInterval);
       state.activePosition = null;
       document.getElementById('activePositionAdvisorBox').classList.add('hidden');
-      logFeed(`[ADVISOR] Monitoraggio posizione chiuso manualmente.`);
+      document.getElementById('kpiAutoSlotStatus').textContent = "🟢 Slot Libero (1 max)";
+      document.getElementById('kpiAutoSlotStatus').className = "text-xs font-mono text-[#00FF66] font-extrabold";
+      logFeed(`[ADVISOR] Monitoraggio chiuso. Slot Auto liberato per una nuova posizione.`);
     }
 
     function aggiornaAdvisorLoop() {
@@ -1204,26 +1206,26 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const hitTp = pos.side === 'BUY' ? currentPrice >= pos.tpPrice : currentPrice <= pos.tpPrice;
       const hitSl = pos.side === 'BUY' ? currentPrice <= pos.slPrice : currentPrice >= pos.slPrice;
 
-      if (hitTp) {
-        statusAdvice.textContent = "🎯 3. Uscire: TAKE PROFIT RAGGIUNTO!";
-        statusAdvice.className = "text-[#00FF66] text-xs block font-extrabold animate-bounce";
-        actionAlert.textContent = "3. Uscire: CHIUDI SUBITO E INCASSA IL PROFITTO.";
-        tableRemain.textContent = "No (Target Raggiunto)";
-        tableExit.textContent = "3. USCIRE (Prendi Profitto 🎯)";
-        tableExit.className = "py-3 px-3 text-right text-[#00FF66] font-extrabold animate-pulse";
+      if (hitTp || hitSl) {
+        if (hitTp) {
+          statusAdvice.textContent = "🎯 3. Uscire: TAKE PROFIT RAGGIUNTO!";
+          statusAdvice.className = "text-[#00FF66] text-xs block font-extrabold animate-bounce";
+          actionAlert.textContent = "3. Uscire: CHIUDI SUBITO E INCASSA IL PROFITTO.";
+          tableExit.textContent = "3. USCIRE (Prendi Profitto 🎯)";
+          tableExit.className = "py-3 px-3 text-right text-[#00FF66] font-extrabold animate-pulse";
+        } else {
+          statusAdvice.textContent = "⚠️ 3. Uscire: STOP LOSS TESTATO!";
+          statusAdvice.className = "text-[#FF334B] text-xs block font-extrabold animate-pulse";
+          actionAlert.textContent = "3. Uscire: Taglia la posizione per protezione capitale.";
+          tableExit.textContent = "3. USCIRE (Protezione SL ⚠️)";
+          tableExit.className = "py-3 px-3 text-right text-[#FF334B] font-extrabold";
+        }
         playChime(true);
-      } else if (hitSl) {
-        statusAdvice.textContent = "⚠️ 3. Uscire: STOP LOSS TESTATO!";
-        statusAdvice.className = "text-[#FF334B] text-xs block font-extrabold animate-pulse";
-        actionAlert.textContent = "3. Uscire: Taglia la posizione per protezione capitale.";
-        tableRemain.textContent = "No (Stop Toccato)";
-        tableExit.textContent = "3. USCIRE (Protezione SL ⚠️)";
-        tableExit.className = "py-3 px-3 text-right text-[#FF334B] font-extrabold";
-        playChime(true);
+        setTimeout(() => chiudiPosizioneMonitorata(), 4000);
       } else if (pnlPct >= 1.8) {
         statusAdvice.textContent = "🟢 2. Rimanere a mercato (In Profitto)";
         statusAdvice.className = "text-[#00FF66] text-xs block font-bold";
-        actionAlert.textContent = "2. Rimanere: Sposta lo Stop Loss a Break-Even e continua a rimanere.";
+        actionAlert.textContent = "2. Rimanere: Sposta lo Stop Loss a Break-Even.";
         tableRemain.textContent = "Sì (In Profitto Solido)";
         tableExit.textContent = "3. Uscire solo al TP / SL";
         tableExit.className = "py-3 px-3 text-right text-[#00FF66] font-bold";
@@ -1266,11 +1268,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       [1, 3, 5, 10].forEach(l => {
         const btn = document.getElementById(`levBtn${l}`);
         if (btn) {
-          if (l === lev) {
-            btn.className = "py-1.5 rounded-lg border border-[#00FF66] bg-[#00FF66]/20 text-[#00FF66] font-bold";
-          } else {
-            btn.className = "py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold";
-          }
+          btn.className = l === lev ? "py-1.5 rounded-lg border border-[#00FF66] bg-[#00FF66]/20 text-[#00FF66] font-bold" : "py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold";
         }
       });
     }
@@ -1306,7 +1304,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           state.currentCategoryTab = 'ALL';
           updateMarketTypeUI();
           await pollMarketData();
-          logFeed(`[MERCATO] Passaggio a ${mtype} con Advisor di posizione attivo.`);
+          logFeed(`[MERCATO] Passaggio a ${mtype}`);
         }
       } catch (e) {
         alert("Errore cambio mercato");
@@ -1315,25 +1313,34 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
     function updateMarketTypeUI() {
       const btnFut = document.getElementById('btnMarketFutures');
+      const btnStd = document.getElementById('btnMarketStandard');
       const btnSpot = document.getElementById('btnMarketSpot');
       const kpiBadge = document.getElementById('kpiMarketBadge');
       const headerTitle = document.getElementById('headerEngineTitle');
       const masterSub = document.getElementById('masterSubtitle');
       const tableLabel = document.getElementById('tableMarketLabel');
 
+      btnFut.className = "px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
+      btnStd.className = "px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
+      btnSpot.className = "px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
+
       if (state.marketType === 'SPOT') {
-        btnSpot.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all bg-[#00FF66] text-black shadow-lg";
-        btnFut.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
+        btnSpot.className = "px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-[#00FF66] text-black shadow-lg";
         kpiBadge.textContent = "🪙 SPOT TARGET TP (Advisor Live)";
         headerTitle.textContent = "Millimetric Spot Advisor Engine";
-        masterSub.textContent = "Scanner Spot con candele 15m reali e Advisor attivo per precisione dati e gestione trade";
+        masterSub.textContent = "Scanner Spot con candele 15m reali e Advisor attivo";
         tableLabel.textContent = "SPOT TARGET TP";
+      } else if (state.marketType === 'STANDARD_FUTURES') {
+        btnStd.className = "px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-amber-500 text-black shadow-lg";
+        kpiBadge.textContent = "📊 STANDARD FUTURES (1 Pos. Max)";
+        headerTitle.textContent = "Standard Futures Advisor Engine";
+        masterSub.textContent = "Tabella dedicata Futures Standard con gestione 1 posizione alla volta e Advisor";
+        tableLabel.textContent = "STANDARD FUTURES";
       } else {
-        btnFut.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all bg-[#0066FF] text-white";
-        btnSpot.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
-        kpiBadge.textContent = "🟢 FUTURES (Precisione Dati)";
+        btnFut.className = "px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-[#0066FF] text-white";
+        kpiBadge.textContent = "🟢 PERP FUTURES (1 Pos. Max)";
         headerTitle.textContent = "Millimetric Futures Engine";
-        masterSub.textContent = "Advisor in tempo reale: 1. Entrata • 2. Rimanere • 3. Uscire";
+        masterSub.textContent = "Advisor in tempo reale: 1. Entrata • 2. Rimanere • 3. Uscire (1 pos. max)";
         tableLabel.textContent = "FUTURES";
       }
     }
@@ -1361,14 +1368,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const modeText = document.getElementById('modeText');
 
       if (mode === 'AUTO') {
-        btnAuto.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all bg-[#00FF66] text-black shadow-lg";
-        btnMan.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
+        btnAuto.className = "px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-[#00FF66] text-black shadow-lg";
+        btnMan.className = "px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
         badge.className = "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/50";
         modeDot.className = "w-1.5 h-1.5 rounded-full bg-[#00FF66] animate-ping";
-        modeText.textContent = "AUTO ⚡";
+        modeText.textContent = "AUTO (1 POS MAX) ⚡";
       } else {
-        btnMan.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all bg-white/20 text-white";
-        btnAuto.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
+        btnMan.className = "px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-white/20 text-white";
+        btnAuto.className = "px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
         badge.className = "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-white/10 text-white/80 border border-white/20";
         modeDot.className = "w-1.5 h-1.5 rounded-full bg-yellow-400";
         modeText.textContent = "MANUALE";
@@ -1419,8 +1426,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     async function renderDashboard() {
       const keys = Object.keys(state.marketData);
       if (keys.length === 0) return;
-
-      document.getElementById('kpiTotalAssets').textContent = `${keys.length} Coppie ${state.marketType}`;
 
       let totalQuoteVol = 0;
       keys.forEach(k => {
@@ -1489,7 +1494,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 <div class="flex justify-between"><span class="text-[#FF334B]">Stop Loss di Protezione:</span><strong class="text-[#FF334B]">$${formatPrice(param.sl)}</strong></div>
                 <div class="flex justify-between"><span class="text-[#00FF66]">🎯 TARGET TAKE PROFIT CERTO:</span><strong class="text-[#00FF66] text-sm font-extrabold">$${formatPrice(param.tp)}</strong></div>
                 <div class="flex justify-between"><span class="text-white/70">🌊 ATR (14) Reale:</span><strong class="text-purple-300">$${param.atr} (${param.atrPercent}%)</strong></div>
-                <div class="flex justify-between"><span class="text-white/70">⚡ Strategia:</span><strong class="text-yellow-400">${state.marketType === 'SPOT' ? 'Spot 1:1 Target TP' : 'Futures Isolato 3x'}</strong></div>
+                <div class="flex justify-between"><span class="text-white/70">⚡ Strategia:</span><strong class="text-yellow-400">${state.marketType === 'SPOT' ? 'Spot 1:1 Target TP' : (state.marketType === 'STANDARD_FUTURES' ? 'Standard Futures (1 Pos. Max)' : 'Perp Futures Isolato (1 Pos. Max)')}</strong></div>
               </div>
               <button onclick='openModal("${masterAsset.symbol}")' class="green-gradient-btn w-full py-2 rounded-xl text-xs shadow-lg animate-pulse">
                 🎯 APRI &amp; AVVIA ADVISOR LIVE &#8599;
@@ -1563,7 +1568,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                         : 'bg-white/10 text-white/70 border-white/20';
                     const actionSide = state.marketType === 'SPOT' ? 'BUY' : (isBull ? 'BUY' : 'SELL');
 
-                    if (state.tradingMode === 'AUTO' && Math.abs(c.change24h) > 4.5 && !state.autoExecutedSymbols.has(`${state.marketType}_${c.symbol}`)) {
+                    // GESTIONE AUTOMATICA 1 POSIZIONE ALLA VOLTA (PER TUTTI I TIPI DI FUTURES E SPOT)
+                    if (state.tradingMode === 'AUTO' && Math.abs(c.change24h) > 4.5 && !state.activePosition && !state.autoExecutedSymbols.has(`${state.marketType}_${c.symbol}`)) {
                       state.autoExecutedSymbols.add(`${state.marketType}_${c.symbol}`);
                       const keys = getStoredApiKeys();
                       eseguiOperazioneServer({
@@ -1578,7 +1584,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                         marketType: state.marketType,
                         apiKey: keys.apiKey,
                         secretKey: keys.secretKey
-                      }, true);
+                      }, true).then(res => {
+                        if (res.code === 0) {
+                          avviaAdvisorPosizione(c.symbol, actionSide, c.price, param.tp, param.sl, param.tempoSec || 14400);
+                        }
+                      });
                     }
 
                     return `
@@ -1618,6 +1628,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     }
 
     async function openModal(symbol) {
+      if (state.activePosition) {
+        alert("⚠️ C'è già 1 posizione attiva monitorata dall'Advisor. Chiudila o liberala prima di aprire un nuovo trade in modalità protetta.");
+        return;
+      }
+
       const item = state.marketData[symbol];
       if (!item) return;
 
@@ -1717,6 +1732,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
     async function eseguiOrdineSuBingX() {
       if (!state.currentSelectedAsset) return;
+      if (state.activePosition) {
+        alert("⚠️ È già attiva una posizione. Il sistema consente 1 posizione alla volta.");
+        return;
+      }
+
       const asset = state.currentSelectedAsset;
       const quantity = parseFloat(document.getElementById('tradeQuantityInput').value) || asset.minSize;
       const leverage = state.selectedLeverage;
@@ -1730,7 +1750,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       btn.textContent = `Invio ordine ${state.marketType} (${actionToSend}) e avvio Advisor...`;
       feedback.classList.remove('hidden', 'text-[#00FF66]', 'text-[#FF334B]');
       feedback.classList.add('text-white/70');
-      feedback.textContent = `Esecuzione ordine e attivazione monitoraggio live...`;
+      feedback.textContent = `Esecuzione ordine e blocco slot (1 pos max)...`;
 
       const res = await eseguiOperazioneServer({
         symbol: asset.symbol,
@@ -1749,7 +1769,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       if (res.code === 0) {
         feedback.classList.remove('text-white/70', 'text-[#FF334B]');
         feedback.classList.add('text-[#00FF66]');
-        feedback.textContent = `✔ Successo! Posizione aperta. Advisor Live avviato in alto.`;
+        feedback.textContent = `✔ Successo! Posizione aperta. Slot bloccato (1 pos max).`;
         playChime(false);
         logFeed(`[ADVISOR AVVIATO] 1. Entrata ${asset.symbol} (${actionToSend}) @ $${formatPrice(asset.livePrice)} ➔ TP: $${formatPrice(asset.tp)}`);
         
@@ -1775,7 +1795,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         });
         const data = await response.json();
         if (isAuto && data.code === 0) {
-          logFeed(`[AUTO ⚡ ${payload.marketType}] Segnale eseguito su ${payload.symbol}`);
+          logFeed(`[AUTO ⚡ 1 POS MAX] Segnale eseguito su ${payload.symbol}`);
           playChime(false);
         }
         return data;
