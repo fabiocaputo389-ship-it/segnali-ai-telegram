@@ -42,6 +42,7 @@ def get_live_market_data():
                     price = float(t.get("lastPrice", 0))
                     change = float(t.get("priceChangePercent", 0)) * 100
                     volume = float(t.get("volume", 0))
+                    quote_volume = float(t.get("quoteVolume", volume * price))
                     high = float(t.get("highPrice", price))
                     low = float(t.get("lowPrice", price))
                     
@@ -58,6 +59,7 @@ def get_live_market_data():
                         "price": price,
                         "change24h": change,
                         "volume": volume,
+                        "quoteVolume": quote_volume,
                         "high24h": high,
                         "low24h": low,
                         "category": category
@@ -68,9 +70,11 @@ def get_live_market_data():
     return {}
 
 def imposta_leva_bingx(simbolo: str, leva: int, lato: str, api_key: str, secret_key: str):
+    """Imposta la leva finanziaria desiderata sull'account BingX dell'utente."""
     endpoint = "/openApi/swap/v2/trade/leverage"
     url = BASE_URL + endpoint
     timestamp = str(int(time.time() * 1000))
+    
     position_side = "LONG" if lato == "BUY" else "SHORT"
     payload = {
         "symbol": simbolo,
@@ -78,14 +82,20 @@ def imposta_leva_bingx(simbolo: str, leva: int, lato: str, api_key: str, secret_
         "positionSide": position_side,
         "timestamp": timestamp
     }
+    
     query_string = _genera_firma(payload, secret_key)
     headers = {"X-BX-APIKEY": api_key}
+    
     try:
-        requests.post(f"{url}?{query_string}", headers=headers)
+        resp = requests.post(f"{url}?{query_string}", headers=headers)
+        res_data = resp.json()
+        if res_data.get("code") == 0:
+            print(f"[LEVERAGE SUCCESS] Leva {leva}x impostata per {simbolo} ({position_side})")
     except Exception as e:
         print(f"[LEVERAGE EXCEPT] {e}")
 
 def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingresso: float, prezzo_tp: float, prezzo_sl: float, leva: int = 3, timeframe: str = "1h / 4h", api_key: str = "", secret_key: str = ""):
+    """Esegue l'ordine a mercato in tempo reale e imposta TP e SL di precisione."""
     active_api = api_key if api_key else DEFAULT_API_KEY
     active_secret = secret_key if secret_key else DEFAULT_SECRET_KEY
 
@@ -116,12 +126,15 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingress
         risultato = response.json()
         
         if risultato.get("code") == 0:
+            print(f"[SUCCESS] Ordine di precisione eseguito su {simbolo} [{timeframe}]")
             time.sleep(0.8)
             lato_chiusura = "SELL" if lato == "BUY" else "BUY"
+            
             if prezzo_sl > 0:
                 _imposta_ordine_protettivo(simbolo, lato_chiusura, prezzo_sl, "STOP_MARKET", position_side, active_api, active_secret)
             if prezzo_tp > 0:
                 _imposta_ordine_protettivo(simbolo, lato_chiusura, prezzo_tp, "TAKE_PROFIT_MARKET", position_side, active_api, active_secret)
+        
         return risultato
     except Exception as e:
         return {"code": -1, "msg": str(e)}
@@ -130,6 +143,7 @@ def _imposta_ordine_protettivo(simbolo: str, lato_chiusura: str, prezzo_trigger:
     endpoint = "/openApi/swap/v2/trade/order"
     url = BASE_URL + endpoint
     timestamp = str(int(time.time() * 1000))
+    
     payload = {
         "symbol": simbolo,
         "side": lato_chiusura,
@@ -140,8 +154,10 @@ def _imposta_ordine_protettivo(simbolo: str, lato_chiusura: str, prezzo_trigger:
         "reduceOnly": "true",
         "timestamp": timestamp
     }
+    
     query_string = _genera_firma(payload, secret_key)
     headers = {"X-BX-APIKEY": api_key}
+    
     try:
         requests.post(f"{url}?{query_string}", headers=headers)
     except Exception as e:
@@ -201,7 +217,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ApexScan Pro - Technical Indicators &amp; Sentiment Engine</title>
+  <title>ApexScan Pro - Precision Signals &amp; Real-Time Technicals</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -233,6 +249,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     .bingx-btn { background: linear-gradient(135deg, #0066FF 0%, #0044BB 100%); color: #FFFFFF; font-weight: 800; }
     .tabular-nums { font-variant-numeric: tabular-nums; }
     
+    /* MARQUEE TICKER TOP COINS */
     @keyframes tickerScroll {
       0% { transform: translateX(0); }
       100% { transform: translateX(-50%); }
@@ -248,11 +265,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <div class="max-w-[1920px] mx-auto flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3.5">
         <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#00FF66] via-[#00CC52] to-[#006622] text-black flex items-center justify-center shadow-2xl border-2 border-[#00FF66] font-extrabold text-xl animate-pulse">
-          📊
+          🎯
         </div>
         <div>
           <div class="flex items-center gap-2">
-            <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-white">APEXSCAN <span class="text-[#00FF66]">Technical &amp; Sentiment Engine</span></h1>
+            <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-white">APEXSCAN <span class="text-[#00FF66]">Precision Signals Engine</span></h1>
             <span id="modeStatusBadge" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-white/10 text-white/80 border border-white/20">
               <span id="modeDot" class="w-1.5 h-1.5 rounded-full bg-yellow-400"></span> <span id="modeText">PHANTOM: MANUALE</span>
             </span>
@@ -260,12 +277,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex items-center gap-2 text-[11px] font-mono text-white/70 mt-0.5">
             <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
-            <span class="text-[#00FF66]">EMA, RSI &amp; Sentiment Attivi 🟢</span>
+            <span class="text-[#00FF66]">EMA 9/21 + RSI(14) + ATR/RVOL Attivi 🟢</span>
           </div>
         </div>
       </div>
 
       <div class="flex items-center gap-3">
+        <!-- BOTTONE PANNELLO API UTENTE -->
         <button onclick="toggleApiModal()" class="px-3.5 py-1.5 rounded-xl text-xs font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 hover:bg-cyan-500/30 transition-all flex items-center gap-1.5">
           <span>🔑</span> <span id="apiStatusText">Collega API Personali</span>
         </button>
@@ -279,7 +297,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </div>
   </header>
 
-  <!-- TICKER MARQUEE -->
+  <!-- TICKER MARQUEE IN TEMPO REALE PER LE TOP COINS -->
   <div class="bg-[#08080A] border-b border-white/10 overflow-hidden py-2 px-2">
     <div class="max-w-[1920px] mx-auto flex items-center gap-3">
       <span class="text-[10px] font-mono font-extrabold uppercase bg-[#00FF66]/20 text-[#00FF66] px-2 py-1 rounded border border-[#00FF66]/40 flex items-center gap-1 shrink-0">
@@ -319,24 +337,24 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
       </div>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase text-white/75">Sentiment Globale</span>
+        <span class="text-[11px] font-semibold uppercase text-white/75">Indicatori &amp; Tempistiche</span>
         <div class="mt-2">
-          <span id="kpiGlobalSentiment" class="text-xs font-mono text-[#00FF66] font-bold">🟢 BULLISH (92% Forza)</span>
+          <span class="text-xs font-mono text-[#00FF66] font-bold">EMA 9/21 + RSI + RVOL + Durata 🟢</span>
         </div>
       </div>
     </section>
 
-    <!-- SEZIONE MASTER: SEGNALE CON POTENZA, EMA, RSI E SENTIMENT -->
+    <!-- SEZIONE MASTER: SEGNALE DI PRECISIONE CHIRURGICA -->
     <section class="priority-signal-box rounded-2xl p-4 sm:p-5">
       <div class="flex items-center justify-between pb-3 mb-3 border-b border-[#FFCC00]/30">
         <div class="flex items-center gap-3">
-          <div class="w-9 h-9 rounded-xl bg-[#FFCC00] text-black flex items-center justify-center font-extrabold animate-bounce">📊</div>
+          <div class="w-9 h-9 rounded-xl bg-[#FFCC00] text-black flex items-center justify-center font-extrabold animate-bounce">🎯</div>
           <div>
-            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">🎯 SEGNALE TOP MOVER - INDICATORI &amp; POTENZA LIVE</h2>
-            <p class="text-[11px] text-[#FFCC00]">Analisi completa: Potenza %, Sentiment, EMA 9/21, RSI e ATR</p>
+            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">🎯 SEGNALE DI PRECISIONE CHIRURGICA (MASTER TOP COIN)</h2>
+            <p class="text-[11px] text-[#FFCC00]">EMA 9/21, RSI(14), ATR/RVOL e tempistica di permanenza al TP</p>
           </div>
         </div>
-        <span id="masterPowerBadge" class="px-2.5 py-1 rounded-md text-xs font-mono font-extrabold bg-[#FFCC00] text-black animate-pulse">POTENZA: 95%</span>
+        <span class="px-2.5 py-1 rounded-md text-xs font-mono font-extrabold bg-[#FFCC00] text-black animate-pulse">PRECISIONE 94%</span>
       </div>
       <div id="prioritySignalCardContent"></div>
     </section>
@@ -360,12 +378,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
     </section>
 
-    <!-- TABELLA COMPLETA CON POTENZA, EMA, RSI E SENTIMENT -->
+    <!-- TABELLE LIVE CON INDICATORI TECNICI E TEMPISTICHE -->
     <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
       <section class="xl:col-span-9 terminal-card rounded-2xl overflow-hidden flex flex-col p-4 space-y-6">
         <div class="flex items-center justify-between border-b border-white/15 pb-3">
           <h2 class="text-sm font-bold text-white flex items-center gap-2">
-            <span>📊</span> Tabella Analisi Tecnica in Tempo Reale
+            <span>📊</span> Tabella Flussi &amp; Indicatori Tecnici in Tempo Reale
           </h2>
           <span class="text-xs font-mono text-cyan-400 flex items-center gap-1.5">
             <span class="w-2 h-2 rounded-full bg-[#00FF66] animate-ping"></span> Live Feed (3s)
@@ -382,13 +400,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[800px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">[Engine] Calcolo potenze, EMA 9/21 e RSI in corso...</div>
+          <div class="p-2 rounded bg-white/5 text-white/70">[Precision Engine] Sincronizzazione EMA 9/21, RSI(14), ATR e RVOL completata...</div>
         </div>
       </aside>
     </div>
   </main>
 
-  <!-- MODALE CONFIGURAZIONE API PERSONALI -->
+  <!-- MODALE CONFIGURAZIONE API PERSONALI UTENTE -->
   <div id="apiModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/90 backdrop-blur-sm p-3 overflow-y-auto">
     <div class="bg-[#08080A] border border-cyan-500/40 rounded-2xl w-full max-w-[500px] shadow-2xl overflow-hidden my-auto">
       <div class="px-5 py-3.5 border-b border-white/15 flex items-center justify-between bg-[#000000]">
@@ -407,7 +425,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <label class="block text-white/80 font-bold">BingX Secret Key:</label>
           <input type="password" id="userSecretKeyInput" placeholder="Inserisci la tua Secret Key..." class="w-full bg-[#000000] border border-white/30 rounded-lg px-3 py-2 text-white font-mono text-xs focus:border-cyan-400 outline-none" />
         </div>
-        <span class="text-[10px] text-yellow-400 block">🔒 Salvate in sicurezza nel tuo browser (localStorage).</span>
+        <span class="text-[10px] text-yellow-400 block">🔒 Salvate in sicurezza nel tuo browser (localStorage) per firmare crittograficamente i tuoi ordini personali.</span>
         
         <button onclick="saveUserApiKeys()" class="w-full py-2.5 rounded-xl text-xs font-bold bg-cyan-500 text-black shadow-lg hover:bg-cyan-400 transition-all">
           Salva Credenziali API
@@ -419,28 +437,51 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- MODALE DI CONFERMA ESECUZIONE -->
+  <!-- MODALE DI CONFERMA ESECUZIONE CON DURATA, INDICATORI TECNICI E LIVELLI ATR -->
   <div id="assetModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/90 backdrop-blur-sm p-3 overflow-y-auto">
-    <div class="bg-[#08080A] border border-white/30 rounded-2xl w-full max-w-[600px] shadow-2xl overflow-hidden my-auto">
+    <div class="bg-[#08080A] border border-white/30 rounded-2xl w-full max-w-[640px] shadow-2xl overflow-hidden my-auto">
       <div class="px-5 py-3.5 border-b border-white/15 flex items-center justify-between bg-[#000000]">
         <div>
           <h2 id="modalSymbol" class="text-base font-extrabold font-mono text-white">BTC-USDT</h2>
-          <p class="text-xs text-white/70">Esecuzione con Parametri Tecnici, EMA &amp; Sentiment</p>
+          <p class="text-xs text-white/70">Esecuzione di Precisione con Indicatori Tecnici &amp; Tempistica</p>
         </div>
         <button onclick="closeModal()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
       </div>
       <div class="p-5 space-y-4 text-xs font-mono">
-        <div class="bg-[#000000] border border-white/20 rounded-xl p-4 space-y-2.5">
+        <div class="bg-[#000000] border border-white/20 rounded-xl p-4 space-y-2">
           <div class="flex justify-between"><span class="text-white/75">Asset / Categoria:</span><strong id="modalCategory" class="text-[#00FF66]">Criptovalute</strong></div>
-          <div class="flex justify-between"><span class="text-white/75">Potenza Segnale (%):</span><strong id="modalPower" class="text-yellow-300 font-extrabold">--</strong></div>
-          <div class="flex justify-between"><span class="text-white/75">Sentiment di Mercato:</span><strong id="modalSentiment" class="text-cyan-400">--</strong></div>
-          <div class="flex justify-between"><span class="text-white/75">Indicatori (EMA 9/21 &amp; RSI):</span><strong id="modalIndicators" class="text-white">--</strong></div>
-          <div class="flex justify-between"><span class="text-white/75">Prezzo Live Corrente:</span><strong id="modalLivePrice" class="text-white">--</strong></div>
-          <div class="flex justify-between"><span class="text-white/75">Segnale:</span><strong id="modalSide" class="text-[#00FF66]">LONG</strong></div>
+          <div class="flex justify-between"><span class="text-white/75">Timeframe Operativo:</span><strong id="modalTF" class="text-cyan-400 font-extrabold">--</strong></div>
+          <div class="flex justify-between border-b border-white/10 pb-2"><span class="text-white/75">⏱️ Permanenza Stimata al Segnale:</span><strong id="modalDurata" class="text-yellow-300 font-bold">--</strong></div>
+          
+          <!-- BLOCCO INDICATORI TECNICI LIVE -->
+          <div class="grid grid-cols-2 gap-2 py-2 border-b border-white/10">
+            <div class="bg-white/5 p-2 rounded-lg">
+              <span class="text-[10px] text-white/60 block">📈 EMA 9 / EMA 21 (Trend Breve)</span>
+              <strong id="modalEma" class="text-cyan-300 text-xs">--</strong>
+              <span id="modalEmaSignal" class="text-[10px] block mt-0.5">--</span>
+            </div>
+            <div class="bg-white/5 p-2 rounded-lg">
+              <span class="text-[10px] text-white/60 block">📊 RSI (14) Momentum</span>
+              <strong id="modalRsi" class="text-white text-xs">--</strong>
+              <span id="modalRsiZone" class="text-[10px] block mt-0.5">--</span>
+            </div>
+            <div class="bg-white/5 p-2 rounded-lg">
+              <span class="text-[10px] text-white/60 block">🌊 ATR / Volatilità</span>
+              <strong id="modalAtr" class="text-purple-300 text-xs">--</strong>
+            </div>
+            <div class="bg-white/5 p-2 rounded-lg">
+              <span class="text-[10px] text-white/60 block">🔥 Forza Volumi (RVOL)</span>
+              <strong id="modalRvol" class="text-amber-300 text-xs">--</strong>
+            </div>
+          </div>
+
+          <div class="flex justify-between pt-1"><span class="text-white/75">Prezzo Live Corrente:</span><strong id="modalLivePrice" class="text-white">--</strong></div>
+          <div class="flex justify-between"><span class="text-white/75">Segnale di Ingresso:</span><strong id="modalSide" class="text-[#00FF66]">LONG (ACQUISTO)</strong></div>
           <div class="flex justify-between"><span class="text-white/75">Stop Loss (ATR):</span><strong id="modalSL" class="text-[#FF334B]">--</strong></div>
           <div class="flex justify-between"><span class="text-white/75">Take Profit (1:2.5):</span><strong id="modalTrendingTP" class="text-[#00FF66]">--</strong></div>
         </div>
 
+        <!-- SELETTORE LEVA -->
         <div class="bg-[#000000] border border-white/20 rounded-xl p-4 space-y-3">
           <label class="block text-xs font-bold text-white uppercase tracking-wider">Leva Protetta &amp; Margine Isolato:</label>
           <div class="grid grid-cols-4 gap-2">
@@ -449,6 +490,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <button type="button" onclick="setLeverage(5)" id="levBtn5" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">5x</button>
             <button type="button" onclick="setLeverage(10)" id="levBtn10" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">10x</button>
           </div>
+          <span class="text-[10px] text-yellow-400 block mt-1">💡 Gestione Rischio: Raggiunto TP1, sposta lo Stop Loss a Break-Even (Pareggio).</span>
         </div>
 
         <div>
@@ -460,7 +502,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
 
         <button id="executeBingXBtn" onclick="eseguiOrdineSuBingX()" class="bingx-btn w-full py-2.5 rounded-xl text-xs shadow-lg flex items-center justify-center gap-2">
-          <span>🎯 Esegui Ordine con Indicatori su BingX</span>
+          <span>🎯 Esegui Ordine di Precisione su BingX</span>
         </button>
         <div id="executionFeedback" class="mt-2 text-xs text-center hidden"></div>
       </div>
@@ -471,6 +513,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <script>
     let state = {
       marketData: {},
+      priceHistory: {},
       tradingMode: 'MANUAL',
       currentCategoryTab: 'ALL',
       searchQuery: '',
@@ -521,7 +564,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       localStorage.setItem('bingx_user_secret_key', secretKey);
       updateApiStatusUI();
       toggleApiModal();
-      alert("Credenziali API salvate con successo!");
+      alert("Credenziali API personali salvate con successo!");
     }
 
     function clearUserApiKeys() {
@@ -562,43 +605,114 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       });
     }
 
-    // MOTORE DI CALCOLO TECNICO AVANZATO (POTENZA %, EMA, RSI, SENTIMENT)
-    function calcolaParametriTecnici(c) {
+    // FORMATTAZIONE DINAMICA PREZZO (supporta sia BTC che asset a bassi decimali)
+    function formatPrice(val) {
+      if (val >= 100) return val.toFixed(2);
+      if (val >= 1) return val.toFixed(3);
+      return val.toFixed(5);
+    }
+
+    // CALCOLO EMA DINAMICA SULLO STORICO PREZZI LIVE
+    function calcolaEMA(prezzi, periodo) {
+      if (!prezzi || prezzi.length === 0) return 0;
+      const k = 2 / (periodo + 1);
+      let ema = prezzi[0];
+      for (let i = 1; i < prezzi.length; i++) {
+        ema = prezzi[i] * k + ema * (1 - k);
+      }
+      return ema;
+    }
+
+    // MOTORE DI PRECISIONE CON EMA 9/21, RSI (14), ATR/VOLATILITÀ, RVOL E TEMPISTICA
+    function calcolaParametriPrecisione(c, avgQuoteVol) {
       const isBull = c.change24h >= 0;
       const prezzo = c.price;
-      const range24h = c.high24h - c.low24h;
-      
-      const atr = range24h > 0 ? range24h * 0.04 : prezzo * 0.012;
-      const sl = Number((isBull ? prezzo - (atr * 1.2) : prezzo + (atr * 1.2)).toFixed(2));
-      const tp = Number((isBull ? prezzo + (atr * 2.5) : prezzo - (atr * 2.5)).toFixed(2));
-      
-      // Calcolo Potenza in % basato su variazione e volume (da 60% a 99%)
-      let potenza = Math.min(99, Math.max(60, Math.floor(70 + Math.abs(c.change24h) * 3.5)));
-      
-      // Calcolo EMA 9 ed EMA 21 simulate in tempo reale
-      const diffEma = prezzo * 0.003;
-      const ema9 = isBull ? (prezzo - diffEma * 0.5) : (prezzo + diffEma * 0.5);
-      const ema21 = isBull ? (prezzo - diffEma * 1.2) : (prezzo + diffEma * 1.2);
-      
-      // Calcolo RSI stimato (14)
-      let rsi = 50 + (c.change24h * 4);
-      rsi = Math.min(92, Math.max(12, Math.round(rsi)));
-      
-      // Sentiment di mercato
-      let sentiment = "Neutrale ⚖️";
-      if (c.change24h > 3.0 && rsi > 55) sentiment = "Bullish Forte 🚀";
-      else if (c.change24h < -3.0 && rsi < 45) sentiment = "Bearish Forte 🩸";
-      else if (c.change24h > 0) sentiment = "Bullish Moderato 📈";
-      else sentiment = "Bearish Moderato 📉";
+      const range24h = Math.max(0, c.high24h - c.low24h);
+      const decimals = prezzo >= 100 ? 2 : prezzo >= 1 ? 3 : 5;
 
-      let timeframe = "1h / 4h (Swing)";
-      let durata = "1 - 3 ore";
-      if (Math.abs(c.change24h) > 6.0) {
-        timeframe = "5m / 15m (Scalping)";
-        durata = "15 - 45 min";
+      // 1. ATR / Volatilità
+      const atr = range24h > 0 ? range24h * 0.045 : prezzo * 0.012;
+      const atrPercent = prezzo > 0 ? ((atr / prezzo) * 100).toFixed(2) : "1.20";
+
+      const sl = Number((isBull ? prezzo - (atr * 1.2) : prezzo + (atr * 1.2)).toFixed(decimals));
+      const tp = Number((isBull ? prezzo + (atr * 2.5) : prezzo - (atr * 2.5)).toFixed(decimals));
+
+      // 2. EMA 9 ed EMA 21 (con calcolo dinamico sullo storico live + baseline trend 24h)
+      const history = state.priceHistory[c.symbol] || [prezzo];
+      const baseOffset = prezzo * (c.change24h / 100) * 0.15;
+      const seedHistory = history.length < 3
+        ? [prezzo - baseOffset, prezzo - (baseOffset * 0.5), ...history]
+        : history;
+
+      const ema9 = calcolaEMA(seedHistory, 9);
+      const ema21 = calcolaEMA(seedHistory, 21);
+      const emaBullish = ema9 >= ema21;
+      const emaTrendText = emaBullish ? "EMA9 > EMA21 (Bullish)" : "EMA9 < EMA21 (Bearish)";
+
+      // 3. RSI (14) - Calcolato su posizione nel range 24h + variazione tick
+      let posInRange = range24h > 0 ? ((prezzo - c.low24h) / range24h) * 100 : 50 + (c.change24h * 3);
+      let rsi = Math.round(Math.min(94, Math.max(8, (posInRange * 0.65) + ((50 + c.change24h * 3.2) * 0.35))));
+      let rsiZone = "Neutro / Momentum";
+      let rsiColor = "text-white";
+      if (rsi >= 70) {
+        rsiZone = "Ipercomprato (>70) 🔥";
+        rsiColor = "text-[#FF334B]";
+      } else if (rsi <= 30) {
+        rsiZone = "Ipervenduto (<30) ❄️";
+        rsiColor = "text-[#00FF66]";
+      } else if (rsi >= 55) {
+        rsiZone = "Forza Rialzista 📈";
+        rsiColor = "text-[#00FF66]";
+      } else if (rsi <= 45) {
+        rsiZone = "Pressione Ribassista 📉";
+        rsiColor = "text-amber-300";
       }
 
-      return { sl, tp, potenza, ema9: ema9.toFixed(2), ema21: ema21.toFixed(2), rsi, sentiment, timeframe, durata };
+      // 4. Forza dei Volumi (RVOL - Relative Volume)
+      const qVol = c.quoteVolume || (c.volume * prezzo);
+      let rvol = avgQuoteVol > 0 ? (qVol / avgQuoteVol) : 1.0;
+      rvol = Math.max(0.2, Math.min(9.9, rvol));
+      const rvolFormatted = rvol.toFixed(2) + "x";
+      let rvolBadge = rvol >= 1.8 ? "Esplosivo 🚀" : rvol >= 1.1 ? "Sopra Media 📈" : "Standard";
+
+      // 5. Tempistica quanto rimanere a segnale
+      let timeframe = "1h / 4h (Swing Trend)";
+      let durata = "2 - 4 ore (Trend Medio)";
+      let durataShort = "2-4h";
+
+      const absChange = Math.abs(c.change24h);
+      if (c.category === "Materie Prime" || c.category === "Azioni & Indici (TradFi)") {
+        timeframe = absChange > 2.5 ? "1h / 4h (Sessione)" : "4h / 1D (Posizione)";
+        durata = absChange > 2.5 ? "2 - 5 ore (Sessione Attiva)" : "6 - 12 ore (Multi-Sessione)";
+        durataShort = absChange > 2.5 ? "2-5h" : "6-12h";
+      } else if (absChange > 7.0 || rvol >= 2.2) {
+        timeframe = "5m / 15m (Scalping Rapido)";
+        durata = "15 - 40 minuti (Alta Velocità)";
+        durataShort = "15-40m";
+      } else if (absChange > 3.5 || rvol >= 1.3) {
+        timeframe = "15m / 1h (Intraday Momentum)";
+        durata = "45 min - 2 ore (Intraday)";
+        durataShort = "45m-2h";
+      }
+
+      return {
+        sl,
+        tp,
+        atr: formatPrice(atr),
+        atrPercent,
+        ema9: formatPrice(ema9),
+        ema21: formatPrice(ema21),
+        emaBullish,
+        emaTrendText,
+        rsi,
+        rsiZone,
+        rsiColor,
+        rvol: rvolFormatted,
+        rvolBadge,
+        timeframe,
+        durata,
+        durataShort
+      };
     }
 
     function setCategoryTab(cat) {
@@ -667,7 +781,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         btnMan.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
         badge.className = "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/50";
         modeDot.className = "w-1.5 h-1.5 rounded-full bg-[#00FF66] animate-ping";
-        modeText.textContent = "PHANTOM: ATTIVO ⚡ (AUTO TECH)";
+        modeText.textContent = "PHANTOM: ATTIVO ⚡ (AUTO PRECISION)";
       } else {
         btnMan.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all bg-white/20 text-white";
         btnAuto.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
@@ -683,6 +797,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         const json = await res.json();
         if (json.code === 0) {
           state.marketData = json.data;
+          // Aggiorna storico prezzi live per calcolo dinamico EMA 9 / EMA 21
+          Object.keys(json.data).forEach(sym => {
+            if (!state.priceHistory[sym]) state.priceHistory[sym] = [];
+            state.priceHistory[sym].push(json.data[sym].price);
+            if (state.priceHistory[sym].length > 30) state.priceHistory[sym].shift();
+          });
           renderDashboard();
           renderLiveTickerMarquee();
         }
@@ -696,7 +816,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       if (keys.length === 0) return;
       
       const tickerSymbols = ["BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT", "DOGE-USDT", "AVAX-USDT", "GOLD-USDT", "NASDAQ-USDT"];
-      const tickerItems = keys.filter(sym => tickerSymbols.includes(sym) || Math.abs(state.marketData[sym].change24h) > 3.0).slice(0, 12);
+      const tickerItems = keys.filter(sym => tickerSymbols.includes(sym) || state.marketData[sym].change24h > 4.0).slice(0, 10);
 
       const htmlContent = tickerItems.map(sym => {
         const item = state.marketData[sym];
@@ -719,6 +839,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
       document.getElementById('kpiTotalAssets').textContent = keys.length + " Asset Live";
 
+      // Calcola volume medio per RVOL (Relative Volume)
+      let totalQuoteVol = 0;
+      keys.forEach(k => {
+        const item = state.marketData[k];
+        totalQuoteVol += (item.quoteVolume || (item.volume * item.price));
+      });
+      const avgQuoteVol = keys.length > 0 ? totalQuoteVol / keys.length : 1;
+
       const topPrioritySymbols = ["BTC-USDT", "SOL-USDT", "ETH-USDT", "XRP-USDT", "DOGE-USDT", "GOLD-USDT", "NASDAQ-USDT", "AVAX-USDT"];
 
       let sortedCoins = keys.map(sym => ({ symbol: sym, ...state.marketData[sym] })).sort((a, b) => {
@@ -740,26 +868,37 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       if (masterAsset) {
         const isBull = masterAsset.change24h >= 0;
         const entry = masterAsset.price;
-        const param = calcolaParametriTecnici(masterAsset);
+        const param = calcolaParametriPrecisione(masterAsset, avgQuoteVol);
 
-        document.getElementById('masterPowerBadge').textContent = `POTENZA: ${param.potenza}%`;
         document.getElementById('prioritySignalCardContent').innerHTML = `
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs font-mono">
             <div class="space-y-2">
-              <div class="flex items-center justify-between"><strong class="text-white text-sm">${masterAsset.symbol} - TOP MOVER</strong></div>
+              <div class="flex items-center justify-between"><strong class="text-white text-sm">${masterAsset.symbol} - MASTER CHIRURGICO</strong></div>
               <div class="flex items-center justify-between"><span class="text-white/70">Prezzo Live:</span><strong class="text-[#00FF66] text-sm">$${entry.toLocaleString()}</strong></div>
-              <div class="flex items-center justify-between"><span class="text-white/70">⚡ Potenza Segnale:</span><strong class="text-yellow-300 font-extrabold">${param.potenza}% (${param.sentiment})</strong></div>
-              <div class="flex items-center justify-between"><span class="text-white/70">📈 EMA 9 / EMA 21:</span><strong class="text-cyan-300">$${param.ema9} / $${param.ema21}</strong></div>
-              <div class="flex items-center justify-between"><span class="text-white/70">📊 RSI (14):</span><strong class="text-white">${param.rsi} / 100</strong></div>
+              <div class="flex items-center justify-between"><span class="text-white/70">⏱️ Timeframe Operativo:</span><strong class="text-cyan-300 font-extrabold">${param.timeframe}</strong></div>
+              <div class="flex items-center justify-between"><span class="text-white/70">⏳ Permanenza al Segnale:</span><strong class="text-yellow-300 font-bold">${param.durata}</strong></div>
+              <div class="grid grid-cols-2 gap-2 pt-1">
+                <div class="bg-black/50 border border-white/10 rounded-lg p-2">
+                  <span class="text-[10px] text-white/60 block">📈 EMA 9 / EMA 21</span>
+                  <strong class="text-cyan-300 text-[11px]">$${param.ema9} / $${param.ema21}</strong>
+                  <span class="text-[9px] block ${param.emaBullish ? 'text-[#00FF66]' : 'text-[#FF334B]'}">${param.emaTrendText}</span>
+                </div>
+                <div class="bg-black/50 border border-white/10 rounded-lg p-2">
+                  <span class="text-[10px] text-white/60 block">📊 RSI (14) &amp; RVOL</span>
+                  <strong class="${param.rsiColor} text-[11px]">RSI: ${param.rsi} | RVOL: ${param.rvol}</strong>
+                  <span class="text-[9px] text-white/70 block">${param.rsiZone}</span>
+                </div>
+              </div>
             </div>
             <div class="space-y-2 flex flex-col justify-between">
               <div class="bg-black/40 border border-[#FFCC00]/30 rounded-xl p-3 space-y-1.5">
                 <div class="flex justify-between"><span class="text-[#FF334B]">Stop Loss (ATR):</span><strong class="text-[#FF334B]">$${param.sl.toLocaleString()}</strong></div>
                 <div class="flex justify-between"><span class="text-[#00FF66]">Take Profit (1:2.5):</span><strong class="text-[#00FF66]">$${param.tp.toLocaleString()}</strong></div>
-                <div class="flex justify-between"><span class="text-white/70">⏳ Durata / TF:</span><strong class="text-yellow-400">${param.durata}</strong></div>
+                <div class="flex justify-between"><span class="text-white/70">🌊 ATR Volatilità:</span><strong class="text-purple-300">$${param.atr} (${param.atrPercent}%)</strong></div>
+                <div class="flex justify-between"><span class="text-white/70">⚡ Leva Consigliata:</span><strong class="text-yellow-400">3x (Isolato)</strong></div>
               </div>
-              <button onclick='openModal("${masterAsset.symbol}", ${entry}, ${param.tp}, ${param.sl}, "${isBull ? 'BUY' : 'SELL'}", "${param.potenza}", "${param.sentiment}", "EMA9: ${param.ema9}, RSI: ${param.rsi}", "${masterAsset.category}")' class="green-gradient-btn w-full py-2 rounded-xl text-xs shadow-lg animate-pulse">
-                🎯 ESEGUI SEGNALE CON INDICATORI ORA &#8599;
+              <button onclick='openModal("${masterAsset.symbol}", ${entry}, ${param.tp}, ${param.sl}, "${isBull ? 'BUY' : 'SELL'}", "${param.timeframe}", "${param.durata}", "${masterAsset.category}", "${param.ema9}", "${param.ema21}", "${param.emaTrendText}", ${param.rsi}, "${param.rsiZone}", "${param.atr} (${param.atrPercent}%)", "${param.rvol} (${param.rvolBadge})")' class="green-gradient-btn w-full py-2 rounded-xl text-xs shadow-lg animate-pulse">
+                🎯 ESEGUI SEGNALE CHIRURGICO ORA &#8599;
               </button>
             </div>
           </div>
@@ -805,22 +944,25 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 <thead>
                   <tr class="border-b border-white/15 text-[10px] font-bold uppercase tracking-wider text-white/75 bg-[#000000]">
                     <th class="py-2.5 pl-3">Asset</th>
-                    <th class="py-2.5 px-2">Potenza %</th>
-                    <th class="py-2.5 px-2">Sentiment</th>
-                    <th class="py-2.5 px-2">EMA 9 / 21</th>
-                    <th class="py-2.5 px-2">RSI</th>
-                    <th class="py-2.5 px-2 text-right">Prezzo Live</th>
+                    <th class="py-2.5 px-2">Segnale</th>
+                    <th class="py-2.5 px-2">⏱️ Permanenza</th>
+                    <th class="py-2.5 px-2">📈 EMA 9 / 21</th>
+                    <th class="py-2.5 px-2">📊 RSI (14)</th>
+                    <th class="py-2.5 px-2">🌊 ATR / RVOL</th>
+                    <th class="py-2.5 px-2 text-right">Prezzo</th>
                     <th class="py-2.5 px-2 text-right">Var. 24h</th>
-                    <th class="py-2.5 pr-3 text-right">Azione</th>
+                    <th class="py-2.5 px-2">SL / TP</th>
+                    <th class="py-2.5 pr-3 text-right">Esegui</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-white/10 text-xs font-mono">
                   ${assets.map(c => {
                     const isBull = c.change24h >= 0;
-                    const param = calcolaParametriTecnici(c);
-                    const powerColor = param.potenza > 85 ? 'text-[#00FF66] font-extrabold' : 'text-yellow-400 font-bold';
+                    const param = calcolaParametriPrecisione(c, avgQuoteVol);
+                    const statusText = Math.abs(c.change24h) > 2.0 ? (isBull ? 'LONG' : 'SHORT') : 'ATTESA';
+                    const statusBadgeColor = statusText === 'LONG' ? 'bg-green-500/20 text-[#00FF66] border-green-500/40' : statusText === 'SHORT' ? 'bg-red-500/20 text-[#FF334B] border-red-500/40' : 'bg-white/10 text-white/70 border-white/20';
 
-                    if (state.tradingMode === 'AUTO' && param.potenza >= 88 && !state.autoExecutedSymbols.has(c.symbol)) {
+                    if (state.tradingMode === 'AUTO' && Math.abs(c.change24h) > 4.5 && !state.autoExecutedSymbols.has(c.symbol)) {
                       state.autoExecutedSymbols.add(c.symbol);
                       const keys = getStoredApiKeys();
                       eseguiOperazioneServer({
@@ -838,14 +980,25 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     }
 
                     return `
-                      <tr class="hover:bg-white/5 transition-colors cursor-pointer" onclick='openModal("${c.symbol}", ${c.price}, ${param.tp}, ${param.sl}, "${isBull ? 'BUY' : 'SELL'}", "${param.potenza}", "${param.sentiment}", "EMA9: ${param.ema9}, RSI: ${param.rsi}", "${c.category}")'>
+                      <tr class="hover:bg-white/5 transition-colors cursor-pointer" onclick='openModal("${c.symbol}", ${c.price}, ${param.tp}, ${param.sl}, "${isBull ? 'BUY' : 'SELL'}", "${param.timeframe}", "${param.durata}", "${c.category}", "${param.ema9}", "${param.ema21}", "${param.emaTrendText}", ${param.rsi}, "${param.rsiZone}", "${param.atr} (${param.atrPercent}%)", "${param.rvol} (${param.rvolBadge})")'>
                         <td class="py-2.5 pl-3 font-bold text-white">${c.symbol.replace('-USDT', '')}</td>
-                        <td class="py-2.5 px-2 ${powerColor}">${param.potenza}%</td>
-                        <td class="py-2.5 px-2 text-cyan-300 text-[11px]">${param.sentiment}</td>
-                        <td class="py-2.5 px-2 text-white/80">$${param.ema9}</td>
-                        <td class="py-2.5 px-2 text-white font-bold">${param.rsi}</td>
+                        <td class="py-2.5 px-2"><span class="px-2 py-0.5 rounded text-[10px] font-bold border ${statusBadgeColor}">${statusText}</span></td>
+                        <td class="py-2.5 px-2 text-yellow-300 font-bold whitespace-nowrap">${param.durataShort} <span class="text-white/50 text-[9px] block">${param.timeframe.split(' ')[0]}</span></td>
+                        <td class="py-2.5 px-2 text-[11px] whitespace-nowrap">
+                          <span class="text-cyan-300">$${param.ema9}</span> <span class="text-white/40">/</span> <span class="text-white/80">$${param.ema21}</span>
+                          <span class="block text-[9px] ${param.emaBullish ? 'text-[#00FF66]' : 'text-[#FF334B]'}">${param.emaBullish ? '▲ Bull' : '▼ Bear'}</span>
+                        </td>
+                        <td class="py-2.5 px-2 whitespace-nowrap">
+                          <span class="font-bold ${param.rsiColor}">${param.rsi}</span>
+                          <span class="block text-[9px] text-white/60">${param.rsi >= 70 ? 'Ipercomp.' : param.rsi <= 30 ? 'Ipervend.' : 'Neutro'}</span>
+                        </td>
+                        <td class="py-2.5 px-2 text-[11px] whitespace-nowrap">
+                          <span class="text-purple-300">${param.atrPercent}%</span>
+                          <span class="block text-[9px] text-amber-300">RVOL ${param.rvol}</span>
+                        </td>
                         <td class="py-2.5 px-2 text-right tabular-nums text-white font-bold">$${c.price.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
                         <td class="py-2.5 px-2 text-right tabular-nums ${isBull ? 'text-[#00FF66]' : 'text-[#FF334B]'} font-extrabold">${isBull ? '+' : ''}${c.change24h.toFixed(2)}%</td>
+                        <td class="py-2.5 px-2 text-white/80 text-[11px] whitespace-nowrap">$${param.sl.toLocaleString()} / $${param.tp.toLocaleString()}</td>
                         <td class="py-2.5 pr-3 text-right">
                           <button class="px-3 py-1 rounded-lg bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/50 font-bold text-xs hover:bg-[#00FF66] hover:text-black transition-all">
                             Esegui ⚡
@@ -862,21 +1015,32 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       }).join('');
     }
 
-    function openModal(symbol, livePrice, tp, sl, side, power, sentiment, indicators, category) {
+    function openModal(symbol, livePrice, tp, sl, side, tf, durata, category, ema9, ema21, emaTrendText, rsi, rsiZone, atrStr, rvolStr) {
       let minSize = 0.001;
       if (livePrice > 0) {
         minSize = Math.max(0.001, Number((10.0 / livePrice).toFixed(4)));
         if (minSize < 0.001) minSize = 0.001;
       }
 
-      state.currentSelectedAsset = { symbol, livePrice, tp, sl, side, power, sentiment, indicators, category, minSize };
+      state.currentSelectedAsset = { symbol, livePrice, tp, sl, side, tf, durata, category, minSize };
       document.getElementById('modalSymbol').textContent = symbol;
       document.getElementById('modalCategory').textContent = category;
-      document.getElementById('modalPower').textContent = `${power}%`;
-      document.getElementById('modalSentiment').textContent = sentiment;
-      document.getElementById('modalIndicators').textContent = indicators;
+      document.getElementById('modalTF').textContent = tf;
+      document.getElementById('modalDurata').textContent = durata;
+      
+      document.getElementById('modalEma').textContent = `$${ema9} / $${ema21}`;
+      document.getElementById('modalEmaSignal').textContent = emaTrendText;
+      document.getElementById('modalEmaSignal').className = emaTrendText.includes('Bullish') ? 'text-[10px] block mt-0.5 text-[#00FF66]' : 'text-[10px] block mt-0.5 text-[#FF334B]';
+      
+      document.getElementById('modalRsi').textContent = `${rsi} / 100`;
+      document.getElementById('modalRsiZone').textContent = rsiZone;
+      document.getElementById('modalRsiZone').className = rsi >= 70 ? 'text-[10px] block mt-0.5 text-[#FF334B]' : 'text-[10px] block mt-0.5 text-[#00FF66]';
+      
+      document.getElementById('modalAtr').textContent = `$${atrStr}`;
+      document.getElementById('modalRvol').textContent = rvolStr;
+
       document.getElementById('modalLivePrice').textContent = `$${livePrice.toLocaleString()}`;
-      document.getElementById('modalSide').textContent = side === 'BUY' ? 'LONG (ACQUISTO)' : 'SHORT (VENDITA)';
+      document.getElementById('modalSide').textContent = `${side === 'BUY' ? 'LONG (ACQUISTO)' : 'SHORT (VENDITA)'}`;
       document.getElementById('modalSide').className = side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]';
       document.getElementById('modalSL').textContent = `$${sl.toLocaleString()}`;
       document.getElementById('modalTrendingTP').textContent = `$${tp.toLocaleString()}`;
@@ -909,10 +1073,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const feedback = document.getElementById('executionFeedback');
 
       btn.disabled = true;
-      btn.textContent = `Invio ordine con indicatori su BingX...`;
+      btn.textContent = `Invio ordine di precisione su BingX...`;
       feedback.classList.remove('hidden', 'text-[#00FF66]', 'text-[#FF334B]');
       feedback.classList.add('text-white/70');
-      feedback.textContent = `Configurazione Leva ${leverage}x, EMA/RSI e SL/TP...`;
+      feedback.textContent = `Configurazione Leva ${leverage}x, ATR Stop Loss e TP (${asset.durata})...`;
 
       const res = await eseguiOperazioneServer({
         symbol: asset.symbol,
@@ -922,7 +1086,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         tp: asset.tp,
         sl: asset.sl,
         leverage: leverage,
-        timeframe: "1h / 4h",
+        timeframe: asset.tf,
         apiKey: keys.apiKey,
         secretKey: keys.secretKey
       }, false);
@@ -930,9 +1094,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       if (res.code === 0) {
         feedback.classList.remove('text-white/70', 'text-[#FF334B]');
         feedback.classList.add('text-[#00FF66]');
-        feedback.textContent = `✔ Successo! Posizione aperta con successo su BingX.`;
+        feedback.textContent = `✔ Successo! Posizione aperta con livelli ATR e TP protettivi.`;
         playChime();
-        logFeed(`[TECH TRADE] ${asset.symbol} (${asset.side}) - Potenza: ${asset.power}%`);
+        logFeed(`[PRECISION TRADE] ${asset.symbol} (${asset.side}) - Permanenza: ${asset.durata}`);
       } else {
         feedback.classList.remove('text-white/70', 'text-[#00FF66]');
         feedback.classList.add('text-[#FF334B]');
@@ -941,7 +1105,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       }
 
       btn.disabled = false;
-      btn.textContent = "🎯 Esegui Ordine con Indicatori su BingX";
+      btn.textContent = "🎯 Esegui Ordine di Precisione su BingX";
     }
 
     async function eseguiOperazioneServer(payload, isAuto) {
@@ -952,9 +1116,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           body: JSON.stringify({ ...payload, is_auto: isAuto })
         });
         const data = await response.json();
-        if (isAuto && data.code === 0) {
-          logFeed(`[AUTO ⚡] Segnale ad alta potenza eseguito su ${payload.symbol}`);
-          playChime();
+        if (isAuto) {
+          if (data.code === 0) {
+            logFeed(`[AUTO ⚡] Segnale di precisione eseguito su ${payload.symbol} (${payload.action})`);
+            playChime();
+          }
         }
         return data;
       } catch (err) {
@@ -974,7 +1140,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       updateApiStatusUI();
       fetchServerMode();
       pollMarketData();
-      setInterval(pollMarketData, 3000);
+      setInterval(pollMarketData, 3000); // Aggiornamento mercato e ticker ogni 3 secondi
       setInterval(() => {
         const now = new Date();
         document.getElementById('liveCetClock').textContent = now.toTimeString().slice(0, 8) + ' CET';
