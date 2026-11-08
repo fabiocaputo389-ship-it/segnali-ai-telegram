@@ -553,7 +553,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex items-center gap-2 text-[11px] font-mono text-white/70 mt-0.5">
             <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
-            <span class="text-[#00FF66]">1. Entrata • 2. Rimanere a mercato • 3. Uscire 🟢</span>
+            <span class="text-[#00FF66]">1. Entrata • 2. Rimanere a mercato • 3. Uscire (Precisione Dati 🟢)</span>
           </div>
         </div>
       </div>
@@ -595,14 +595,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <!-- MAIN -->
   <main class="flex-1 max-w-[1920px] w-full mx-auto px-3 sm:px-5 py-4 flex flex-col gap-4">
 
-    <!-- BOX ADVISOR POSIZIONE ATTIVA CON TABELLA DETTAGLIATA (1. Entrata, 2. Rimanere a mercato, 3. Uscire) -->
+    <!-- BOX ADVISOR POSIZIONE ATTIVA CON LE 3 VOCI OBBLIGATORIE -->
     <div id="activePositionAdvisorBox" class="hidden terminal-card rounded-2xl p-4 sm:p-5 border-2 border-[#00FF66] bg-gradient-to-r from-emerald-950/40 via-[#08080A] to-emerald-950/40 shadow-2xl space-y-4">
       <div class="flex flex-wrap items-center justify-between pb-3 border-b border-[#00FF66]/30 gap-3">
         <div class="flex items-center gap-3">
           <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse">⚡</div>
           <div>
             <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">🟢 ADVISOR LIVE &amp; GESTIONE POSIZIONE (<span id="advSymbol">BTC-USDT</span>)</h2>
-            <p class="text-[11px] text-[#00FF66]">Monitoraggio continuo: 1. Entrata registrata • 2. Rimanere a mercato • 3. Uscire al TP/SL</p>
+            <p class="text-[11px] text-[#00FF66]">Controllo millimetrico: 1. Entrata • 2. Rimanere a mercato • 3. Uscire con dati precisi</p>
           </div>
         </div>
         <button onclick="chiudiPosizioneMonitorata()" class="px-3.5 py-1.5 rounded-xl bg-red-500/20 text-[#FF334B] border border-red-500/50 hover:bg-red-500/30 text-xs font-bold transition-all">
@@ -618,7 +618,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <span id="advSideBadge" class="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-green-500/20 text-[#00FF66]">LONG</span>
         </div>
         <div class="bg-black/50 p-3 rounded-xl border border-white/10">
-          <span class="text-white/60 text-[10px] block">PREZZO LIVE CORRENTE</span>
+          <span class="text-white/60 text-[10px] block">PREZZO LIVE &amp; PNL NETTO</span>
           <strong id="advLivePrice" class="text-cyan-300 text-sm">--</strong>
           <span id="advPnlVal" class="block mt-1 text-[10px] font-bold text-[#00FF66]">PnL: 0.00%</span>
         </div>
@@ -636,7 +636,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
       </div>
 
-      <!-- TABELLA COMPLETA INFORMAZIONI CON LE 3 VOCI -->
+      <!-- TABELLA COMPLETA CON LE 3 VOCI RICHIESTE -->
       <div class="overflow-x-auto pt-2">
         <table class="w-full text-left border-collapse text-xs font-mono">
           <thead>
@@ -645,9 +645,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
               <th class="py-2.5 px-3">1. Entrata (Entry)</th>
               <th class="py-2.5 px-3">Target TP Certo</th>
               <th class="py-2.5 px-3">Stop Loss</th>
-              <th class="py-2.5 px-3">Rendimento PnL</th>
-              <th class="py-2.5 px-3">2. Rimanere a mercato?</th>
-              <th class="py-2.5 px-3 text-right">3. Uscire / Azione</th>
+              <th class="py-2.5 px-3">PnL Netto (Stima)</th>
+              <th class="py-2.5 px-3">2. Rimanere a mercato</th>
+              <th class="py-2.5 px-3 text-right">3. Uscire</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-white/10 bg-black/40">
@@ -688,9 +688,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
       </div>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase text-white/75">Sistema Advisor Posizione</span>
+        <span class="text-[11px] font-semibold uppercase text-white/75">Precisione Dati Engine</span>
         <div class="mt-2">
-          <span id="kpiMarketBadge" class="text-xs font-mono text-cyan-400 font-bold">🟢 Advisor Live Attivo</span>
+          <span id="kpiMarketBadge" class="text-xs font-mono text-cyan-400 font-bold">🟢 OHLCV 15m + Fee Real</span>
         </div>
       </div>
     </section>
@@ -751,7 +751,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[800px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">[Precision Engine] Scanner e Advisor di posizione pronti...</div>
+          <div class="p-2 rounded bg-white/5 text-white/70">[Precision Engine] Scanner e Advisor con dati avanzati pronti...</div>
         </div>
       </aside>
     </div>
@@ -1140,7 +1140,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       sideBadge.textContent = side;
       sideBadge.className = side === 'BUY' ? 'inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-green-500/20 text-[#00FF66]' : 'inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-[#FF334B]';
 
-      // Popola i dati fissi della tabella info advisor (1. Entrata)
       document.getElementById('tableAdvSymbol').textContent = symbol;
       document.getElementById('tableAdvEntry').textContent = `$${formatPrice(entryPrice)}`;
       document.getElementById('tableAdvTp').textContent = `$${formatPrice(tpPrice)}`;
@@ -1167,16 +1166,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const currentPrice = liveItem.price;
       document.getElementById('advLivePrice').textContent = `$${formatPrice(currentPrice)}`;
 
-      const diff = pos.side === 'BUY' ? (currentPrice - pos.entryPrice) : (pos.entryPrice - currentPrice);
-      const pnlPct = (diff / pos.entryPrice) * 100;
+      const rawDiff = pos.side === 'BUY' ? (currentPrice - pos.entryPrice) : (pos.entryPrice - currentPrice);
+      const rawPnlPct = (rawDiff / pos.entryPrice) * 100;
       
+      const feeRate = state.marketType === 'SPOT' ? 0.002 : 0.001;
+      const pnlPct = rawPnlPct - (feeRate * 100);
+
       const pnlEl = document.getElementById('advPnlVal');
-      pnlEl.textContent = `PnL: ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`;
+      pnlEl.textContent = `PnL Netto: ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`;
       pnlEl.className = `block mt-1 text-[10px] font-bold ${pnlPct >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
 
-      // Aggiornamento Rendimento PnL in tabella
       const tablePnl = document.getElementById('tableAdvPnl');
-      tablePnl.textContent = `${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`;
+      tablePnl.textContent = `${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}% (Netto)`;
       tablePnl.className = `py-3 px-3 font-extrabold ${pnlPct >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
 
       const timeLeftMs = pos.targetTimestamp - Date.now();
@@ -1204,7 +1205,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const hitSl = pos.side === 'BUY' ? currentPrice <= pos.slPrice : currentPrice >= pos.slPrice;
 
       if (hitTp) {
-        statusAdvice.textContent = "🎯 TAKE PROFIT RAGGIUNTO!";
+        statusAdvice.textContent = "🎯 3. Uscire: TAKE PROFIT RAGGIUNTO!";
         statusAdvice.className = "text-[#00FF66] text-xs block font-extrabold animate-bounce";
         actionAlert.textContent = "3. Uscire: CHIUDI SUBITO E INCASSA IL PROFITTO.";
         tableRemain.textContent = "No (Target Raggiunto)";
@@ -1212,7 +1213,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         tableExit.className = "py-3 px-3 text-right text-[#00FF66] font-extrabold animate-pulse";
         playChime(true);
       } else if (hitSl) {
-        statusAdvice.textContent = "⚠️ STOP LOSS TESTATO!";
+        statusAdvice.textContent = "⚠️ 3. Uscire: STOP LOSS TESTATO!";
         statusAdvice.className = "text-[#FF334B] text-xs block font-extrabold animate-pulse";
         actionAlert.textContent = "3. Uscire: Taglia la posizione per protezione capitale.";
         tableRemain.textContent = "No (Stop Toccato)";
@@ -1222,21 +1223,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       } else if (pnlPct >= 1.8) {
         statusAdvice.textContent = "🟢 2. Rimanere a mercato (In Profitto)";
         statusAdvice.className = "text-[#00FF66] text-xs block font-bold";
-        actionAlert.textContent = "Consiglio: Sposta lo Stop Loss a Break-Even e continua a rimanere.";
+        actionAlert.textContent = "2. Rimanere: Sposta lo Stop Loss a Break-Even e continua a rimanere.";
         tableRemain.textContent = "Sì (In Profitto Solido)";
-        tableExit.textContent = "Rimani / Sposta SL a Pareggio";
+        tableExit.textContent = "3. Uscire solo al TP / SL";
         tableExit.className = "py-3 px-3 text-right text-[#00FF66] font-bold";
       } else if (pnlPct <= -1.2) {
-        statusAdvice.textContent = "⚠️ ATTENZIONE (In Ritracciamento)";
+        statusAdvice.textContent = "⚠️ 2. Rimanere / 3. Uscire (Ritracciamento)";
         statusAdvice.className = "text-amber-400 text-xs block font-bold";
-        actionAlert.textContent = "Valuta se anticipare l'uscita se il supporto cede.";
+        actionAlert.textContent = "2. Rimanere con prudenza o 3. Uscire se il supporto cede.";
         tableRemain.textContent = "Rischio Ritracciamento";
         tableExit.textContent = "Valuta Uscita Anticipata";
         tableExit.className = "py-3 px-3 text-right text-amber-400 font-bold";
       } else {
         statusAdvice.textContent = "🟢 2. Rimanere a mercato (Trend Stabile)";
         statusAdvice.className = "text-cyan-300 text-xs block font-bold";
-        actionAlert.textContent = "Rimani dentro fino al target temporale o al TP certo.";
+        actionAlert.textContent = "2. Rimanere dentro fino al target temporale o al TP certo.";
         tableRemain.textContent = "Sì (Rimani a Mercato)";
         tableExit.textContent = "3. Uscire solo al TP / SL";
         tableExit.className = "py-3 px-3 text-right text-yellow-300 font-bold";
@@ -1325,14 +1326,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         btnFut.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
         kpiBadge.textContent = "🪙 SPOT TARGET TP (Advisor Live)";
         headerTitle.textContent = "Millimetric Spot Advisor Engine";
-        masterSub.textContent = "Scanner Spot con candele 15m reali e Advisor attivo per dirti quando entrare, rimanere o chiudere";
+        masterSub.textContent = "Scanner Spot con candele 15m reali e Advisor attivo per precisione dati e gestione trade";
         tableLabel.textContent = "SPOT TARGET TP";
       } else {
         btnFut.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all bg-[#0066FF] text-white";
         btnSpot.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
-        kpiBadge.textContent = "🟢 FUTURES (Advisor Live)";
+        kpiBadge.textContent = "🟢 FUTURES (Precisione Dati)";
         headerTitle.textContent = "Millimetric Futures Engine";
-        masterSub.textContent = "Advisor di posizione in tempo reale: 1. Entrata • 2. Rimanere • 3. Uscire";
+        masterSub.textContent = "Advisor in tempo reale: 1. Entrata • 2. Rimanere • 3. Uscire";
         tableLabel.textContent = "FUTURES";
       }
     }
