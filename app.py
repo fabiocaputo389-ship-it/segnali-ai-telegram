@@ -159,10 +159,9 @@ def get_klines_precision(simbolo: str, market_type: str = "FUTURES", interval: s
             dec = 7
 
         if market_type == "SPOT":
-            # Spot: Ottimizzato per accumulo e target di Take Profit certo al rialzo
             side = "BUY"
             sl_mult = 1.20
-            tp_mult = 2.80  # Target spot più ampio per swing profittevoli
+            tp_mult = 2.80
             sl = round(last_price - (atr14 * sl_mult), dec)
             tp = round(last_price + (atr14 * tp_mult), dec)
         else:
@@ -175,47 +174,52 @@ def get_klines_precision(simbolo: str, market_type: str = "FUTURES", interval: s
 
         atr_pct = round((atr14 / last_price) * 100, 3) if last_price > 0 else 0.0
 
-        # Calcolo tempistica millimetrica al TP
         tp_dist = abs(tp - last_price)
         candele_stimate = max(2, round(tp_dist / (atr14 * 0.40))) if atr14 > 0 else 10
         minuti_stimati = candele_stimate * 15
-        
+
         if market_type == "SPOT":
             ore_spot = round(minuti_stimati / 60 * 1.5, 1)
             if ore_spot < 2:
                 durata = "1 - 3 ore (Impulso Spot)"
                 durata_short = "1-3h"
                 tf_consigliato = "15m / 1h"
+                tempo_sec = 7200
             elif ore_spot <= 24:
                 durata = f"{ore_spot} - {round(ore_spot + 6, 1)} ore (Intraday Spot)"
                 durata_short = f"{int(ore_spot)}h"
                 tf_consigliato = "1h / 4h"
+                tempo_sec = int(ore_spot * 3600)
             else:
                 giorni = round(ore_spot / 24, 1)
                 durata = f"{giorni} - {giorni + 1.5} giorni (Swing Spot)"
                 durata_short = f"{giorni}d"
                 tf_consigliato = "4h / 1D"
+                tempo_sec = int(giorni * 86400)
         else:
             if minuti_stimati < 60:
                 durata = f"{minuti_stimati} - {minuti_stimati + 20} min (Scalp 15m)"
                 durata_short = f"{minuti_stimati}m"
                 tf_consigliato = "5m / 15m"
+                tempo_sec = minuti_stimati * 60
             elif minuti_stimati < 360:
                 ore = round(minuti_stimati / 60, 1)
                 durata = f"{ore} - {round(ore + 1.5, 1)} ore (Trend Intraday)"
                 durata_short = f"{ore}h"
                 tf_consigliato = "15m / 1h"
+                tempo_sec = int(ore * 3600)
             else:
                 ore = round(minuti_stimati / 60)
                 durata = f"{ore} - {ore + 6} ore (Swing Futures)"
                 durata_short = f"{ore}h"
                 tf_consigliato = "1h / 4h"
+                tempo_sec = int(ore * 3600)
 
         score = 72
         if market_type == "SPOT":
             if ema_bull: score += 12
             if cross_up: score += 8
-            if rsi14 < 52: score += 8  # Premio per ingressi su dip spot sani
+            if rsi14 < 52: score += 8
             if rvol >= 1.2: score += 6
         else:
             if (ema_bull and side == "BUY") or (not ema_bull and side == "SELL"): score += 12
@@ -241,6 +245,7 @@ def get_klines_precision(simbolo: str, market_type: str = "FUTURES", interval: s
             "timeframe": tf_consigliato,
             "durata": durata,
             "durataShort": durata_short,
+            "tempoSec": tempo_sec,
             "precisionScore": score,
             "decimals": dec
         }
@@ -360,7 +365,6 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingress
             "timestamp": str(int(time.time() * 1000))
         }
     else:
-        # Esecuzione reale Spot V1 su BingX
         endpoint = "/openApi/spot/v1/trade/order"
         payload_ordine = {
             "symbol": simbolo,
@@ -498,7 +502,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ApexScan Pro - Ultimate Millimetric Scanner</title>
+  <title>ApexScan Pro - Live Position Advisor Engine</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -549,7 +553,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
         <div>
           <div class="flex items-center gap-2">
-            <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-white">APEXSCAN <span class="text-[#00FF66]" id="headerEngineTitle">Millimetric Engine</span></h1>
+            <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-white">APEXSCAN <span class="text-[#00FF66]" id="headerEngineTitle">Live Advisor Engine</span></h1>
             <span id="modeStatusBadge" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-white/10 text-white/80 border border-white/20">
               <span id="modeDot" class="w-1.5 h-1.5 rounded-full bg-yellow-400"></span> <span id="modeText">MANUALE</span>
             </span>
@@ -557,20 +561,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex items-center gap-2 text-[11px] font-mono text-white/70 mt-0.5">
             <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
-            <span class="text-[#00FF66]">Spot &amp; Futures OHLCV 15m Reale + Target TP Certo 🟢</span>
+            <span class="text-[#00FF66]">Advisor Posizione in Tempo Reale &amp; Uscita Millimetrica 🟢</span>
           </div>
         </div>
       </div>
 
       <div class="flex items-center gap-3 flex-wrap">
-        <!-- SELETTORE MERCATO (FUTURES / SPOT) -->
+        <!-- SELETTORE MERCATO -->
         <div class="flex items-center bg-[#08080A] p-1.5 rounded-xl border border-white/20 gap-1.5">
           <span class="text-xs font-mono font-bold text-white/70 px-1">Mercato:</span>
           <button id="btnMarketFutures" onclick="switchMarketType('FUTURES')" class="px-3 py-1 rounded-lg text-xs font-bold transition-all bg-[#0066FF] text-white">FUTURES</button>
           <button id="btnMarketSpot" onclick="switchMarketType('SPOT')" class="px-3 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white">SPOT 🪙</button>
         </div>
 
-        <!-- BOTTONE PANNELLO API UTENTE -->
+        <!-- BOTTONE API -->
         <button onclick="toggleApiModal()" class="px-3.5 py-1.5 rounded-xl text-xs font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 hover:bg-cyan-500/30 transition-all flex items-center gap-1.5">
           <span>🔑</span> <span id="apiStatusText">Collega API Personali</span>
         </button>
@@ -602,6 +606,46 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <!-- MAIN -->
   <main class="flex-1 max-w-[1920px] w-full mx-auto px-3 sm:px-5 py-4 flex flex-col gap-4">
 
+    <!-- BOX ADVISOR POSIZIONE ATTIVA IN TEMPO REALE (NASCOSTO FINCHÉ NON APRI UN TRADE) -->
+    <div id="activePositionAdvisorBox" class="hidden terminal-card rounded-2xl p-4 sm:p-5 border-2 border-[#00FF66] bg-gradient-to-r from-emerald-950/40 via-[#08080A] to-emerald-950/40 shadow-2xl">
+      <div class="flex flex-wrap items-center justify-between pb-3 mb-3 border-b border-[#00FF66]/30 gap-3">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse">⚡</div>
+          <div>
+            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">🟢 ADVISOR POSIZIONE LIVE (<span id="advSymbol">BTC-USDT</span>)</h2>
+            <p class="text-[11px] text-[#00FF66]">Monitoraggio continuo: tempo residuo, consiglio di tenuta e allerta chiusura</p>
+          </div>
+        </div>
+        <button onclick="chiudiPosizioneMonitorata()" class="px-3.5 py-1.5 rounded-xl bg-red-500/20 text-[#FF334B] border border-red-500/50 hover:bg-red-500/30 text-xs font-bold transition-all">
+          Chiudi / Deseleziona Monitoraggio ✕
+        </button>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs font-mono">
+        <div class="bg-black/50 p-3 rounded-xl border border-white/10">
+          <span class="text-white/60 text-[10px] block">PREZZO DI INGRESSO (ENTRY)</span>
+          <strong id="advEntryPrice" class="text-white text-sm">--</strong>
+          <span id="advSideBadge" class="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-green-500/20 text-[#00FF66]">LONG</span>
+        </div>
+        <div class="bg-black/50 p-3 rounded-xl border border-white/10">
+          <span class="text-white/60 text-[10px] block">PREZZO LIVE CORRENTE</span>
+          <strong id="advLivePrice" class="text-cyan-300 text-sm">--</strong>
+          <span id="advPnlVal" class="block mt-1 text-[10px] font-bold text-[#00FF66]">PnL: 0.00%</span>
+        </div>
+        <div class="bg-black/50 p-3 rounded-xl border border-white/10">
+          <span class="text-white/60 text-[10px] block">⏱️ TEMPO RIMANENTE AL TP</span>
+          <strong id="advTimeRemaining" class="text-yellow-300 text-sm">--:--</strong>
+          <span id="advTimeProgress" class="block mt-1 text-[10px] text-white/70">Durata stimata attiva</span>
+        </div>
+        <div class="bg-black/50 p-3 rounded-xl border border-white/10 flex flex-col justify-between">
+          <div>
+            <span class="text-white/60 text-[10px] block">🤖 CONSIGLIO ADVISOR LIVE</span>
+            <strong id="advStatusAdvice" class="text-[#00FF66] text-xs block mt-0.5">Analisi in corso...</strong>
+          </div>
+          <span id="advActionAlert" class="text-[10px] text-white/80 italic mt-1">--</span>
+        </div>
+      </div>
+    </div>
+
     <!-- KPI DINAMICI -->
     <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
@@ -625,21 +669,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
       </div>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase text-white/75">Modalità Target TP Certo</span>
+        <span class="text-[11px] font-semibold uppercase text-white/75">Sistema Advisor Posizione</span>
         <div class="mt-2">
-          <span id="kpiMarketBadge" class="text-xs font-mono text-cyan-400 font-bold">🟢 FUTURES (OHLCV Reale)</span>
+          <span id="kpiMarketBadge" class="text-xs font-mono text-cyan-400 font-bold">🟢 Advisor Live Attivo</span>
         </div>
       </div>
     </section>
 
-    <!-- SEZIONE MASTER (TARGET TP CERTO & SCANSIONE OHLCV) -->
+    <!-- SEZIONE MASTER -->
     <section class="priority-signal-box rounded-2xl p-4 sm:p-5">
       <div class="flex items-center justify-between pb-3 mb-3 border-b border-[#FFCC00]/30">
         <div class="flex items-center gap-3">
           <div class="w-9 h-9 rounded-xl bg-[#FFCC00] text-black flex items-center justify-center font-extrabold animate-bounce">🎯</div>
           <div>
             <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">🎯 SEGNALE MASTER CON TARGET TP CERTO (15M OHLCV)</h2>
-            <p class="text-[11px] text-[#FFCC00]" id="masterSubtitle">Scansione millimetrica orientata al raggiungimento matematico del Take Profit</p>
+            <p class="text-[11px] text-[#FFCC00]" id="masterSubtitle">Avvio con monitoraggio istantaneo del tempo di permanenza e alert chiusura</p>
           </div>
         </div>
         <span id="masterPrecisionBadge" class="px-2.5 py-1 rounded-md text-xs font-mono font-extrabold bg-[#FFCC00] text-black animate-pulse">CALIBRAZIONE TP...</span>
@@ -662,7 +706,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
       </div>
       <div class="relative">
-        <input type="text" id="coinSearchInput" oninput="filterCoinSearch(this.value)" placeholder="🔍 Cerca Asset Spot o Futures (es. BTC, ETH, SOL, XRP, SUI, PEPE, GOLD)..." class="w-full bg-[#000000] border border-white/25 rounded-xl px-4 py-2.5 text-xs font-mono text-white outline-none focus:border-[#00FF66]" />
+        <input type="text" id="coinSearchInput" oninput="filterCoinSearch(this.value)" placeholder="🔍 Cerca Asset (es. BTC, ETH, SOL, XRP, SUI, PEPE, GOLD)..." class="w-full bg-[#000000] border border-white/25 rounded-xl px-4 py-2.5 text-xs font-mono text-white outline-none focus:border-[#00FF66]" />
       </div>
     </section>
 
@@ -674,7 +718,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <span>📊</span> Tabella Flussi &amp; Target TP Certo (<span id="tableMarketLabel" class="text-[#00FF66]">FUTURES</span>)
           </h2>
           <span class="text-xs font-mono text-cyan-400 flex items-center gap-1.5">
-            <span class="w-2 h-2 rounded-full bg-[#00FF66] animate-ping"></span> Clicca qualsiasi riga per calibrazione millimetrica
+            <span class="w-2 h-2 rounded-full bg-[#00FF66] animate-ping"></span> Clicca qualsiasi riga per avviare il trade e l'Advisor live
           </span>
         </div>
 
@@ -684,11 +728,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <aside class="xl:col-span-3 terminal-card rounded-2xl flex flex-col overflow-hidden">
         <div class="px-4 py-3 border-b border-white/15 bg-[#08080A]">
           <h2 class="text-sm font-bold text-white flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full bg-[#00FF66] animate-ping"></span> Feed Segnali &amp; Target
+            <span class="w-2 h-2 rounded-full bg-[#00FF66] animate-ping"></span> Feed Segnali &amp; Advisor
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[800px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">[Precision Engine] Scanner Spot &amp; Futures operativo...</div>
+          <div class="p-2 rounded bg-white/5 text-white/70">[Precision Engine] Scanner e Advisor di posizione pronti...</div>
         </div>
       </aside>
     </div>
@@ -725,7 +769,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- MODALE ESECUZIONE TARGET TP CERTO -->
+  <!-- MODALE ESECUZIONE -->
   <div id="assetModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/90 backdrop-blur-sm p-3 overflow-y-auto">
     <div class="bg-[#08080A] border border-white/30 rounded-2xl w-full max-w-[650px] shadow-2xl overflow-hidden my-auto">
       <div class="px-5 py-3.5 border-b border-white/15 flex items-center justify-between bg-[#000000]">
@@ -734,7 +778,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <h2 id="modalSymbol" class="text-base font-extrabold font-mono text-white">BTC-USDT</h2>
             <span id="modalOhlcvBadge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">CALIBRAZIONE TP...</span>
           </div>
-          <p id="modalSubtitleType" class="text-xs text-white/70">Target TP Certo su candele 15m reali</p>
+          <p id="modalSubtitleType" class="text-xs text-white/70">Target TP Certo con Advisor di Permanenza Live</p>
         </div>
         <button onclick="closeModal()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
       </div>
@@ -782,7 +826,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           </div>
         </div>
 
-        <!-- SELETTORE LEVA (SOLO FUTURES) -->
+        <!-- SELETTORE LEVA -->
         <div id="leverageSectionWrapper" class="bg-[#000000] border border-white/20 rounded-xl p-4 space-y-3">
           <label class="block text-xs font-bold text-white uppercase tracking-wider">Leva Protetta &amp; Margine Isolato:</label>
           <div class="grid grid-cols-4 gap-2">
@@ -791,7 +835,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <button type="button" onclick="setLeverage(5)" id="levBtn5" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">5x</button>
             <button type="button" onclick="setLeverage(10)" id="levBtn10" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">10x</button>
           </div>
-          <span class="text-[10px] text-yellow-400 block mt-1">💡 Gestione Rischio: Raggiunto il TP Certo, l'operazione si chiude in pieno profitto.</span>
+          <span class="text-[10px] text-yellow-400 block mt-1">💡 Con l'Advisor Live attivo, verrai avvisato in tempo reale quando chiudere.</span>
         </div>
 
         <div>
@@ -803,7 +847,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
 
         <button id="executeBingXBtn" onclick="eseguiOrdineSuBingX()" class="bingx-btn w-full py-2.5 rounded-xl text-xs shadow-lg flex items-center justify-center gap-2">
-          <span>🎯 Esegui Ordine Millimetrico verso il TP Certo</span>
+          <span>🎯 Esegui Ordine &amp; Attiva Advisor Live</span>
         </button>
         <div id="executionFeedback" class="mt-2 text-xs text-center hidden"></div>
       </div>
@@ -823,7 +867,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       selectedLeverage: 3,
       spotSelectedSide: 'BUY',
       currentSelectedAsset: null,
-      autoExecutedSymbols: new Set()
+      autoExecutedSymbols: new Set(),
+      
+      // STATO ADVISOR POSIZIONE ATTIVA
+      activePosition: null,
+      advisorInterval: null
     };
 
     function getStoredApiKeys() {
@@ -891,16 +939,17 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       return sharedAudioCtx;
     }
 
-    function playChime() {
+    function playChime(urgent = false) {
       const ctx = getAudioContext();
       if (!ctx) return;
       const now = ctx.currentTime;
-      [880, 1108.73, 1318.51].forEach((freq, i) => {
+      const freqs = urgent ? [1200, 900, 1400] : [880, 1108.73, 1318.51];
+      freqs.forEach((freq, i) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.frequency.setValueAtTime(freq, now + i * 0.08);
         gain.gain.setValueAtTime(0.001, now + i * 0.08);
-        gain.gain.exponentialRampToValueAtTime(0.08, now + i * 0.08 + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.1, now + i * 0.08 + 0.02);
         gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.08 + 0.4);
         osc.connect(gain);
         gain.connect(ctx.destination);
@@ -958,6 +1007,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           timeframe: d.timeframe,
           durata: d.durata,
           durataShort: d.durataShort,
+          tempoSec: d.tempoSec || 7200,
           precisionScore: d.precisionScore,
           isRealOhlcv: true
         };
@@ -999,19 +1049,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const rvolFormatted = rvol.toFixed(2) + "x";
       let rvolBadge = rvol >= 1.8 ? "Esplosivo 🚀" : rvol >= 1.1 ? "Sopra Media 📈" : "Standard";
 
-      let timeframe = "1h / 4h";
-      let durata = "4 - 12 ore (Spot Swing)";
-      let durataShort = "6h";
-
-      if (state.marketType === 'SPOT') {
-        timeframe = "1h / 1D (Spot Target)";
-        durata = "6 - 24 ore (Raggiungimento TP Certo)";
-        durataShort = "12h";
-      } else {
-        timeframe = "15m / 1h (Futures)";
-        durata = "2 - 6 ore (Trend Intraday)";
-        durataShort = "3h";
-      }
+      let timeframe = "15m / 1h";
+      let durata = "3 - 8 ore (Target TP)";
+      let durataShort = "4h";
+      let tempoSec = 14400;
 
       return {
         sl,
@@ -1030,6 +1071,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         timeframe,
         durata,
         durataShort,
+        tempoSec,
         precisionScore: 94,
         isRealOhlcv: false
       };
@@ -1051,6 +1093,109 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       }
       return null;
     }
+
+    // ==========================================
+    // GESTIONE ADVISOR POSIZIONE LIVE IN TEMPO REALE
+    // ==========================================
+    function avviaAdvisorPosizione(symbol, side, entryPrice, tpPrice, slPrice, tempoSec) {
+      if (state.advisorInterval) clearInterval(state.advisorInterval);
+
+      const targetTimestamp = Date.now() + (tempoSec * 1000);
+      state.activePosition = {
+        symbol,
+        side,
+        entryPrice,
+        tpPrice,
+        slPrice,
+        targetTimestamp
+      };
+
+      document.getElementById('activePositionAdvisorBox').classList.remove('hidden');
+      document.getElementById('advSymbol').textContent = symbol;
+      document.getElementById('advEntryPrice').textContent = `$${formatPrice(entryPrice)}`;
+      
+      const sideBadge = document.getElementById('advSideBadge');
+      sideBadge.textContent = side;
+      sideBadge.className = side === 'BUY' ? 'inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-green-500/20 text-[#00FF66]' : 'inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-[#FF334B]';
+
+      aggiornaAdvisorLoop();
+      state.advisorInterval = setInterval(aggiornaAdvisorLoop, 2000); // Aggiornamento ogni 2 secondi
+      logFeed(`[ADVISOR ATTIVO] Monitoraggio avviato per ${symbol} (${side}) verso TP $${formatPrice(tpPrice)}`);
+    }
+
+    function chiudiPosizioneMonitorata() {
+      if (state.advisorInterval) clearInterval(state.advisorInterval);
+      state.activePosition = null;
+      document.getElementById('activePositionAdvisorBox').classList.add('hidden');
+      logFeed(`[ADVISOR] Monitoraggio posizione chiuso manualmente.`);
+    }
+
+    function aggiornaAdvisorLoop() {
+      if (!state.activePosition) return;
+      const pos = state.activePosition;
+      const liveItem = state.marketData[pos.symbol];
+      if (!liveItem) return;
+
+      const currentPrice = liveItem.price;
+      document.getElementById('advLivePrice').textContent = `$${formatPrice(currentPrice)}`;
+
+      // Calcolo PnL %
+      const diff = pos.side === 'BUY' ? (currentPrice - pos.entryPrice) : (pos.entryPrice - currentPrice);
+      const pnlPct = (diff / pos.entryPrice) * 100;
+      const pnlEl = document.getElementById('advPnlVal');
+      pnlEl.textContent = `PnL: ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`;
+      pnlEl.className = `block mt-1 text-[10px] font-bold ${pnlPct >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
+
+      // Conto alla rovescia tempo rimanente
+      const timeLeftMs = pos.targetTimestamp - Date.now();
+      const timeEl = document.getElementById('advTimeRemaining');
+      const timeProgEl = document.getElementById('advTimeProgress');
+
+      if (timeLeftMs <= 0) {
+        timeEl.textContent = "00:00 (Tempo Scaduto)";
+        timeProgEl.textContent = "Verifica tenuta trend...";
+      } else {
+        const totalSec = Math.floor(timeLeftMs / 1000);
+        const hrs = Math.floor(totalSec / 3600);
+        const mins = Math.floor((totalSec % 3600) / 60);
+        const secs = totalSec % 60;
+        timeEl.textContent = `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        timeProgEl.textContent = "Tempo stimato rimanente al TP";
+      }
+
+      // Consiglio Advisor Live & Verifiche di Uscita
+      const statusAdvice = document.getElementById('advStatusAdvice');
+      const actionAlert = document.getElementById('advActionAlert');
+
+      // Controllo se ha raggiunto il TP o lo SL
+      const hitTp = pos.side === 'BUY' ? currentPrice >= pos.tpPrice : currentPrice <= pos.tpPrice;
+      const hitSl = pos.side === 'BUY' ? currentPrice <= pos.slPrice : currentPrice >= pos.slPrice;
+
+      if (hitTp) {
+        statusAdvice.textContent = "🎯 TAKE PROFIT RAGGIUNTO!";
+        statusAdvice.className = "text-[#00FF66] text-xs block font-extrabold animate-bounce";
+        actionAlert.textContent = "Consiglio: CHIUDI SUBITO E INCASSA IL PROFITTO.";
+        playChime(true);
+      } else if (hitSl) {
+        statusAdvice.textContent = "⚠️ STOP LOSS TESTATO!";
+        statusAdvice.className = "text-[#FF334B] text-xs block font-extrabold animate-pulse";
+        actionAlert.textContent = "Consiglio: Taglia la posizione per protezione capitale.";
+        playChime(true);
+      } else if (pnlPct >= 1.8) {
+        statusAdvice.textContent = "🟢 CONTINUA A TENERE (In Profitto)";
+        statusAdvice.className = "text-[#00FF66] text-xs block font-bold";
+        actionAlert.textContent = "Consiglio: Sposta lo Stop Loss a Break-Even (Pareggio) e punta al TP certo.";
+      } else if (pnlPct <= -1.2) {
+        statusAdvice.textContent = "⚠️ ATTENZIONE (In Ritracciamento)";
+        statusAdvice.className = "text-amber-400 text-xs block font-bold";
+        actionAlert.textContent = "Consiglio: Valuta se chiudere se il supporto cede.";
+      } else {
+        statusAdvice.textContent = "🟢 CONTINUA A RIMANERE A MERCATO";
+        statusAdvice.className = "text-cyan-300 text-xs block font-bold";
+        actionAlert.textContent = "Trend stabile. Rimani dentro fino al target temporale o al TP.";
+      }
+    }
+    // ==========================================
 
     function setCategoryTab(cat) {
       state.currentCategoryTab = cat;
@@ -1114,7 +1259,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           state.currentCategoryTab = 'ALL';
           updateMarketTypeUI();
           await pollMarketData();
-          logFeed(`[MERCATO] Passaggio a ${mtype} con calcolo Target TP Certo attivo.`);
+          logFeed(`[MERCATO] Passaggio a ${mtype} con Advisor di posizione attivo.`);
         }
       } catch (e) {
         alert("Errore cambio mercato");
@@ -1132,16 +1277,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       if (state.marketType === 'SPOT') {
         btnSpot.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all bg-[#00FF66] text-black shadow-lg";
         btnFut.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
-        kpiBadge.textContent = "🪙 SPOT TARGET TP (Acquisto & Holder)";
-        headerTitle.textContent = "Millimetric Spot Target Engine";
-        masterSub.textContent = "Scanner Spot con candele 15m reali per individuare il punto d'ingresso e il Take Profit certo";
+        kpiBadge.textContent = "🪙 SPOT TARGET TP (Advisor Live)";
+        headerTitle.textContent = "Millimetric Spot Advisor Engine";
+        masterSub.textContent = "Scanner Spot con candele 15m reali e Advisor attivo per dirti quando entrare, rimanere o chiudere";
         tableLabel.textContent = "SPOT TARGET TP";
       } else {
         btnFut.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all bg-[#0066FF] text-white";
         btnSpot.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
-        kpiBadge.textContent = "🟢 FUTURES (Target TP Certo)";
+        kpiBadge.textContent = "🟢 FUTURES (Advisor Live)";
         headerTitle.textContent = "Millimetric Futures Engine";
-        masterSub.textContent = "Scansione millimetrica orientata al raggiungimento matematico del Take Profit";
+        masterSub.textContent = "Advisor di posizione in tempo reale: monitoraggio tempo residuo e alert chiusura";
         tableLabel.textContent = "FUTURES";
       }
     }
@@ -1301,7 +1446,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 <div class="flex justify-between"><span class="text-white/70">⚡ Strategia:</span><strong class="text-yellow-400">${state.marketType === 'SPOT' ? 'Spot 1:1 Target TP' : 'Futures Isolato 3x'}</strong></div>
               </div>
               <button onclick='openModal("${masterAsset.symbol}")' class="green-gradient-btn w-full py-2 rounded-xl text-xs shadow-lg animate-pulse">
-                🎯 APRI &amp; PUNTA AL TARGET TP CERTO &#8599;
+                🎯 APRI &amp; AVVIA ADVISOR LIVE &#8599;
               </button>
             </div>
           </div>
@@ -1412,7 +1557,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                         <td class="py-2.5 px-2 text-[#00FF66] font-extrabold text-[11px] whitespace-nowrap">$${formatPrice(param.tp)}</td>
                         <td class="py-2.5 pr-3 text-right">
                           <button class="px-3 py-1 rounded-lg bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/50 font-bold text-xs hover:bg-[#00FF66] hover:text-black transition-all">
-                            Target ⚡
+                            Avvia ⚡
                           </button>
                         </td>
                       </tr>
@@ -1434,7 +1579,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('assetModal').classList.add('flex');
 
       const ohlcvBadge = document.getElementById('modalOhlcvBadge');
-      ohlcvBadge.textContent = "CALIBRAZIONE TARGET TP...";
+      ohlcvBadge.textContent = "CALIBRAZIONE ADVISOR...";
       ohlcvBadge.className = "px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-yellow-500/20 text-yellow-300 border border-yellow-500/40 animate-pulse";
 
       const initialParam = calcolaParametriPrecisione({ symbol, ...item }, 1);
@@ -1444,7 +1589,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       if (deepData) {
         const refinedParam = calcolaParametriPrecisione({ symbol, ...item, price: deepData.price }, 1);
         applyModalData(symbol, deepData.price, refinedParam, item.category, true);
-        ohlcvBadge.textContent = `TARGET TP CERTO OHLCV (${deepData.precisionScore}%) ✓`;
+        ohlcvBadge.textContent = `ADVISOR LIVE PRONTO (${deepData.precisionScore}%) ✓`;
         ohlcvBadge.className = "px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/40";
         renderDashboard();
       } else {
@@ -1466,6 +1611,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         side,
         tf: param.timeframe,
         durata: param.durata,
+        tempoSec: param.tempoSec,
         category,
         minSize
       };
@@ -1475,7 +1621,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('modalTF').textContent = param.timeframe;
       document.getElementById('modalDurata').textContent = param.durata;
       document.getElementById('modalSubtitleType').textContent = isVerified
-        ? `Target TP Certo calcolato su 50 candele reali ${state.marketType}`
+        ? `Target TP Certo & Advisor attivo su candele reali ${state.marketType}`
         : `Sincronizzazione candele ${state.marketType} in corso...`;
 
       document.getElementById('modalEma').textContent = `$${param.ema9} / $${param.ema21}`;
@@ -1536,10 +1682,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const feedback = document.getElementById('executionFeedback');
 
       btn.disabled = true;
-      btn.textContent = `Invio ordine ${state.marketType} (${actionToSend}) verso il TP Certo...`;
+      btn.textContent = `Invio ordine ${state.marketType} (${actionToSend}) e avvio Advisor...`;
       feedback.classList.remove('hidden', 'text-[#00FF66]', 'text-[#FF334B]');
       feedback.classList.add('text-white/70');
-      feedback.textContent = `Esecuzione ordine (${state.marketType}) puntando al TP Certo...`;
+      feedback.textContent = `Esecuzione ordine e attivazione monitoraggio live...`;
 
       const res = await eseguiOperazioneServer({
         symbol: asset.symbol,
@@ -1558,18 +1704,22 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       if (res.code === 0) {
         feedback.classList.remove('text-white/70', 'text-[#FF334B]');
         feedback.classList.add('text-[#00FF66]');
-        feedback.textContent = `✔ Successo! Ordine ${state.marketType} eseguito. Target TP Certo impostato a $${formatPrice(asset.tp)}.`;
-        playChime();
-        logFeed(`[${state.marketType} ${actionToSend}] ${asset.symbol} @ $${formatPrice(asset.livePrice)} ➔ TARGET TP: $${formatPrice(asset.tp)}`);
+        feedback.textContent = `✔ Successo! Posizione aperta. Advisor Live avviato in alto.`;
+        playChime(false);
+        logFeed(`[ADVISOR AVVIATO] ${asset.symbol} (${actionToSend}) @ $${formatPrice(asset.livePrice)} ➔ TP: $${formatPrice(asset.tp)}`);
+        
+        // Avvia il pannello Advisor Live in alto
+        avviaAdvisorPosizione(asset.symbol, actionToSend, asset.livePrice, asset.tp, asset.sl, asset.tempoSec || 14400);
+        closeModal();
       } else {
-        feedback.classList.remove('text-white/70', 'text-[#00FF66]');
+        feedback.classList.remove('text-white/70', 'text-[#FF334B]');
         feedback.classList.add('text-[#FF334B]');
         feedback.textContent = `✖ Errore: ${res.msg || 'Controlla le tue API Key personali'}`;
         logFeed(`[ERRORE ${state.marketType}] ${asset.symbol}: ${res.msg}`);
       }
 
       btn.disabled = false;
-      btn.textContent = "🎯 Esegui Ordine Millimetrico verso il TP Certo";
+      btn.textContent = "🎯 Esegui Ordine & Attiva Advisor Live";
     }
 
     async function eseguiOperazioneServer(payload, isAuto) {
@@ -1581,8 +1731,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         });
         const data = await response.json();
         if (isAuto && data.code === 0) {
-          logFeed(`[AUTO ⚡ ${payload.marketType}] Segnale eseguito verso TP Certo su ${payload.symbol}`);
-          playChime();
+          logFeed(`[AUTO ⚡ ${payload.marketType}] Segnale eseguito su ${payload.symbol}`);
+          playChime(false);
         }
         return data;
       } catch (err) {
