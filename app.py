@@ -276,7 +276,7 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingress
     if not active_api or not active_secret:
         return {"code": -1, "msg": "API Key o Secret Key BingX mancanti."}
 
-    # Instradamento corretto e mirato per Standard Futures, Perpetui o Spot
+    # Instradamento mirato e separato per Standard Futures vs Perpetui (Swap) vs Spot
     if market_type == "STANDARD_FUTURES":
         endpoint = "/openApi/futures/v1/trade/order"
         payload_ordine = {
@@ -843,16 +843,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       return Number(val).toFixed(getPrecisionDecimals(val));
     }
 
-    function calcolaEMA(prezzi, periodo) {
-      if (!prezzi || prezzi.length === 0) return 0;
-      const k = 2 / (periodo + 1);
-      let ema = prezzi[0];
-      for (let i = 1; i < prezzi.length; i++) {
-        ema = prezzi[i] * k + ema * (1 - k);
-      }
-      return ema;
-    }
-
     function calcolaParametriPrecisione(c, avgQuoteVol) {
       const cacheKey = `${state.marketType}_${c.symbol}`;
       const deep = state.deepCache[cacheKey];
@@ -885,18 +875,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         rsiColor: "text-white", rvol: "1.00x", timeframe: "15m", durata: "2-4 ore",
         durataShort: "2h", tempoSec: 7200, precisionScore: 90, isRealOhlcv: false
       };
-    }
-
-    async function fetchDeepOhlcv(symbol) {
-      try {
-        const res = await fetch(`/api/deep-scan?symbol=${encodeURIComponent(symbol)}&marketType=${state.marketType}`);
-        const json = await res.json();
-        if (json.code === 0 && json.data) {
-          state.deepCache[`${state.marketType}_${symbol}`] = { timestamp: Date.now(), data: json.data };
-          return json.data;
-        }
-      } catch (e) {}
-      return null;
     }
 
     function avviaAdvisorPosizione(symbol, side, entryPrice, tpPrice, slPrice, tempoSec) {
@@ -1132,7 +1110,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     window.addEventListener('DOMContentLoaded', async () => {
       updateApiStatusUI();
       await pollMarketData();
-      setInterval(pollMarketData, 2000); // Sincronizzazione prezzi in tempo reale ogni 2 secondi
+      setInterval(pollMarketData, 2000);
       setInterval(() => {
         document.getElementById('liveCetClock').textContent = new Date().toTimeString().slice(0, 8) + ' CET';
       }, 1000);
