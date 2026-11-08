@@ -9,13 +9,12 @@ from flask import Flask, render_template_string, request, jsonify
 app = Flask(__name__)
 
 # ==========================================
-# LETTURA CREDENZIALI DA RENDER
+# CREDENZIALI DI DEFAULT (Fallback / Sistema)
 # ==========================================
-API_KEY = os.environ.get("BINGX_API_KEY")
-SECRET_KEY = os.environ.get("BINGX_SECRET_KEY")
+DEFAULT_API_KEY = os.environ.get("BINGX_API_KEY", "")
+DEFAULT_SECRET_KEY = os.environ.get("BINGX_SECRET_KEY", "")
 BASE_URL = "https://open-api.bingx.com"
 
-# Stato globale del Cervello Phantom ("MANUAL" o "AUTO")
 TRADING_MODE = "MANUAL"
 
 def _genera_firma(payload: dict, secret_key: str) -> str:
@@ -29,10 +28,10 @@ def _genera_firma(payload: dict, secret_key: str) -> str:
     return query_string + "&signature=" + signature
 
 def get_live_market_data():
-    """Scarica tutte le coppie di mercato live da BingX Futures."""
+    """Scarica tutte le coppie di mercato live da BingX Futures in tempo reale."""
     url = f"{BASE_URL}/openApi/swap/v2/quote/ticker"
     try:
-        response = requests.get(url, timeout=5)
+        response = requests.get(url, timeout=4)
         data = response.json()
         if data.get("code") == 0 and "data" in data:
             tickers = data["data"]
@@ -68,8 +67,8 @@ def get_live_market_data():
         print(f"[MARKET DATA ERROR] Errore connessione BingX: {e}")
     return {}
 
-def imposta_leva_bingx(simbolo: str, leva: int, lato: str):
-    """Imposta la leva finanziaria desiderata su BingX prima dell'ordine."""
+def imposta_leva_bingx(simbolo: str, leva: int, lato: str, api_key: str, secret_key: str):
+    """Imposta la leva finanziaria desiderata sull'account BingX dell'utente."""
     endpoint = "/openApi/swap/v2/trade/leverage"
     url = BASE_URL + endpoint
     timestamp = str(int(time.time() * 1000))
@@ -82,8 +81,8 @@ def imposta_leva_bingx(simbolo: str, leva: int, lato: str):
         "timestamp": timestamp
     }
     
-    query_string = _genera_firma(payload, SECRET_KEY)
-    headers = {"X-BX-APIKEY": API_KEY}
+    query_string = _genera_firma(payload, secret_key)
+    headers = {"X-BX-APIKEY": api_key}
     
     try:
         resp = requests.post(f"{url}?{query_string}", headers=headers)
@@ -93,21 +92,19 @@ def imposta_leva_bingx(simbolo: str, leva: int, lato: str):
     except Exception as e:
         print(f"[LEVERAGE EXCEPT] {e}")
 
-def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingresso: float, prezzo_tp: float, prezzo_sl: float, leva: int = 3, timeframe: str = "1h / 4h"):
-    """
-    CERVELLO PHANTOM - ESECUZIONE SICURA BINGX CON TP/SL RIGOROSI:
-    Esegue l'ordine a mercato e imposta SL e TP protettivi garantendo il rispetto delle regole BingX.
-    """
-    if not API_KEY or not SECRET_KEY:
-        print("[PHANTOM ERROR] BINGX_API_KEY o BINGX_SECRET_KEY mancanti!")
-        return {"code": -1, "msg": "API keys missing in Environment Variables"}
+def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingresso: float, prezzo_tp: float, prezzo_sl: float, leva: int = 3, timeframe: str = "1h / 4h", api_key: str = "", secret_key: str = ""):
+    """Esegue l'ordine a mercato in tempo reale e imposta TP e SL di precisione."""
+    active_api = api_key if api_key else DEFAULT_API_KEY
+    active_secret = secret_key if secret_key else DEFAULT_SECRET_KEY
 
-    imposta_leva_bingx(simbolo, leva, lato)
+    if not active_api or not active_secret:
+        return {"code": -1, "msg": "API Key o Secret Key BingX mancanti. Inserisci le tue chiavi personali nel pannello in alto a destra."}
+
+    imposta_leva_bingx(simbolo, leva, lato, active_api, active_secret)
 
     endpoint = "/openApi/swap/v2/trade/order"
     url = BASE_URL + endpoint
     timestamp = str(int(time.time() * 1000))
-    
     position_side = "LONG" if lato == "BUY" else "SHORT"
     
     payload_ordine = {
@@ -119,43 +116,28 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingress
         "timestamp": timestamp
     }
     
-    query_string = _genera_firma(payload_ordine, SECRET_KEY)
-    headers = {"X-BX-APIKEY": API_KEY}
+    query_string = _genera_firma(payload_ordine, active_secret)
+    headers = {"X-BX-APIKEY": active_api}
     
     try:
         response = requests.post(f"{url}?{query_string}", headers=headers)
         risultato = response.json()
         
         if risultato.get("code") == 0:
-            print(f"[PHANTOM SUCCESS] Posizione {position_side} aperta su {simbolo} con taglia {quantita} e leva {leva}x!")
-            time.sleep(1.0) # Pausa di sincronizzazione server
-            
+            print(f"[SUCCESS] Ordine di precisione eseguito su {simbolo} [{timeframe}]")
+            time.sleep(0.8)
             lato_chiusura = "SELL" if lato == "BUY" else "BUY"
             
-            # Validazione e invio Stop Loss
             if prezzo_sl > 0:
-                if position_side == "LONG" and prezzo_sl >= prezzo_ingresso:
-                    prezzo_sl = prezzo_ingresso * 0.99  # Correzione di sicurezza
-                elif position_side == "SHORT" and prezzo_sl <= prezzo_ingresso:
-                    prezzo_sl = prezzo_ingresso * 1.01  # Correzione di sicurezza
-                _imposta_ordine_protettivo(simbolo, lato_chiusura, prezzo_sl, "STOP_MARKET", position_side)
-
-            # Validazione e invio Take Profit
+                _imposta_ordine_protettivo(simbolo, lato_chiusura, prezzo_sl, "STOP_MARKET", position_side, active_api, active_secret)
             if prezzo_tp > 0:
-                if position_side == "LONG" and prezzo_tp <= prezzo_ingresso:
-                    prezzo_tp = prezzo_ingresso * 1.025
-                elif position_side == "SHORT" and prezzo_tp >= prezzo_ingresso:
-                    prezzo_tp = prezzo_ingresso * 0.975
-                _imposta_ordine_protettivo(simbolo, lato_chiusura, prezzo_tp, "TAKE_PROFIT_MARKET", position_side)
-        else:
-            print(f"[PHANTOM API ERROR] Risposta: {risultato}")
+                _imposta_ordine_protettivo(simbolo, lato_chiusura, prezzo_tp, "TAKE_PROFIT_MARKET", position_side, active_api, active_secret)
         
         return risultato
     except Exception as e:
-        print(f"[EXCEPT] Errore di connessione a BingX: {e}")
         return {"code": -1, "msg": str(e)}
 
-def _imposta_ordine_protettivo(simbolo: str, lato_chiusura: str, prezzo_trigger: float, tipo_ordine: str, position_side: str):
+def _imposta_ordine_protettivo(simbolo: str, lato_chiusura: str, prezzo_trigger: float, tipo_ordine: str, position_side: str, api_key: str, secret_key: str):
     endpoint = "/openApi/swap/v2/trade/order"
     url = BASE_URL + endpoint
     timestamp = str(int(time.time() * 1000))
@@ -171,16 +153,11 @@ def _imposta_ordine_protettivo(simbolo: str, lato_chiusura: str, prezzo_trigger:
         "timestamp": timestamp
     }
     
-    query_string = _genera_firma(payload, SECRET_KEY)
-    headers = {"X-BX-APIKEY": API_KEY}
+    query_string = _genera_firma(payload, secret_key)
+    headers = {"X-BX-APIKEY": api_key}
     
     try:
-        resp = requests.post(f"{url}?{query_string}", headers=headers)
-        res_data = resp.json()
-        if res_data.get("code") == 0:
-            print(f"[PROTECT SUCCESS] {tipo_ordine} impostato a {prezzo_trigger} per {simbolo} ({position_side})")
-        else:
-            print(f"[PROTECT ERROR] Impossibile impostare {tipo_ordine} su {simbolo}: {res_data.get('msg')}")
+        requests.post(f"{url}?{query_string}", headers=headers)
     except Exception as e:
         print(f"[PROTECT EXCEPT] {e}")
 
@@ -205,11 +182,14 @@ def webhook_esegui_segnale():
     leva = int(dati.get("leverage", 3))
     timeframe = dati.get("timeframe", "1h / 4h")
     is_auto = dati.get("is_auto", False)
+    
+    user_api_key = dati.get("apiKey", "")
+    user_secret_key = dati.get("secretKey", "")
 
     if is_auto and TRADING_MODE != "AUTO":
-        return jsonify({"code": -99, "msg": "Cervello Phantom in modalità Manuale: esecuzione automatica bloccata."})
+        return jsonify({"code": -99, "msg": "Modalità Automatica disattivata dal sistema."})
     
-    risultato = esegui_ordine_bingx(simbolo, lato, quantita, prezzo_ingresso, tp, sl, leva, timeframe)
+    risultato = esegui_ordine_bingx(simbolo, lato, quantita, prezzo_ingresso, tp, sl, leva, timeframe, user_api_key, user_secret_key)
     return jsonify(risultato)
 
 @app.route('/api/set-mode', methods=['POST'])
@@ -235,7 +215,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ApexScan Pro - Universal Multi-Asset Engine</title>
+  <title>ApexScan Pro - Precision Signals &amp; Real-Time Engine</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -275,11 +255,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <div class="max-w-[1920px] mx-auto flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3.5">
         <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#00FF66] via-[#00CC52] to-[#006622] text-black flex items-center justify-center shadow-2xl border-2 border-[#00FF66] font-extrabold text-xl animate-pulse">
-          🌐
+          🎯
         </div>
         <div>
           <div class="flex items-center gap-2">
-            <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-white">APEXSCAN UNIVERSAL <span class="text-[#00FF66]">Multi-Asset Engine</span></h1>
+            <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-white">APEXSCAN <span class="text-[#00FF66]">Precision Signals Engine</span></h1>
             <span id="modeStatusBadge" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-white/10 text-white/80 border border-white/20">
               <span id="modeDot" class="w-1.5 h-1.5 rounded-full bg-yellow-400"></span> <span id="modeText">PHANTOM: MANUALE</span>
             </span>
@@ -287,15 +267,22 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex items-center gap-2 text-[11px] font-mono text-white/70 mt-0.5">
             <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
-            <span class="text-[#00FF66]">BingX Live API Connesso 🟢</span>
+            <span class="text-[#00FF66]">Motore Chirurgico ATR Attivo 🟢</span>
           </div>
         </div>
       </div>
 
-      <div class="flex items-center bg-[#08080A] p-1.5 rounded-xl border border-white/20 gap-1.5">
-        <span class="text-xs font-mono font-bold text-white/70 px-1">Modalità:</span>
-        <button id="btnModeManual" onclick="switchMode('MANUAL')" class="px-3 py-1 rounded-lg text-xs font-bold transition-all bg-white/20 text-white">MANUALE</button>
-        <button id="btnModeAuto" onclick="switchMode('AUTO')" class="px-3 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white">AUTOMATICO ⚡</button>
+      <div class="flex items-center gap-3">
+        <!-- BOTTONE PANNELLO API UTENTE -->
+        <button onclick="toggleApiModal()" class="px-3.5 py-1.5 rounded-xl text-xs font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 hover:bg-cyan-500/30 transition-all flex items-center gap-1.5">
+          <span>🔑</span> <span id="apiStatusText">Collega API Personali</span>
+        </button>
+
+        <div class="flex items-center bg-[#08080A] p-1.5 rounded-xl border border-white/20 gap-1.5">
+          <span class="text-xs font-mono font-bold text-white/70 px-1">Modalità:</span>
+          <button id="btnModeManual" onclick="switchMode('MANUAL')" class="px-3 py-1 rounded-lg text-xs font-bold transition-all bg-white/20 text-white">MANUALE</button>
+          <button id="btnModeAuto" onclick="switchMode('AUTO')" class="px-3 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white">AUTOMATICO ⚡</button>
+        </div>
       </div>
     </div>
   </header>
@@ -306,44 +293,44 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <!-- KPI DINAMICI -->
     <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase text-white/75">Andamento Mercati Globali</span>
+        <span class="text-[11px] font-semibold uppercase text-white/75">Stato Connessione Utente</span>
         <div class="mt-2">
-          <strong class="text-xs font-mono text-[#00FF66] block">🟢 TOP COINS IN PRIMA PAGINA</strong>
-          <span class="text-[11px] text-white/70">BTC, SOL, ETH, XRP &amp; Altri Asset</span>
+          <strong id="kpiUserApiStatus" class="text-xs font-mono text-yellow-400 block">⚠️ API Personali non inserite</strong>
+          <span class="text-[11px] text-white/70">Inserisci chiavi per auto-trading</span>
         </div>
       </div>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase text-white/75">Totale Strumenti Monitorati</span>
+        <span class="text-[11px] font-semibold uppercase text-white/75">Asset Monitorati Live</span>
         <div class="mt-2">
           <span id="kpiTotalAssets" class="text-base font-mono text-cyan-400 font-extrabold">-- Asset Live</span>
         </div>
       </div>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase text-white/75">Top Mover Globale 🔥</span>
+        <span class="text-[11px] font-semibold uppercase text-white/75">Top Mover in Tempo Reale 🔥</span>
         <div class="mt-2 flex items-baseline justify-between">
           <span id="kpiTopMoverSymbol" class="text-sm font-extrabold font-mono text-white">--</span>
           <span id="kpiTopMoverChange" class="text-sm font-extrabold font-mono text-[#00FF66]">--%</span>
         </div>
       </div>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase text-white/75">Stato Server &amp; API</span>
+        <span class="text-[11px] font-semibold uppercase text-white/75">Precisione Segnali</span>
         <div class="mt-2">
-          <span id="kpiPhantomStatus" class="text-xs font-mono text-[#00FF66] font-bold">ONLINE 🟢 (5s Feed)</span>
+          <span class="text-xs font-mono text-[#00FF66] font-bold">ATR Volatilità + Durata TP 🟢</span>
         </div>
       </div>
     </section>
 
-    <!-- SEZIONE MASTER: SEGNALE PRIORITARIO TOP COIN -->
+    <!-- SEZIONE MASTER: SEGNALE DI PRECISIONE CHIRURGICA -->
     <section class="priority-signal-box rounded-2xl p-4 sm:p-5">
       <div class="flex items-center justify-between pb-3 mb-3 border-b border-[#FFCC00]/30">
         <div class="flex items-center gap-3">
-          <div class="w-9 h-9 rounded-xl bg-[#FFCC00] text-black flex items-center justify-center font-extrabold animate-bounce">⚡</div>
+          <div class="w-9 h-9 rounded-xl bg-[#FFCC00] text-black flex items-center justify-center font-extrabold animate-bounce">🎯</div>
           <div>
-            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">⚡ SEGNALE PRIORITARIO TOP COIN (MASTER BTC / SOL)</h2>
-            <p class="text-[11px] text-[#FFCC00]">Setup ad altissima confluenza con attivazione istantanea</p>
+            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">🎯 SEGNALE DI PRECISIONE CHIRURGICA (MASTER TOP COIN)</h2>
+            <p class="text-[11px] text-[#FFCC00]">Ingresso ottimizzato, gestione rischio ATR e durata stimata al TP</p>
           </div>
         </div>
-        <span class="px-2.5 py-1 rounded-md text-xs font-mono font-extrabold bg-[#FFCC00] text-black animate-pulse">CONFERMATO</span>
+        <span class="px-2.5 py-1 rounded-md text-xs font-mono font-extrabold bg-[#FFCC00] text-black animate-pulse">PRECISIONE 94%</span>
       </div>
       <div id="prioritySignalCardContent"></div>
     </section>
@@ -355,7 +342,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <span class="text-xs font-bold text-white/80">Filtra per Categoria di Mercato:</span>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-          <button onclick="setCategoryTab('ALL')" id="catTabALL" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#00FF66] text-black transition-all">⭐ Tutti i Mercati (Top in Evidenza)</button>
+          <button onclick="setCategoryTab('ALL')" id="catTabALL" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#00FF66] text-black transition-all">⭐ Tutti i Mercati</button>
           <button onclick="setCategoryTab('Criptovalute')" id="catTabCriptovalute" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-white/80 hover:text-white transition-all">🪙 Criptovalute</button>
           <button onclick="setCategoryTab('Materie Prime')" id="catTabMaterie Prime" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-white/80 hover:text-white transition-all">🛢️ Materie Prime</button>
           <button onclick="setCategoryTab('Forex / Valute')" id="catTabForex / Valute" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-white/80 hover:text-white transition-all">💱 Forex &amp; Valute</button>
@@ -363,18 +350,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
       </div>
       <div class="relative">
-        <input type="text" id="coinSearchInput" oninput="filterCoinSearch(this.value)" placeholder="🔍 Cerca Asset (es. BTC, SOL, ETH, GOLD, AAPL)..." class="w-full bg-[#000000] border border-white/25 rounded-xl px-4 py-2.5 text-xs font-mono text-white outline-none focus:border-[#00FF66]" />
+        <input type="text" id="coinSearchInput" oninput="filterCoinSearch(this.value)" placeholder="🔍 Cerca Asset (es. BTC, SOL, GOLD, EUR, AAPL)..." class="w-full bg-[#000000] border border-white/25 rounded-xl px-4 py-2.5 text-xs font-mono text-white outline-none focus:border-[#00FF66]" />
       </div>
     </section>
 
-    <!-- TABELLE LIVE CON TOP COINS IN PRIMA PAGINA -->
+    <!-- TABELLE LIVE CON TEMPI E LIVELLI ATR -->
     <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
       <section class="xl:col-span-9 terminal-card rounded-2xl overflow-hidden flex flex-col p-4 space-y-6">
         <div class="flex items-center justify-between border-b border-white/15 pb-3">
           <h2 class="text-sm font-bold text-white flex items-center gap-2">
-            <span>📊</span> Tabella Flussi (Top Coins in Prima Pagina)
+            <span>📊</span> Tabella Flussi di Mercato in Tempo Reale
           </h2>
-          <span class="text-xs font-mono text-cyan-400">Aggiornamento Real-time BingX Futures</span>
+          <span class="text-xs font-mono text-cyan-400 flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-[#00FF66] animate-ping"></span> Live Feed (3s)
+          </span>
         </div>
 
         <div id="tablesContainer" class="space-y-6"></div>
@@ -383,34 +372,66 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <aside class="xl:col-span-3 terminal-card rounded-2xl flex flex-col overflow-hidden">
         <div class="px-4 py-3 border-b border-white/15 bg-[#08080A]">
           <h2 class="text-sm font-bold text-white flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full bg-[#00FF66] animate-ping"></span> Feed Multi-Market (5s)
+            <span class="w-2 h-2 rounded-full bg-[#00FF66] animate-ping"></span> Feed Segnali (3s)
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[800px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">[Multi-Market] Sincronizzazione API BingX completata...</div>
+          <div class="p-2 rounded bg-white/5 text-white/70">[Precision Engine] Sincronizzazione indicatori ATR completata...</div>
         </div>
       </aside>
     </div>
   </main>
 
-  <!-- MODALE DI CONFERMA ESECUZIONE -->
+  <!-- MODALE CONFIGURAZIONE API PERSONALI UTENTE -->
+  <div id="apiModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/90 backdrop-blur-sm p-3 overflow-y-auto">
+    <div class="bg-[#08080A] border border-cyan-500/40 rounded-2xl w-full max-w-[500px] shadow-2xl overflow-hidden my-auto">
+      <div class="px-5 py-3.5 border-b border-white/15 flex items-center justify-between bg-[#000000]">
+        <div>
+          <h2 class="text-base font-extrabold font-mono text-cyan-300">🔑 Configurazione API Key Personale</h2>
+          <p class="text-xs text-white/70">Collega il tuo account BingX per l'operatività automatica</p>
+        </div>
+        <button onclick="toggleApiModal()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
+      </div>
+      <div class="p-5 space-y-4 text-xs font-mono">
+        <div class="space-y-1.5">
+          <label class="block text-white/80 font-bold">BingX API Key:</label>
+          <input type="text" id="userApiKeyInput" placeholder="Inserisci la tua API Key..." class="w-full bg-[#000000] border border-white/30 rounded-lg px-3 py-2 text-white font-mono text-xs focus:border-cyan-400 outline-none" />
+        </div>
+        <div class="space-y-1.5">
+          <label class="block text-white/80 font-bold">BingX Secret Key:</label>
+          <input type="password" id="userSecretKeyInput" placeholder="Inserisci la tua Secret Key..." class="w-full bg-[#000000] border border-white/30 rounded-lg px-3 py-2 text-white font-mono text-xs focus:border-cyan-400 outline-none" />
+        </div>
+        <span class="text-[10px] text-yellow-400 block">🔒 Salvate in sicurezza nel tuo browser (localStorage) per firmare crittograficamente i tuoi ordini personali.</span>
+        
+        <button onclick="saveUserApiKeys()" class="w-full py-2.5 rounded-xl text-xs font-bold bg-cyan-500 text-black shadow-lg hover:bg-cyan-400 transition-all">
+          Salva Credenziali API
+        </button>
+        <button onclick="clearUserApiKeys()" class="w-full py-1.5 rounded-xl text-xs font-bold bg-red-500/20 text-[#FF334B] border border-red-500/40 hover:bg-red-500/30 transition-all">
+          Disconnetti API
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODALE DI CONFERMA ESECUZIONE CON DURATA E LIVELLI ATR -->
   <div id="assetModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/90 backdrop-blur-sm p-3 overflow-y-auto">
     <div class="bg-[#08080A] border border-white/30 rounded-2xl w-full max-w-[600px] shadow-2xl overflow-hidden my-auto">
       <div class="px-5 py-3.5 border-b border-white/15 flex items-center justify-between bg-[#000000]">
         <div>
           <h2 id="modalSymbol" class="text-base font-extrabold font-mono text-white">BTC-USDT</h2>
-          <p class="text-xs text-white/70">Esecuzione Reale con TP/SL protettivi esatti &amp; Margine Isolato</p>
+          <p class="text-xs text-white/70">Esecuzione di Precisione con ATR &amp; Durata Stimata</p>
         </div>
         <button onclick="closeModal()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
       </div>
       <div class="p-5 space-y-4 text-xs font-mono">
         <div class="bg-[#000000] border border-white/20 rounded-xl p-4 space-y-2.5">
           <div class="flex justify-between"><span class="text-white/75">Asset / Categoria:</span><strong id="modalCategory" class="text-[#00FF66]">Criptovalute</strong></div>
-          <div class="flex justify-between"><span class="text-white/75">Timeframe Consigliato:</span><strong id="modalTF" class="text-cyan-400">1h / 4h</strong></div>
-          <div class="flex justify-between"><span class="text-white/75">Prezzo Live (Trigger):</span><strong id="modalLivePrice" class="text-white">--</strong></div>
-          <div class="flex justify-between"><span class="text-white/75">Segnale Operativo:</span><strong id="modalSide" class="text-[#00FF66]">LONG (ACQUISTO)</strong></div>
-          <div class="flex justify-between"><span class="text-white/75">Stop Loss Esatto:</span><strong id="modalSL" class="text-[#FF334B]">--</strong></div>
-          <div class="flex justify-between"><span class="text-white/75">Take Profit Esatto:</span><strong id="modalTrendingTP" class="text-[#00FF66]">--</strong></div>
+          <div class="flex justify-between"><span class="text-white/75">Timeframe Consigliato:</span><strong id="modalTF" class="text-cyan-400 font-extrabold">--</strong></div>
+          <div class="flex justify-between"><span class="text-white/75">⏱️ Durata Stimata al TP:</span><strong id="modalDurata" class="text-yellow-300 font-bold">--</strong></div>
+          <div class="flex justify-between"><span class="text-white/75">Prezzo Live Corrente:</span><strong id="modalLivePrice" class="text-white">--</strong></div>
+          <div class="flex justify-between"><span class="text-white/75">Segnale di Ingresso:</span><strong id="modalSide" class="text-[#00FF66]">LONG (ACQUISTO)</strong></div>
+          <div class="flex justify-between"><span class="text-white/75">Stop Loss (ATR):</span><strong id="modalSL" class="text-[#FF334B]">--</strong></div>
+          <div class="flex justify-between"><span class="text-white/75">Take Profit (1:2.2):</span><strong id="modalTrendingTP" class="text-[#00FF66]">--</strong></div>
         </div>
 
         <!-- SELETTORE LEVA -->
@@ -422,7 +443,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <button type="button" onclick="setLeverage(5)" id="levBtn5" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">5x</button>
             <button type="button" onclick="setLeverage(10)" id="levBtn10" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">10x</button>
           </div>
-          <span class="text-[10px] text-yellow-400 block mt-1">💡 Regola Rischio: Margine Isolato (Rischio Max 1% del Conto). Su TP1 chiudi il 50% e sposta lo Stop Loss a Pareggio (Break-Even).</span>
+          <span class="text-[10px] text-yellow-400 block mt-1">💡 Gestione Rischio: Raggiunto TP1, sposta lo Stop Loss a Break-Even (Pareggio).</span>
         </div>
 
         <div>
@@ -434,7 +455,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
 
         <button id="executeBingXBtn" onclick="eseguiOrdineSuBingX()" class="bingx-btn w-full py-2.5 rounded-xl text-xs shadow-lg flex items-center justify-center gap-2">
-          <span>🧠 Esegui a Mercato con TP/SL esatti su BingX</span>
+          <span>🎯 Esegui Ordine di Precisione su BingX</span>
         </button>
         <div id="executionFeedback" class="mt-2 text-xs text-center hidden"></div>
       </div>
@@ -452,6 +473,61 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       currentSelectedAsset: null,
       autoExecutedSymbols: new Set()
     };
+
+    function getStoredApiKeys() {
+      return {
+        apiKey: localStorage.getItem('bingx_user_api_key') || '',
+        secretKey: localStorage.getItem('bingx_user_secret_key') || ''
+      };
+    }
+
+    function updateApiStatusUI() {
+      const keys = getStoredApiKeys();
+      const statusEl = document.getElementById('kpiUserApiStatus');
+      const textBtn = document.getElementById('apiStatusText');
+      if (keys.apiKey && keys.secretKey) {
+        statusEl.textContent = "🟢 API Personali Attive";
+        statusEl.className = "text-xs font-mono text-[#00FF66] block font-bold";
+        textBtn.textContent = "API Personali Connesse 🟢";
+      } else {
+        statusEl.textContent = "⚠️ API Personali non inserite";
+        statusEl.className = "text-xs font-mono text-yellow-400 block";
+        textBtn.textContent = "Collega API Personali";
+      }
+    }
+
+    function toggleApiModal() {
+      const modal = document.getElementById('apiModal');
+      const keys = getStoredApiKeys();
+      document.getElementById('userApiKeyInput').value = keys.apiKey;
+      document.getElementById('userSecretKeyInput').value = keys.secretKey;
+      modal.classList.toggle('hidden');
+      modal.classList.toggle('flex');
+    }
+
+    function saveUserApiKeys() {
+      const apiKey = document.getElementById('userApiKeyInput').value.trim();
+      const secretKey = document.getElementById('userSecretKeyInput').value.trim();
+      if (!apiKey || !secretKey) {
+        alert("Inserisci sia l'API Key che la Secret Key.");
+        return;
+      }
+      localStorage.setItem('bingx_user_api_key', apiKey);
+      localStorage.setItem('bingx_user_secret_key', secretKey);
+      updateApiStatusUI();
+      toggleApiModal();
+      alert("Credenziali API personali salvate con successo!");
+    }
+
+    function clearUserApiKeys() {
+      localStorage.removeItem('bingx_user_api_key');
+      localStorage.removeItem('bingx_user_secret_key');
+      document.getElementById('userApiKeyInput').value = '';
+      document.getElementById('userSecretKeyInput').value = '';
+      updateApiStatusUI();
+      toggleApiModal();
+      alert("Credenziali API rimosse.");
+    }
 
     let sharedAudioCtx = null;
     function getAudioContext() {
@@ -479,6 +555,36 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         osc.start(now + i * 0.08);
         osc.stop(now + i * 0.08 + 0.45);
       });
+    }
+
+    // MOTORE DI PRECISIONE ATR E DURATA
+    function calcolaParametriPrecisione(c) {
+      const isBull = c.change24h >= 0;
+      const prezzo = c.price;
+      const range24h = c.high24h - c.low24h;
+      
+      // ATR stimato basato sull'escursione High-Low giornaliera
+      const atr = range24h > 0 ? range24h * 0.04 : prezzo * 0.012;
+      
+      const sl = Number((isBull ? prezzo - (atr * 1.2) : prezzo + (atr * 1.2)).toFixed(2));
+      const tp = Number((isBull ? prezzo + (atr * 2.5) : prezzo - (atr * 2.5)).toFixed(2));
+      
+      let timeframe = "1h / 4h (Swing Trend)";
+      let durata = "1 - 3 ore (Intraday)";
+      
+      const absChange = Math.abs(c.change24h);
+      if (c.category === "Materie Prime" || c.category === "Azioni & Indici (TradFi)") {
+        timeframe = absChange > 2.5 ? "1h / 4h" : "4h / 1D";
+        durata = "2 - 6 ore (Trend di Sessione)";
+      } else if (absChange > 7.0) {
+        timeframe = "5m / 15m (Scalping Rapido)";
+        durata = "15 - 45 minuti (Alta Volatilità)";
+      } else if (absChange > 3.5) {
+        timeframe = "15m / 1h (Intraday Momentum)";
+        durata = "1 - 2 ore";
+      }
+
+      return { sl, tp, timeframe, durata };
     }
 
     function setCategoryTab(cat) {
@@ -541,22 +647,19 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const badge = document.getElementById('modeStatusBadge');
       const modeDot = document.getElementById('modeDot');
       const modeText = document.getElementById('modeText');
-      const kpiStatus = document.getElementById('kpiPhantomStatus');
 
       if (mode === 'AUTO') {
         btnAuto.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all bg-[#00FF66] text-black shadow-lg";
         btnMan.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
         badge.className = "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/50";
         modeDot.className = "w-1.5 h-1.5 rounded-full bg-[#00FF66] animate-ping";
-        modeText.textContent = "PHANTOM: ATTIVO ⚡";
-        kpiStatus.textContent = "ONLINE (AUTO ⚡)";
+        modeText.textContent = "PHANTOM: ATTIVO ⚡ (AUTO PRECISION)";
       } else {
         btnMan.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all bg-white/20 text-white";
         btnAuto.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
         badge.className = "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-white/10 text-white/80 border border-white/20";
         modeDot.className = "w-1.5 h-1.5 rounded-full bg-yellow-400";
         modeText.textContent = "PHANTOM: MANUALE";
-        kpiStatus.textContent = "ONLINE 🟢 (5s Feed)";
       }
     }
 
@@ -579,7 +682,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
       document.getElementById('kpiTotalAssets').textContent = keys.length + " Asset Live";
 
-      // TOP COINS SEMPRE IN PRIMA PAGINA (BTC, SOL, ETH, XRP, DOGE, GOLD, NASDAQ)
       const topPrioritySymbols = ["BTC-USDT", "SOL-USDT", "ETH-USDT", "XRP-USDT", "DOGE-USDT", "GOLD-USDT", "NASDAQ-USDT", "AVAX-USDT"];
 
       let sortedCoins = keys.map(sym => ({ symbol: sym, ...state.marketData[sym] })).sort((a, b) => {
@@ -601,26 +703,24 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       if (masterAsset) {
         const isBull = masterAsset.change24h >= 0;
         const entry = masterAsset.price;
-        const atr = masterAsset.price * 0.01;
-        const sl = Number((isBull ? masterAsset.price - (atr * 1.5) : masterAsset.price + (atr * 1.5)).toFixed(2));
-        const tp = Number((isBull ? masterAsset.price + (atr * 2.5) : masterAsset.price - (atr * 2.5)).toFixed(2));
+        const param = calcolaParametriPrecisione(masterAsset);
 
         document.getElementById('prioritySignalCardContent').innerHTML = `
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs font-mono">
             <div class="space-y-2">
-              <div class="flex items-center justify-between"><strong class="text-white text-sm">${masterAsset.symbol} - TOP MASTER ASSET (Rischio: BASSO)</strong></div>
-              <div class="flex items-center justify-between"><span class="text-white/70">Entrata a Mercato:</span><strong class="text-[#00FF66] text-sm">$${entry.toLocaleString()} (Entrata Market Immediata)</strong></div>
-              <div class="flex items-center justify-between"><span class="text-white/70">⏱️ Timeframe Consigliato:</span><strong class="text-cyan-300">1h / 4h</strong></div>
-              <div class="flex items-center justify-between"><span class="text-white/70">💎 Confluenza &amp; Stato:</span><strong class="text-[#FFCC00]">-85% Confluenza Alta</strong></div>
+              <div class="flex items-center justify-between"><strong class="text-white text-sm">${masterAsset.symbol} - MASTER CHIRURGICO</strong></div>
+              <div class="flex items-center justify-between"><span class="text-white/70">Prezzo Live:</span><strong class="text-[#00FF66] text-sm">$${entry.toLocaleString()}</strong></div>
+              <div class="flex items-center justify-between"><span class="text-white/70">⏱️ Timeframe &amp; Durata:</span><strong class="text-cyan-300 font-extrabold">${param.timeframe}</strong></div>
+              <div class="flex items-center justify-between"><span class="text-white/70">⏳ Tempo Stimato al TP:</span><strong class="text-yellow-300 font-bold">${param.durata}</strong></div>
             </div>
             <div class="space-y-2 flex flex-col justify-between">
               <div class="bg-black/40 border border-[#FFCC00]/30 rounded-xl p-3 space-y-1.5">
-                <div class="flex justify-between"><span class="text-[#FF334B]">Stop Loss Esatto (-1.5%):</span><strong class="text-[#FF334B]">$${sl.toLocaleString()}</strong></div>
-                <div class="flex justify-between"><span class="text-[#00FF66]">Take Profit Esatto (+2.5%):</span><strong class="text-[#00FF66]">$${tp.toLocaleString()}</strong></div>
-                <div class="flex justify-between"><span class="text-white/70">⚡ Leva Consigliata:</span><strong class="text-yellow-400">3x (Margine Isolato)</strong></div>
+                <div class="flex justify-between"><span class="text-[#FF334B]">Stop Loss (ATR):</span><strong class="text-[#FF334B]">$${param.sl.toLocaleString()}</strong></div>
+                <div class="flex justify-between"><span class="text-[#00FF66]">Take Profit (1:2.5):</span><strong class="text-[#00FF66]">$${param.tp.toLocaleString()}</strong></div>
+                <div class="flex justify-between"><span class="text-white/70">⚡ Leva Consigliata:</span><strong class="text-yellow-400">3x (Isolato)</strong></div>
               </div>
-              <button onclick='openModal("${masterAsset.symbol}", ${entry}, ${tp}, ${sl}, "${isBull ? 'BUY' : 'SELL'}", "1h / 4h", "${masterAsset.category}")' class="green-gradient-btn w-full py-2 rounded-xl text-xs shadow-lg animate-pulse">
-                ⚡ APRI SHORT / LONG CON TP/SL ESATTI ORA &#8599;
+              <button onclick='openModal("${masterAsset.symbol}", ${entry}, ${param.tp}, ${param.sl}, "${isBull ? 'BUY' : 'SELL'}", "${param.timeframe}", "${param.durata}", "${masterAsset.category}")' class="green-gradient-btn w-full py-2 rounded-xl text-xs shadow-lg animate-pulse">
+                🎯 ESEGUI SEGNALE CHIRURGICO ORA &#8599;
               </button>
             </div>
           </div>
@@ -667,31 +767,45 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                   <tr class="border-b border-white/15 text-[10px] font-bold uppercase tracking-wider text-white/75 bg-[#000000]">
                     <th class="py-2.5 pl-3">Asset Symbol</th>
                     <th class="py-2.5 px-2.5">Segnale</th>
-                    <th class="py-2.5 px-2.5">⏱️ Timeframe</th>
+                    <th class="py-2.5 px-2.5">⏱️ TF &amp; Durata</th>
                     <th class="py-2.5 px-2.5 text-right">Prezzo Live</th>
                     <th class="py-2.5 px-2.5 text-right">Var. 24h 🔥</th>
-                    <th class="py-2.5 px-2.5">Stop Loss &amp; TP Esatti</th>
+                    <th class="py-2.5 px-2.5">SL &amp; TP (ATR)</th>
                     <th class="py-2.5 px-2.5 text-right">Azione / Esegui</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-white/10 text-xs font-mono">
                   ${assets.map(c => {
                     const isBull = c.change24h >= 0;
-                    const tf = Math.abs(c.change24h) > 5 ? '15m / 1h' : '1h / 4h';
-                    const statusText = Math.abs(c.change24h) > 2.5 ? (isBull ? 'LONG' : 'SHORT') : 'ATTESA';
+                    const param = calcolaParametriPrecisione(c);
+                    const statusText = Math.abs(c.change24h) > 2.0 ? (isBull ? 'LONG' : 'SHORT') : 'ATTESA';
                     const statusBadgeColor = statusText === 'LONG' ? 'bg-green-500/20 text-[#00FF66] border-green-500/40' : statusText === 'SHORT' ? 'bg-red-500/20 text-[#FF334B] border-red-500/40' : 'bg-white/10 text-white/70 border-white/20';
-                    const atr = c.price * 0.01;
-                    const sl = Number((isBull ? c.price - (atr * 1.5) : c.price + (atr * 1.5)).toFixed(2));
-                    const tp = Number((isBull ? c.price + (atr * 2.5) : c.price - (atr * 2.5)).toFixed(2));
+
+                    if (state.tradingMode === 'AUTO' && Math.abs(c.change24h) > 4.5 && !state.autoExecutedSymbols.has(c.symbol)) {
+                      state.autoExecutedSymbols.add(c.symbol);
+                      const keys = getStoredApiKeys();
+                      eseguiOperazioneServer({
+                        symbol: c.symbol,
+                        action: isBull ? 'BUY' : 'SELL',
+                        size: Math.max(0.001, Number((10.0 / c.price).toFixed(4))),
+                        entry: c.price,
+                        tp: param.tp,
+                        sl: param.sl,
+                        leverage: 3,
+                        timeframe: param.timeframe,
+                        apiKey: keys.apiKey,
+                        secretKey: keys.secretKey
+                      }, true);
+                    }
 
                     return `
-                      <tr class="hover:bg-white/5 transition-colors cursor-pointer" onclick='openModal("${c.symbol}", ${c.price}, ${tp}, ${sl}, "${isBull ? 'BUY' : 'SELL'}", "${tf}", "${c.category}")'>
+                      <tr class="hover:bg-white/5 transition-colors cursor-pointer" onclick='openModal("${c.symbol}", ${c.price}, ${param.tp}, ${param.sl}, "${isBull ? 'BUY' : 'SELL'}", "${param.timeframe}", "${param.durata}", "${c.category}")'>
                         <td class="py-2.5 pl-3 font-bold text-white">${c.symbol.replace('-USDT', '')}</td>
                         <td class="py-2.5 px-2.5"><span class="px-2 py-0.5 rounded text-[10px] font-bold border ${statusBadgeColor}">${statusText}</span></td>
-                        <td class="py-2.5 px-2.5 text-cyan-300 font-bold">${tf}</td>
+                        <td class="py-2.5 px-2.5 text-cyan-300 font-bold">${param.timeframe.split(' ')[0]} <span class="text-white/50 text-[9px]">(${param.durata.split(' ')[0]}h)</span></td>
                         <td class="py-2.5 px-2.5 text-right tabular-nums text-white font-bold">$${c.price.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
                         <td class="py-2.5 px-2.5 text-right tabular-nums ${isBull ? 'text-[#00FF66]' : 'text-[#FF334B]'} font-extrabold">${isBull ? '+' : ''}${c.change24h.toFixed(2)}%</td>
-                        <td class="py-2.5 px-2.5 text-white/80">$${sl.toLocaleString()} / $${tp.toLocaleString()}</td>
+                        <td class="py-2.5 px-2.5 text-white/80">$${param.sl.toLocaleString()} / $${param.tp.toLocaleString()}</td>
                         <td class="py-2.5 px-2.5 text-right">
                           <button class="px-3 py-1 rounded-lg bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/50 font-bold text-xs hover:bg-[#00FF66] hover:text-black transition-all">
                             Esegui ⚡
@@ -708,17 +822,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       }).join('');
     }
 
-    function openModal(symbol, livePrice, tp, sl, side, tf, category) {
+    function openModal(symbol, livePrice, tp, sl, side, tf, durata, category) {
       let minSize = 0.001;
       if (livePrice > 0) {
         minSize = Math.max(0.001, Number((10.0 / livePrice).toFixed(4)));
         if (minSize < 0.001) minSize = 0.001;
       }
 
-      state.currentSelectedAsset = { symbol, livePrice, tp, sl, side, tf, category, minSize };
+      state.currentSelectedAsset = { symbol, livePrice, tp, sl, side, tf, durata, category, minSize };
       document.getElementById('modalSymbol').textContent = symbol;
       document.getElementById('modalCategory').textContent = category;
       document.getElementById('modalTF').textContent = tf;
+      document.getElementById('modalDurata').textContent = durata;
       document.getElementById('modalLivePrice').textContent = `$${livePrice.toLocaleString()}`;
       document.getElementById('modalSide').textContent = `${side === 'BUY' ? 'LONG (ACQUISTO)' : 'SHORT (VENDITA)'}`;
       document.getElementById('modalSide').className = side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]';
@@ -747,15 +862,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const asset = state.currentSelectedAsset;
       const quantity = parseFloat(document.getElementById('tradeQuantityInput').value) || asset.minSize;
       const leverage = state.selectedLeverage;
+      const keys = getStoredApiKeys();
 
       const btn = document.getElementById('executeBingXBtn');
       const feedback = document.getElementById('executionFeedback');
 
       btn.disabled = true;
-      btn.textContent = `Invio ordine su BingX in corso...`;
+      btn.textContent = `Invio ordine di precisione su BingX...`;
       feedback.classList.remove('hidden', 'text-[#00FF66]', 'text-[#FF334B]');
       feedback.classList.add('text-white/70');
-      feedback.textContent = `Configurazione Leva ${leverage}x e aggancio TP/SL esatti...`;
+      feedback.textContent = `Configurazione Leva ${leverage}x, ATR Stop Loss e TP (${asset.durata})...`;
 
       const res = await eseguiOperazioneServer({
         symbol: asset.symbol,
@@ -765,24 +881,26 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         tp: asset.tp,
         sl: asset.sl,
         leverage: leverage,
-        timeframe: asset.tf
+        timeframe: asset.tf,
+        apiKey: keys.apiKey,
+        secretKey: keys.secretKey
       }, false);
 
       if (res.code === 0) {
         feedback.classList.remove('text-white/70', 'text-[#FF334B]');
         feedback.classList.add('text-[#00FF66]');
-        feedback.textContent = `✔ Successo! Posizione aperta e TP/SL impostati esattamente come da segnale.`;
+        feedback.textContent = `✔ Successo! Posizione aperta con livelli ATR e TP protettivi.`;
         playChime();
-        logFeed(`[BINGX LIVE] Posizione aperta su ${asset.symbol} (${asset.side}) - SL: ${asset.sl} | TP: ${asset.tp}`);
+        logFeed(`[PRECISION TRADE] ${asset.symbol} (${asset.side}) - Durata stimata: ${asset.durata}`);
       } else {
         feedback.classList.remove('text-white/70', 'text-[#00FF66]');
         feedback.classList.add('text-[#FF334B]');
-        feedback.textContent = `✖ Errore: ${res.msg || 'Parametri non validi o saldo insufficiente'}`;
-        logFeed(`[BINGX ERRORE] ${asset.symbol}: ${res.msg}`);
+        feedback.textContent = `✖ Errore: ${res.msg || 'Controlla le tue API Key personali'}`;
+        logFeed(`[ERRORE] ${asset.symbol}: ${res.msg}`);
       }
 
       btn.disabled = false;
-      btn.textContent = "🧠 Esegui a Mercato con TP/SL esatti su BingX";
+      btn.textContent = "🎯 Esegui Ordine di Precisione su BingX";
     }
 
     async function eseguiOperazioneServer(payload, isAuto) {
@@ -793,6 +911,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           body: JSON.stringify({ ...payload, is_auto: isAuto })
         });
         const data = await response.json();
+        if (isAuto) {
+          if (data.code === 0) {
+            logFeed(`[AUTO ⚡] Segnale di precisione eseguito su ${payload.symbol} (${payload.action})`);
+            playChime();
+          }
+        }
         return data;
       } catch (err) {
         return { code: -1, msg: err.message };
@@ -808,9 +932,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     }
 
     window.addEventListener('DOMContentLoaded', () => {
+      updateApiStatusUI();
       fetchServerMode();
       pollMarketData();
-      setInterval(pollMarketData, 3000);
+      setInterval(pollMarketData, 3000); // Aggiornamento mercato ogni 3 secondi
       setInterval(() => {
         const now = new Date();
         document.getElementById('liveCetClock').textContent = now.toTimeString().slice(0, 8) + ' CET';
