@@ -549,27 +549,27 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex items-center gap-2 text-[11px] font-mono text-white/70 mt-0.5">
             <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
-            <span class="text-[#00FF66]">1. Entrata • 2. Rimanere a mercato • 3. Uscire (Auto: 1 pos. max 🔒)</span>
+            <span class="text-[#00FF66]">1. Entrata • 2. Rimanere • 3. Uscire (1 pos. max 🔒)</span>
           </div>
         </div>
       </div>
 
       <div class="flex items-center gap-3 flex-wrap">
-        <div class="flex items-center bg-[#08080A] p-1.5 rounded-xl border border-white/20 gap-1.5">
+        <div class="flex items-center bg-[#08080A] p-1.5 rounded-xl border border-white/20 gap-1.5 flex-wrap">
           <span class="text-xs font-mono font-bold text-white/70 px-1">Mercato:</span>
-          <button id="btnMarketFutures" onclick="switchMarketType('FUTURES')" class="px-3 py-1 rounded-lg text-xs font-bold transition-all bg-[#0066FF] text-white">FUTURES</button>
-          <button id="btnMarketStandard" onclick="switchMarketType('STANDARD_FUTURES')" class="px-3 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white">STD FUTURES 📊</button>
-          <button id="btnMarketSpot" onclick="switchMarketType('SPOT')" class="px-3 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white">SPOT 🪙</button>
+          <button id="btnMarketFutures" onclick="switchMarketType('FUTURES')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-[#0066FF] text-white">FUTURES</button>
+          <button id="btnMarketStandard" onclick="switchMarketType('STANDARD_FUTURES')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white">STD FUTURES 📊</button>
+          <button id="btnMarketSpot" onclick="switchMarketType('SPOT')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white">SPOT 🪙</button>
         </div>
 
-        <button onclick="toggleApiModal()" class="px-3.5 py-1.5 rounded-xl text-xs font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 hover:bg-cyan-500/30 transition-all flex items-center gap-1.5">
-          <span>🔑</span> <span id="apiStatusText">Collega API Personali</span>
+        <button onclick="toggleApiModal()" class="px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 hover:bg-cyan-500/30 transition-all flex items-center gap-1.5">
+          <span>🔑</span> <span id="apiStatusText">Collega API</span>
         </button>
 
         <div class="flex items-center bg-[#08080A] p-1.5 rounded-xl border border-white/20 gap-1.5">
           <span class="text-xs font-mono font-bold text-white/70 px-1">Esecuzione:</span>
-          <button id="btnModeManual" onclick="switchMode('MANUAL')" class="px-3 py-1 rounded-lg text-xs font-bold transition-all bg-white/20 text-white">MANUALE</button>
-          <button id="btnModeAuto" onclick="switchMode('AUTO')" class="px-3 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white">AUTO ⚡</button>
+          <button id="btnModeManual" onclick="switchMode('MANUAL')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-white/20 text-white">MANUALE</button>
+          <button id="btnModeAuto" onclick="switchMode('AUTO')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white">AUTO ⚡</button>
         </div>
       </div>
     </div>
@@ -685,9 +685,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
       </div>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase text-white/75">Precisione Dati Engine</span>
+        <span class="text-[11px] font-semibold uppercase text-white/75">Categoria Attiva Engine</span>
         <div class="mt-2">
-          <span id="kpiMarketBadge" class="text-xs font-mono text-cyan-400 font-bold">🟢 OHLCV 15m + Fee Real</span>
+          <span id="kpiMarketBadge" class="text-xs font-mono text-cyan-400 font-bold">🟢 FUTURES (1 Pos. Max)</span>
         </div>
       </div>
     </section>
@@ -907,7 +907,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       } else {
         statusEl.textContent = "⚠️ API Personali non inserite";
         statusEl.className = "text-xs font-mono text-yellow-400 block";
-        textBtn.textContent = "Collega API Personali";
+        textBtn.textContent = "Collega API";
       }
     }
 
@@ -1320,24 +1320,24 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const masterSub = document.getElementById('masterSubtitle');
       const tableLabel = document.getElementById('tableMarketLabel');
 
-      btnFut.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
-      btnStd.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
-      btnSpot.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
+      btnFut.className = "px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
+      btnStd.className = "px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
+      btnSpot.className = "px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
 
       if (state.marketType === 'SPOT') {
-        btnSpot.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all bg-[#00FF66] text-black shadow-lg";
+        btnSpot.className = "px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-[#00FF66] text-black shadow-lg";
         kpiBadge.textContent = "🪙 SPOT TARGET TP (Advisor Live)";
         headerTitle.textContent = "Millimetric Spot Advisor Engine";
         masterSub.textContent = "Scanner Spot con candele 15m reali e Advisor attivo";
         tableLabel.textContent = "SPOT TARGET TP";
       } else if (state.marketType === 'STANDARD_FUTURES') {
-        btnStd.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all bg-amber-500 text-black shadow-lg";
+        btnStd.className = "px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-amber-500 text-black shadow-lg";
         kpiBadge.textContent = "📊 STANDARD FUTURES (1 Pos. Max)";
         headerTitle.textContent = "Standard Futures Advisor Engine";
         masterSub.textContent = "Tabella dedicata Futures Standard con gestione 1 posizione alla volta e Advisor";
         tableLabel.textContent = "STANDARD FUTURES";
       } else {
-        btnFut.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all bg-[#0066FF] text-white";
+        btnFut.className = "px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-[#0066FF] text-white";
         kpiBadge.textContent = "🟢 PERP FUTURES (1 Pos. Max)";
         headerTitle.textContent = "Millimetric Futures Engine";
         masterSub.textContent = "Advisor in tempo reale: 1. Entrata • 2. Rimanere • 3. Uscire (1 pos. max)";
@@ -1368,14 +1368,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const modeText = document.getElementById('modeText');
 
       if (mode === 'AUTO') {
-        btnAuto.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all bg-[#00FF66] text-black shadow-lg";
-        btnMan.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
+        btnAuto.className = "px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-[#00FF66] text-black shadow-lg";
+        btnMan.className = "px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
         badge.className = "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/50";
         modeDot.className = "w-1.5 h-1.5 rounded-full bg-[#00FF66] animate-ping";
         modeText.textContent = "AUTO (1 POS MAX) ⚡";
       } else {
-        btnMan.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all bg-white/20 text-white";
-        btnAuto.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
+        btnMan.className = "px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-white/20 text-white";
+        btnAuto.className = "px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
         badge.className = "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-white/10 text-white/80 border border-white/20";
         modeDot.className = "w-1.5 h-1.5 rounded-full bg-yellow-400";
         modeText.textContent = "MANUALE";
