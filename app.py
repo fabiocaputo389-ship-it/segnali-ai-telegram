@@ -215,7 +215,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ApexScan Pro - Precision Signals &amp; Real-Time Engine</title>
+  <title>ApexScan Pro - Precision Signals &amp; Real-Time Ticker</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -246,6 +246,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     .green-gradient-btn { background: linear-gradient(135deg, #00FF66 0%, #00CC52 100%); color: #000000; font-weight: 800; }
     .bingx-btn { background: linear-gradient(135deg, #0066FF 0%, #0044BB 100%); color: #FFFFFF; font-weight: 800; }
     .tabular-nums { font-variant-numeric: tabular-nums; }
+    
+    /* MARQUEE TICKER TOP COINS */
+    @keyframes tickerScroll {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+    .ticker-wrapper { display: flex; width: max-content; animation: tickerScroll 25s linear infinite; }
+    .ticker-wrapper:hover { animation-play-state: paused; }
   </style>
 </head>
 <body class="min-h-screen flex flex-col selection:bg-[#00FF66]/30 selection:text-white">
@@ -267,7 +275,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex items-center gap-2 text-[11px] font-mono text-white/70 mt-0.5">
             <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
-            <span class="text-[#00FF66]">Motore Chirurgico ATR Attivo 🟢</span>
+            <span class="text-[#00FF66]">Top Ticker Live &amp; ATR Attivo 🟢</span>
           </div>
         </div>
       </div>
@@ -286,6 +294,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
     </div>
   </header>
+
+  <!-- TICKER MARQUEE IN TEMPO REALE PER LE TOP COINS -->
+  <div class="bg-[#08080A] border-b border-white/10 overflow-hidden py-2 px-2">
+    <div class="max-w-[1920px] mx-auto flex items-center gap-3">
+      <span class="text-[10px] font-mono font-extrabold uppercase bg-[#00FF66]/20 text-[#00FF66] px-2 py-1 rounded border border-[#00FF66]/40 flex items-center gap-1 shrink-0">
+        <span>🔥</span> Top Coins Live:
+      </span>
+      <div class="overflow-hidden w-full relative">
+        <div id="liveTickerMarquee" class="ticker-wrapper font-mono text-xs text-white flex items-center gap-6">
+          <span class="text-white/50">Caricamento ticker in tempo reale...</span>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- MAIN -->
   <main class="flex-1 max-w-[1920px] w-full mx-auto px-3 sm:px-5 py-4 flex flex-col gap-4">
@@ -431,7 +453,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex justify-between"><span class="text-white/75">Prezzo Live Corrente:</span><strong id="modalLivePrice" class="text-white">--</strong></div>
           <div class="flex justify-between"><span class="text-white/75">Segnale di Ingresso:</span><strong id="modalSide" class="text-[#00FF66]">LONG (ACQUISTO)</strong></div>
           <div class="flex justify-between"><span class="text-white/75">Stop Loss (ATR):</span><strong id="modalSL" class="text-[#FF334B]">--</strong></div>
-          <div class="flex justify-between"><span class="text-white/75">Take Profit (1:2.2):</span><strong id="modalTrendingTP" class="text-[#00FF66]">--</strong></div>
+          <div class="flex justify-between"><span class="text-white/75">Take Profit (1:2.5):</span><strong id="modalTrendingTP" class="text-[#00FF66]">--</strong></div>
         </div>
 
         <!-- SELETTORE LEVA -->
@@ -563,7 +585,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const prezzo = c.price;
       const range24h = c.high24h - c.low24h;
       
-      // ATR stimato basato sull'escursione High-Low giornaliera
       const atr = range24h > 0 ? range24h * 0.04 : prezzo * 0.012;
       
       const sl = Number((isBull ? prezzo - (atr * 1.2) : prezzo + (atr * 1.2)).toFixed(2));
@@ -670,10 +691,34 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         if (json.code === 0) {
           state.marketData = json.data;
           renderDashboard();
+          renderLiveTickerMarquee();
         }
       } catch (e) {
         console.error("Errore fetch dati live:", e);
       }
+    }
+
+    function renderLiveTickerMarquee() {
+      const keys = Object.keys(state.marketData);
+      if (keys.length === 0) return;
+      
+      const tickerSymbols = ["BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT", "DOGE-USDT", "AVAX-USDT", "GOLD-USDT", "NASDAQ-USDT"];
+      const tickerItems = keys.filter(sym => tickerSymbols.includes(sym) || state.marketData[sym].change24h > 4.0).slice(0, 10);
+
+      const htmlContent = tickerItems.map(sym => {
+        const item = state.marketData[sym];
+        const isBull = item.change24h >= 0;
+        return `
+          <div class="flex items-center gap-2 bg-white/5 px-3 py-1 rounded-lg border border-white/10 shrink-0">
+            <span class="font-bold text-white">${sym.replace('-USDT', '')}</span>
+            <span class="text-white/90">$${item.price.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+            <span class="${isBull ? 'text-[#00FF66]' : 'text-[#FF334B]'} font-bold">${isBull ? '+' : ''}${item.change24h.toFixed(2)}%</span>
+          </div>
+        `;
+      }).join('');
+
+      // Duplichiamo il contenuto per un effetto marquee continuo fluido
+      document.getElementById('liveTickerMarquee').innerHTML = htmlContent + htmlContent;
     }
 
     function renderDashboard() {
@@ -893,7 +938,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         playChime();
         logFeed(`[PRECISION TRADE] ${asset.symbol} (${asset.side}) - Durata stimata: ${asset.durata}`);
       } else {
-        feedback.classList.remove('text-white/70', 'text-[#00FF66]');
+        feedback.classList.remove('text-white/70', 'text-[#FF334B]');
         feedback.classList.add('text-[#FF334B]');
         feedback.textContent = `✖ Errore: ${res.msg || 'Controlla le tue API Key personali'}`;
         logFeed(`[ERRORE] ${asset.symbol}: ${res.msg}`);
@@ -935,7 +980,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       updateApiStatusUI();
       fetchServerMode();
       pollMarketData();
-      setInterval(pollMarketData, 3000); // Aggiornamento mercato ogni 3 secondi
+      setInterval(pollMarketData, 3000); // Aggiornamento mercato e ticker ogni 3 secondi
       setInterval(() => {
         const now = new Date();
         document.getElementById('liveCetClock').textContent = now.toTimeString().slice(0, 8) + ' CET';
