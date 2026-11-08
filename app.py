@@ -95,11 +95,11 @@ def get_klines_precision(simbolo: str, market_type: str = "FUTURES", interval: s
             url = f"{BASE_URL}/openApi/swap/v3/quote/klines"
             params = {"symbol": simbolo, "interval": interval, "limit": limit}
 
-        resp = requests.get(url, params=params, timeout=4)
+        resp = requests.get(url, params=params, timeout=3)
         payload = resp.json()
         raw_klines = payload.get("data", [])
 
-        if not raw_klines or len(raw_klines) < 15:
+        if not raw_klines or len(raw_klines) < 5:
             return None
 
         candles = []
@@ -132,15 +132,15 @@ def get_klines_precision(simbolo: str, market_type: str = "FUTURES", interval: s
         last_price = closes[-1]
         ema9 = _calcola_ema_serie(closes, 9)
         ema21 = _calcola_ema_serie(closes, 21)
-        ema9_prev = _calcola_ema_serie(closes[:-1], 9)
-        ema21_prev = _calcola_ema_serie(closes[:-1], 21)
+        ema9_prev = _calcola_ema_serie(closes[:-1], 9) if len(closes) > 1 else ema9
+        ema21_prev = _calcola_ema_serie(closes[:-1], 21) if len(closes) > 1 else ema21
 
         rsi14 = _calcola_rsi_wilder(closes, 14)
         atr14 = _calcola_atr_reale(highs, lows, closes, 14)
 
         vol_window = volumes[-21:-1] if len(volumes) >= 21 else volumes[:-1]
         avg_vol = (sum(vol_window) / len(vol_window)) if vol_window else 1.0
-        current_vol = max(volumes[-1], volumes[-2] * 0.85)
+        current_vol = max(volumes[-1], volumes[-2] * 0.85) if len(volumes) >= 2 else volumes[-1]
         rvol = round(current_vol / avg_vol, 2) if avg_vol > 0 else 1.0
 
         ema_bull = ema9 >= ema21
@@ -319,11 +319,9 @@ def get_live_market_data(market_type: str = "FUTURES"):
 
 
 def imposta_leva_bingx(simbolo: str, leva: int, lato: str, api_key: str, secret_key: str):
-    """Imposta la leva finanziaria desiderata sull'account BingX Futures."""
     endpoint = "/openApi/swap/v2/trade/leverage"
     url = BASE_URL + endpoint
     timestamp = str(int(time.time() * 1000))
-
     position_side = "LONG" if lato == "BUY" else "SHORT"
     payload = {
         "symbol": simbolo,
@@ -331,10 +329,8 @@ def imposta_leva_bingx(simbolo: str, leva: int, lato: str, api_key: str, secret_
         "positionSide": position_side,
         "timestamp": timestamp
     }
-
     query_string = _genera_firma(payload, secret_key)
     headers = {"X-BX-APIKEY": api_key}
-
     try:
         resp = requests.post(f"{url}?{query_string}", headers=headers)
         res_data = resp.json()
@@ -345,7 +341,6 @@ def imposta_leva_bingx(simbolo: str, leva: int, lato: str, api_key: str, secret_
 
 
 def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingresso: float, prezzo_tp: float, prezzo_sl: float, leva: int = 3, timeframe: str = "15m / 1h", market_type: str = "FUTURES", api_key: str = "", secret_key: str = ""):
-    """Esegue l'ordine a mercato su Futures o Spot con precisione millimetrica."""
     active_api = api_key if api_key else DEFAULT_API_KEY
     active_secret = secret_key if secret_key else DEFAULT_SECRET_KEY
 
@@ -399,7 +394,6 @@ def _imposta_ordine_protettivo(simbolo: str, lato_chiusura: str, prezzo_trigger:
     endpoint = "/openApi/swap/v2/trade/order"
     url = BASE_URL + endpoint
     timestamp = str(int(time.time() * 1000))
-
     payload = {
         "symbol": simbolo,
         "side": lato_chiusura,
@@ -410,10 +404,8 @@ def _imposta_ordine_protettivo(simbolo: str, lato_chiusura: str, prezzo_trigger:
         "reduceOnly": "true",
         "timestamp": timestamp
     }
-
     query_string = _genera_firma(payload, secret_key)
     headers = {"X-BX-APIKEY": api_key}
-
     try:
         requests.post(f"{url}?{query_string}", headers=headers)
     except Exception as e:
@@ -561,25 +553,22 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex items-center gap-2 text-[11px] font-mono text-white/70 mt-0.5">
             <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
-            <span class="text-[#00FF66]">Advisor Posizione in Tempo Reale &amp; Uscita Millimetrica 🟢</span>
+            <span class="text-[#00FF66]">1. Entrata • 2. Rimanere a mercato • 3. Uscire 🟢</span>
           </div>
         </div>
       </div>
 
       <div class="flex items-center gap-3 flex-wrap">
-        <!-- SELETTORE MERCATO -->
         <div class="flex items-center bg-[#08080A] p-1.5 rounded-xl border border-white/20 gap-1.5">
           <span class="text-xs font-mono font-bold text-white/70 px-1">Mercato:</span>
           <button id="btnMarketFutures" onclick="switchMarketType('FUTURES')" class="px-3 py-1 rounded-lg text-xs font-bold transition-all bg-[#0066FF] text-white">FUTURES</button>
           <button id="btnMarketSpot" onclick="switchMarketType('SPOT')" class="px-3 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white">SPOT 🪙</button>
         </div>
 
-        <!-- BOTTONE API -->
         <button onclick="toggleApiModal()" class="px-3.5 py-1.5 rounded-xl text-xs font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 hover:bg-cyan-500/30 transition-all flex items-center gap-1.5">
           <span>🔑</span> <span id="apiStatusText">Collega API Personali</span>
         </button>
 
-        <!-- SELETTORE MODALITÀ -->
         <div class="flex items-center bg-[#08080A] p-1.5 rounded-xl border border-white/20 gap-1.5">
           <span class="text-xs font-mono font-bold text-white/70 px-1">Esecuzione:</span>
           <button id="btnModeManual" onclick="switchMode('MANUAL')" class="px-3 py-1 rounded-lg text-xs font-bold transition-all bg-white/20 text-white">MANUALE</button>
@@ -606,23 +595,25 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <!-- MAIN -->
   <main class="flex-1 max-w-[1920px] w-full mx-auto px-3 sm:px-5 py-4 flex flex-col gap-4">
 
-    <!-- BOX ADVISOR POSIZIONE ATTIVA IN TEMPO REALE (NASCOSTO FINCHÉ NON APRI UN TRADE) -->
-    <div id="activePositionAdvisorBox" class="hidden terminal-card rounded-2xl p-4 sm:p-5 border-2 border-[#00FF66] bg-gradient-to-r from-emerald-950/40 via-[#08080A] to-emerald-950/40 shadow-2xl">
-      <div class="flex flex-wrap items-center justify-between pb-3 mb-3 border-b border-[#00FF66]/30 gap-3">
+    <!-- BOX ADVISOR POSIZIONE ATTIVA CON TABELLA DETTAGLIATA (1. Entrata, 2. Rimanere a mercato, 3. Uscire) -->
+    <div id="activePositionAdvisorBox" class="hidden terminal-card rounded-2xl p-4 sm:p-5 border-2 border-[#00FF66] bg-gradient-to-r from-emerald-950/40 via-[#08080A] to-emerald-950/40 shadow-2xl space-y-4">
+      <div class="flex flex-wrap items-center justify-between pb-3 border-b border-[#00FF66]/30 gap-3">
         <div class="flex items-center gap-3">
           <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse">⚡</div>
           <div>
-            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">🟢 ADVISOR POSIZIONE LIVE (<span id="advSymbol">BTC-USDT</span>)</h2>
-            <p class="text-[11px] text-[#00FF66]">Monitoraggio continuo: tempo residuo, consiglio di tenuta e allerta chiusura</p>
+            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">🟢 ADVISOR LIVE &amp; GESTIONE POSIZIONE (<span id="advSymbol">BTC-USDT</span>)</h2>
+            <p class="text-[11px] text-[#00FF66]">Monitoraggio continuo: 1. Entrata registrata • 2. Rimanere a mercato • 3. Uscire al TP/SL</p>
           </div>
         </div>
         <button onclick="chiudiPosizioneMonitorata()" class="px-3.5 py-1.5 rounded-xl bg-red-500/20 text-[#FF334B] border border-red-500/50 hover:bg-red-500/30 text-xs font-bold transition-all">
           Chiudi / Deseleziona Monitoraggio ✕
         </button>
       </div>
+
+      <!-- CARDS KPI ADVISOR -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs font-mono">
         <div class="bg-black/50 p-3 rounded-xl border border-white/10">
-          <span class="text-white/60 text-[10px] block">PREZZO DI INGRESSO (ENTRY)</span>
+          <span class="text-white/60 text-[10px] block">1. ENTRATA (PREZZO APERTURA)</span>
           <strong id="advEntryPrice" class="text-white text-sm">--</strong>
           <span id="advSideBadge" class="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-green-500/20 text-[#00FF66]">LONG</span>
         </div>
@@ -638,11 +629,39 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
         <div class="bg-black/50 p-3 rounded-xl border border-white/10 flex flex-col justify-between">
           <div>
-            <span class="text-white/60 text-[10px] block">🤖 CONSIGLIO ADVISOR LIVE</span>
+            <span class="text-white/60 text-[10px] block">3. CONSIGLIO DI USCITA / TENUTA</span>
             <strong id="advStatusAdvice" class="text-[#00FF66] text-xs block mt-0.5">Analisi in corso...</strong>
           </div>
           <span id="advActionAlert" class="text-[10px] text-white/80 italic mt-1">--</span>
         </div>
+      </div>
+
+      <!-- TABELLA COMPLETA INFORMAZIONI CON LE 3 VOCI -->
+      <div class="overflow-x-auto pt-2">
+        <table class="w-full text-left border-collapse text-xs font-mono">
+          <thead>
+            <tr class="border-b border-white/15 text-[10px] font-bold uppercase tracking-wider text-white/75 bg-black/80">
+              <th class="py-2.5 px-3">Asset Monitorato</th>
+              <th class="py-2.5 px-3">1. Entrata (Entry)</th>
+              <th class="py-2.5 px-3">Target TP Certo</th>
+              <th class="py-2.5 px-3">Stop Loss</th>
+              <th class="py-2.5 px-3">Rendimento PnL</th>
+              <th class="py-2.5 px-3">2. Rimanere a mercato?</th>
+              <th class="py-2.5 px-3 text-right">3. Uscire / Azione</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-white/10 bg-black/40">
+            <tr>
+              <td id="tableAdvSymbol" class="py-3 px-3 font-bold text-white">--</td>
+              <td id="tableAdvEntry" class="py-3 px-3 text-white">--</td>
+              <td id="tableAdvTp" class="py-3 px-3 text-[#00FF66] font-bold">--</td>
+              <td id="tableAdvSl" class="py-3 px-3 text-[#FF334B]">--</td>
+              <td id="tableAdvPnl" class="py-3 px-3 font-extrabold text-[#00FF66]">--</td>
+              <td id="tableAdvRemain" class="py-3 px-3 text-cyan-300 font-bold">Sì (Trend Attivo)</td>
+              <td id="tableAdvExit" class="py-3 px-3 text-right text-yellow-300 font-bold">Rimani dentro al trade</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
@@ -869,7 +888,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       currentSelectedAsset: null,
       autoExecutedSymbols: new Set(),
       
-      // STATO ADVISOR POSIZIONE ATTIVA
       activePosition: null,
       advisorInterval: null
     };
@@ -1079,7 +1097,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
     async function fetchDeepOhlcv(symbol) {
       try {
-        const res = await fetch(`/api/deep-scan?symbol=${encodeURIComponent(symbol)}&marketType=${state.marketType}&interval=15m`);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+        const res = await fetch(`/api/deep-scan?symbol=${encodeURIComponent(symbol)}&marketType=${state.marketType}&interval=15m`, {
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        
         const json = await res.json();
         if (json.code === 0 && json.data) {
           state.deepCache[`${state.marketType}_${symbol}`] = {
@@ -1089,14 +1114,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           return json.data;
         }
       } catch (e) {
-        console.error("Errore deep scan:", e);
+        console.warn("Deep scan timeout o errore rete, fallback su dati live immediati:", e);
       }
       return null;
     }
 
-    // ==========================================
-    // GESTIONE ADVISOR POSIZIONE LIVE IN TEMPO REALE
-    // ==========================================
     function avviaAdvisorPosizione(symbol, side, entryPrice, tpPrice, slPrice, tempoSec) {
       if (state.advisorInterval) clearInterval(state.advisorInterval);
 
@@ -1118,9 +1140,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       sideBadge.textContent = side;
       sideBadge.className = side === 'BUY' ? 'inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-green-500/20 text-[#00FF66]' : 'inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-[#FF334B]';
 
+      // Popola i dati fissi della tabella info advisor (1. Entrata)
+      document.getElementById('tableAdvSymbol').textContent = symbol;
+      document.getElementById('tableAdvEntry').textContent = `$${formatPrice(entryPrice)}`;
+      document.getElementById('tableAdvTp').textContent = `$${formatPrice(tpPrice)}`;
+      document.getElementById('tableAdvSl').textContent = `$${formatPrice(slPrice)}`;
+
       aggiornaAdvisorLoop();
-      state.advisorInterval = setInterval(aggiornaAdvisorLoop, 2000); // Aggiornamento ogni 2 secondi
-      logFeed(`[ADVISOR ATTIVO] Monitoraggio avviato per ${symbol} (${side}) verso TP $${formatPrice(tpPrice)}`);
+      state.advisorInterval = setInterval(aggiornaAdvisorLoop, 2000);
+      logFeed(`[ADVISOR ATTIVO] 1. Entrata registrata per ${symbol} (${side}) @ $${formatPrice(entryPrice)}`);
     }
 
     function chiudiPosizioneMonitorata() {
@@ -1139,14 +1167,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const currentPrice = liveItem.price;
       document.getElementById('advLivePrice').textContent = `$${formatPrice(currentPrice)}`;
 
-      // Calcolo PnL %
       const diff = pos.side === 'BUY' ? (currentPrice - pos.entryPrice) : (pos.entryPrice - currentPrice);
       const pnlPct = (diff / pos.entryPrice) * 100;
+      
       const pnlEl = document.getElementById('advPnlVal');
       pnlEl.textContent = `PnL: ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`;
       pnlEl.className = `block mt-1 text-[10px] font-bold ${pnlPct >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
 
-      // Conto alla rovescia tempo rimanente
+      // Aggiornamento Rendimento PnL in tabella
+      const tablePnl = document.getElementById('tableAdvPnl');
+      tablePnl.textContent = `${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`;
+      tablePnl.className = `py-3 px-3 font-extrabold ${pnlPct >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
+
       const timeLeftMs = pos.targetTimestamp - Date.now();
       const timeEl = document.getElementById('advTimeRemaining');
       const timeProgEl = document.getElementById('advTimeProgress');
@@ -1163,39 +1195,53 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         timeProgEl.textContent = "Tempo stimato rimanente al TP";
       }
 
-      // Consiglio Advisor Live & Verifiche di Uscita
       const statusAdvice = document.getElementById('advStatusAdvice');
       const actionAlert = document.getElementById('advActionAlert');
+      const tableRemain = document.getElementById('tableAdvRemain');
+      const tableExit = document.getElementById('tableAdvExit');
 
-      // Controllo se ha raggiunto il TP o lo SL
       const hitTp = pos.side === 'BUY' ? currentPrice >= pos.tpPrice : currentPrice <= pos.tpPrice;
       const hitSl = pos.side === 'BUY' ? currentPrice <= pos.slPrice : currentPrice >= pos.slPrice;
 
       if (hitTp) {
         statusAdvice.textContent = "🎯 TAKE PROFIT RAGGIUNTO!";
         statusAdvice.className = "text-[#00FF66] text-xs block font-extrabold animate-bounce";
-        actionAlert.textContent = "Consiglio: CHIUDI SUBITO E INCASSA IL PROFITTO.";
+        actionAlert.textContent = "3. Uscire: CHIUDI SUBITO E INCASSA IL PROFITTO.";
+        tableRemain.textContent = "No (Target Raggiunto)";
+        tableExit.textContent = "3. USCIRE (Prendi Profitto 🎯)";
+        tableExit.className = "py-3 px-3 text-right text-[#00FF66] font-extrabold animate-pulse";
         playChime(true);
       } else if (hitSl) {
         statusAdvice.textContent = "⚠️ STOP LOSS TESTATO!";
         statusAdvice.className = "text-[#FF334B] text-xs block font-extrabold animate-pulse";
-        actionAlert.textContent = "Consiglio: Taglia la posizione per protezione capitale.";
+        actionAlert.textContent = "3. Uscire: Taglia la posizione per protezione capitale.";
+        tableRemain.textContent = "No (Stop Toccato)";
+        tableExit.textContent = "3. USCIRE (Protezione SL ⚠️)";
+        tableExit.className = "py-3 px-3 text-right text-[#FF334B] font-extrabold";
         playChime(true);
       } else if (pnlPct >= 1.8) {
-        statusAdvice.textContent = "🟢 CONTINUA A TENERE (In Profitto)";
+        statusAdvice.textContent = "🟢 2. Rimanere a mercato (In Profitto)";
         statusAdvice.className = "text-[#00FF66] text-xs block font-bold";
-        actionAlert.textContent = "Consiglio: Sposta lo Stop Loss a Break-Even (Pareggio) e punta al TP certo.";
+        actionAlert.textContent = "Consiglio: Sposta lo Stop Loss a Break-Even e continua a rimanere.";
+        tableRemain.textContent = "Sì (In Profitto Solido)";
+        tableExit.textContent = "Rimani / Sposta SL a Pareggio";
+        tableExit.className = "py-3 px-3 text-right text-[#00FF66] font-bold";
       } else if (pnlPct <= -1.2) {
         statusAdvice.textContent = "⚠️ ATTENZIONE (In Ritracciamento)";
         statusAdvice.className = "text-amber-400 text-xs block font-bold";
-        actionAlert.textContent = "Consiglio: Valuta se chiudere se il supporto cede.";
+        actionAlert.textContent = "Valuta se anticipare l'uscita se il supporto cede.";
+        tableRemain.textContent = "Rischio Ritracciamento";
+        tableExit.textContent = "Valuta Uscita Anticipata";
+        tableExit.className = "py-3 px-3 text-right text-amber-400 font-bold";
       } else {
-        statusAdvice.textContent = "🟢 CONTINUA A RIMANERE A MERCATO";
+        statusAdvice.textContent = "🟢 2. Rimanere a mercato (Trend Stabile)";
         statusAdvice.className = "text-cyan-300 text-xs block font-bold";
-        actionAlert.textContent = "Trend stabile. Rimani dentro fino al target temporale o al TP.";
+        actionAlert.textContent = "Rimani dentro fino al target temporale o al TP certo.";
+        tableRemain.textContent = "Sì (Rimani a Mercato)";
+        tableExit.textContent = "3. Uscire solo al TP / SL";
+        tableExit.className = "py-3 px-3 text-right text-yellow-300 font-bold";
       }
     }
-    // ==========================================
 
     function setCategoryTab(cat) {
       state.currentCategoryTab = cat;
@@ -1286,7 +1332,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         btnSpot.className = "px-3 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
         kpiBadge.textContent = "🟢 FUTURES (Advisor Live)";
         headerTitle.textContent = "Millimetric Futures Engine";
-        masterSub.textContent = "Advisor di posizione in tempo reale: monitoraggio tempo residuo e alert chiusura";
+        masterSub.textContent = "Advisor di posizione in tempo reale: 1. Entrata • 2. Rimanere • 3. Uscire";
         tableLabel.textContent = "FUTURES";
       }
     }
@@ -1409,7 +1455,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         const isBull = masterAsset.change24h >= 0;
         const entry = masterAsset.price;
         const param = calcolaParametriPrecisione(masterAsset, avgQuoteVol);
-        const actionSide = state.marketType === 'SPOT' ? 'BUY' : (isBull ? 'BUY' : 'SELL');
 
         document.getElementById('masterPrecisionBadge').textContent = param.isRealOhlcv
           ? `OHLCV REALE • PRECISIONE ${param.precisionScore}%`
@@ -1420,7 +1465,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <div class="space-y-2">
               <div class="flex items-center justify-between">
                 <strong class="text-white text-sm">${masterAsset.symbol} - MASTER ${state.marketType}</strong>
-                <span class="text-[10px] px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">${param.isRealOhlcv ? '50 Candele 15m Verificate ✓' : 'Live Feed'}</span>
+                <span class="text-[10px] px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">${param.isRealOhlcv ? 'Candele Verificate ✓' : 'Live Feed'}</span>
               </div>
               <div class="flex items-center justify-between"><span class="text-white/70">Prezzo Live Reale:</span><strong class="text-[#00FF66] text-sm">$${formatPrice(entry)}</strong></div>
               <div class="flex items-center justify-between"><span class="text-white/70">⏱️ Timeframe Operativo:</span><strong class="text-cyan-300 font-extrabold">${param.timeframe}</strong></div>
@@ -1591,10 +1636,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         applyModalData(symbol, deepData.price, refinedParam, item.category, true);
         ohlcvBadge.textContent = `ADVISOR LIVE PRONTO (${deepData.precisionScore}%) ✓`;
         ohlcvBadge.className = "px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/40";
-        renderDashboard();
       } else {
-        ohlcvBadge.textContent = "TICKER LIVE";
-        ohlcvBadge.className = "px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40";
+        ohlcvBadge.textContent = "ADVISOR PRONTO (Live Feed) ✓";
+        ohlcvBadge.className = "px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/40";
       }
     }
 
@@ -1622,7 +1666,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('modalDurata').textContent = param.durata;
       document.getElementById('modalSubtitleType').textContent = isVerified
         ? `Target TP Certo & Advisor attivo su candele reali ${state.marketType}`
-        : `Sincronizzazione candele ${state.marketType} in corso...`;
+        : `Target TP Certo & Advisor attivo (Pronto)`;
 
       document.getElementById('modalEma').textContent = `$${param.ema9} / $${param.ema21}`;
       document.getElementById('modalEmaSignal').textContent = param.emaTrendText;
@@ -1706,13 +1750,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         feedback.classList.add('text-[#00FF66]');
         feedback.textContent = `✔ Successo! Posizione aperta. Advisor Live avviato in alto.`;
         playChime(false);
-        logFeed(`[ADVISOR AVVIATO] ${asset.symbol} (${actionToSend}) @ $${formatPrice(asset.livePrice)} ➔ TP: $${formatPrice(asset.tp)}`);
+        logFeed(`[ADVISOR AVVIATO] 1. Entrata ${asset.symbol} (${actionToSend}) @ $${formatPrice(asset.livePrice)} ➔ TP: $${formatPrice(asset.tp)}`);
         
-        // Avvia il pannello Advisor Live in alto
         avviaAdvisorPosizione(asset.symbol, actionToSend, asset.livePrice, asset.tp, asset.sl, asset.tempoSec || 14400);
         closeModal();
       } else {
-        feedback.classList.remove('text-white/70', 'text-[#FF334B]');
+        feedback.classList.remove('text-white/70', 'text-[#00FF66]');
         feedback.classList.add('text-[#FF334B]');
         feedback.textContent = `✖ Errore: ${res.msg || 'Controlla le tue API Key personali'}`;
         logFeed(`[ERRORE ${state.marketType}] ${asset.symbol}: ${res.msg}`);
