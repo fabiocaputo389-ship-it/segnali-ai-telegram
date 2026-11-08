@@ -247,7 +247,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     .bingx-btn { background: linear-gradient(135deg, #0066FF 0%, #0044BB 100%); color: #FFFFFF; font-weight: 800; }
     .tabular-nums { font-variant-numeric: tabular-nums; }
     
-    /* MARQUEE TICKER TOP COINS */
     @keyframes tickerScroll {
       0% { transform: translateX(0); }
       100% { transform: translateX(-50%); }
@@ -342,17 +341,17 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
     </section>
 
-    <!-- SEZIONE MASTER: SEGNALE DI PRECISIONE CHIRURGICA -->
+    <!-- SEZIONE MASTER: SEGNALE DINAMICO TOP MOVER LIVE -->
     <section class="priority-signal-box rounded-2xl p-4 sm:p-5">
       <div class="flex items-center justify-between pb-3 mb-3 border-b border-[#FFCC00]/30">
         <div class="flex items-center gap-3">
           <div class="w-9 h-9 rounded-xl bg-[#FFCC00] text-black flex items-center justify-center font-extrabold animate-bounce">🎯</div>
           <div>
-            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">🎯 SEGNALE DI PRECISIONE CHIRURGICA (MASTER TOP COIN)</h2>
-            <p class="text-[11px] text-[#FFCC00]">Ingresso ottimizzato, gestione rischio ATR e durata stimata al TP</p>
+            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">🎯 SEGNALE DI PRECISIONE CHIRURGICA (TOP MOVER LIVE)</h2>
+            <p class="text-[11px] text-[#FFCC00]">Aggiornato in tempo reale sull'asset più forte del mercato</p>
           </div>
         </div>
-        <span class="px-2.5 py-1 rounded-md text-xs font-mono font-extrabold bg-[#FFCC00] text-black animate-pulse">PRECISIONE 94%</span>
+        <span class="px-2.5 py-1 rounded-md text-xs font-mono font-extrabold bg-[#FFCC00] text-black animate-pulse">TOP LIVE 🟢</span>
       </div>
       <div id="prioritySignalCardContent"></div>
     </section>
@@ -376,7 +375,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
     </section>
 
-    <!-- TABELLE LIVE CON TEMPI E LIVELLI ATR -->
+    <!-- TABELLE LIVE -->
     <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
       <section class="xl:col-span-9 terminal-card rounded-2xl overflow-hidden flex flex-col p-4 space-y-6">
         <div class="flex items-center justify-between border-b border-white/15 pb-3">
@@ -423,7 +422,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <label class="block text-white/80 font-bold">BingX Secret Key:</label>
           <input type="password" id="userSecretKeyInput" placeholder="Inserisci la tua Secret Key..." class="w-full bg-[#000000] border border-white/30 rounded-lg px-3 py-2 text-white font-mono text-xs focus:border-cyan-400 outline-none" />
         </div>
-        <span class="text-[10px] text-yellow-400 block">🔒 Salvate in sicurezza nel tuo browser (localStorage) per firmare crittograficamente i tuoi ordini personali.</span>
+        <span class="text-[10px] text-yellow-400 block">🔒 Salvate in sicurezza nel tuo browser (localStorage).</span>
         
         <button onclick="saveUserApiKeys()" class="w-full py-2.5 rounded-xl text-xs font-bold bg-cyan-500 text-black shadow-lg hover:bg-cyan-400 transition-all">
           Salva Credenziali API
@@ -435,7 +434,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- MODALE DI CONFERMA ESECUZIONE CON DURATA E LIVELLI ATR -->
+  <!-- MODALE DI CONFERMA ESECUZIONE -->
   <div id="assetModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/90 backdrop-blur-sm p-3 overflow-y-auto">
     <div class="bg-[#08080A] border border-white/30 rounded-2xl w-full max-w-[600px] shadow-2xl overflow-hidden my-auto">
       <div class="px-5 py-3.5 border-b border-white/15 flex items-center justify-between bg-[#000000]">
@@ -579,7 +578,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       });
     }
 
-    // MOTORE DI PRECISIONE ATR E DURATA
     function calcolaParametriPrecisione(c) {
       const isBull = c.change24h >= 0;
       const prezzo = c.price;
@@ -703,7 +701,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       if (keys.length === 0) return;
       
       const tickerSymbols = ["BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT", "DOGE-USDT", "AVAX-USDT", "GOLD-USDT", "NASDAQ-USDT"];
-      const tickerItems = keys.filter(sym => tickerSymbols.includes(sym) || state.marketData[sym].change24h > 4.0).slice(0, 10);
+      const tickerItems = keys.filter(sym => tickerSymbols.includes(sym) || Math.abs(state.marketData[sym].change24h) > 3.0).slice(0, 12);
 
       const htmlContent = tickerItems.map(sym => {
         const item = state.marketData[sym];
@@ -717,7 +715,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         `;
       }).join('');
 
-      // Duplichiamo il contenuto per un effetto marquee continuo fluido
       document.getElementById('liveTickerMarquee').innerHTML = htmlContent + htmlContent;
     }
 
@@ -744,7 +741,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         topChangeEl.className = topMover.change24h >= 0 ? 'text-sm font-extrabold font-mono text-[#00FF66]' : 'text-sm font-extrabold font-mono text-[#FF334B]';
       }
 
-      const masterAsset = sortedCoins.find(c => c.symbol.includes("BTC") || c.symbol.includes("SOL")) || sortedCoins[0];
+      // SELEZIONE DINAMICA DEL TOP MOVER PER IL MASTER BOX (non fisso su SOL o BTC)
+      const masterAsset = sortedCoins[0];
       if (masterAsset) {
         const isBull = masterAsset.change24h >= 0;
         const entry = masterAsset.price;
@@ -753,7 +751,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         document.getElementById('prioritySignalCardContent').innerHTML = `
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs font-mono">
             <div class="space-y-2">
-              <div class="flex items-center justify-between"><strong class="text-white text-sm">${masterAsset.symbol} - MASTER CHIRURGICO</strong></div>
+              <div class="flex items-center justify-between"><strong class="text-white text-sm">${masterAsset.symbol} - TOP MOVER LIVE (Volatilità Alta)</strong></div>
               <div class="flex items-center justify-between"><span class="text-white/70">Prezzo Live:</span><strong class="text-[#00FF66] text-sm">$${entry.toLocaleString()}</strong></div>
               <div class="flex items-center justify-between"><span class="text-white/70">⏱️ Timeframe &amp; Durata:</span><strong class="text-cyan-300 font-extrabold">${param.timeframe}</strong></div>
               <div class="flex items-center justify-between"><span class="text-white/70">⏳ Tempo Stimato al TP:</span><strong class="text-yellow-300 font-bold">${param.durata}</strong></div>
@@ -765,7 +763,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 <div class="flex justify-between"><span class="text-white/70">⚡ Leva Consigliata:</span><strong class="text-yellow-400">3x (Isolato)</strong></div>
               </div>
               <button onclick='openModal("${masterAsset.symbol}", ${entry}, ${param.tp}, ${param.sl}, "${isBull ? 'BUY' : 'SELL'}", "${param.timeframe}", "${param.durata}", "${masterAsset.category}")' class="green-gradient-btn w-full py-2 rounded-xl text-xs shadow-lg animate-pulse">
-                🎯 ESEGUI SEGNALE CHIRURGICO ORA &#8599;
+                🎯 ESEGUI TOP MOVER LIVE ORA &#8599;
               </button>
             </div>
           </div>
@@ -980,7 +978,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       updateApiStatusUI();
       fetchServerMode();
       pollMarketData();
-      setInterval(pollMarketData, 3000); // Aggiornamento mercato e ticker ogni 3 secondi
+      setInterval(pollMarketData, 3000); // Aggiornamento mercato ogni 3 secondi
       setInterval(() => {
         const now = new Date();
         document.getElementById('liveCetClock').textContent = now.toTimeString().slice(0, 8) + ' CET';
