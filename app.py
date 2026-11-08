@@ -92,6 +92,7 @@ def get_klines_precision(simbolo: str, market_type: str = "FUTURES", interval: s
             url = f"{BASE_URL}/openApi/spot/v1/market/kline"
             params = {"symbol": simbolo, "interval": interval, "limit": limit}
         else:
+            # Per Perpetual e Standard Futures usiamo le quote swap di BingX
             url = f"{BASE_URL}/openApi/swap/v3/quote/klines"
             params = {"symbol": simbolo, "interval": interval, "limit": limit}
 
@@ -243,7 +244,7 @@ def get_klines_precision(simbolo: str, market_type: str = "FUTURES", interval: s
             "tp": tp,
             "timeframe": tf_consigliato,
             "durata": durata,
-            "durataShort": durata_short,
+            "durataShort": duratat_short if 'duratat_short' in locals() else durata_short,
             "tempoSec": tempo_sec,
             "precisionScore": score,
             "decimals": dec
@@ -254,8 +255,12 @@ def get_klines_precision(simbolo: str, market_type: str = "FUTURES", interval: s
 
 
 def get_live_market_data(market_type: str = "FUTURES"):
-    """Scarica tutte le coppie di mercato live da BingX in tempo reale."""
-    url = f"{BASE_URL}/openApi/spot/v1/ticker/24hr" if market_type == "SPOT" else f"{BASE_URL}/openApi/swap/v2/quote/ticker"
+    """Scarica tutte le coppie di mercato live da BingX in tempo reale filtrando correttamente i mercati."""
+    if market_type == "SPOT":
+        url = f"{BASE_URL}/openApi/spot/v1/ticker/24hr"
+    else:
+        # Usiamo l'endpoint ufficiale swap per Futures e Standard Futures
+        url = f"{BASE_URL}/openApi/swap/v2/quote/ticker"
 
     try:
         response = requests.get(url, timeout=4)
@@ -266,6 +271,11 @@ def get_live_market_data(market_type: str = "FUTURES"):
             for t in tickers:
                 symbol = t.get("symbol")
                 if not symbol or not symbol.endswith("-USDT"):
+                    continue
+
+                # Escludiamo simboli non validi o testnet anomali (es. token custom con nomi strani)
+                sym_upper = symbol.upper()
+                if any(bad in sym_upper for bad in ["CHOO", "AIOT", "KNOTS", "NEARKAT", "STONK"]):
                     continue
 
                 price = float(t.get("lastPrice", 0))
@@ -289,7 +299,6 @@ def get_live_market_data(market_type: str = "FUTURES"):
                     low = float(t.get("lowPrice", price))
 
                 category = "Criptovalute"
-                sym_upper = symbol.upper()
                 if market_type != "SPOT":
                     if any(mat in sym_upper for mat in ["GOLD", "SILVER", "OIL", "XAU", "XAG", "WTI", "BRENT", "COPPER"]):
                         category = "Materie Prime"
@@ -413,8 +422,7 @@ def api_market_data():
     mtype = request.args.get("marketType", MARKET_TYPE).upper()
     if mtype not in ["FUTURES", "SPOT", "STANDARD_FUTURES"]:
         mtype = "FUTURES"
-    fetch_type = "FUTURES" if mtype == "STANDARD_FUTURES" else mtype
-    data = get_live_market_data(fetch_type)
+    data = get_live_market_data(mtype)
     return jsonify({"code": 0, "marketType": mtype, "data": data})
 
 
@@ -422,9 +430,8 @@ def api_market_data():
 def api_deep_scan():
     simbolo = request.args.get("symbol", "BTC-USDT")
     mtype = request.args.get("marketType", MARKET_TYPE).upper()
-    fetch_type = "FUTURES" if mtype == "STANDARD_FUTURES" else mtype
     interval = request.args.get("interval", "15m")
-    analysis = get_klines_precision(simbolo, fetch_type, interval, 50)
+    analysis = get_klines_precision(simbolo, mtype, interval, 50)
     if analysis:
         analysis["marketType"] = mtype
         return jsonify({"code": 0, "data": analysis})
