@@ -459,7 +459,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex items-center gap-2 text-[11px] font-mono text-white/70 mt-0.5">
             <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
-            <span class="text-[#00FF66]">1. ENTRA • 2. RIMANI • 3. ESCI (Responsive &amp; Sicuro)</span>
+            <span class="text-[#00FF66]">1. ENTRA • 2. RIMANI • 3. ESCI (Audio &amp; Voce Attivi)</span>
           </div>
         </div>
       </div>
@@ -508,8 +508,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="flex items-center gap-3">
           <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse">🔊</div>
           <div>
-            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">🟢 ADVISOR LIVE &amp; AUDIO CHIME (<span id="advSymbol">BTC-USDT</span>)</h2>
-            <p class="text-[11px] text-[#00FF66]">1. Entra • 2. Rimani • 3. Esci (Leva <span id="advLevText">3x</span>)</p>
+            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">🟢 ADVISOR LIVE &amp; VOCE (<span id="advSymbol">BTC-USDT</span>)</h2>
+            <p class="text-[11px] text-[#00FF66]">1. Entra • 2. Rimani a mercato • 3. Esci (Leva <span id="advLevText">3x</span>)</p>
           </div>
         </div>
         <button onclick="chiudiPosizioneMonitorata()" class="px-3.5 py-1.5 rounded-xl bg-red-500/20 text-[#FF334B] border border-red-500/50 hover:bg-red-500/30 text-xs font-bold transition-all">
@@ -519,12 +519,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs font-mono">
         <div class="bg-black/50 p-3 rounded-xl border border-white/10">
-          <span class="text-white/60 text-[10px] block">1. 🟢 ENTRA (APERTURA)</span>
+          <span class="text-white/60 text-[10px] block">1. 🟢 1. ENTRA (APERTURA)</span>
           <strong id="advEntryPrice" class="text-white text-sm">--</strong>
           <span id="advSideBadge" class="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-green-500/20 text-[#00FF66]">LONG</span>
         </div>
         <div class="bg-black/50 p-3 rounded-xl border border-white/10">
-          <span class="text-white/60 text-[10px] block">2. 📊 RIMANI A MERCATO (PNL &amp; LEVA)</span>
+          <span class="text-white/60 text-[10px] block">2. 📊 2. RIMANI A MERCATO (PNL)</span>
           <strong id="advLivePrice" class="text-cyan-300 text-sm">--</strong>
           <span id="advPnlVal" class="block mt-1 text-[10px] font-bold text-[#00FF66]">PnL: 0.00%</span>
         </div>
@@ -535,7 +535,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
         <div class="bg-black/50 p-3 rounded-xl border border-white/10 flex flex-col justify-between">
           <div>
-            <span class="text-white/60 text-[10px] block">3. 🔴 ESCI (AUDIO ALERT &amp; TP)</span>
+            <span class="text-white/60 text-[10px] block">3. 🔴 3. ESCI (AUDIO &amp; VOCE)</span>
             <strong id="advStatusAdvice" class="text-[#00FF66] text-xs block mt-0.5">In attesa del TP...</strong>
           </div>
           <span id="advActionAlert" class="text-[10px] text-white/80 italic mt-1">Protezione attiva</span>
@@ -808,23 +808,38 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       return sharedAudioCtx;
     }
 
-    function playChime(urgent = false) {
+    // Sintesi vocale e suoni per le fasi 1. Entra, 2. Rimani, 3. Esci
+    function speakText(text) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'it-IT';
+        utterance.rate = 1.05;
+        window.speechSynthesis.speak(utterance);
+      }
+    }
+
+    function playChime(urgent = false, voiceMsg = "") {
       const ctx = getAudioContext();
-      if (!ctx) return;
-      const now = ctx.currentTime;
-      const freqs = urgent ? [1200, 900, 1400] : [880, 1108.73, 1318.51];
-      freqs.forEach((freq, i) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.frequency.setValueAtTime(freq, now + i * 0.08);
-        gain.gain.setValueAtTime(0.001, now + i * 0.08);
-        gain.gain.exponentialRampToValueAtTime(0.1, now + i * 0.08 + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.08 + 0.4);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(now + i * 0.08);
-        osc.stop(now + i * 0.08 + 0.45);
-      });
+      if (ctx) {
+        const now = ctx.currentTime;
+        const freqs = urgent ? [1200, 900, 1400] : [880, 1108.73, 1318.51];
+        freqs.forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.frequency.setValueAtTime(freq, now + i * 0.08);
+          gain.gain.setValueAtTime(0.001, now + i * 0.08);
+          gain.gain.exponentialRampToValueAtTime(0.1, now + i * 0.08 + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.08 + 0.4);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now + i * 0.08);
+          osc.stop(now + i * 0.08 + 0.45);
+        });
+      }
+      if (voiceMsg) {
+        speakText(voiceMsg);
+      }
     }
 
     function getPrecisionDecimals(val) {
@@ -905,7 +920,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('advSideBadge').textContent = side;
       document.getElementById('advLevText').textContent = `${state.selectedLeverage}x`;
       
-      playChime(false);
+      const sideText = side === 'BUY' ? 'Long' : 'Short';
+      playChime(false, `Primo. Entra a mercato. Posizione ${sideText} su ${symbol} con leva ${state.selectedLeverage} x avviata.`);
       aggiornaAdvisorLoop();
       state.advisorInterval = setInterval(aggiornaAdvisorLoop, 2000);
       logFeed(`[ADVISOR] 1. Entra eseguito su ${symbol} (${side} ${state.selectedLeverage}x) -> In attesa del TP matematico.`);
@@ -919,6 +935,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       logFeed(`[ADVISOR] 3. Esci completato. Slot liberato.`);
     }
 
+    let lastLoopAdviceState = "";
     function aggiornaAdvisorLoop() {
       if (!state.activePosition) return;
       const pos = state.activePosition;
@@ -946,18 +963,29 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         advAdvice.textContent = "3. 🎯 ESCI SUBITO (TARGET TP RAGGIUNTO!)";
         advAdvice.className = "text-[#00FF66] text-xs block font-bold animate-pulse";
         advAlert.textContent = "Guadagno matematico incassato con successo!";
-        playChime(true);
+        if (lastLoopAdviceState !== "TP") {
+          lastLoopAdviceState = "TP";
+          playChime(true, "Terzo. Esci subito. Target Take Profit raggiunto con successo.");
+        }
         chiudiPosizioneMonitorata();
       } else if ((pos.side === 'BUY' && currentPrice <= pos.slPrice) || (pos.side === 'SELL' && currentPrice >= pos.slPrice)) {
         advAdvice.textContent = "3. 🛑 ESCI SUBITO (STOP LOSS RAGGIUNTO!)";
         advAdvice.className = "text-[#FF334B] text-xs block font-bold animate-pulse";
         advAlert.textContent = "Tagliata la perdita per sicurezza.";
-        playChime(true);
+        if (lastLoopAdviceState !== "SL") {
+          lastLoopAdviceState = "SL";
+          playChime(true, "Terzo. Esci subito. Stop loss raggiunto, posizione chiusa per protezione.");
+        }
         chiudiPosizioneMonitorata();
       } else {
         advAdvice.textContent = "2. 📊 RIMANI A MERCATO (Punta al TP)";
         advAdvice.className = "text-yellow-300 text-xs block font-semibold";
         advAlert.textContent = `Distanza TP: $${formatPrice(Math.abs(pos.tpPrice - currentPrice))}`;
+        // Annuncia "Rimani a mercato" ogni volta che cambia stato o dopo un certo intervallo
+        if (lastLoopAdviceState !== "RIMANI") {
+          lastLoopAdviceState = "RIMANI";
+          playChime(false, "Secondo. Rimani a mercato. Posizione attiva in corso.");
+        }
       }
     }
 
@@ -1081,7 +1109,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       if (state.searchQuery) filtered = filtered.filter(c => c.symbol.toLowerCase().includes(state.searchQuery));
 
       const container = document.getElementById('tablesContainer');
-      // Layout a card verticali ottimizzato al 100% per smartphone (niente tabelle larghe che tagliano i testi)
       container.innerHTML = filtered.map(c => {
         const local = calcolaDatiLocali(c.symbol, c);
         const isLong = local.side === 'BUY';
@@ -1102,7 +1129,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
               <div class="bg-white/5 p-2 rounded-lg">
                 <span class="text-white/60 text-[10px] block">🎯 TARGET TP CERTO</span>
                 <strong class="text-[#00FF66]">$${formatPrice(local.tp)}</strong>
-                <span class="text-yellow-400 text-[10px] block">+(+${local.tpPct}%) con ${state.selectedLeverage}x</span>
+                <span class="text-yellow-400 text-[10px] block">+${local.tpPct}% (con ${state.selectedLeverage}x)</span>
               </div>
               <div class="bg-white/5 p-2 rounded-lg">
                 <span class="text-white/60 text-[10px] block">🛑 STOP LOSS</span>
@@ -1133,7 +1160,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('modalSymbol').textContent = symbol;
       document.getElementById('modalLivePrice').textContent = `$${formatPrice(item.price)}`;
       
-      // Popolamento sincrono immediato
+      // Popolamento sincrono immediato e blindato per evitare qualsiasi "--"
       const instantFallback = calcolaDatiLocali(symbol, item);
       state.currentSelectedAsset = instantFallback;
       document.getElementById('modalOhlcvBadge').textContent = `PRECISION SCORE: ${instantFallback.precisionScore}/100`;
