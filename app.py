@@ -218,8 +218,10 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingress
     if not active_api or not active_secret:
         return {"code": -1, "msg": "API Key o Secret Key BingX mancanti."}
 
-    if prezzo_ingresso > 0 and (quantita * prezzo_ingresso) < 2.1:
-        quantita = round(2.2 / prezzo_ingresso, 4 if prezzo_ingresso >= 1 else 2)
+    # Adeguamento automatico della quantità per rispettare il minimo di circa 2.2$ nominali (coprendo ampiamente i 2$)
+    valore_nominale = quantita * prezzo_ingresso
+    if prezzo_ingresso > 0 and valore_nominale < 2.2:
+        quantita = round(2.5 / prezzo_ingresso, 6 if prezzo_ingresso < 1 else (4 if prezzo_ingresso < 100 else 2))
 
     if market_type == "STANDARD_FUTURES":
         endpoint = "/openApi/futures/v1/trade/order"
@@ -256,11 +258,12 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingress
     try:
         res = _invia_richiesta_ordine(endpoint, payload_ordine, active_api, active_secret)
         msg = str(res.get("msg", ""))
-        if res.get("code") != 0 and "minimum order amount is" in msg.lower():
-            match = re.search(r"minimum order amount is\s+([0-9.]+)", msg, re.IGNORECASE)
+        # Gestione automatica se l'exchange richiede una quantità minima superiore
+        if res.get("code") != 0 and ("minimum order amount is" in msg.lower() or "insufficient" in msg.lower()):
+            match = re.search(r"(?:minimum order amount is|is)\s+([0-9.]+)", msg, re.IGNORECASE)
             if match:
                 min_qty = float(match.group(1))
-                adjusted_qty = round(min_qty * 1.02, 4 if min_qty < 1 else 2)
+                adjusted_qty = round(min_qty * 1.05, 6 if min_qty < 1 else 2)
                 payload_ordine["quantity"] = str(adjusted_qty)
                 payload_ordine["timestamp"] = str(int(time.time() * 1000))
                 res = _invia_richiesta_ordine(endpoint, payload_ordine, active_api, active_secret)
@@ -708,7 +711,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 <span class="text-[10px] text-[#FF334B]">STOP LOSS (SL)</span>
                 <div class="flex items-center justify-between mt-1">
                   <strong id="copyParamSl" class="text-[#FF334B] font-mono text-xs select-all font-extrabold">--</strong>
-                  <button onclick="copiaParametro('copiaParamSl')" class="text-[10px] bg-white/10 hover:bg-white/25 px-1.5 py-0.5 rounded text-[#FF334B]">Copia</button>
+                  <button onclick="copiaParametro('copyParamSl')" class="text-[10px] bg-white/10 hover:bg-white/25 px-1.5 py-0.5 rounded text-[#FF334B]">Copia</button>
                 </div>
               </div>
             </div>
@@ -942,7 +945,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       state.lastVoiceAnnounceTimestamp = Date.now();
       playChime(false, `Primo. Entra a mercato. Posizione ${sideText} su ${symbol} con leva ${state.selectedLeverage} x avviata.`);
       aggiornaAdvisorLoop();
-      state.advisorInterval = setInterval(aggiornaAdvisorLoop, 1500); // Check continuo ogni 1.5 secondi
+      state.advisorInterval = setInterval(aggiornaAdvisorLoop, 1500);
       logFeed(`[ADVISOR] 1. Entra eseguito su ${symbol} (${side} ${state.selectedLeverage}x) -> In attesa del TP matematico.`);
     }
 
@@ -1001,7 +1004,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         advAdvice.className = "text-yellow-300 text-xs block font-semibold";
         advAlert.textContent = `Distanza TP: $${formatPrice(Math.abs(pos.tpPrice - currentPrice))}`;
         
-        // Aggiornamento vocale in tempo reale ogni 15 secondi esatti durante la fase "2. Rimani"
         const now = Date.now();
         if (now - state.lastVoiceAnnounceTimestamp >= 15000) {
           state.lastVoiceAnnounceTimestamp = now;
@@ -1237,7 +1239,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           document.getElementById('copyParamSl').textContent = formatPrice(d.sl);
 
           if (d.price > 0) {
-            const minQty2Usd = Math.max(1, Number((2.2 / d.price).toFixed(d.price >= 1 ? 3 : 2)));
+            // Imposta automaticamente il quantitativo minimo equivalente a circa 2.5$ per evitare errori di margine
+            const minQty2Usd = Math.max(0.0001, Number((2.5 / d.price).toFixed(d.price >= 1000 ? 4 : (d.price >= 1 ? 4 : 2))));
             document.getElementById('tradeQuantityInput').value = minQty2Usd;
           }
 
