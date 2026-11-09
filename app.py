@@ -514,8 +514,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="flex items-center gap-3">
           <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse">⚡</div>
           <div>
-            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">🟢 ADVISOR LIVE &amp; GESTIONE POSIZIONE (<span id="advSymbol">BTC-USDT</span>)</h2>
-            <p class="text-[11px] text-[#00FF66]">Controllo 1 posizione max: 1. Entrata • 2. Rimanere a mercato • 3. Uscire</p>
+            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">🟢 1. ENTRATA • 2. RIMANERE A MERCATO • 3. USCIRE (<span id="advSymbol">BTC-USDT</span>)</h2>
+            <p class="text-[11px] text-[#00FF66]">Controllo rigoroso posizione attiva</p>
           </div>
         </div>
         <button onclick="chiudiPosizioneMonitorata()" class="px-3.5 py-1.5 rounded-xl bg-red-500/20 text-[#FF334B] border border-red-500/50 hover:bg-red-500/30 text-xs font-bold transition-all">
@@ -530,19 +530,19 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <span id="advSideBadge" class="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-green-500/20 text-[#00FF66]">LONG</span>
         </div>
         <div class="bg-black/50 p-3 rounded-xl border border-white/10">
-          <span class="text-white/60 text-[10px] block">PREZZO LIVE &amp; PNL NETTO</span>
+          <span class="text-white/60 text-[10px] block">2. RIMANERE (PREZZO LIVE &amp; PNL)</span>
           <strong id="advLivePrice" class="text-cyan-300 text-sm">--</strong>
           <span id="advPnlVal" class="block mt-1 text-[10px] font-bold text-[#00FF66]">PnL: 0.00%</span>
         </div>
         <div class="bg-black/50 p-3 rounded-xl border border-white/10">
-          <span class="text-white/60 text-[10px] block">⏱️ TEMPO RIMANENTE AL TP</span>
+          <span class="text-white/60 text-[10px] block">⏱️ TEMPO AL TP</span>
           <strong id="advTimeRemaining" class="text-yellow-300 text-sm">--:--</strong>
           <span id="advTimeProgress" class="block mt-1 text-[10px] text-white/70">Durata stimata attiva</span>
         </div>
         <div class="bg-black/50 p-3 rounded-xl border border-white/10 flex flex-col justify-between">
           <div>
-            <span class="text-white/60 text-[10px] block">3. CONSIGLIO DI USCITA / TENUTA</span>
-            <strong id="advStatusAdvice" class="text-[#00FF66] text-xs block mt-0.5">Analisi in corso...</strong>
+            <span class="text-white/60 text-[10px] block">3. USCIRE (ALERT TARGET / SL)</span>
+            <strong id="advStatusAdvice" class="text-[#00FF66] text-xs block mt-0.5">In monitoraggio...</strong>
           </div>
           <span id="advActionAlert" class="text-[10px] text-white/80 italic mt-1">--</span>
         </div>
@@ -893,9 +893,31 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       pnlEl.textContent = `PnL: ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`;
       pnlEl.className = `block mt-1 text-[10px] font-bold ${pnlPct >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
 
+      // Calcolo tempo rimanente
+      const timeLeftSec = Math.max(0, Math.floor((pos.targetTimestamp - Date.now()) / 1000));
+      const mins = Math.floor(timeLeftSec / 60);
+      const secs = timeLeftSec % 60;
+      document.getElementById('advTimeRemaining').textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+
+      // 3. USCIRE / TARGET CHECK
+      const advAdvice = document.getElementById('advStatusAdvice');
+      const advAlert = document.getElementById('advActionAlert');
       if ((pos.side === 'BUY' && currentPrice >= pos.tpPrice) || (pos.side === 'SELL' && currentPrice <= pos.tpPrice)) {
+        advAdvice.textContent = "🎯 TARGET TAKE PROFIT RAGGIUNTO!";
+        advAdvice.className = "text-[#00FF66] text-xs block font-bold animate-pulse";
+        advAlert.textContent = "Uscire subito dalla posizione!";
         playChime(true);
         chiudiPosizioneMonitorata();
+      } else if ((pos.side === 'BUY' && currentPrice <= pos.slPrice) || (pos.side === 'SELL' && currentPrice >= pos.slPrice)) {
+        advAdvice.textContent = "🛑 STOP LOSS RAGGIUNTO!";
+        advAdvice.className = "text-[#FF334B] text-xs block font-bold animate-pulse";
+        advAlert.textContent = "Tagliare la perdita!";
+        playChime(true);
+        chiudiPosizioneMonitorata();
+      } else {
+        advAdvice.textContent = "2. RIMANERE A MERCATO (In corso)";
+        advAdvice.className = "text-yellow-300 text-xs block font-semibold";
+        advAlert.textContent = "Posizione protetta attiva.";
       }
     }
 
@@ -911,6 +933,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
     function setLeverage(lev) {
       state.selectedLeverage = lev;
+      document.querySelectorAll('#leverageSectionWrapper button').forEach(b => {
+        b.className = "py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold";
+      });
+      const activeBtn = document.getElementById(`levBtn${lev}`);
+      if (activeBtn) activeBtn.className = "py-1.5 rounded-lg border border-[#00FF66] bg-[#00FF66]/20 text-[#00FF66] font-bold";
     }
 
     async function switchMarketType(mtype) {
