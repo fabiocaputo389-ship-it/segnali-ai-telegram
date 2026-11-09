@@ -491,7 +491,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse">🔊</div>
           <div>
             <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">🟢 ADVISOR LIVE &amp; VOCE (<span id="advSymbol">BTC-USDT</span>)</h2>
-            <p class="text-[11px] text-[#00FF66]">1. Entra • 2. Rimani a mercato (Aggiornamenti ogni 15s) • 3. Esci</p>
+            <p class="text-[11px] text-[#00FF66]">1. Entra • 2. Rimani a mercato (Aggiornamenti vocali ogni 15s) • 3. Esci</p>
           </div>
         </div>
         <button onclick="chiudiPosizioneMonitorata()" class="px-3.5 py-1.5 rounded-xl bg-red-500/20 text-[#FF334B] border border-red-500/50 hover:bg-red-500/30 text-xs font-bold transition-all">
@@ -949,11 +949,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('advSymbol').textContent = symbol;
       document.getElementById('advEntryPrice').textContent = `$${formatPrice(entryPrice)}`;
       document.getElementById('advSideBadge').textContent = side;
-      document.getElementById('advLevText').textContent = `${state.selectedLeverage}x`;
       
       const sideText = side === 'BUY' ? 'Long' : 'Short';
       state.lastVoiceAnnounceTimestamp = Date.now();
-      playChime(false, `Primo. Entra a mercato. Posizione ${sideText} su ${symbol} con leva ${state.selectedLeverage} x avviata.`);
+      playChime(false, `Primo. Entra a mercato. Posizione ${sideText} su ${symbol} con leva ${state.selectedLeverage} x avviata al prezzo di ${formatPrice(entryPrice)}.`);
       aggiornaAdvisorLoop();
       state.advisorInterval = setInterval(aggiornaAdvisorLoop, 1500);
       logFeed(`[ADVISOR] 1. Entra eseguito su ${symbol} (${side} ${state.selectedLeverage}x) -> In attesa del TP matematico.`);
@@ -1244,7 +1243,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           const tpPct = (((Math.abs(d.tp - d.price) / d.price) * 100) * state.selectedLeverage).toFixed(2);
           document.getElementById('modalTpPct').textContent = `+${tpPct}% (con leva ${state.selectedLeverage}x)`;
 
-          // Popola i dati nella tabella tabellare millimetrica
           document.getElementById('tableParamEntry').textContent = formatPrice(d.price);
           document.getElementById('tableParamTp').textContent = formatPrice(d.tp);
           document.getElementById('tableParamSl').textContent = formatPrice(d.sl);
