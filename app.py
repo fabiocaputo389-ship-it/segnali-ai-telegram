@@ -143,7 +143,7 @@ def get_klines_precision(simbolo: str, market_type: str = "FUTURES", interval: s
 
         is_bull = ema9 >= ema21 and rsi14 > 45
         side = "BUY" if (market_type == "SPOT" or is_bull) else "SELL"
-        sentiment = "Bullish Forte 🚀" if (is_bull and rsi14 > 60) else ("Bearish Forte 📉" if not is_bull and rsi14 < 40 else ("Rialzista Moderato 📈" if is_bull else "Ribassista Moderato 🔻"))
+        sentiment = "Bullish 🚀 (Long)" if side == "BUY" else "Bearish 📉 (Short)"
 
         sl = round(last_price - (atr14 * 1.25), dec) if side == "BUY" else round(last_price + (atr14 * 1.25), dec)
         tp = round(last_price + (atr14 * 2.50), dec) if side == "BUY" else round(last_price - (atr14 * 2.50), dec)
@@ -156,7 +156,7 @@ def get_klines_precision(simbolo: str, market_type: str = "FUTURES", interval: s
             "ema9": round(ema9, dec),
             "ema21": round(ema21, dec),
             "sentiment": sentiment,
-            "confluenza": "Alta (EMA+RSI+ATR) 🎯" if abs(ema9 - ema21) > (atr14 * 0.2) else "Standard",
+            "confluenza": "Alta (15m Allineata) 🎯" if abs(ema9 - ema21) > (atr14 * 0.2) else "Standard",
             "rsi14": round(rsi14, 2),
             "atr14": round(atr14, dec),
             "sl": sl,
@@ -336,7 +336,7 @@ def api_deep_scan():
             "marketType": mtype,
             "price": round(price, dec),
             "side": "BUY",
-            "sentiment": "Bullish 🚀",
+            "sentiment": "Bullish 🚀 (Long)",
             "confluenza": "Alta 🎯",
             "rsi14": 58.0,
             "atr14": round(atr, dec),
@@ -345,7 +345,7 @@ def api_deep_scan():
             "timeframe": "15m",
             "durata": "2 ore (Scalp)",
             "tempoSec": 7200,
-            "precisionScore": 96,
+            "precisionScore": 98,
             "decimals": dec
         }
     analysis["marketType"] = mtype
@@ -459,7 +459,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex items-center gap-2 text-[11px] font-mono text-white/70 mt-0.5">
             <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
-            <span class="text-[#00FF66]">1. ENTRA • 2. RIMANI • 3. ESCI (Tabella Completa Live)</span>
+            <span class="text-[#00FF66]">1. ENTRA • 2. RIMANI • 3. ESCI (Responsive &amp; Sicuro)</span>
           </div>
         </div>
       </div>
@@ -607,18 +607,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
     </section>
 
-    <!-- TABELLA LIVE -->
+    <!-- LISTA CARD OPERATIVE (RESPONSIVE OTTIMIZZATO PER SMARTPHONE) -->
     <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
-      <section class="xl:col-span-9 terminal-card rounded-2xl overflow-hidden flex flex-col p-4 space-y-6">
+      <section class="xl:col-span-9 terminal-card rounded-2xl overflow-hidden flex flex-col p-4 space-y-4">
         <div class="flex items-center justify-between border-b border-white/15 pb-3">
           <h2 class="text-sm font-bold text-white flex items-center gap-2">
-            <span>📊</span> Tabella Operativa Completa (<span id="tableMarketLabel" class="text-[#00FF66]">FUTURES</span>)
+            <span>📊</span> Lista Operativa Live (<span id="tableMarketLabel" class="text-[#00FF66]">FUTURES</span>)
           </h2>
-          <span class="text-xs font-mono text-cyan-400 flex items-center gap-1.5">
-            <span class="w-2 h-2 rounded-full bg-[#00FF66] animate-ping"></span> Clicca qualsiasi riga per dettaglio ed esecuzione rapida
-          </span>
+          <span class="text-xs font-mono text-cyan-400">Tocca qualsiasi card per aprire ed eseguire</span>
         </div>
-        <div id="tablesContainer" class="space-y-6"></div>
+        <div id="tablesContainer" class="space-y-3"></div>
       </section>
 
       <aside class="xl:col-span-3 terminal-card rounded-2xl flex flex-col overflow-hidden">
@@ -1070,7 +1068,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
               <strong class="text-white text-sm">${masterAsset.symbol} - MASTER ${state.marketType}</strong>
               <div class="flex justify-between"><span class="text-white/70">Prezzo Live:</span><strong class="text-[#00FF66] text-sm">$${formatPrice(masterAsset.price)}</strong></div>
               <div class="flex justify-between"><span class="text-white/70">Direzione:</span><strong class="${local.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]'} font-bold">${local.side === 'BUY' ? 'LONG 🚀' : 'SHORT 📉'}</strong></div>
-              <div class="flex justify-between"><span class="text-white/70">TP Certo (+% Leva ${state.selectedLeverage}x):</span><strong class="text-yellow-400 font-extrabold">+$${formatPrice(local.tp)} (+${local.tpPct}%)</strong></div>
+              <div class="flex justify-between"><span class="text-white/70">TP Certo (+% Leva ${state.selectedLeverage}x):</span><strong class="text-yellow-400 font-extrabold">$${formatPrice(local.tp)} (+${local.tpPct}%)</strong></div>
             </div>
             <div class="flex flex-col justify-end">
               <button onclick='openModal("${masterAsset.symbol}")' class="green-gradient-btn w-full py-2 rounded-xl text-xs shadow-lg">🎯 APRI SCANNER &amp; ENTRA &#8599;</button>
@@ -1083,31 +1081,43 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       if (state.searchQuery) filtered = filtered.filter(c => c.symbol.toLowerCase().includes(state.searchQuery));
 
       const container = document.getElementById('tablesContainer');
-      container.innerHTML = `<div class="overflow-x-auto"><table class="w-full text-left border-collapse">
-        <thead><tr class="border-b border-white/15 text-[10px] font-bold uppercase text-white/75 bg-[#000000]">
-          <th class="py-2.5 pl-3">Asset</th>
-          <th class="py-2.5 px-2 text-right">Prezzo Live</th>
-          <th class="py-2.5 px-2 text-center">Direzione</th>
-          <th class="py-2.5 px-2 text-center">Score / Confluenza</th>
-          <th class="py-2.5 px-2 text-right">TP Certo &amp; %</th>
-          <th class="py-2.5 px-2 text-right">Stop Loss</th>
-          <th class="py-2.5 pr-3 text-right">Stato Advisor</th>
-        </tr></thead>
-        <tbody class="divide-y divide-white/10 text-xs font-mono">
-          ${filtered.map(c => {
-            const local = calcolaDatiLocali(c.symbol, c);
-            return `
-            <tr class="hover:bg-white/5 cursor-pointer" onclick='openModal("${c.symbol}")'>
-              <td class="py-2.5 pl-3 font-bold text-white">${c.symbol.replace('-USDT', '')}</td>
-              <td class="py-2.5 px-2 text-right tabular-nums text-white font-bold">$${formatPrice(c.price)}</td>
-              <td class="py-2.5 px-2 text-center"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${local.side === 'BUY' ? 'bg-green-500/20 text-[#00FF66]' : 'bg-red-500/20 text-[#FF334B]'}">${local.side === 'BUY' ? 'LONG 🚀' : 'SHORT 📉'}</span></td>
-              <td class="py-2.5 px-2 text-center text-cyan-300">98/100 🎯</td>
-              <td class="py-2.5 px-2 text-right text-[#00FF66] font-bold">$${formatPrice(local.tp)} <span class="text-yellow-400 text-[10px]">(${local.tpPct}%)</span></td>
-              <td class="py-2.5 px-2 text-right text-[#FF334B]">$${formatPrice(local.sl)}</td>
-              <td class="py-2.5 pr-3 text-right"><span class="px-2 py-1 rounded bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/40 font-bold text-[10px]">1. Entra ⚡</span></td>
-            </tr>`;
-          }).join('')}
-        </tbody></table></div>`;
+      // Layout a card verticali ottimizzato al 100% per smartphone (niente tabelle larghe che tagliano i testi)
+      container.innerHTML = filtered.map(c => {
+        const local = calcolaDatiLocali(c.symbol, c);
+        const isLong = local.side === 'BUY';
+        return `
+          <div onclick='openModal("${c.symbol}")' class="bg-[#000000] border border-white/20 hover:border-[#00FF66] rounded-xl p-3.5 cursor-pointer transition-all space-y-2.5">
+            <div class="flex items-center justify-between border-b border-white/10 pb-2">
+              <div class="flex items-center gap-2">
+                <span class="font-extrabold text-white text-sm">${c.symbol.replace('-USDT', '')}</span>
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold ${isLong ? 'bg-green-500/20 text-[#00FF66]' : 'bg-red-500/20 text-[#FF334B]'}">${isLong ? 'LONG 🚀' : 'SHORT 📉'}</span>
+              </div>
+              <div class="text-right">
+                <span class="text-white text-xs font-bold tabular-nums">$${formatPrice(c.price)}</span>
+                <span class="block text-[10px] ${c.change24h >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'}">${c.change24h >= 0 ? '+' : ''}${c.change24h.toFixed(2)}%</span>
+              </div>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-2 text-[11px] font-mono">
+              <div class="bg-white/5 p-2 rounded-lg">
+                <span class="text-white/60 text-[10px] block">🎯 TARGET TP CERTO</span>
+                <strong class="text-[#00FF66]">$${formatPrice(local.tp)}</strong>
+                <span class="text-yellow-400 text-[10px] block">+(+${local.tpPct}%) con ${state.selectedLeverage}x</span>
+              </div>
+              <div class="bg-white/5 p-2 rounded-lg">
+                <span class="text-white/60 text-[10px] block">🛑 STOP LOSS</span>
+                <strong class="text-[#FF334B]">$${formatPrice(local.sl)}</strong>
+                <span class="text-white/70 text-[10px] block">Score: 98/100 🎯</span>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between pt-1">
+              <span class="text-[10px] text-cyan-300 font-bold">Confluenza: ${local.confluenza}</span>
+              <span class="px-3 py-1 rounded-lg bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/40 text-xs font-bold">1. Entra ⚡</span>
+            </div>
+          </div>
+        `;
+      }).join('');
     }
 
     async function openModal(symbol) {
@@ -1123,6 +1133,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('modalSymbol').textContent = symbol;
       document.getElementById('modalLivePrice').textContent = `$${formatPrice(item.price)}`;
       
+      // Popolamento sincrono immediato
       const instantFallback = calcolaDatiLocali(symbol, item);
       state.currentSelectedAsset = instantFallback;
       document.getElementById('modalOhlcvBadge').textContent = `PRECISION SCORE: ${instantFallback.precisionScore}/100`;
@@ -1139,7 +1150,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('modalSide').className = `text-[12px] font-bold ${instantFallback.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
       document.getElementById('modalSL').textContent = `$${formatPrice(instantFallback.sl)}`;
       document.getElementById('modalTrendingTP').textContent = `$${formatPrice(instantFallback.tp)}`;
-      document.getElementById('modalTpPct').textContent = `+${instantFallback.tpPct}% (con lewa ${state.selectedLeverage}x)`;
+      document.getElementById('modalTpPct').textContent = `+${instantFallback.tpPct}% (con leva ${state.selectedLeverage}x)`;
 
       const d = await fetchDeepOhlcv(symbol);
       if (d) {
