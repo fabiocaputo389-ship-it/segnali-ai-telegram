@@ -519,12 +519,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs font-mono">
         <div class="bg-black/50 p-3 rounded-xl border border-white/10">
-          <span class="text-white/60 text-[10px] block">1. 🟢 ENTRA (APERTURA)</span>
+          <span class="text-white/60 text-[10px] block">1. 🟢 1. ENTRA (APERTURA)</span>
           <strong id="advEntryPrice" class="text-white text-sm">--</strong>
           <span id="advSideBadge" class="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-green-500/20 text-[#00FF66]">LONG</span>
         </div>
         <div class="bg-black/50 p-3 rounded-xl border border-white/10">
-          <span class="text-white/60 text-[10px] block">2. 📊 RIMANI A MERCATO (PNL)</span>
+          <span class="text-white/60 text-[10px] block">2. 📊 2. RIMANI A MERCATO (PNL)</span>
           <strong id="advLivePrice" class="text-cyan-300 text-sm">--</strong>
           <span id="advPnlVal" class="block mt-1 text-[10px] font-bold text-[#00FF66]">PnL: 0.00%</span>
         </div>
@@ -535,7 +535,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
         <div class="bg-black/50 p-3 rounded-xl border border-white/10 flex flex-col justify-between">
           <div>
-            <span class="text-white/60 text-[10px] block">3. 🔴 ESCI (AUDIO &amp; VOCE)</span>
+            <span class="text-white/60 text-[10px] block">3. 🔴 3. ESCI (AUDIO &amp; VOCE)</span>
             <strong id="advStatusAdvice" class="text-[#00FF66] text-xs block mt-0.5">In attesa del TP...</strong>
           </div>
           <span id="advActionAlert" class="text-[10px] text-white/80 italic mt-1">Protezione attiva</span>
@@ -983,7 +983,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const activeBtn = document.getElementById(`levBtn${lev}`);
       if (activeBtn) activeBtn.className = "py-1.5 rounded-lg border border-[#00FF66] bg-[#00FF66]/20 text-[#00FF66] font-bold";
       
-      // Aggiorna subito la modale se aperta con la nuova leva
       if (state.currentSelectedAsset) {
         openModal(state.currentSelectedAsset.symbol);
       }
@@ -1136,7 +1135,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const item = state.marketData[symbol];
       if (!item) return;
 
-      // Popolamento 100% sincrono e immediato (zero attese, zero trattini)
       const data = calcolaDatiLocali(symbol, item);
       state.currentSelectedAsset = data;
 
@@ -1158,8 +1156,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('modalRsi').textContent = `RSI: ${data.rsi14}`;
       document.getElementById('modalRsiZone').textContent = "Ottimale 🎯";
       
-      document.getElementById('modalSide').textContent = `${data.side} (${data.side === 'BUY' ? 'LONG 🚀' : 'SHORT 📉'})`;
-      document.getElementById('modalSide').className = `text-[12px] font-bold ${data.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
+      // Assegnazione diretta e forzata degli elementi chiave della modale
+      const sideEl = document.getElementById('modalSide');
+      sideEl.textContent = `${data.side} (${data.side === 'BUY' ? 'LONG 🚀' : 'SHORT 📉'})`;
+      sideEl.className = `text-[12px] font-bold ${data.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
       
       document.getElementById('modalSL').textContent = `$${formatPrice(data.sl)}`;
       document.getElementById('modalTrendingTP').textContent = `$${formatPrice(data.tp)}`;
