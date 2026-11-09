@@ -141,7 +141,6 @@ def get_klines_precision(simbolo: str, market_type: str = "FUTURES", interval: s
         elif last_price >= 0.01: dec = 5
         else: dec = 7
 
-        # Confluenza e Sentiment di Mercato Long/Short
         is_bull = ema9 >= ema21 and rsi14 > 45
         side = "BUY" if (market_type == "SPOT" or is_bull) else "SELL"
         sentiment = "Bullish Forte 🚀" if (is_bull and rsi14 > 60) else ("Bearish Forte 📉" if not is_bull and rsi14 < 40 else ("Rialzista Moderato 📈" if is_bull else "Ribassista Moderato 🔻"))
@@ -878,6 +877,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const item = state.marketData[symbol];
       if (!item) return null;
 
+      // Restituisce subito il calcolo locale per azzerare qualsiasi attesa
+      const localFallback = calcolaDatiLocali(symbol, item);
+
       try {
         const res = await fetch(`/api/deep-scan?symbol=${encodeURIComponent(symbol)}&marketType=${state.marketType}`);
         const json = await res.json();
@@ -887,7 +889,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }
       } catch (e) {}
       
-      return calcolaDatiLocali(symbol, item);
+      return localFallback;
     }
 
     function avviaAdvisorPosizione(symbol, side, entryPrice, tpPrice, slPrice, tempoSec) {
@@ -900,7 +902,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('advSideBadge').textContent = side;
       document.getElementById('advLevText').textContent = `${state.selectedLeverage}x`;
       
-      playChime(false); // Suono alla prima entrata
+      playChime(false);
       aggiornaAdvisorLoop();
       state.advisorInterval = setInterval(aggiornaAdvisorLoop, 2000);
       logFeed(`[ADVISOR] 1. Entra eseguito su ${symbol} (${side} ${state.selectedLeverage}x) -> In attesa del TP matematico.`);
@@ -1100,8 +1102,26 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       
       document.getElementById('modalSymbol').textContent = symbol;
       document.getElementById('modalLivePrice').textContent = `$${formatPrice(item.price)}`;
-      document.getElementById('modalOhlcvBadge').textContent = "CALIBRAZIONE CONFLUENZA...";
+      
+      // Popolamento istantaneo immediato per azzerare qualsiasi "--"
+      const instantFallback = calcolaDatiLocali(symbol, item);
+      state.currentSelectedAsset = instantFallback;
+      document.getElementById('modalOhlcvBadge').textContent = `PRECISION SCORE: ${instantFallback.precisionScore}/100`;
+      document.getElementById('modalCategory').textContent = instantFallback.marketType;
+      document.getElementById('modalSentiment').textContent = instantFallback.sentiment;
+      document.getElementById('modalConfluenza').textContent = instantFallback.confluenza;
+      document.getElementById('modalDurata').textContent = instantFallback.durata;
+      document.getElementById('modalEma').textContent = `EMA9: ${formatPrice(instantFallback.ema9)} | EMA21: ${formatPrice(instantFallback.ema21)}`;
+      document.getElementById('modalEmaSignal').textContent = instantFallback.crossSignal;
+      document.getElementById('modalEmaSignal').className = `text-[10px] block mt-0.5 ${instantFallback.emaBullish ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
+      document.getElementById('modalRsi').textContent = `RSI: ${instantFallback.rsi14}`;
+      document.getElementById('modalRsiZone').textContent = "Ottimale";
+      document.getElementById('modalSide').textContent = `${instantFallback.side} (${instantFallback.side === 'BUY' ? 'LONG 🚀' : 'SHORT 📉'})`;
+      document.getElementById('modalSide').className = `text-[12px] font-bold ${instantFallback.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
+      document.getElementById('modalSL').textContent = `$${formatPrice(instantFallback.sl)}`;
+      document.getElementById('modalTrendingTP').textContent = `$${formatPrice(instantFallback.tp)}`;
 
+      // Aggiornamento asincrono con dati server se disponibili
       const d = await fetchDeepOhlcv(symbol);
       if (d) {
         state.currentSelectedAsset = d;
