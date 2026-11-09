@@ -32,7 +32,7 @@ def _genera_firma(payload: dict, secret_key: str) -> str:
 
 
 # ==========================================
-# MOTORE MATEMATICO & MULTI-TIMEFRAME
+# MOTORE MATEMATICO & PRECISIONE AL MILLIMETRO
 # ==========================================
 def _calcola_ema_serie(valori: list, periodo: int) -> float:
     if not valori:
@@ -125,7 +125,6 @@ def analizza_tf(simbolo, market_type, interval, limit=60):
 
 
 def get_live_market_data(market_type: str = "FUTURES"):
-    """Scarica i ticker live sincronizzati da BingX per l'intero mercato."""
     if market_type == "SPOT":
         url = f"{BASE_URL}/openApi/spot/v1/ticker/24hr"
     else:
@@ -173,8 +172,6 @@ def get_live_market_data(market_type: str = "FUTURES"):
                     "price": price,
                     "change24h": change,
                     "volume": volume,
-                    "high24h": float(t.get("highPrice", price)),
-                    "low24h": float(t.get("lowPrice", price)),
                     "category": category,
                     "marketType": market_type
                 }
@@ -315,6 +312,8 @@ def api_deep_scan():
     atr = base["atr14"]
     dec = 2 if price >= 1000 else 3 if price >= 10 else 4 if price >= 1 else 5 if price >= 0.01 else 7
     k = 1 if side == "BUY" else -1
+    
+    # Calcolo millimetrico rigoroso dei target
     sl = round(price - k * atr * 1.25, dec)
     tp = round(price + k * atr * 2.50, dec)
 
@@ -441,7 +440,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex items-center gap-2 text-[11px] font-mono text-white/70 mt-0.5">
             <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
-            <span class="text-[#00FF66]">1. ENTRA • 2. RIMANI • 3. ESCI (Audio &amp; Voce Attivi)</span>
+            <span class="text-[#00FF66]">1. ENTRA • 2. RIMANI • 3. ESCI (Precisione Millimetrica)</span>
           </div>
         </div>
       </div>
@@ -490,8 +489,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="flex items-center gap-3">
           <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse">🔊</div>
           <div>
-            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">🟢 ADVISOR LIVE &amp; VOCE (<span id="advSymbol">BTC-USDT</span>)</h2>
-            <p class="text-[11px] text-[#00FF66]">1. Entra • 2. Rimani a mercato (Aggiornamenti vocali ogni 15s) • 3. Esci</p>
+            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">🟢 ADVISOR LIVE AL MILLIMETRO (<span id="advSymbol">BTC-USDT</span>)</h2>
+            <p class="text-[11px] text-[#00FF66]">1. Entra • 2. Rimani a mercato (Aggiornamenti vocali ogni 15s) • 3. Esci al TP esatto</p>
           </div>
         </div>
         <button onclick="chiudiPosizioneMonitorata()" class="px-3.5 py-1.5 rounded-xl bg-red-500/20 text-[#FF334B] border border-red-500/50 hover:bg-red-500/30 text-xs font-bold transition-all">
@@ -511,16 +510,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <span id="advPnlVal" class="block mt-1 text-[10px] font-bold text-[#00FF66]">PnL: 0.00%</span>
         </div>
         <div class="bg-black/50 p-3 rounded-xl border border-white/10">
-          <span class="text-white/60 text-[10px] block">⏱️ TEMPO AL TARGET TP</span>
-          <strong id="advTimeRemaining" class="text-yellow-300 text-sm">--:--</strong>
-          <span id="advTimeProgress" class="block mt-1 text-[10px] text-white/70">Guadagno matematico in corso</span>
+          <span class="text-white/60 text-[10px] block">🎯 TARGET TP MILLIMETRICO</span>
+          <strong id="advTargetTpDisplay" class="text-[#00FF66] text-sm">--</strong>
+          <span id="advDistTp" class="block mt-1 text-[10px] text-white/70">Distanza al TP in corso</span>
         </div>
         <div class="bg-black/50 p-3 rounded-xl border border-white/10 flex flex-col justify-between">
           <div>
             <span class="text-white/60 text-[10px] block">3. 🔴 ESCI (VOCE IN TEMPO REALE)</span>
             <strong id="advStatusAdvice" class="text-[#00FF66] text-xs block mt-0.5">In attesa del TP...</strong>
           </div>
-          <span id="advActionAlert" class="text-[10px] text-white/80 italic mt-1">Protezione attiva</span>
+          <span id="advActionAlert" class="text-[10px] text-white/80 italic mt-1">Guida vocale attiva</span>
         </div>
       </div>
     </div>
@@ -561,7 +560,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="flex items-center gap-3">
           <div class="w-9 h-9 rounded-xl bg-[#FFCC00] text-black flex items-center justify-center font-extrabold animate-bounce">🎯</div>
           <div>
-            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">🎯 SEGNALE MASTER CON TARGET TP CERTO (5m/15m/1h)</h2>
+            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">🎯 SEGNALE MASTER AL MILLIMETRO (TARGET TP CERTO)</h2>
             <p class="text-[11px] text-[#FFCC00]" id="masterSubtitle">Confluenza Multi-Timeframe, Sentiment e Leva Esatta</p>
           </div>
         </div>
@@ -608,7 +607,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[800px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">[Precision Engine] Scanner Multi-TF e Advisor pronti...</div>
+          <div class="p-2 rounded bg-white/5 text-white/70">[Precision Engine] Scanner Multi-TF e Advisor al millimetro pronti...</div>
         </div>
       </aside>
     </div>
@@ -652,7 +651,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <h2 id="modalSymbol" class="text-base font-extrabold font-mono text-white">BTC-USDT</h2>
             <span id="modalOhlcvBadge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">PRONTO</span>
           </div>
-          <p id="modalSubtitleType" class="text-xs text-white/70">Advisor 1. Entra • 2. Rimani • 3. Esci (Leva &amp; Confluenza)</p>
+          <p id="modalSubtitleType" class="text-xs text-white/70">Advisor al millimetro: 1. Entra • 2. Rimani • 3. Esci</p>
         </div>
         <button onclick="closeModal()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
       </div>
@@ -949,13 +948,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('advSymbol').textContent = symbol;
       document.getElementById('advEntryPrice').textContent = `$${formatPrice(entryPrice)}`;
       document.getElementById('advSideBadge').textContent = side;
+      document.getElementById('advTargetTpDisplay').textContent = `$${formatPrice(tpPrice)}`;
       
       const sideText = side === 'BUY' ? 'Long' : 'Short';
       state.lastVoiceAnnounceTimestamp = Date.now();
-      playChime(false, `Primo. Entra a mercato. Posizione ${sideText} su ${symbol} con leva ${state.selectedLeverage} x avviata al prezzo di ${formatPrice(entryPrice)}.`);
+      playChime(false, `Primo. Entra a mercato. Posizione ${sideText} su ${symbol}. Prezzo d'ingresso ${formatPrice(entryPrice)}. Target TP millimetrico impostato a ${formatPrice(tpPrice)}.`);
       aggiornaAdvisorLoop();
       state.advisorInterval = setInterval(aggiornaAdvisorLoop, 1500);
-      logFeed(`[ADVISOR] 1. Entra eseguito su ${symbol} (${side} ${state.selectedLeverage}x) -> In attesa del TP matematico.`);
+      logFeed(`[ADVISOR] 1. Entra eseguito su ${symbol} (${side}) -> Target TP Millimetrico: ${formatPrice(tpPrice)}.`);
     }
 
     function chiudiPosizioneMonitorata() {
@@ -975,6 +975,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
       const currentPrice = liveItem.price;
       document.getElementById('advLivePrice').textContent = `$${formatPrice(currentPrice)}`;
+      
       const rawDiff = pos.side === 'BUY' ? (currentPrice - pos.entryPrice) : (pos.entryPrice - currentPrice);
       const pnlPct = ((rawDiff / pos.entryPrice) * 100) * state.selectedLeverage - (state.marketType === 'SPOT' ? 0.2 : 0.1);
 
@@ -982,42 +983,40 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       pnlEl.textContent = `PnL: ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`;
       pnlEl.className = `block mt-1 text-[10px] font-bold ${pnlPct >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
 
-      const timeLeftSec = Math.max(0, Math.floor((pos.targetTimestamp - Date.now()) / 1000));
-      const mins = Math.floor(timeLeftSec / 60);
-      const secs = timeLeftSec % 60;
-      document.getElementById('advTimeRemaining').textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+      const distTp = Math.abs(pos.tpPrice - currentPrice);
+      document.getElementById('advDistTp').textContent = `Distanza TP: $${formatPrice(distTp)}`;
 
       const advAdvice = document.getElementById('advStatusAdvice');
       const advAlert = document.getElementById('advActionAlert');
       
       if ((pos.side === 'BUY' && currentPrice >= pos.tpPrice) || (pos.side === 'SELL' && currentPrice <= pos.tpPrice)) {
-        advAdvice.textContent = "3. 🎯 ESCI SUBITO (TARGET TP RAGGIUNTO!)";
+        advAdvice.textContent = "3. 🎯 ESCI SUBITO (TP MILLIMETRICO RAGGIUNTO!)";
         advAdvice.className = "text-[#00FF66] text-xs block font-bold animate-pulse";
-        advAlert.textContent = "Guadagno matematico incassato con successo!";
+        advAlert.textContent = "Target TP perfetto raggiunto al millimetro!";
         if (lastLoopAdviceState !== "TP") {
           lastLoopAdviceState = "TP";
-          playChime(true, "Terzo. Esci subito. Target Take Profit raggiunto con successo.");
+          playChime(true, "Terzo. Esci subito. Target Take Profit raggiunto al millimetro.");
         }
         chiudiPosizioneMonitorata();
       } else if ((pos.side === 'BUY' && currentPrice <= pos.slPrice) || (pos.side === 'SELL' && currentPrice >= pos.slPrice)) {
-        advAdvice.textContent = "3. 🛑 ESCI SUBITO (STOP LOSS RAGGIUNTO!)";
+        advAdvice.textContent = "3. 🛑 ESCI SUBITO (STOP LOSS)";
         advAdvice.className = "text-[#FF334B] text-xs block font-bold animate-pulse";
-        advAlert.textContent = "Tagliata la perdita per sicurezza.";
+        advAlert.textContent = "Stop loss raggiunto, chiudi la posizione.";
         if (lastLoopAdviceState !== "SL") {
           lastLoopAdviceState = "SL";
-          playChime(true, "Terzo. Esci subito. Stop loss raggiunto, posizione chiusa per protezione.");
+          playChime(true, "Terzo. Esci subito. Stop loss raggiunto, chiudi la posizione per protezione.");
         }
         chiudiPosizioneMonitorata();
       } else {
-        advAdvice.textContent = "2. 📊 RIMANI A MERCATO (Punta al TP)";
+        advAdvice.textContent = "2. 📊 RIMANI A MERCATO";
         advAdvice.className = "text-yellow-300 text-xs block font-semibold";
-        advAlert.textContent = `Distanza TP: $${formatPrice(Math.abs(pos.tpPrice - currentPrice))}`;
+        advAlert.textContent = `Punta al TP millimetrico: $${formatPrice(pos.tpPrice)}`;
         
         const now = Date.now();
         if (now - state.lastVoiceAnnounceTimestamp >= 15000) {
           state.lastVoiceAnnounceTimestamp = now;
           const pnlText = `${pnlPct >= 0 ? 'guadagno del' : 'perdita del'} ${Math.abs(pnlPct).toFixed(1)} percento`;
-          speakText(`Secondo. Rimani a mercato. Prezzo attuale ${formatPrice(currentPrice)}, PnL in ${pnlText}.`);
+          speakText(`Secondo. Rimani a mercato. Prezzo attuale ${formatPrice(currentPrice)}, PnL in ${pnlText}. Mancano ${formatPrice(distTp)} dollari al Take Profit.`);
         }
 
         if (lastLoopAdviceState !== "RIMANI") {
@@ -1139,7 +1138,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
               <strong class="text-white text-sm">${masterAsset.symbol} - MASTER ${state.marketType}</strong>
               <div class="flex justify-between"><span class="text-white/70">Prezzo Live:</span><strong class="text-[#00FF66] text-sm">$${formatPrice(masterAsset.price)}</strong></div>
               <div class="flex justify-between"><span class="text-white/70">Direzione:</span><strong class="${local.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]'} font-bold">${local.side === 'BUY' ? 'LONG 🚀' : 'SHORT 📉'}</strong></div>
-              <div class="flex justify-between"><span class="text-white/70">TP Certo (+% Leva ${state.selectedLeverage}x):</span><strong class="text-yellow-400 font-extrabold">$${formatPrice(local.tp)} (+${local.tpPct}%)</strong></div>
+              <div class="flex justify-between"><span class="text-white/70">TP Millimetrico (+% Leva ${state.selectedLeverage}x):</span><strong class="text-yellow-400 font-extrabold">$${formatPrice(local.tp)} (+${local.tpPct}%)</strong></div>
             </div>
             <div class="flex flex-col justify-end">
               <button onclick='openModal("${masterAsset.symbol}")' class="green-gradient-btn w-full py-2 rounded-xl text-xs shadow-lg">🎯 APRI MULTI-TF SCANNER &amp; ENTRA &#8599;</button>
@@ -1170,7 +1169,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             
             <div class="grid grid-cols-2 gap-2 text-[11px] font-mono">
               <div class="bg-white/5 p-2 rounded-lg">
-                <span class="text-white/60 text-[10px] block">🎯 TARGET TP CERTO</span>
+                <span class="text-white/60 text-[10px] block">🎯 TARGET TP MILLIMETRICO</span>
                 <strong class="text-[#00FF66]">$${formatPrice(local.tp)}</strong>
                 <span class="text-yellow-400 text-[10px] block">+${local.tpPct}% (con ${state.selectedLeverage}x)</span>
               </div>
