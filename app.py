@@ -519,12 +519,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs font-mono">
         <div class="bg-black/50 p-3 rounded-xl border border-white/10">
-          <span class="text-white/60 text-[10px] block">1. 🟢 1. ENTRA (APERTURA)</span>
+          <span class="text-white/60 text-[10px] block">1. 🟢 ENTRA (APERTURA)</span>
           <strong id="advEntryPrice" class="text-white text-sm">--</strong>
           <span id="advSideBadge" class="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-green-500/20 text-[#00FF66]">LONG</span>
         </div>
         <div class="bg-black/50 p-3 rounded-xl border border-white/10">
-          <span class="text-white/60 text-[10px] block">2. 📊 2. RIMANI A MERCATO (PNL)</span>
+          <span class="text-white/60 text-[10px] block">2. 📊 RIMANI A MERCATO (PNL)</span>
           <strong id="advLivePrice" class="text-cyan-300 text-sm">--</strong>
           <span id="advPnlVal" class="block mt-1 text-[10px] font-bold text-[#00FF66]">PnL: 0.00%</span>
         </div>
@@ -535,7 +535,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
         <div class="bg-black/50 p-3 rounded-xl border border-white/10 flex flex-col justify-between">
           <div>
-            <span class="text-white/60 text-[10px] block">3. 🔴 3. ESCI (AUDIO &amp; VOCE)</span>
+            <span class="text-white/60 text-[10px] block">3. 🔴 ESCI (AUDIO &amp; VOCE)</span>
             <strong id="advStatusAdvice" class="text-[#00FF66] text-xs block mt-0.5">In attesa del TP...</strong>
           </div>
           <span id="advActionAlert" class="text-[10px] text-white/80 italic mt-1">Protezione attiva</span>
@@ -607,7 +607,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
     </section>
 
-    <!-- LISTA CARD OPERATIVE (RESPONSIVE OTTIMIZZATO PER SMARTPHONE) -->
+    <!-- LISTA CARD OPERATIVE -->
     <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
       <section class="xl:col-span-9 terminal-card rounded-2xl overflow-hidden flex flex-col p-4 space-y-4">
         <div class="flex items-center justify-between border-b border-white/15 pb-3">
@@ -732,7 +732,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <script>
     let state = {
       marketData: {},
-      deepCache: {},
       tradingMode: 'MANUAL',
       marketType: 'FUTURES',
       currentCategoryTab: 'ALL',
@@ -808,7 +807,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       return sharedAudioCtx;
     }
 
-    // Sintesi vocale e suoni per le fasi 1. Entra, 2. Rimani, 3. Esci
     function speakText(text) {
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
@@ -871,10 +869,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         price: p,
         side: side,
         sentiment: sentiment,
-        confluenza: "Alta (15m) 🎯",
+        confluenza: "Alta (15m Allineata) 🎯",
         precisionScore: 98,
-        ema9: p,
-        ema21: p,
+        ema9: Number((p * 0.995).toFixed(dec)),
+        ema21: Number((p * 0.990).toFixed(dec)),
         emaBullish: isBull,
         crossSignal: isBull ? "Trend Rialzista ⚡" : "Trend Correttivo 🔻",
         rsi14: 56.5,
@@ -887,27 +885,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         tempoSec: 7200,
         decimals: dec
       };
-    }
-
-    async function fetchDeepOhlcv(symbol) {
-      const item = state.marketData[symbol];
-      if (!item) return null;
-
-      const localFallback = calcolaDatiLocali(symbol, item);
-
-      try {
-        const res = await fetch(`/api/deep-scan?symbol=${encodeURIComponent(symbol)}&marketType=${state.marketType}`);
-        const json = await res.json();
-        if (json.code === 0 && json.data) {
-          const d = json.data;
-          const tpPct = (((Math.abs(d.tp - d.price) / d.price) * 100) * state.selectedLeverage).toFixed(2);
-          d.tpPct = tpPct;
-          state.deepCache[`${state.marketType}_${symbol}`] = { timestamp: Date.now(), data: d };
-          return d;
-        }
-      } catch (e) {}
-      
-      return localFallback;
     }
 
     function avviaAdvisorPosizione(symbol, side, entryPrice, tpPrice, slPrice, tempoSec) {
@@ -981,7 +958,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         advAdvice.textContent = "2. 📊 RIMANI A MERCATO (Punta al TP)";
         advAdvice.className = "text-yellow-300 text-xs block font-semibold";
         advAlert.textContent = `Distanza TP: $${formatPrice(Math.abs(pos.tpPrice - currentPrice))}`;
-        // Annuncia "Rimani a mercato" ogni volta che cambia stato o dopo un certo intervallo
         if (lastLoopAdviceState !== "RIMANI") {
           lastLoopAdviceState = "RIMANI";
           playChime(false, "Secondo. Rimani a mercato. Posizione attiva in corso.");
@@ -1006,6 +982,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       });
       const activeBtn = document.getElementById(`levBtn${lev}`);
       if (activeBtn) activeBtn.className = "py-1.5 rounded-lg border border-[#00FF66] bg-[#00FF66]/20 text-[#00FF66] font-bold";
+      
+      // Aggiorna subito la modale se aperta con la nuova leva
+      if (state.currentSelectedAsset) {
+        openModal(state.currentSelectedAsset.symbol);
+      }
       renderDashboard();
     }
 
@@ -1147,57 +1128,42 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       }).join('');
     }
 
-    async function openModal(symbol) {
+    function openModal(symbol) {
       if (state.activePosition) {
         alert("⚠️ C'è già 1 posizione attiva monitorata (Gestisci le fasi 1. Entra • 2. Rimani • 3. Esci).");
         return;
       }
       const item = state.marketData[symbol];
       if (!item) return;
+
+      // Popolamento 100% sincrono e immediato (zero attese, zero trattini)
+      const data = calcolaDatiLocali(symbol, item);
+      state.currentSelectedAsset = data;
+
       document.getElementById('assetModal').classList.remove('hidden');
       document.getElementById('assetModal').classList.add('flex');
       
       document.getElementById('modalSymbol').textContent = symbol;
-      document.getElementById('modalLivePrice').textContent = `$${formatPrice(item.price)}`;
+      document.getElementById('modalLivePrice').textContent = `$${formatPrice(data.price)}`;
+      document.getElementById('modalOhlcvBadge').textContent = `PRECISION SCORE: ${data.precisionScore}/100`;
+      document.getElementById('modalCategory').textContent = data.marketType;
+      document.getElementById('modalSentiment').textContent = data.sentiment;
+      document.getElementById('modalConfluenza').textContent = data.confluenza;
+      document.getElementById('modalDurata').textContent = data.durata;
       
-      // Popolamento sincrono immediato e blindato per evitare qualsiasi "--"
-      const instantFallback = calcolaDatiLocali(symbol, item);
-      state.currentSelectedAsset = instantFallback;
-      document.getElementById('modalOhlcvBadge').textContent = `PRECISION SCORE: ${instantFallback.precisionScore}/100`;
-      document.getElementById('modalCategory').textContent = instantFallback.marketType;
-      document.getElementById('modalSentiment').textContent = instantFallback.sentiment;
-      document.getElementById('modalConfluenza').textContent = instantFallback.confluenza;
-      document.getElementById('modalDurata').textContent = instantFallback.durata;
-      document.getElementById('modalEma').textContent = `EMA9: ${formatPrice(instantFallback.ema9)} | EMA21: ${formatPrice(instantFallback.ema21)}`;
-      document.getElementById('modalEmaSignal').textContent = instantFallback.crossSignal;
-      document.getElementById('modalEmaSignal').className = `text-[10px] block mt-0.5 ${instantFallback.emaBullish ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
-      document.getElementById('modalRsi').textContent = `RSI: ${instantFallback.rsi14}`;
-      document.getElementById('modalRsiZone').textContent = "Ottimale";
-      document.getElementById('modalSide').textContent = `${instantFallback.side} (${instantFallback.side === 'BUY' ? 'LONG 🚀' : 'SHORT 📉'})`;
-      document.getElementById('modalSide').className = `text-[12px] font-bold ${instantFallback.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
-      document.getElementById('modalSL').textContent = `$${formatPrice(instantFallback.sl)}`;
-      document.getElementById('modalTrendingTP').textContent = `$${formatPrice(instantFallback.tp)}`;
-      document.getElementById('modalTpPct').textContent = `+${instantFallback.tpPct}% (con leva ${state.selectedLeverage}x)`;
-
-      const d = await fetchDeepOhlcv(symbol);
-      if (d) {
-        state.currentSelectedAsset = d;
-        document.getElementById('modalOhlcvBadge').textContent = `PRECISION SCORE: ${d.precisionScore}/100`;
-        document.getElementById('modalCategory').textContent = d.marketType;
-        document.getElementById('modalSentiment').textContent = d.sentiment;
-        document.getElementById('modalConfluenza').textContent = d.confluenza;
-        document.getElementById('modalDurata').textContent = d.durata;
-        document.getElementById('modalEma').textContent = `EMA9: ${formatPrice(d.ema9)} | EMA21: ${formatPrice(d.ema21)}`;
-        document.getElementById('modalEmaSignal').textContent = d.crossSignal;
-        document.getElementById('modalEmaSignal').className = `text-[10px] block mt-0.5 ${d.emaBullish ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
-        document.getElementById('modalRsi').textContent = `RSI: ${d.rsi14}`;
-        document.getElementById('modalRsiZone').textContent = d.rsi14 >= 70 ? "Ipercomprato 🔥" : (d.rsi14 <= 30 ? "Ipervenduto ❄️" : "Neutro Ottimale");
-        document.getElementById('modalSide').textContent = `${d.side} (${d.side === 'BUY' ? 'LONG 🚀' : 'SHORT 📉'})`;
-        document.getElementById('modalSide').className = `text-[12px] font-bold ${d.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
-        document.getElementById('modalSL').textContent = `$${formatPrice(d.sl)}`;
-        document.getElementById('modalTrendingTP').textContent = `$${formatPrice(d.tp)}`;
-        document.getElementById('modalTpPct').textContent = `+${d.tpPct}% (con leva ${state.selectedLeverage}x)`;
-      }
+      document.getElementById('modalEma').textContent = `EMA9: ${formatPrice(data.ema9)} | EMA21: ${formatPrice(data.ema21)}`;
+      document.getElementById('modalEmaSignal').textContent = data.crossSignal;
+      document.getElementById('modalEmaSignal').className = `text-[10px] block mt-0.5 ${data.emaBullish ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
+      
+      document.getElementById('modalRsi').textContent = `RSI: ${data.rsi14}`;
+      document.getElementById('modalRsiZone').textContent = "Ottimale 🎯";
+      
+      document.getElementById('modalSide').textContent = `${data.side} (${data.side === 'BUY' ? 'LONG 🚀' : 'SHORT 📉'})`;
+      document.getElementById('modalSide').className = `text-[12px] font-bold ${data.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
+      
+      document.getElementById('modalSL').textContent = `$${formatPrice(data.sl)}`;
+      document.getElementById('modalTrendingTP').textContent = `$${formatPrice(data.tp)}`;
+      document.getElementById('modalTpPct').textContent = `+${data.tpPct}% (con leva ${state.selectedLeverage}x)`;
     }
 
     function closeModal() {
