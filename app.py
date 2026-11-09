@@ -218,7 +218,6 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingress
     if not active_api or not active_secret:
         return {"code": -1, "msg": "API Key o Secret Key BingX mancanti."}
 
-    # Garantisce che il controvalore sia almeno ~2.1 USDT (soglia minima reale di BingX)
     if prezzo_ingresso > 0 and (quantita * prezzo_ingresso) < 2.1:
         quantita = round(2.2 / prezzo_ingresso, 4 if prezzo_ingresso >= 1 else 2)
 
@@ -256,13 +255,11 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingress
 
     try:
         res = _invia_richiesta_ordine(endpoint, payload_ordine, active_api, active_secret)
-        # Se BingX segnala un lotto minimo specifico (es. "minimum order amount is 8.64 ON"), adegua e riprova automaticamente
         msg = str(res.get("msg", ""))
         if res.get("code") != 0 and "minimum order amount is" in msg.lower():
             match = re.search(r"minimum order amount is\s+([0-9.]+)", msg, re.IGNORECASE)
             if match:
                 min_qty = float(match.group(1))
-                # Aggiunge un piccolo margine del 2% per sicurezza di arrotondamento
                 adjusted_qty = round(min_qty * 1.02, 4 if min_qty < 1 else 2)
                 payload_ordine["quantity"] = str(adjusted_qty)
                 payload_ordine["timestamp"] = str(int(time.time() * 1000))
@@ -300,7 +297,6 @@ def api_deep_scan():
     trends = [v["trend"] for v in tfs.values()]
     allineati = len(set(trends)) == 1 and trends[0] != "NEUTRO"
 
-    # Individua il Timeframe Esatto da illuminare (quello con momentum direzionale più chiaro)
     exact_tf = "15m"
     if tfs["15m"]["trend"] != "NEUTRO":
         exact_tf = "15m"
@@ -494,7 +490,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse">🔊</div>
           <div>
             <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">🟢 ADVISOR LIVE &amp; VOCE (<span id="advSymbol">BTC-USDT</span>)</h2>
-            <p class="text-[11px] text-[#00FF66]">1. Entra • 2. Rimani a mercato • 3. Esci (Leva <span id="advLevText">3x</span>)</p>
+            <p class="text-[11px] text-[#00FF66]">1. Entra • 2. Rimani a mercato (Aggiornamenti ogni 15s) • 3. Esci</p>
           </div>
         </div>
         <button onclick="chiudiPosizioneMonitorata()" class="px-3.5 py-1.5 rounded-xl bg-red-500/20 text-[#FF334B] border border-red-500/50 hover:bg-red-500/30 text-xs font-bold transition-all">
@@ -520,7 +516,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
         <div class="bg-black/50 p-3 rounded-xl border border-white/10 flex flex-col justify-between">
           <div>
-            <span class="text-white/60 text-[10px] block">3. 🔴 ESCI (AUDIO &amp; VOCE)</span>
+            <span class="text-white/60 text-[10px] block">3. 🔴 ESCI (VOCE IN TEMPO REALE)</span>
             <strong id="advStatusAdvice" class="text-[#00FF66] text-xs block mt-0.5">In attesa del TP...</strong>
           </div>
           <span id="advActionAlert" class="text-[10px] text-white/80 italic mt-1">Protezione attiva</span>
@@ -685,6 +681,39 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <!-- Pannello Multi-Timeframe SVG con Illuminazione -->
           <div id="tfPanel" class="grid grid-cols-3 gap-2 my-2"></div>
 
+          <!-- BOX PARAMETRI MILLIMETRICI COPIA-INCOLLA PER BINGX -->
+          <div class="bg-gradient-to-r from-amber-950/40 via-black to-amber-950/40 border-2 border-[#FFCC00] rounded-xl p-3.5 space-y-2 my-3">
+            <div class="flex items-center justify-between border-b border-[#FFCC00]/30 pb-1.5">
+              <span class="text-xs font-extrabold text-[#FFCC00] flex items-center gap-1.5">
+                <span>📋</span> PARAMETRI MILLIMETRICI BINGX (Copia e Incolla)
+              </span>
+              <span class="text-[10px] text-white/70">Esatti al millimetro</span>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+              <div class="bg-black/60 p-2 rounded border border-white/10 flex flex-col justify-between">
+                <span class="text-[10px] text-white/60">INGRESSO (Price)</span>
+                <div class="flex items-center justify-between mt-1">
+                  <strong id="copyParamEntry" class="text-white font-mono text-xs select-all">--</strong>
+                  <button onclick="copiaParametro('copyParamEntry')" class="text-[10px] bg-white/10 hover:bg-white/25 px-1.5 py-0.5 rounded text-cyan-300">Copia</button>
+                </div>
+              </div>
+              <div class="bg-black/60 p-2 rounded border border-white/10 flex flex-col justify-between">
+                <span class="text-[10px] text-[#00FF66]">TAKE PROFIT (TP)</span>
+                <div class="flex items-center justify-between mt-1">
+                  <strong id="copyParamTp" class="text-[#00FF66] font-mono text-xs select-all font-extrabold">--</strong>
+                  <button onclick="copiaParametro('copyParamTp')" class="text-[10px] bg-white/10 hover:bg-white/25 px-1.5 py-0.5 rounded text-[#00FF66]">Copia</button>
+                </div>
+              </div>
+              <div class="bg-black/60 p-2 rounded border border-white/10 flex flex-col justify-between">
+                <span class="text-[10px] text-[#FF334B]">STOP LOSS (SL)</span>
+                <div class="flex items-center justify-between mt-1">
+                  <strong id="copyParamSl" class="text-[#FF334B] font-mono text-xs select-all font-extrabold">--</strong>
+                  <button onclick="copiaParametro('copiaParamSl')" class="text-[10px] bg-white/10 hover:bg-white/25 px-1.5 py-0.5 rounded text-[#FF334B]">Copia</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="flex justify-between pt-1"><span class="text-white/75">Prezzo Live Reale:</span><strong id="modalLivePrice" class="text-white">--</strong></div>
           <div class="flex justify-between"><span class="text-white/75">Direzione Long / Short:</span><strong id="modalSide" class="text-[#00FF66]">--</strong></div>
           <div>
@@ -730,7 +759,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       selectedLeverage: 3,
       currentSelectedAsset: null,
       activePosition: null,
-      advisorInterval: null
+      advisorInterval: null,
+      lastVoiceAnnounceTimestamp: 0
     };
 
     function getStoredApiKeys() {
@@ -843,6 +873,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       return Number(val).toFixed(getPrecisionDecimals(val));
     }
 
+    function copiaParametro(elementId) {
+      const el = document.getElementById(elementId);
+      if (!el) return;
+      const text = el.textContent.trim();
+      navigator.clipboard.writeText(text).then(() => {
+        logFeed(`[COPIA] Parametro ${text} copiato negli appunti!`);
+        alert(`Copiato: ${text}`);
+      }).catch(err => {
+        console.error('Errore copia', err);
+      });
+    }
+
     function calcolaDatiLocali(symbol, item) {
       const p = item.price;
       const dec = getPrecisionDecimals(p);
@@ -897,9 +939,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('advLevText').textContent = `${state.selectedLeverage}x`;
       
       const sideText = side === 'BUY' ? 'Long' : 'Short';
+      state.lastVoiceAnnounceTimestamp = Date.now();
       playChime(false, `Primo. Entra a mercato. Posizione ${sideText} su ${symbol} con leva ${state.selectedLeverage} x avviata.`);
       aggiornaAdvisorLoop();
-      state.advisorInterval = setInterval(aggiornaAdvisorLoop, 2000);
+      state.advisorInterval = setInterval(aggiornaAdvisorLoop, 1500); // Check continuo ogni 1.5 secondi
       logFeed(`[ADVISOR] 1. Entra eseguito su ${symbol} (${side} ${state.selectedLeverage}x) -> In attesa del TP matematico.`);
     }
 
@@ -957,9 +1000,17 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         advAdvice.textContent = "2. 📊 RIMANI A MERCATO (Punta al TP)";
         advAdvice.className = "text-yellow-300 text-xs block font-semibold";
         advAlert.textContent = `Distanza TP: $${formatPrice(Math.abs(pos.tpPrice - currentPrice))}`;
+        
+        // Aggiornamento vocale in tempo reale ogni 15 secondi esatti durante la fase "2. Rimani"
+        const now = Date.now();
+        if (now - state.lastVoiceAnnounceTimestamp >= 15000) {
+          state.lastVoiceAnnounceTimestamp = now;
+          const pnlText = `${pnlPct >= 0 ? 'guadagno del' : 'perdita del'} ${Math.abs(pnlPct).toFixed(1)} percento`;
+          speakText(`Secondo. Rimani a mercato. Prezzo attuale ${formatPrice(currentPrice)}, PnL in ${pnlText}.`);
+        }
+
         if (lastLoopAdviceState !== "RIMANI") {
           lastLoopAdviceState = "RIMANI";
-          playChime(false, "Secondo. Rimani a mercato. Posizione attiva in corso.");
         }
       }
     }
@@ -1140,7 +1191,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('modalOhlcvBadge').textContent = "SCANSIONE 5m/15m/1h IN CORSO...";
       document.getElementById('tfPanel').innerHTML = '<div class="col-span-3 text-center text-xs text-white/60 py-4">Caricamento candele Multi-TF...</div>';
 
-      // Sblocca sempre il pulsante e pulisce avvisi precedenti
       const btn = document.getElementById('executeBingXBtn');
       const fb = document.getElementById('executionFeedback');
       btn.disabled = false;
@@ -1157,7 +1207,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           document.getElementById('modalOhlcvBadge').textContent = `PRECISION SCORE: ${d.precisionScore}/100`;
           document.getElementById('modalCategory').textContent = d.marketType;
           
-          // Illumina il Timeframe Esatto individuato
           const tfEl = document.getElementById('modalTF');
           tfEl.textContent = `${d.exactTf.toUpperCase()} ILLUMINATO ⚡`;
           tfEl.className = "px-2.5 py-0.5 rounded bg-[#FFCC00]/20 text-[#FFCC00] border border-[#FFCC00] font-extrabold animate-pulse";
@@ -1183,13 +1232,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           const tpPct = (((Math.abs(d.tp - d.price) / d.price) * 100) * state.selectedLeverage).toFixed(2);
           document.getElementById('modalTpPct').textContent = `+${tpPct}% (con leva ${state.selectedLeverage}x)`;
 
-          // Pre-compila la quantità minima per aprire con almeno ~2.2$
+          document.getElementById('copyParamEntry').textContent = formatPrice(d.price);
+          document.getElementById('copyParamTp').textContent = formatPrice(d.tp);
+          document.getElementById('copyParamSl').textContent = formatPrice(d.sl);
+
           if (d.price > 0) {
             const minQty2Usd = Math.max(1, Number((2.2 / d.price).toFixed(d.price >= 1 ? 3 : 2)));
             document.getElementById('tradeQuantityInput').value = minQty2Usd;
           }
 
-          // Rendering pannello TF SVG con illuminazione sul timeframe esatto
           renderTfPanel(d.tfs, d.exactTf);
         } else {
           alert("Errore caricamento Multi-TF: " + (json.msg || "Impossibile scaricare le candele"));
