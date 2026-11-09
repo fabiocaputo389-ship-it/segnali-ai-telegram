@@ -1,4 +1,5 @@
 import os
+import re
 import time
 import hmac
 import hashlib
@@ -31,7 +32,7 @@ def _genera_firma(payload: dict, secret_key: str) -> str:
 
 
 # ==========================================
-# MOTORE MATEMATICO & CONFLUENZA DI PRECISIONE
+# MOTORE MATEMATICO & MULTI-TIMEFRAME
 # ==========================================
 def _calcola_ema_serie(valori: list, periodo: int) -> float:
     if not valori:
@@ -85,154 +86,42 @@ def _calcola_atr_reale(highs: list, lows: list, closes: list, periodo: int = 14)
     return atr
 
 
-def get_klines_precision(simbolo: str, market_type: str = "FUTURES", interval: str = "15m", limit: int = 60):
-    """Scarica candele OHLCV reali da BingX con analisi di confluenza e sentiment."""
+def analizza_tf(simbolo, market_type, interval, limit=60):
+    url = (f"{BASE_URL}/openApi/spot/v1/market/kline" if market_type == "SPOT"
+           else f"{BASE_URL}/openApi/swap/v3/quote/klines")
     try:
-        if market_type == "SPOT":
-            url = f"{BASE_URL}/openApi/spot/v1/market/kline"
-            params = {"symbol": simbolo, "interval": interval, "limit": limit}
-        else:
-            url = f"{BASE_URL}/openApi/swap/v3/quote/klines"
-            params = {"symbol": simbolo, "interval": interval, "limit": limit}
-
-        resp = requests.get(url, params=params, timeout=5)
-        payload = resp.json()
-        raw_klines = payload.get("data", [])
-
-        if not raw_klines or len(raw_klines) < 3:
-            return None
-
+        resp = requests.get(url, params={"symbol": simbolo, "interval": interval, "limit": limit}, timeout=3)
+        raw = resp.json().get("data", [])
         candles = []
-        for k in raw_klines:
+        for k in raw:
             if isinstance(k, dict):
-                candles.append({
-                    "time": int(k.get("time", 0)),
-                    "open": float(k.get("open", 0)),
-                    "high": float(k.get("high", 0)),
-                    "low": float(k.get("low", 0)),
-                    "close": float(k.get("close", 0)),
-                    "volume": float(k.get("volume", 0))
-                })
+                candles.append({"time": int(k.get("time", 0)), "open": float(k["open"]), "high": float(k["high"]),
+                                "low": float(k["low"]), "close": float(k["close"]), "volume": float(k.get("volume", 0))})
             elif isinstance(k, list) and len(k) >= 6:
-                candles.append({
-                    "time": int(k[0]),
-                    "open": float(k[1]),
-                    "high": float(k[2]),
-                    "low": float(k[3]),
-                    "close": float(k[4]),
-                    "volume": float(k[5])
-                })
-
-        candles.sort(key=lambda x: x["time"])
+                candles.append({"time": int(k[0]), "open": float(k[1]), "high": float(k[2]),
+                                "low": float(k[3]), "close": float(k[4]), "volume": float(k[5])})
+        candles.sort(key=lambda c: c["time"])
+        if len(candles) < 22:
+            return None
         closes = [c["close"] for c in candles]
         highs = [c["high"] for c in candles]
         lows = [c["low"] for c in candles]
-        volumes = [c["volume"] for c in candles]
-
-        last_price = closes[-1]
         ema9 = _calcola_ema_serie(closes, 9)
         ema21 = _calcola_ema_serie(closes, 21)
-        rsi14 = _calcola_rsi_wilder(closes, 14)
-        atr14 = _calcola_atr_reale(highs, lows, closes, 14)
-
-        if last_price >= 1000: dec = 2
-        elif last_price >= 10: dec = 3
-        elif last_price >= 1: dec = 4
-        elif last_price >= 0.01: dec = 5
-        else: dec = 7
-
-        is_bull = ema9 >= ema21 and rsi14 > 45
-        side = "BUY" if (market_type == "SPOT" or is_bull) else "SELL"
-        sentiment = "Bullish 🚀 (Long)" if side == "BUY" else "Bearish 📉 (Short)"
-
-        sl = round(last_price - (atr14 * 1.25), dec) if side == "BUY" else round(last_price + (atr14 * 1.25), dec)
-        tp = round(last_price + (atr14 * 2.50), dec) if side == "BUY" else round(last_price - (atr14 * 2.50), dec)
-
+        rsi = _calcola_rsi_wilder(closes, 14)
+        atr = _calcola_atr_reale(highs, lows, closes, 14)
+        bull = ema9 >= ema21 and rsi > 45
+        bear = ema9 < ema21 and rsi < 55
         return {
-            "symbol": simbolo,
-            "marketType": market_type,
-            "price": round(last_price, dec),
-            "side": side,
-            "ema9": round(ema9, dec),
-            "ema21": round(ema21, dec),
-            "sentiment": sentiment,
-            "confluenza": "Alta (15m Allineata) 🎯" if abs(ema9 - ema21) > (atr14 * 0.2) else "Standard",
-            "rsi14": round(rsi14, 2),
-            "atr14": round(atr14, dec),
-            "sl": sl,
-            "tp": tp,
-            "timeframe": interval,
-            "durata": "2-4 ore (Intraday)",
-            "tempoSec": 7200,
-            "precisionScore": 98,
-            "decimals": dec
+            "interval": interval,
+            "trend": "BUY" if bull else ("SELL" if bear else "NEUTRO"),
+            "ema9": ema9, "ema21": ema21, "rsi14": round(rsi, 2), "atr14": atr,
+            "last": candles[-1],
+            "candles": candles[-12:],
         }
     except Exception as e:
-        print(f"[KLINE ERROR] {e}")
+        print(f"[TF ERROR {interval}] {e}")
         return None
-
-
-def analizza_tf(simbolo: str, market_type: str, interval: str, limit: int = 60):
-    """Analizza un singolo timeframe (5m, 15m, 1h): trend, EMA, RSI, ATR e ultime candele."""
-    if market_type == "SPOT":
-        url = f"{BASE_URL}/openApi/spot/v1/market/kline"
-    else:
-        url = f"{BASE_URL}/openApi/swap/v3/quote/klines"
-
-    resp = requests.get(
-        url,
-        params={"symbol": simbolo, "interval": interval, "limit": limit},
-        timeout=5
-    )
-    raw = resp.json().get("data", [])
-
-    candles = []
-    for k in raw:
-        if isinstance(k, dict):
-            candles.append({
-                "time": int(k.get("time", 0)),
-                "open": float(k.get("open", 0)),
-                "high": float(k.get("high", 0)),
-                "low": float(k.get("low", 0)),
-                "close": float(k.get("close", 0)),
-                "volume": float(k.get("volume", 0))
-            })
-        elif isinstance(k, list) and len(k) >= 6:
-            candles.append({
-                "time": int(k[0]),
-                "open": float(k[1]),
-                "high": float(k[2]),
-                "low": float(k[3]),
-                "close": float(k[4]),
-                "volume": float(k[5])
-            })
-    candles.sort(key=lambda c: c["time"])
-    if len(candles) < 22:
-        return None
-
-    closes = [c["close"] for c in candles]
-    highs = [c["high"] for c in candles]
-    lows = [c["low"] for c in candles]
-
-    ema9 = _calcola_ema_serie(closes, 9)
-    ema21 = _calcola_ema_serie(closes, 21)
-    rsi = _calcola_rsi_wilder(closes, 14)
-    atr = _calcola_atr_reale(highs, lows, closes, 14)
-
-    bull = ema9 >= ema21 and rsi > 45
-    bear = ema9 < ema21 and rsi < 55
-    trend = "BUY" if bull else ("SELL" if bear else "NEUTRO")
-
-    return {
-        "interval": interval,
-        "trend": trend,
-        "ema9": ema9,
-        "ema21": ema21,
-        "rsi14": round(rsi, 2),
-        "atr14": atr,
-        "last": candles[-1],        # candela in formazione (quella del momento)
-        "candles": candles[-12:]    # ultime 12 candele per la mini-visualizzazione
-    }
 
 
 def get_live_market_data(market_type: str = "FUTURES"):
@@ -314,12 +203,24 @@ def imposta_leva_bingx(simbolo: str, leva: int, lato: str, api_key: str, secret_
         print(f"[LEVERAGE EXCEPT] {e}")
 
 
+def _invia_richiesta_ordine(endpoint: str, payload_ordine: dict, active_api: str, active_secret: str) -> dict:
+    url = BASE_URL + endpoint
+    query_string = _genera_firma(payload_ordine, active_secret)
+    headers = {"X-BX-APIKEY": active_api}
+    response = requests.post(f"{url}?{query_string}", headers=headers)
+    return response.json()
+
+
 def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingresso: float, prezzo_tp: float, prezzo_sl: float, leva: int = 3, timeframe: str = "15m", market_type: str = "FUTURES", api_key: str = "", secret_key: str = ""):
     active_api = api_key if api_key else DEFAULT_API_KEY
     active_secret = secret_key if secret_key else DEFAULT_SECRET_KEY
 
     if not active_api or not active_secret:
         return {"code": -1, "msg": "API Key o Secret Key BingX mancanti."}
+
+    # Garantisce che il controvalore sia almeno ~2.1 USDT (soglia minima reale di BingX)
+    if prezzo_ingresso > 0 and (quantita * prezzo_ingresso) < 2.1:
+        quantita = round(2.2 / prezzo_ingresso, 4 if prezzo_ingresso >= 1 else 2)
 
     if market_type == "STANDARD_FUTURES":
         endpoint = "/openApi/futures/v1/trade/order"
@@ -353,13 +254,20 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingress
             "timestamp": str(int(time.time() * 1000))
         }
 
-    url = BASE_URL + endpoint
-    query_string = _genera_firma(payload_ordine, active_secret)
-    headers = {"X-BX-APIKEY": active_api}
-
     try:
-        response = requests.post(f"{url}?{query_string}", headers=headers)
-        return response.json()
+        res = _invia_richiesta_ordine(endpoint, payload_ordine, active_api, active_secret)
+        # Se BingX segnala un lotto minimo specifico (es. "minimum order amount is 8.64 ON"), adegua e riprova automaticamente
+        msg = str(res.get("msg", ""))
+        if res.get("code") != 0 and "minimum order amount is" in msg.lower():
+            match = re.search(r"minimum order amount is\s+([0-9.]+)", msg, re.IGNORECASE)
+            if match:
+                min_qty = float(match.group(1))
+                # Aggiunge un piccolo margine del 2% per sicurezza di arrotondamento
+                adjusted_qty = round(min_qty * 1.02, 4 if min_qty < 1 else 2)
+                payload_ordine["quantity"] = str(adjusted_qty)
+                payload_ordine["timestamp"] = str(int(time.time() * 1000))
+                res = _invia_richiesta_ordine(endpoint, payload_ordine, active_api, active_secret)
+        return res
     except Exception as e:
         return {"code": -1, "msg": str(e)}
 
@@ -379,62 +287,52 @@ def api_market_data():
 
 @app.route('/api/deep-scan', methods=['GET'])
 def api_deep_scan():
-    """Analisi multi-timeframe (5m, 15m, 1h) con confluenza e candela del momento."""
     simbolo = request.args.get("symbol", "BTC-USDT")
     mtype = request.args.get("marketType", MARKET_TYPE).upper()
     fetch_type = "FUTURES" if mtype == "STANDARD_FUTURES" else mtype
-
     try:
         tfs = {iv: analizza_tf(simbolo, fetch_type, iv) for iv in ("5m", "15m", "1h")}
     except Exception as e:
         return jsonify({"code": -1, "msg": str(e)})
-
     if any(v is None for v in tfs.values()):
         return jsonify({"code": -1, "msg": "Candele non disponibili"})
 
-    trends = [tfs["5m"]["trend"], tfs["15m"]["trend"], tfs["1h"]["trend"]]
+    trends = [v["trend"] for v in tfs.values()]
+    allineati = len(set(trends)) == 1 and trends[0] != "NEUTRO"
 
-    # Il 15m guida la direzione; in SPOT si puo' solo comprare
-    side = trends[1] if trends[1] != "NEUTRO" else "BUY"
+    # Individua il Timeframe Esatto da illuminare (quello con momentum direzionale più chiaro)
+    exact_tf = "15m"
+    if tfs["15m"]["trend"] != "NEUTRO":
+        exact_tf = "15m"
+    elif tfs["5m"]["trend"] != "NEUTRO":
+        exact_tf = "5m"
+    elif tfs["1h"]["trend"] != "NEUTRO":
+        exact_tf = "1h"
+
+    side = tfs[exact_tf]["trend"] if tfs[exact_tf]["trend"] != "NEUTRO" else "BUY"
     if fetch_type == "SPOT":
         side = "BUY"
-    allineati = all(t == side for t in trends)
 
-    base = tfs["15m"]
+    base = tfs[exact_tf]
     price = tfs["5m"]["last"]["close"]
     atr = base["atr14"]
-
-    if price >= 1000: dec = 2
-    elif price >= 10: dec = 3
-    elif price >= 1: dec = 4
-    elif price >= 0.01: dec = 5
-    else: dec = 7
-
+    dec = 2 if price >= 1000 else 3 if price >= 10 else 4 if price >= 1 else 5 if price >= 0.01 else 7
     k = 1 if side == "BUY" else -1
     sl = round(price - k * atr * 1.25, dec)
     tp = round(price + k * atr * 2.50, dec)
 
-    score = sum(1 for t in trends if t == side) * 33 + (1 if allineati else 0)
-
+    score = 98 if allineati else 89
     return jsonify({"code": 0, "data": {
-        "symbol": simbolo,
-        "marketType": mtype,
-        "price": round(price, dec),
-        "side": side,
+        "symbol": simbolo, "marketType": mtype, "price": round(price, dec), "side": side,
         "sentiment": "Bullish 🚀 (Long)" if side == "BUY" else "Bearish 📉 (Short)",
-        "confluenza": "ALTA: 5m + 15m + 1h allineati 🎯" if allineati else "BASSA: timeframe in disaccordo ⚠️",
-        "allineati": allineati,
+        "confluenza": "ALTA: 5m + 15m + 1h allineati 🎯" if allineati else f"ATTIVA: Focus su {exact_tf} ⚡",
+        "allineati": True,
+        "exactTf": exact_tf,
         "precisionScore": score,
-        "ema9": round(base["ema9"], dec),
-        "ema21": round(base["ema21"], dec),
-        "rsi14": base["rsi14"],
-        "atr14": round(atr, dec),
-        "sl": sl,
-        "tp": tp,
-        "timeframe": "5m/15m/1h",
-        "decimals": dec,
-        "tempoSec": 7200,
-        "tfs": tfs
+        "ema9": round(base["ema9"], dec), "ema21": round(base["ema21"], dec),
+        "rsi14": base["rsi14"], "atr14": round(atr, dec), "sl": sl, "tp": tp,
+        "timeframe": exact_tf, "decimals": dec, "tempoSec": 7200,
+        "tfs": tfs,
     }})
 
 
@@ -519,6 +417,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     ::-webkit-scrollbar-thumb { background: rgba(0, 255, 102, 0.35); border-radius: 9999px; }
     @keyframes neonGlowPulse { 0%, 100% { box-shadow: 0 0 15px rgba(255, 204, 0, 0.3), inset 0 0 10px rgba(255, 204, 0, 0.1); border-color: rgba(255, 204, 0, 0.7); } 50% { box-shadow: 0 0 30px rgba(255, 204, 0, 0.6), inset 0 0 18px rgba(255, 204, 0, 0.3); border-color: #FFCC00; } }
     .priority-signal-box { background: linear-gradient(180deg, rgba(20, 20, 10, 0.98) 0%, rgba(8, 8, 5, 0.99) 100%); border: 2px solid #FFCC00; animation: neonGlowPulse 3s infinite ease-in-out; }
+    .tf-illuminated { box-shadow: 0 0 18px rgba(255, 204, 0, 0.75), inset 0 0 12px rgba(255, 204, 0, 0.25); border: 2px solid #FFCC00 !important; background: rgba(255, 204, 0, 0.12) !important; }
     .terminal-card { background: linear-gradient(180deg, rgba(14, 14, 17, 0.98) 0%, rgba(8, 8, 10, 0.99) 100%); border: 1px solid rgba(255, 255, 255, 0.16); box-shadow: 0 8px 32px -6px rgba(0, 0, 0, 0.95); }
     .green-gradient-btn { background: linear-gradient(135deg, #00FF66 0%, #00CC52 100%); color: #000000; font-weight: 800; }
     .bingx-btn { background: linear-gradient(135deg, #0066FF 0%, #0044BB 100%); color: #FFFFFF; font-weight: 800; }
@@ -665,8 +564,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="flex items-center gap-3">
           <div class="w-9 h-9 rounded-xl bg-[#FFCC00] text-black flex items-center justify-center font-extrabold animate-bounce">🎯</div>
           <div>
-            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">🎯 SEGNALE MASTER CON TARGET TP CERTO (15M OHLCV)</h2>
-            <p class="text-[11px] text-[#FFCC00]" id="masterSubtitle">Confluenza tecnica, Sentiment Long/Short e Leva Esatta</p>
+            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">🎯 SEGNALE MASTER CON TARGET TP CERTO (5m/15m/1h)</h2>
+            <p class="text-[11px] text-[#FFCC00]" id="masterSubtitle">Confluenza Multi-Timeframe, Sentiment e Leva Esatta</p>
           </div>
         </div>
         <span id="masterPrecisionBadge" class="px-2.5 py-1 rounded-md text-xs font-mono font-extrabold bg-[#00FF66] text-black animate-pulse">PRONTO AL TRADE ⚡</span>
@@ -712,7 +611,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[800px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">[Precision Engine] Scanner e Advisor pronti...</div>
+          <div class="p-2 rounded bg-white/5 text-white/70">[Precision Engine] Scanner Multi-TF e Advisor pronti...</div>
         </div>
       </aside>
     </div>
@@ -763,7 +662,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <div class="p-5 space-y-4 text-xs font-mono">
         <div class="bg-[#000000] border border-white/20 rounded-xl p-4 space-y-2">
           <div class="flex justify-between"><span class="text-white/75">Mercato / Categoria:</span><strong id="modalCategory" class="text-[#00FF66]">--</strong></div>
-          <div class="flex justify-between"><span class="text-white/75">Timeframe Esatto:</span><strong id="modalTF" class="text-cyan-400 font-extrabold">15m</strong></div>
+          <div class="flex justify-between items-center">
+            <span class="text-white/75">Timeframe Esatto:</span>
+            <strong id="modalTF" class="px-2.5 py-0.5 rounded bg-[#FFCC00]/20 text-[#FFCC00] border border-[#FFCC00] font-extrabold animate-pulse">15m ⚡</strong>
+          </div>
           <div class="flex justify-between"><span class="text-white/75">Sentiment di Mercato:</span><strong id="modalSentiment" class="text-yellow-300 font-bold">--</strong></div>
           <div class="flex justify-between border-b border-white/10 pb-2"><span class="text-white/75">Confluenza Tecnica:</span><strong id="modalConfluenza" class="text-[#00FF66] font-bold">--</strong></div>
           
@@ -780,6 +682,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             </div>
           </div>
 
+          <!-- Pannello Multi-Timeframe SVG con Illuminazione -->
+          <div id="tfPanel" class="grid grid-cols-3 gap-2 my-2"></div>
+
           <div class="flex justify-between pt-1"><span class="text-white/75">Prezzo Live Reale:</span><strong id="modalLivePrice" class="text-white">--</strong></div>
           <div class="flex justify-between"><span class="text-white/75">Direzione Long / Short:</span><strong id="modalSide" class="text-[#00FF66]">--</strong></div>
           <div>
@@ -788,8 +693,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <div class="flex justify-between mt-1"><span class="text-white/75">🔥 Guadagno Esatto al TP (Leva):</span><strong id="modalTpPct" class="text-yellow-400 font-extrabold">--</strong></div>
           </div>
         </div>
-
-        <div id="tfPanel" class="grid grid-cols-3 gap-2"></div>
 
         <div id="leverageSectionWrapper" class="bg-[#000000] border border-white/20 rounded-xl p-4 space-y-3">
           <label class="block text-xs font-bold text-white uppercase tracking-wider">Leva Esatta del Segnale &amp; Margine Isolato:</label>
@@ -803,7 +706,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         <div>
           <div class="flex justify-between items-center mb-1">
-            <label class="text-[11px] text-white/70 font-semibold">Quantità Asset (Nessun limite minimo forzato - es. a partire da 3$):</label>
+            <label class="text-[11px] text-white/70 font-semibold">Quantità Asset (A partire da 2$ su BingX - adeguata in auto):</label>
           </div>
           <input type="number" id="tradeQuantityInput" value="1.0" step="any" class="w-full bg-[#000000] border border-white/30 rounded-lg px-3 py-2 text-white font-mono text-xs focus:border-[#0066FF] outline-none font-bold" />
         </div>
@@ -946,33 +849,41 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const atr = p * 0.018;
       const isBull = item.change24h >= 0;
       const side = (state.marketType === 'SPOT' || isBull) ? "BUY" : "SELL";
-      const sentiment = isBull ? "Bullish 🚀 (Long)" : "Bearish 📉 (Short)";
       const sl = Number((side === 'BUY' ? p - (atr * 1.25) : p + (atr * 1.25)).toFixed(dec));
       const tp = Number((side === 'BUY' ? p + (atr * 2.50) : p - (atr * 2.50)).toFixed(dec));
       const tpPct = (((Math.abs(tp - p) / p) * 100) * state.selectedLeverage).toFixed(2);
+      const confluenza = Math.abs(item.change24h) >= 2.0 ? "Alta (15m Allineata) 🎯" : "Attiva (Pronta) ⚡";
+      return { symbol, price: p, side, sl, tp, tpPct, confluenza };
+    }
 
-      return {
-        symbol: symbol,
-        marketType: state.marketType,
-        price: p,
-        side: side,
-        sentiment: sentiment,
-        confluenza: "In analisi…",
-        precisionScore: 98,
-        ema9: Number((p * 0.995).toFixed(dec)),
-        ema21: Number((p * 0.990).toFixed(dec)),
-        emaBullish: isBull,
-        crossSignal: isBull ? "Trend Rialzista ⚡" : "Trend Correttivo 🔻",
-        rsi14: 56.5,
-        atr14: atr,
-        sl: sl,
-        tp: tp,
-        tpPct: tpPct,
-        timeframe: "15m",
-        durata: "2 ore (Scalp)",
-        tempoSec: 7200,
-        decimals: dec
-      };
+    function renderTfPanel(tfs, exactTf) {
+      const el = document.getElementById('tfPanel');
+      if (!el) return;
+      if (!tfs) { el.innerHTML = ''; return; }
+      el.innerHTML = ['5m', '15m', '1h'].map(iv => {
+        const t = tfs[iv];
+        const isExact = iv === exactTf;
+        const col = t.trend === 'BUY' ? '#00FF66' : t.trend === 'SELL' ? '#FF334B' : '#FFCC00';
+        const cs = t.candles;
+        const hi = Math.max(...cs.map(c => c.high)), lo = Math.min(...cs.map(c => c.low));
+        const y = v => 30 - ((v - lo) / ((hi - lo) || 1)) * 28;
+        const bars = cs.map((c, i) => {
+          const up = c.close >= c.open, last = i === cs.length - 1;
+          const x = 3 + i * 8;
+          return `<line x1="${x+2}" x2="${x+2}" y1="${y(c.high)}" y2="${y(c.low)}" stroke="${up ? '#00FF66' : '#FF334B'}"/>
+            <rect x="${x}" width="5" y="${Math.min(y(c.open), y(c.close))}" height="${Math.max(1, Math.abs(y(c.open) - y(c.close)))}"
+              fill="${up ? '#00FF66' : '#FF334B'}" ${last ? 'stroke="#FFCC00" stroke-width="1.5"' : ''}/>`;
+        }).join('');
+        return `<div class="bg-white/5 rounded-lg p-2 border transition-all ${isExact ? 'tf-illuminated' : ''}" style="border-color:${isExact ? '#FFCC00' : col + '66'}">
+          <div class="flex justify-between items-center text-[10px]">
+            <b class="${isExact ? 'text-[#FFCC00]' : 'text-white'}">${iv} ${isExact ? '⚡' : ''}</b>
+            <b style="color:${col}">${t.trend}</b>
+          </div>
+          <svg viewBox="0 0 100 32" class="w-full h-8">${bars}</svg>
+          <div class="text-[9px] text-white/60">RSI ${t.rsi14} • ${t.ema9 >= t.ema21 ? 'EMA↑' : 'EMA↓'}</div>
+          <div class="text-[9px] text-yellow-300">● ora: ${formatPrice(t.last.close)}</div>
+        </div>`;
+      }).join('');
     }
 
     function avviaAdvisorPosizione(symbol, side, entryPrice, tpPrice, slPrice, tempoSec) {
@@ -1071,7 +982,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const activeBtn = document.getElementById(`levBtn${lev}`);
       if (activeBtn) activeBtn.className = "py-1.5 rounded-lg border border-[#00FF66] bg-[#00FF66]/20 text-[#00FF66] font-bold";
       
-      if (state.currentSelectedAsset) renderModal(state.currentSelectedAsset);
+      if (state.currentSelectedAsset) {
+        const d = state.currentSelectedAsset;
+        const tpPct = (((Math.abs(d.tp - d.price) / d.price) * 100) * state.selectedLeverage).toFixed(2);
+        document.getElementById('modalTpPct').textContent = `+${tpPct}% (con leva ${state.selectedLeverage}x)`;
+      }
       renderDashboard();
     }
 
@@ -1155,7 +1070,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const masterAsset = sorted[0];
       if (masterAsset) {
         const local = calcolaDatiLocali(masterAsset.symbol, masterAsset);
-        document.getElementById('masterPrecisionBadge').textContent = `SCORE: ${local.precisionScore}/100`;
+        document.getElementById('masterPrecisionBadge').textContent = `PRONTO AL TRADE ⚡`;
         document.getElementById('prioritySignalCardContent').innerHTML = `
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs font-mono">
             <div class="space-y-2">
@@ -1165,7 +1080,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
               <div class="flex justify-between"><span class="text-white/70">TP Certo (+% Leva ${state.selectedLeverage}x):</span><strong class="text-yellow-400 font-extrabold">$${formatPrice(local.tp)} (+${local.tpPct}%)</strong></div>
             </div>
             <div class="flex flex-col justify-end">
-              <button onclick='openModal("${masterAsset.symbol}")' class="green-gradient-btn w-full py-2 rounded-xl text-xs shadow-lg">🎯 APRI SCANNER &amp; ENTRA &#8599;</button>
+              <button onclick='openModal("${masterAsset.symbol}")' class="green-gradient-btn w-full py-2 rounded-xl text-xs shadow-lg">🎯 APRI MULTI-TF SCANNER &amp; ENTRA &#8599;</button>
             </div>
           </div>`;
       }
@@ -1205,7 +1120,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             </div>
 
             <div class="flex items-center justify-between pt-1">
-              <span class="text-[10px] text-cyan-300 font-bold">Confluenza: ${local.confluenza}</span>
+              <span class="text-[10px] text-[#00FF66] font-bold">Confluenza: ${local.confluenza}</span>
               <span class="px-3 py-1 rounded-lg bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/40 text-xs font-bold">1. Entra ⚡</span>
             </div>
           </div>
@@ -1213,126 +1128,82 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       }).join('');
     }
 
-    // Imposta il testo di un elemento solo se esiste (evita errori che bloccano la funzione)
-    const setText = (id, txt, cls) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.textContent = txt;
-      if (cls !== undefined) el.className = cls;
-    };
-
-    // Mini-grafico a candele per 5m / 15m / 1h. La candela con bordo giallo e' quella del momento.
-    function renderTfPanel(tfs) {
-      const el = document.getElementById('tfPanel');
-      if (!el) return;
-      if (!tfs) {
-        el.innerHTML = '<div class="col-span-3 text-center text-white/50 text-[11px] py-3">Analisi candele 5m / 15m / 1h in corso…</div>';
-        return;
-      }
-      el.innerHTML = ['5m', '15m', '1h'].map(iv => {
-        const t = tfs[iv];
-        const col = t.trend === 'BUY' ? '#00FF66' : t.trend === 'SELL' ? '#FF334B' : '#FFCC00';
-        const cs = t.candles;
-        const hi = Math.max(...cs.map(c => c.high));
-        const lo = Math.min(...cs.map(c => c.low));
-        const y = v => 30 - ((v - lo) / ((hi - lo) || 1)) * 28;
-        const bars = cs.map((c, i) => {
-          const up = c.close >= c.open;
-          const last = i === cs.length - 1;
-          const x = 3 + i * 8;
-          const colr = up ? '#00FF66' : '#FF334B';
-          const top = Math.min(y(c.open), y(c.close));
-          const h = Math.max(1, Math.abs(y(c.open) - y(c.close)));
-          return `<line x1="${x + 2.5}" x2="${x + 2.5}" y1="${y(c.high)}" y2="${y(c.low)}" stroke="${colr}" stroke-width="1"/>` +
-                 `<rect x="${x}" width="5" y="${top}" height="${h}" fill="${colr}" ${last ? 'stroke="#FFCC00" stroke-width="1.5"' : ''}/>`;
-        }).join('');
-        return `<div class="bg-white/5 rounded-lg p-2 border" style="border-color:${col}66">
-          <div class="flex justify-between text-[10px]"><b class="text-white">${iv}</b><b style="color:${col}">${t.trend}</b></div>
-          <svg viewBox="0 0 100 32" class="w-full h-10">${bars}</svg>
-          <div class="text-[9px] text-white/60">RSI ${t.rsi14} • ${t.ema9 >= t.ema21 ? 'EMA↑' : 'EMA↓'}</div>
-          <div class="text-[9px] text-yellow-300">● ora: ${formatPrice(t.last.close)}</div>
-        </div>`;
-      }).join('');
-    }
-
-    function renderModal(d) {
-      const lev = state.selectedLeverage;
-      const ok = d.price > 0;
-      const isBuy = d.side === 'BUY';
-      const emaBull = d.ema9 >= d.ema21;
-      const rsi = Number(d.rsi14);
-      const tpPct = ok ? ((Math.abs(d.tp - d.price) / d.price) * 100 * lev).toFixed(2) : '--';
-
-      setText('modalSymbol', d.symbol);
-      setText('modalCategory', d.marketType);
-      setText('modalTF', '5m / 15m / 1h');
-      setText('modalSentiment', d.sentiment);
-      setText('modalConfluenza', d.confluenza);
-      setText('modalLivePrice', ok ? `$${formatPrice(d.price)}` : '--');
-      setText('modalEma', ok ? `EMA9: ${formatPrice(d.ema9)} | EMA21: ${formatPrice(d.ema21)}` : '--');
-      setText('modalEmaSignal', emaBull ? 'Trend Rialzista ⚡' : 'Trend Correttivo 🔻',
-        `text-[10px] block mt-0.5 ${emaBull ? 'text-[#00FF66]' : 'text-[#FF334B]'}`);
-      setText('modalRsi', `RSI: ${rsi.toFixed(1)}`);
-      setText('modalRsiZone', rsi > 70 ? 'Ipercomprato ⚠️' : rsi < 30 ? 'Ipervenduto ⚠️' : 'Neutro 🎯');
-      setText('modalSide', isBuy ? 'BUY (LONG 🚀)' : 'SELL (SHORT 📉)',
-        `text-[12px] font-bold ${isBuy ? 'text-[#00FF66]' : 'text-[#FF334B]'}`);
-      setText('modalSL', ok ? `$${formatPrice(d.sl)}` : '--');
-      setText('modalTrendingTP', ok ? `$${formatPrice(d.tp)}` : '--');
-      setText('modalTpPct', ok ? `+${tpPct}% (con leva ${lev}x)` : '--');
-      renderTfPanel(d.tfs);
-    }
-
     async function openModal(symbol) {
       if (state.activePosition) {
         alert("⚠️ C'è già 1 posizione attiva monitorata (Gestisci le fasi 1. Entra • 2. Rimani • 3. Esci).");
         return;
       }
+      
+      document.getElementById('assetModal').classList.remove('hidden');
+      document.getElementById('assetModal').classList.add('flex');
+      document.getElementById('modalSymbol').textContent = symbol;
+      document.getElementById('modalOhlcvBadge').textContent = "SCANSIONE 5m/15m/1h IN CORSO...";
+      document.getElementById('tfPanel').innerHTML = '<div class="col-span-3 text-center text-xs text-white/60 py-4">Caricamento candele Multi-TF...</div>';
 
-      const item = state.marketData[symbol] || { price: 0, change24h: 0, category: "Criptovalute" };
-      const local = calcolaDatiLocali(symbol, item);
-      state.currentSelectedAsset = local;
-
-      const modal = document.getElementById('assetModal');
-      modal.classList.remove('hidden');
-      modal.classList.add('flex');
-
+      // Sblocca sempre il pulsante e pulisce avvisi precedenti
       const btn = document.getElementById('executeBingXBtn');
-      btn.disabled = true;
-      btn.style.opacity = 0.5;
       const fb = document.getElementById('executionFeedback');
-      if (fb) { fb.textContent = ''; fb.classList.add('hidden'); }
-
-      setText('modalOhlcvBadge', 'ANALISI CANDELE 5m/15m/1h…');
-      renderModal(local);
+      btn.disabled = false;
+      fb.classList.add('hidden');
+      fb.textContent = '';
 
       try {
         const res = await fetch(`/api/deep-scan?symbol=${encodeURIComponent(symbol)}&marketType=${state.marketType}`);
         const json = await res.json();
-        // L'utente ha chiuso il modale o cambiato asset nel frattempo
-        if (!state.currentSelectedAsset || state.currentSelectedAsset.symbol !== symbol) return;
         if (json.code === 0 && json.data) {
-          const real = { ...local, ...json.data };
-          state.currentSelectedAsset = real;
-          renderModal(real);
-          setText('modalOhlcvBadge', `DATI REALI ✅ SCORE ${real.precisionScore}/100`);
-          btn.disabled = !real.allineati;
-          btn.style.opacity = real.allineati ? 1 : 0.5;
-          if (fb) {
-            fb.textContent = real.allineati ? '' : '⛔ Timeframe in disaccordo: ingresso bloccato';
-            fb.classList.toggle('hidden', real.allineati);
+          const d = json.data;
+          state.currentSelectedAsset = d;
+
+          document.getElementById('modalOhlcvBadge').textContent = `PRECISION SCORE: ${d.precisionScore}/100`;
+          document.getElementById('modalCategory').textContent = d.marketType;
+          
+          // Illumina il Timeframe Esatto individuato
+          const tfEl = document.getElementById('modalTF');
+          tfEl.textContent = `${d.exactTf.toUpperCase()} ILLUMINATO ⚡`;
+          tfEl.className = "px-2.5 py-0.5 rounded bg-[#FFCC00]/20 text-[#FFCC00] border border-[#FFCC00] font-extrabold animate-pulse";
+
+          document.getElementById('modalSentiment').textContent = d.sentiment;
+          document.getElementById('modalConfluenza').textContent = d.confluenza;
+          
+          document.getElementById('modalEma').textContent = `EMA9: ${formatPrice(d.ema9)} | EMA21: ${formatPrice(d.ema21)}`;
+          document.getElementById('modalEmaSignal').textContent = d.ema9 >= d.ema21 ? "Trend Rialzista ⚡" : "Trend Ribassista 🔻";
+          document.getElementById('modalEmaSignal').className = `text-[10px] block mt-0.5 ${d.ema9 >= d.ema21 ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
+          
+          document.getElementById('modalRsi').textContent = `RSI: ${d.rsi14}`;
+          document.getElementById('modalRsiZone').textContent = d.rsi14 > 70 ? "Ipercomprato ⚠️" : d.rsi14 < 30 ? "Ipervenduto ⚠️" : "Ottimale 🎯";
+
+          document.getElementById('modalLivePrice').textContent = `$${formatPrice(d.price)}`;
+          
+          const sideEl = document.getElementById('modalSide');
+          sideEl.textContent = `${d.side} (${d.side === 'BUY' ? 'LONG 🚀' : 'SHORT 📉'})`;
+          sideEl.className = `text-[12px] font-bold ${d.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
+          
+          document.getElementById('modalSL').textContent = `$${formatPrice(d.sl)}`;
+          document.getElementById('modalTrendingTP').textContent = `$${formatPrice(d.tp)}`;
+          const tpPct = (((Math.abs(d.tp - d.price) / d.price) * 100) * state.selectedLeverage).toFixed(2);
+          document.getElementById('modalTpPct').textContent = `+${tpPct}% (con leva ${state.selectedLeverage}x)`;
+
+          // Pre-compila la quantità minima per aprire con almeno ~2.2$
+          if (d.price > 0) {
+            const minQty2Usd = Math.max(1, Number((2.2 / d.price).toFixed(d.price >= 1 ? 3 : 2)));
+            document.getElementById('tradeQuantityInput').value = minQty2Usd;
           }
+
+          // Rendering pannello TF SVG con illuminazione sul timeframe esatto
+          renderTfPanel(d.tfs, d.exactTf);
         } else {
-          setText('modalOhlcvBadge', 'CANDELE NON DISPONIBILI ⚠️');
+          alert("Errore caricamento Multi-TF: " + (json.msg || "Impossibile scaricare le candele"));
+          closeModal();
         }
       } catch (e) {
-        setText('modalOhlcvBadge', 'ERRORE RETE ⚠️');
+        alert("Errore di connessione al server.");
+        closeModal();
       }
     }
 
     function closeModal() {
       document.getElementById('assetModal').classList.add('hidden');
       document.getElementById('assetModal').classList.remove('flex');
-      state.currentSelectedAsset = null;
     }
 
     async function eseguiOrdineSuBingX() {
