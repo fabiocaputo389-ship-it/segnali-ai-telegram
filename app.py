@@ -218,7 +218,6 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingress
     if not active_api or not active_secret:
         return {"code": -1, "msg": "API Key o Secret Key BingX mancanti."}
 
-    # Adeguamento automatico della quantità per rispettare il minimo di circa 2.2$ nominali (coprendo ampiamente i 2$)
     valore_nominale = quantita * prezzo_ingresso
     if prezzo_ingresso > 0 and valore_nominale < 2.2:
         quantita = round(2.5 / prezzo_ingresso, 6 if prezzo_ingresso < 1 else (4 if prezzo_ingresso < 100 else 2))
@@ -258,7 +257,6 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingress
     try:
         res = _invia_richiesta_ordine(endpoint, payload_ordine, active_api, active_secret)
         msg = str(res.get("msg", ""))
-        # Gestione automatica se l'exchange richiede una quantità minima superiore
         if res.get("code") != 0 and ("minimum order amount is" in msg.lower() or "insufficient" in msg.lower()):
             match = re.search(r"(?:minimum order amount is|is)\s+([0-9.]+)", msg, re.IGNORECASE)
             if match:
@@ -647,7 +645,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
   <!-- MODALE ESECUZIONE -->
   <div id="assetModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/90 backdrop-blur-sm p-3 overflow-y-auto">
-    <div class="bg-[#08080A] border border-white/30 rounded-2xl w-full max-w-[650px] shadow-2xl overflow-hidden my-auto">
+    <div class="bg-[#08080A] border border-white/30 rounded-2xl w-full max-w-[700px] shadow-2xl overflow-hidden my-auto">
       <div class="px-5 py-3.5 border-b border-white/15 flex items-center justify-between bg-[#000000]">
         <div>
           <div class="flex items-center gap-2">
@@ -659,7 +657,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <button onclick="closeModal()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
       </div>
       <div class="p-5 space-y-4 text-xs font-mono">
-        <div class="bg-[#000000] border border-white/20 rounded-xl p-4 space-y-2">
+        <div class="bg-[#000000] border border-white/20 rounded-xl p-4 space-y-3">
           <div class="flex justify-between"><span class="text-white/75">Mercato / Categoria:</span><strong id="modalCategory" class="text-[#00FF66]">--</strong></div>
           <div class="flex justify-between items-center">
             <span class="text-white/75">Timeframe Esatto:</span>
@@ -684,36 +682,48 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <!-- Pannello Multi-Timeframe SVG con Illuminazione -->
           <div id="tfPanel" class="grid grid-cols-3 gap-2 my-2"></div>
 
-          <!-- BOX PARAMETRI MILLIMETRICI COPIA-INCOLLA PER BINGX -->
-          <div class="bg-gradient-to-r from-amber-950/40 via-black to-amber-950/40 border-2 border-[#FFCC00] rounded-xl p-3.5 space-y-2 my-3">
-            <div class="flex items-center justify-between border-b border-[#FFCC00]/30 pb-1.5">
+          <!-- TABELLA PARAMETRI MILLIMETRICI PRECISI PER BINGX -->
+          <div class="bg-gradient-to-r from-amber-950/50 via-black to-amber-950/50 border-2 border-[#FFCC00] rounded-xl p-3 space-y-2 my-3 shadow-xl">
+            <div class="flex items-center justify-between border-b border-[#FFCC00]/30 pb-2">
               <span class="text-xs font-extrabold text-[#FFCC00] flex items-center gap-1.5">
-                <span>📋</span> PARAMETRI MILLIMETRICI BINGX (Copia e Incolla)
+                <span>📋</span> TABELLA PARAMETRI MILLIMETRICI (BINGX TP/SL)
               </span>
               <span class="text-[10px] text-white/70">Esatti al millimetro</span>
             </div>
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-              <div class="bg-black/60 p-2 rounded border border-white/10 flex flex-col justify-between">
-                <span class="text-[10px] text-white/60">INGRESSO (Price)</span>
-                <div class="flex items-center justify-between mt-1">
-                  <strong id="copyParamEntry" class="text-white font-mono text-xs select-all">--</strong>
-                  <button onclick="copiaParametro('copyParamEntry')" class="text-[10px] bg-white/10 hover:bg-white/25 px-1.5 py-0.5 rounded text-cyan-300">Copia</button>
-                </div>
-              </div>
-              <div class="bg-black/60 p-2 rounded border border-white/10 flex flex-col justify-between">
-                <span class="text-[10px] text-[#00FF66]">TAKE PROFIT (TP)</span>
-                <div class="flex items-center justify-between mt-1">
-                  <strong id="copyParamTp" class="text-[#00FF66] font-mono text-xs select-all font-extrabold">--</strong>
-                  <button onclick="copiaParametro('copyParamTp')" class="text-[10px] bg-white/10 hover:bg-white/25 px-1.5 py-0.5 rounded text-[#00FF66]">Copia</button>
-                </div>
-              </div>
-              <div class="bg-black/60 p-2 rounded border border-white/10 flex flex-col justify-between">
-                <span class="text-[10px] text-[#FF334B]">STOP LOSS (SL)</span>
-                <div class="flex items-center justify-between mt-1">
-                  <strong id="copyParamSl" class="text-[#FF334B] font-mono text-xs select-all font-extrabold">--</strong>
-                  <button onclick="copiaParametro('copyParamSl')" class="text-[10px] bg-white/10 hover:bg-white/25 px-1.5 py-0.5 rounded text-[#FF334B]">Copia</button>
-                </div>
-              </div>
+            
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs font-mono">
+                <thead>
+                  <tr class="border-b border-white/15 text-white/60 text-[10px]">
+                    <th class="py-1.5 px-2">PARAMETRO</th>
+                    <th class="py-1.5 px-2">VALORE MILLIMETRICO</th>
+                    <th class="py-1.5 px-2 text-right">AZIONE</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-white/10">
+                  <tr>
+                    <td class="py-2 px-2 text-white font-bold">1. Prezzo Ingresso</td>
+                    <td class="py-2 px-2 text-cyan-300 font-bold select-all" id="tableParamEntry">--</td>
+                    <td class="py-2 px-2 text-right">
+                      <button onclick="copiaParametro('tableParamEntry')" class="bg-white/10 hover:bg-white/25 px-2 py-1 rounded text-cyan-300 text-[10px]">Copia</button>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="py-2 px-2 text-[#00FF66] font-bold">2. Take Profit (TP Certo)</td>
+                    <td class="py-2 px-2 text-[#00FF66] font-extrabold select-all" id="tableParamTp">--</td>
+                    <td class="py-2 px-2 text-right">
+                      <button onclick="copiaParametro('tableParamTp')" class="bg-white/10 hover:bg-white/25 px-2 py-1 rounded text-[#00FF66] text-[10px]">Copia</button>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="py-2 px-2 text-[#FF334B] font-bold">3. Stop Loss (SL)</td>
+                    <td class="py-2 px-2 text-[#FF334B] font-extrabold select-all" id="tableParamSl">--</td>
+                    <td class="py-2 px-2 text-right">
+                      <button onclick="copiaParametro('tableParamSl')" class="bg-white/10 hover:bg-white/25 px-2 py-1 rounded text-[#FF334B] text-[10px]">Copia</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
 
@@ -1234,12 +1244,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           const tpPct = (((Math.abs(d.tp - d.price) / d.price) * 100) * state.selectedLeverage).toFixed(2);
           document.getElementById('modalTpPct').textContent = `+${tpPct}% (con leva ${state.selectedLeverage}x)`;
 
-          document.getElementById('copyParamEntry').textContent = formatPrice(d.price);
-          document.getElementById('copyParamTp').textContent = formatPrice(d.tp);
-          document.getElementById('copyParamSl').textContent = formatPrice(d.sl);
+          // Popola i dati nella tabella tabellare millimetrica
+          document.getElementById('tableParamEntry').textContent = formatPrice(d.price);
+          document.getElementById('tableParamTp').textContent = formatPrice(d.tp);
+          document.getElementById('tableParamSl').textContent = formatPrice(d.sl);
 
           if (d.price > 0) {
-            // Imposta automaticamente il quantitativo minimo equivalente a circa 2.5$ per evitare errori di margine
             const minQty2Usd = Math.max(0.0001, Number((2.5 / d.price).toFixed(d.price >= 1000 ? 4 : (d.price >= 1 ? 4 : 2))));
             document.getElementById('tradeQuantityInput').value = minQty2Usd;
           }
