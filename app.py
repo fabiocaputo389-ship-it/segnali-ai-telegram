@@ -448,7 +448,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex items-center gap-2 text-[11px] font-mono text-white/70 mt-0.5">
             <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
-            <span class="text-[#00FF66]">Previsione Impeccabile al TP • 1. Entra • 2. Rimani • 3. Esci</span>
+            <span class="text-[#00FF66]">Previsione Impeccabile • 1. Entra • 2. Rimani in Profit • 3. Esci al TP</span>
           </div>
         </div>
       </div>
@@ -498,7 +498,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse" id="advIconSign">🔊</div>
           <div>
             <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white" id="advTitleMain">🟢 QUANTUM SUPERIOR ADVISOR VOCALE (<span id="advSymbol">BTC-USDT</span>)</h2>
-            <p class="text-[11px] text-[#00FF66]" id="advSubNotice">1. Entra • 2. Rimani protetto (Controllo critico attivo) • 3. Esci al TP garantito</p>
+            <p class="text-[11px] text-[#00FF66]" id="advSubNotice">1. Entra • 2. Rimani in Profit • 3. Esci al TP Certo</p>
           </div>
         </div>
         <button onclick="chiudiPosizioneMonitorata()" class="px-3.5 py-1.5 rounded-xl bg-red-500/20 text-[#FF334B] border border-red-500/50 hover:bg-red-500/30 text-xs font-bold transition-all">
@@ -521,14 +521,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <span class="text-white/60 text-[10px] block">🎯 TARGET TP SUPERIORE</span>
           <strong id="advTargetTpDisplay" class="text-[#00FF66] text-sm">--</strong>
           <span id="advDistTp" class="block mt-1 text-[10px] text-white/80 font-bold">Distanza TP: 0.00%</span>
-          <span id="advExactTimeRemaining" class="block mt-0.5 text-[10px] text-yellow-300 tabular-nums">Tempo TP: --</span>
+          <span id="advExactTimeRemaining" class="block mt-0.5 text-[10px] text-yellow-300 tabular-nums">Tempo al TP: --</span>
         </div>
         <div class="bg-black/50 p-3 rounded-xl border border-white/10 flex flex-col justify-between">
           <div>
             <span class="text-white/60 text-[10px] block">3. 🔴 ESCI (VOCE IN TEMPO REALE)</span>
             <strong id="advStatusAdvice" class="text-[#00FF66] text-xs block mt-0.5">In attesa del TP...</strong>
           </div>
-          <span id="advActionAlert" class="text-[10px] text-white/80 italic mt-1">Guida vocale quantistica attiva</span>
+          <span id="advActionAlert" class="text-[10px] text-white/80 italic mt-1">Guida dinamica al profitto attiva</span>
         </div>
       </div>
     </div>
@@ -616,7 +616,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[800px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Scansione multi-TF 4h/1h/15m/5m attiva...</div>
+          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Monitoraggio dinamico PnL attivo...</div>
         </div>
       </aside>
     </div>
@@ -660,7 +660,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <h2 id="modalSymbol" class="text-base font-extrabold font-mono text-white">BTC-USDT</h2>
             <span id="modalOhlcvBadge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/40">SUPERIORE</span>
           </div>
-          <p id="modalSubtitleType" class="text-xs text-white/70">Advisor quantistico: 1. Entra • 2. Rimani • 3. Esci al TP certo</p>
+          <p id="modalSubtitleType" class="text-xs text-white/70">Advisor quantistico: 1. Entra • 2. Rimani in Profit • 3. Esci al TP</p>
         </div>
         <button onclick="closeModal()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
       </div>
@@ -672,7 +672,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <strong id="modalTF" class="px-2.5 py-0.5 rounded bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66] font-extrabold animate-pulse">15m ⚡</strong>
           </div>
           <div class="flex justify-between"><span class="text-white/75">Sentiment Superiore:</span><strong id="modalSentiment" class="text-[#00FF66] font-bold">--</strong></div>
-          <div class="flex justify-between border-b border-white/10 pb-2"><span class="text-white/75">⏱️ Tempo Esatto al Take Profit:</span><strong id="modalExactTime" class="text-yellow-300 font-extrabold">--</strong></div>
+          <div class="flex justify-between border-b border-white/10 pb-2"><span class="text-white/75">⏱️ Tempo al Take Profit:</span><strong id="modalExactTime" class="text-yellow-300 font-extrabold">--</strong></div>
 
           <div class="grid grid-cols-2 gap-2 py-2 border-b border-white/10">
             <div class="bg-white/5 p-2 rounded-lg">
@@ -762,7 +762,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
 
         <button id="executeBingXBtn" onclick="eseguiOrdineSuBingX()" class="bingx-btn w-full py-2.5 rounded-xl text-xs shadow-lg flex items-center justify-center gap-2">
-          <span>⚡ Esegui Ordine &amp; Attiva Quantum Advisor (1. Entra • 2. Rimani • 3. Esci al TP)</span>
+          <span>⚡ Esegui Ordine &amp; Attiva Quantum Advisor (1. Entra • 2. Rimani in Profit • 3. Esci)</span>
         </button>
         <div id="executionFeedback" class="mt-2 text-xs text-center hidden"></div>
       </div>
@@ -999,7 +999,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('advHeaderBox').className = "flex flex-wrap items-center justify-between pb-3 border-b border-[#00FF66]/30 gap-3";
       document.getElementById('advIconSign').className = "w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse";
       document.getElementById('advTitleMain').innerHTML = `🟢 QUANTUM SUPERIOR ADVISOR VOCALE (<span id="advSymbol">${symbol}</span>)`;
-      document.getElementById('advSubNotice').textContent = "1. Entra • 2. Rimani protetto (Controllo critico attivo) • 3. Esci al TP garantito";
+      document.getElementById('advSubNotice').textContent = "1. Entra • 2. Rimani in Profit • 3. Esci al TP Certo";
 
       document.getElementById('kpiAutoSlotStatus').textContent = "🔒 Posizione Quantistica Attiva";
       document.getElementById('advSymbol').textContent = symbol;
@@ -1007,12 +1007,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('advSideBadge').textContent = side;
       document.getElementById('advTargetTpDisplay').textContent = `$${formatPrice(tpPrice)}`;
       document.getElementById('advDistTp').textContent = `Distanza TP: ${initDistPct}% (+${initDistLevaPct}% con ${state.selectedLeverage}x)`;
-      document.getElementById('advExactTimeRemaining').textContent = `Tempo TP: ${formatExactDuration(tempoSec)}`;
+      document.getElementById('advExactTimeRemaining').textContent = `Tempo al TP: ${formatExactDuration(tempoSec)}`;
 
       const sideText = side === 'BUY' ? 'Long' : 'Short';
       const voiceTimeStr = formatVoiceDuration(tempoSec);
       state.lastVoiceAnnounceTimestamp = Date.now();
-      playChime(false, `Primo. Entra a mercato con previsione impeccabile. Posizione ${sideText} su ${symbol}. Prezzo d'ingresso ${formatPrice(entryPrice)}. Target Take Profit certo impostato a ${formatPrice(tpPrice)}, distanza ${initDistPct} percento. Tempo esatto previsto per raggiungere il Take Profit: ${voiceTimeStr}.`);
+      playChime(false, `Primo. Entra a mercato. Posizione ${sideText} su ${symbol}. Prezzo d'ingresso ${formatPrice(entryPrice)}. Target Take Profit impostato a ${formatPrice(tpPrice)}, distanza ${initDistPct} percento. Tempo previsto per raggiungere il Take Profit: ${voiceTimeStr}.`);
       aggiornaAdvisorLoop();
       state.advisorInterval = setInterval(aggiornaAdvisorLoop, 1000);
       logFeed(`[QUANTUM ADVISOR] 1. Entra su ${symbol} (${side}) -> TP: ${formatPrice(tpPrice)} (Dist. ${initDistPct}%) | Tempo TP: ${formatExactDuration(tempoSec)}.`);
@@ -1048,17 +1048,22 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const distTpPct = currentPrice > 0 ? ((distTp / currentPrice) * 100) : 0;
       const distTpLevaPct = distTpPct * state.selectedLeverage;
 
-      const distSl = Math.max(0, pos.side === 'BUY' ? (currentPrice - pos.slPrice) : (pos.slPrice - currentPrice));
-      const totalSlTpSpan = Math.abs(pos.tpPrice - pos.slPrice);
-      const isCritical = distSl <= (totalSlTpSpan * 0.30);
-
+      // Timer dinamico ricalcolato in base alla velocità reale di avanzamento verso il TP
       const elapsedSec = Math.max(1, (Date.now() - pos.openedAt) / 1000);
-      const realizedProgress = pos.side === 'BUY' ? (currentPrice - pos.entryPrice) : (pos.entryPrice - currentPrice);
-      const liveSpeed = realizedProgress > 0 ? Math.max(pos.baseSpeedPerSec * 0.5, realizedProgress / elapsedSec) : pos.baseSpeedPerSec;
-      const exactRemainingSec = Math.max(1, Math.round(distTp / liveSpeed));
+      const progressDone = pos.side === 'BUY' ? (currentPrice - pos.entryPrice) : (pos.entryPrice - currentPrice);
+      const dynamicSpeed = progressDone > 0 ? (progressDone / elapsedSec) : pos.baseSpeedPerSec;
+      const exactRemainingSec = Math.max(5, Math.round(distTp / Math.max(pos.baseSpeedPerSec * 0.3, dynamicSpeed)));
+
+      // CRITICITÀ CORRETTA: Si attiva solo se il prezzo scende SOTTO l'ingresso (per Long) avvicinandosi allo Stop Loss
+      let isCritical = false;
+      if (pos.side === 'BUY') {
+        isCritical = currentPrice < pos.entryPrice && (currentPrice - pos.slPrice) <= (pos.entryPrice - pos.slPrice) * 0.35;
+      } else {
+        isCritical = currentPrice > pos.entryPrice && (pos.slPrice - currentPrice) <= (pos.slPrice - pos.entryPrice) * 0.35;
+      }
 
       document.getElementById('advDistTp').textContent = `Distanza TP: ${distTpPct.toFixed(2)}% (+${distTpLevaPct.toFixed(2)}% con ${state.selectedLeverage}x)`;
-      document.getElementById('advExactTimeRemaining').textContent = `Tempo TP: ${formatExactDuration(exactRemainingSec)}`;
+      document.getElementById('advExactTimeRemaining').textContent = `Tempo al TP: ${formatExactDuration(exactRemainingSec)}`;
 
       const advAdvice = document.getElementById('advStatusAdvice');
       const advAlert = document.getElementById('advActionAlert');
@@ -1066,7 +1071,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
       if ((pos.side === 'BUY' && currentPrice >= pos.tpPrice) || (pos.side === 'SELL' && currentPrice <= pos.tpPrice)) {
         document.getElementById('advDistTp').textContent = "Distanza TP: 0.00% (RAGGIUNTO!)";
-        document.getElementById('advExactTimeRemaining').textContent = "Tempo TP: 0s";
+        document.getElementById('advExactTimeRemaining').textContent = "Tempo al TP: 0s";
         advAdvice.textContent = "3. 🎯 ESCI SUBITO (PROFITTO TP RAGGIUNTO!)";
         advAdvice.className = "text-[#00FF66] text-xs block font-bold animate-pulse";
         advAlert.textContent = "Target Take Profit raggiunto con successo!";
@@ -1089,34 +1094,34 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         document.getElementById('advHeaderBox').className = "flex flex-wrap items-center justify-between pb-3 border-b border-[#FF334B]/40 gap-3";
         document.getElementById('advIconSign').className = "w-9 h-9 rounded-xl bg-[#FF334B] text-white flex items-center justify-center font-extrabold animate-ping";
         document.getElementById('advTitleMain').innerHTML = `🚨 LIVELLO CRITICO DI ALLERTA (<span id="advSymbol">${pos.symbol}</span>)`;
-        document.getElementById('advSubNotice').textContent = "⚠️ ATTENZIONE: Il mercato si avvicina al livello di salvaguardia!";
+        document.getElementById('advSubNotice').textContent = "⚠️ ATTENZIONE: Il prezzo si sta muovendo contro la posizione!";
 
         advAdvice.textContent = "⚠️ ATTENZIONE: LIVELLO CRITICO RAGGIUNTO!";
         advAdvice.className = "text-[#FF334B] text-xs block font-extrabold animate-pulse";
-        advAlert.textContent = "Livello critico attivo! Valuta uscita o supporto.";
+        advAlert.textContent = "Prezzo in zona di pericolo vicina allo Stop Loss.";
 
         if (!state.isCriticalState || (Date.now() - state.lastVoiceAnnounceTimestamp >= 12000)) {
           state.isCriticalState = true;
           state.lastVoiceAnnounceTimestamp = Date.now();
-          playChime(true, "Attenzione, livello critico raggiunto. Il prezzo sta testando la soglia di protezione. Valuta la chiusura anticipata.");
+          playChime(true, "Attenzione, livello critico raggiunto. Il prezzo sta testando la soglia di protezione.");
         }
       } else {
         box.className = "terminal-card rounded-2xl p-4 sm:p-5 border-2 border-[#00FF66] bg-gradient-to-r from-emerald-950/40 via-[#08080A] to-emerald-950/40 shadow-2xl space-y-4";
         document.getElementById('advHeaderBox').className = "flex flex-wrap items-center justify-between pb-3 border-b border-[#00FF66]/30 gap-3";
         document.getElementById('advIconSign').className = "w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse";
         document.getElementById('advTitleMain').innerHTML = `🟢 QUANTUM SUPERIOR ADVISOR VOCALE (<span id="advSymbol">${pos.symbol}</span>)`;
-        document.getElementById('advSubNotice').textContent = "1. Entra • 2. Rimani protetto (Controllo critico attivo) • 3. Esci al TP garantito";
+        document.getElementById('advSubNotice').textContent = "1. Entra • 2. Rimani in Profit • 3. Esci al TP Certo";
 
-        advAdvice.textContent = "2. 📊 RIMANI A MERCATO";
-        advAdvice.className = "text-yellow-300 text-xs block font-semibold";
-        advAlert.textContent = `Punta al TP superiore: $${formatPrice(pos.tpPrice)}`;
+        advAdvice.textContent = "2. 📊 RIMANI A MERCATO (IN PROFITTO)";
+        advAdvice.className = "text-[#00FF66] text-xs block font-bold";
+        advAlert.textContent = `Avanzamento regolare verso il TP: $${formatPrice(pos.tpPrice)}`;
 
         const now = Date.now();
         if (now - state.lastVoiceAnnounceTimestamp >= 15000) {
           state.lastVoiceAnnounceTimestamp = now;
           const pnlText = `${pnlPct >= 0 ? 'guadagno del' : 'flessione del'} ${Math.abs(pnlPct).toFixed(1)} percento`;
           const voiceTimeLeft = formatVoiceDuration(exactRemainingSec);
-          speakText(`Secondo. Rimani a mercato. Prezzo attuale ${formatPrice(currentPrice)}, PnL in ${pnlText}. Mancano ${distTpPct.toFixed(2)} percento, ovvero ${voiceTimeLeft} per raggiungere il Take Profit.`);
+          speakText(`Secondo. Rimani a mercato. Posizione in profitto. Mancano ${distTpPct.toFixed(2)} percento, ovvero circa ${voiceTimeLeft} al Take Profit.`);
         }
 
         if (lastLoopAdviceState !== "RIMANI") {
@@ -1239,7 +1244,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
               <div class="flex justify-between"><span class="text-white/70">Prezzo Live:</span><strong class="text-[#00FF66] text-sm">$${formatPrice(masterAsset.price)}</strong></div>
               <div class="flex justify-between"><span class="text-white/70">Direzione Quantistica:</span><strong class="${local.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]'} font-bold">${local.side === 'BUY' ? 'LONG SUPERIORE 🚀' : 'SHORT SUPERIORE 📉'}</strong></div>
               <div class="flex justify-between"><span class="text-white/70">TP Garantito (+% Leva ${state.selectedLeverage}x):</span><strong class="text-yellow-400 font-extrabold">$${formatPrice(local.tp)} (+${local.tpPct}%)</strong></div>
-              <div class="flex justify-between"><span class="text-white/70">⏱️ Tempo Esatto al TP:</span><strong class="text-cyan-300 font-bold">${formatExactDuration(local.tempoSec)}</strong></div>
+              <div class="flex justify-between"><span class="text-white/70">⏱️ Tempo al TP:</span><strong class="text-cyan-300 font-bold">${formatExactDuration(local.tempoSec)}</strong></div>
             </div>
             <div class="flex flex-col justify-end">
               <button onclick='openModal("${masterAsset.symbol}")' class="green-gradient-btn w-full py-2 rounded-xl text-xs shadow-lg">⚡ APRI SCANNER SUPERIORE &amp; ENTRA &#8599;</button>
@@ -1275,7 +1280,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 <span class="text-yellow-400 text-[10px] block">+${local.tpPct}% (con ${state.selectedLeverage}x)</span>
               </div>
               <div class="bg-white/5 p-2 rounded-lg">
-                <span class="text-white/60 text-[10px] block">⏱️ TEMPO ESATTO AL TP</span>
+                <span class="text-white/60 text-[10px] block">⏱️ TEMPO AL TP</span>
                 <strong class="text-cyan-300">${formatExactDuration(local.tempoSec)}</strong>
                 <span class="text-[#FF334B] text-[10px] block">SL: $${formatPrice(local.sl)}</span>
               </div>
