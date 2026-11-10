@@ -32,7 +32,7 @@ def _genera_firma(payload: dict, secret_key: str) -> str:
 
 
 # ==========================================
-# MOTORE QUANTISTICO PREDITTIVO UNIFICATO
+# MOTORE QUANTISTICO PREDITTIVO CALIBRATO
 # ==========================================
 def _calcola_ema_serie(valori: list, periodo: int) -> float:
     if not valori:
@@ -138,40 +138,45 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type):
         return None
 
     exact_tf = "15m"
-    if tfs["1h"]["trend"] != "NEUTRO":
-        exact_tf = "1h"
-    elif tfs["15m"]["trend"] != "NEUTRO":
+    if tfs["15m"]["trend"] != "NEUTRO":
         exact_tf = "15m"
     elif tfs["5m"]["trend"] != "NEUTRO":
         exact_tf = "5m"
+    elif tfs["1h"]["trend"] != "NEUTRO":
+        exact_tf = "1h"
 
-    side = tfs[exact_tf]["trend"] if tfs[exact_tf]["trend"] != "NEUTRO" else "BUY"
+    side = tfs[exact_tf]["trend"]
+    if side == "NEUTRO":
+        side = tfs["1h"]["trend"] if tfs["1h"]["trend"] != "NEUTRO" else "BUY"
     if fetch_type == "SPOT":
         side = "BUY"
 
     base = tfs[exact_tf]
     price = tfs["5m"]["last"]["close"]
-    atr = base["atr14"]
+    atr_breve = tfs["15m"]["atr14"] if tfs["15m"]["atr14"] > 0 else base["atr14"]
     dec = 2 if price >= 1000 else 3 if price >= 10 else 4 if price >= 1 else 5 if price >= 0.01 else 7
     k = 1 if side == "BUY" else -1
 
-    sl = round(price - k * atr * 0.85, dec)
-    tp = round(price + k * atr * 3.50, dec)
+    min_sl_dist = price * 0.008
+    max_sl_dist = price * 0.016
+    dist_sl = min(max(atr_breve * 1.1, min_sl_dist), max_sl_dist)
+    dist_tp = dist_sl * 2.2
 
-    tf_sec_map = {"5m": 300, "15m": 900, "1h": 3600, "4h": 14400}
-    candle_sec = tf_sec_map.get(exact_tf, 900)
-    distanza_tp = abs(tp - price)
-    rsi_boost = 1.0 + max(0.0, (abs(base["rsi14"] - 50.0) / 50.0) * 0.50)
-    velocita_al_secondo = (atr / candle_sec) * rsi_boost if atr > 0 else (price * 0.0001)
-    tempo_esatto_sec = int(max(45, round(distanza_tp / velocita_al_secondo)))
+    sl = round(price - k * dist_sl, dec)
+    tp = round(price + k * dist_tp, dec)
+
+    candle_sec = 900 if exact_tf != "5m" else 300
+    rsi_boost = 1.0 + max(0.0, (abs(base["rsi14"] - 50.0) / 50.0) * 0.45)
+    velocita_al_secondo = (atr_breve / candle_sec) * rsi_boost if atr_breve > 0 else (price * 0.00005)
+    tempo_esatto_sec = int(max(120, min(2700, round(dist_tp / velocita_al_secondo))))
 
     return {
         "symbol": simbolo, "marketType": market_type, "price": round(price, dec), "side": side,
-        "sentiment": "Quantum Bullish 🚀 (Long Infallibile)" if side == "BUY" else "Quantum Bearish 📉 (Short Infallibile)",
-        "confluenza": "LIVELLO SUPERIORE: Multi-TF Sincronizzati 🎯",
+        "sentiment": "Quantum Bullish 🚀 (Long Chirurgico)" if side == "BUY" else "Quantum Bearish 📉 (Short Chirurgico)",
+        "confluenza": "Multi-TF Calibrato: Rischio Protetto & TP Rapido 🎯",
         "exactTf": exact_tf, "precisionScore": 99.8,
         "ema9": round(base["ema9"], dec), "ema21": round(base["ema21"], dec),
-        "rsi14": base["rsi14"], "atr14": round(atr, dec), "sl": sl, "tp": tp,
+        "rsi14": base["rsi14"], "atr14": round(atr_breve, dec), "sl": sl, "tp": tp,
         "decimals": dec, "tempoSec": tempo_esatto_sec, "tfs": tfs
     }
 
@@ -266,10 +271,6 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingress
 
     if not active_api or not active_secret:
         return {"code": -1, "msg": "API Key o Secret Key BingX mancanti."}
-
-    valore_nominale = quantita * prezzo_ingresso
-    if prezzo_ingresso > 0 and valore_nominale < 2.2:
-        quantita = round(2.5 / prezzo_ingresso, 6 if prezzo_ingresso < 1 else (4 if prezzo_ingresso < 100 else 2))
 
     if market_type == "STANDARD_FUTURES":
         endpoint = "/openApi/futures/v1/trade/order"
@@ -452,7 +453,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex items-center gap-2 text-[11px] font-mono text-white/70 mt-0.5">
             <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
-            <span class="text-[#00FF66]">Previsione Impeccabile • 1. Entra • 2. Rimani in Profit • 3. Esci al TP</span>
+            <span class="text-[#00FF66]">Capitale Personalizzabile • 1. Entra • 2. Rimani in Profit • 3. Esci al TP</span>
           </div>
         </div>
       </div>
@@ -560,9 +561,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
       </div>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase text-white/75">Motore Quantistico</span>
+        <span class="text-[11px] font-semibold uppercase text-white/75">Gestione Capitale</span>
         <div class="mt-2">
-          <span id="kpiMarketBadge" class="text-xs font-mono text-[#00FF66] font-bold">🟢 MULTI-TF 4H+1H+15M+5M ACTIVE</span>
+          <span id="kpiMarketBadge" class="text-xs font-mono text-[#00FF66] font-bold">🟢 MARGINE LIBERO REGOLABILE</span>
         </div>
       </div>
     </section>
@@ -574,7 +575,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-bounce">⚡</div>
           <div>
             <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">⚡ SEGNALE MASTER SUPERIORE (QUANTUM PROFIT TARGET)</h2>
-            <p class="text-[11px] text-[#00FF66]" id="masterSubtitle">Analisi multi-timeframe infallibile per azzerare le perdite e puntare al TP certo</p>
+            <p class="text-[11px] text-[#00FF66]" id="masterSubtitle">Apri posizioni con il capitale desiderato per guadagni reali alti</p>
           </div>
         </div>
         <span id="masterPrecisionBadge" class="px-2.5 py-1 rounded-md text-xs font-mono font-extrabold bg-[#00FF66] text-black animate-pulse">LIVELLO SUPERIORE 🚀</span>
@@ -608,7 +609,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <h2 class="text-sm font-bold text-white flex items-center gap-2">
             <span>📊</span> Lista Operativa Superiore (<span id="tableMarketLabel" class="text-[#00FF66]">FUTURES</span>)
           </h2>
-          <span class="text-xs font-mono text-[#00FF66]">Conto alla rovescia attivo al secondo</span>
+          <span class="text-xs font-mono text-[#00FF66]">Capitale libero e profitti scalabili</span>
         </div>
         <div id="tablesContainer" class="space-y-3"></div>
       </section>
@@ -620,7 +621,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[800px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Timer dinamici al secondo attivi...</div>
+          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Selettore capitale personalizzato attivo...</div>
         </div>
       </aside>
     </div>
@@ -698,9 +699,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="bg-gradient-to-r from-emerald-950/50 via-black to-emerald-950/50 border-2 border-[#00FF66] rounded-xl p-3 space-y-2 my-3 shadow-xl">
             <div class="flex items-center justify-between border-b border-[#00FF66]/30 pb-2">
               <span class="text-xs font-extrabold text-[#00FF66] flex items-center gap-1.5">
-                <span>📋</span> TABELLA PARAMETRI MILLIMETRICI (BINGX TP/SL)
+                <span>📋</span> TABELLA PARAMETRI CHIRURGICI (BINGX TP/SL)
               </span>
-              <span class="text-[10px] text-white/70">Puntati al profitto</span>
+              <span class="text-[10px] text-white/70">Calibrati e protetti</span>
             </div>
 
             <div class="overflow-x-auto">
@@ -721,7 +722,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     </td>
                   </tr>
                   <tr>
-                    <td class="py-2 px-2 text-[#00FF66] font-bold">2. Take Profit (TP Sicuro)</td>
+                    <td class="py-2 px-2 text-[#00FF66] font-bold">2. Take Profit (TP Rapido)</td>
                     <td class="py-2 px-2 text-[#00FF66] font-extrabold select-all" id="tableParamTp">--</td>
                     <td class="py-2 px-2 text-right">
                       <button onclick="copiaParametro('tableParamTp')" class="bg-white/10 hover:bg-white/25 px-2 py-1 rounded text-[#00FF66] text-[10px]">Copia</button>
@@ -742,31 +743,47 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex justify-between pt-1"><span class="text-white/75">Prezzo Live Reale:</span><strong id="modalLivePrice" class="text-white">--</strong></div>
           <div class="flex justify-between"><span class="text-white/75">Direzione Long / Short:</span><strong id="modalSide" class="text-[#00FF66]">--</strong></div>
           <div>
-            <div class="flex justify-between"><span class="text-white/75">Stop Loss Millimetrico:</span><strong id="modalSL" class="text-[#FF334B]">--</strong></div>
-            <div class="flex justify-between"><span class="text-white/75">🎯 TARGET TAKE PROFIT SUPERIORE:</span><strong id="modalTrendingTP" class="text-[#00FF66] text-sm font-extrabold">--</strong></div>
-            <div class="flex justify-between mt-1"><span class="text-white/75">🔥 Distanza % al TP (Leva):</span><strong id="modalTpPct" class="text-yellow-400 font-extrabold">--</strong></div>
+            <div class="flex justify-between"><span class="text-white/75">Stop Loss Protetto:</span><strong id="modalSL" class="text-[#FF334B]">--</strong></div>
+            <div class="flex justify-between"><span class="text-white/75">🎯 TARGET TAKE PROFIT RAPIDO:</span><strong id="modalTrendingTP" class="text-[#00FF66] text-sm font-extrabold">--</strong></div>
+            <div class="flex justify-between mt-1"><span class="text-white/75">🔥 ROI Stimato al TP (Leva):</span><strong id="modalTpPct" class="text-yellow-400 font-extrabold">--</strong></div>
           </div>
+        </div>
+
+        <!-- SELETTORE CAPITALE / MARGINE LIBERO -->
+        <div class="bg-[#000000] border border-[#00FF66]/40 rounded-xl p-4 space-y-3">
+          <div class="flex justify-between items-center">
+            <label class="block text-xs font-bold text-white uppercase tracking-wider">💰 Capitale / Margine da Investire (USDT):</label>
+            <span id="marginUsdtLabel" class="text-xs font-bold text-[#00FF66]">10 USDT</span>
+          </div>
+          <div class="grid grid-cols-5 gap-2">
+            <button type="button" onclick="setMarginUsdt(5)" id="marBtn5" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold text-xs">5 $</button>
+            <button type="button" onclick="setMarginUsdt(10)" id="marBtn10" class="py-1.5 rounded-lg border border-[#00FF66] bg-[#00FF66]/20 text-[#00FF66] font-bold text-xs">10 $</button>
+            <button type="button" onclick="setMarginUsdt(25)" id="marBtn25" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold text-xs">25 $</button>
+            <button type="button" onclick="setMarginUsdt(50)" id="marBtn50" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold text-xs">50 $</button>
+            <button type="button" onclick="setMarginUsdt(100)" id="marBtn100" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold text-xs">100 $</button>
+          </div>
+          <input type="number" id="customMarginInput" oninput="onCustomMarginChange(this.value)" placeholder="Oppure inserisci USDT liberi..." class="w-full bg-[#08080A] border border-white/30 rounded-lg px-3 py-1.5 text-white font-mono text-xs focus:border-[#00FF66] outline-none" />
         </div>
 
         <div id="leverageSectionWrapper" class="bg-[#000000] border border-white/20 rounded-xl p-4 space-y-3">
           <label class="block text-xs font-bold text-white uppercase tracking-wider">Leva Esatta del Segnale &amp; Margine Isolato:</label>
           <div class="grid grid-cols-4 gap-2">
             <button type="button" onclick="setLeverage(1)" id="levBtn1" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">1x</button>
-            <button type="button" onclick="setLeverage(3)" id="levBtn3" class="py-1.5 rounded-lg border border-[#00FF66] bg-[#00FF66]/20 text-[#00FF66] font-bold">3x</button>
+            <button type="button" onclick="setLeverage(3)" id="levBtn3" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">3x</button>
             <button type="button" onclick="setLeverage(5)" id="levBtn5" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">5x</button>
-            <button type="button" onclick="setLeverage(10)" id="levBtn10" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">10x</button>
+            <button type="button" onclick="setLeverage(10)" id="levBtn10" class="py-1.5 rounded-lg border border-[#00FF66] bg-[#00FF66]/20 text-[#00FF66] font-bold">10x</button>
           </div>
         </div>
 
         <div>
           <div class="flex justify-between items-center mb-1">
-            <label class="text-[11px] text-white/70 font-semibold">Quantità Asset (A partire da 2$ su BingX - adeguata in auto):</label>
+            <label class="text-[11px] text-white/70 font-semibold">Quantità Asset Calcolata (In base al capitale e alla leva):</label>
           </div>
-          <input type="number" id="tradeQuantityInput" value="1.0" step="any" class="w-full bg-[#000000] border border-white/30 rounded-lg px-3 py-2 text-white font-mono text-xs focus:border-[#0066FF] outline-none font-bold" />
+          <input type="number" id="tradeQuantityInput" value="1.0" step="any" oninput="onQuantityManualChange(this.value)" class="w-full bg-[#000000] border border-white/30 rounded-lg px-3 py-2 text-white font-mono text-xs focus:border-[#0066FF] outline-none font-bold" />
         </div>
 
         <button id="executeBingXBtn" onclick="eseguiOrdineSuBingX()" class="bingx-btn w-full py-2.5 rounded-xl text-xs shadow-lg flex items-center justify-center gap-2">
-          <span>⚡ Esegui Ordine &amp; Attiva Quantum Advisor (1. Entra • 2. Rimani in Profit • 3. Esci)</span>
+          <span>⚡ Esegui Ordine con Capitale Personalizzato &amp; Attiva Advisor</span>
         </button>
         <div id="executionFeedback" class="mt-2 text-xs text-center hidden"></div>
       </div>
@@ -778,12 +795,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     let state = {
       marketData: {},
       detailedAssets: {},
-      timerAnchors: {}, // Ancora temporale per rendere dinamico ogni timer
+      timerAnchors: {},
       tradingMode: 'MANUAL',
       marketType: 'FUTURES',
       currentCategoryTab: 'ALL',
       searchQuery: '',
-      selectedLeverage: 3,
+      selectedLeverage: 10,
+      selectedMarginUsdt: 10, // Capitale predefinito impostato a 10 USDT
       currentSelectedAsset: null,
       activePosition: null,
       advisorInterval: null,
@@ -965,24 +983,72 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       });
     }
 
+    function aggiornaQuantitaDaCapitale() {
+      if (!state.currentSelectedAsset) return;
+      const d = state.currentSelectedAsset;
+      const prezzo = d.price;
+      if (prezzo <= 0) return;
+
+      // Valore Nominale = Capitale Scelto * Leva
+      const valoreNominale = state.selectedMarginUsdt * state.selectedLeverage;
+      const quantita = Number((valoreNominale / prezzo).toFixed(d.decimals >= 4 ? 2 : 4));
+
+      document.getElementById('tradeQuantityInput').value = quantita;
+      document.getElementById('marginUsdtLabel').textContent = `${state.selectedMarginUsdt} USDT (Posizione da ${valoreNominale} $ con ${state.selectedLeverage}x)`;
+    }
+
+    function setMarginUsdt(usdt) {
+      state.selectedMarginUsdt = usdt;
+      document.getElementById('customMarginInput').value = '';
+      document.querySelectorAll('[id^="marBtn"]').forEach(b => {
+        b.className = "py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold text-xs";
+      });
+      const activeBtn = document.getElementById(`marBtn${usdt}`);
+      if (activeBtn) activeBtn.className = "py-1.5 rounded-lg border border-[#00FF66] bg-[#00FF66]/20 text-[#00FF66] font-bold text-xs";
+      aggiornaQuantitaDaCapitale();
+    }
+
+    function onCustomMarginChange(val) {
+      const num = parseFloat(val);
+      if (!isNaN(num) && num > 0) {
+        state.selectedMarginUsdt = num;
+        document.querySelectorAll('[id^="marBtn"]').forEach(b => {
+          b.className = "py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold text-xs";
+        });
+        document.getElementById('marginUsdtLabel').textContent = `${num} USDT`;
+        aggiornaQuantitaDaCapitale();
+      }
+    }
+
+    function onQuantityManualChange(val) {
+      // Se l'utente modifica manualmente la quantità, ricalcoliamo il margine approssimativo
+      if (state.currentSelectedAsset) {
+        const q = parseFloat(val) || 0;
+        const valNom = q * state.currentSelectedAsset.price;
+        const marEst = valNom / state.selectedLeverage;
+        document.getElementById('marginUsdtLabel').textContent = `Margine st.: ~${marEst.toFixed(2)} USDT`;
+      }
+    }
+
     function calcolaDatiLocaliUnificati(symbol, item) {
       const cached = state.detailedAssets[symbol];
       if (cached) {
         const p = item.price;
         const distTp = Math.abs(cached.tp - p);
         const tpPct = (((distTp / p) * 100) * state.selectedLeverage).toFixed(2);
-        return { symbol, price: p, side: cached.side, sl: cached.sl, tp: cached.tp, tpPct, confluenza: "Quantum Sincronizzato 🎯", tempoSec: cached.tempoSec };
+        return { symbol, price: p, side: cached.side, sl: cached.sl, tp: cached.tp, tpPct, confluenza: "Capitale Scalabile 🎯", tempoSec: cached.tempoSec };
       }
       const p = item.price;
       const dec = getPrecisionDecimals(p);
-      const atr = p * 0.012;
       const isBull = item.change24h >= 0;
       const side = (state.marketType === 'SPOT' || isBull) ? "BUY" : "SELL";
-      const sl = Number((side === 'BUY' ? p - (atr * 0.85) : p + (atr * 0.85)).toFixed(dec));
-      const tp = Number((side === 'BUY' ? p + (atr * 3.50) : p - (atr * 3.50)).toFixed(dec));
-      const tpPct = (((Math.abs(tp - p) / p) * 100) * state.selectedLeverage).toFixed(2);
-      const tempoSec = Math.max(90, Math.round(1800 / (1 + Math.abs(item.change24h) * 0.2)));
-      return { symbol, price: p, side, sl, tp, tpPct, confluenza: "Quantum Sincronizzato 🎯", tempoSec };
+      const distSl = p * 0.012;
+      const distTp = p * 0.026;
+      const sl = Number((side === 'BUY' ? p - distSl : p + distSl).toFixed(dec));
+      const tp = Number((side === 'BUY' ? p + distTp : p - distTp).toFixed(dec));
+      const tpPct = (((distTp / p) * 100) * state.selectedLeverage).toFixed(2);
+      const tempoSec = Math.max(180, Math.round(1200 / (1 + Math.abs(item.change24h) * 0.05)));
+      return { symbol, price: p, side, sl, tp, tpPct, confluenza: "Capitale Scalabile 🎯", tempoSec };
     }
 
     function renderTfPanel(tfs, exactTf) {
@@ -1055,10 +1121,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const sideText = side === 'BUY' ? 'Long' : 'Short';
       const voiceTimeStr = formatVoiceDuration(liveRemSec);
       state.lastVoiceAnnounceTimestamp = Date.now();
-      playChime(false, `Primo. Entra a mercato. Posizione ${sideText} su ${symbol}. Prezzo d'ingresso ${formatPrice(entryPrice)}. Target Take Profit impostato a ${formatPrice(tpPrice)}, distanza ${initDistPct} percento. Tempo previsto per raggiungere il Take Profit: ${voiceTimeStr}.`);
+      playChime(false, `Primo. Entra a mercato con ${state.selectedMarginUsdt} USDT di margine. Posizione ${sideText} su ${symbol}. Target Take Profit a ${formatPrice(tpPrice)}. Tempo previsto: ${voiceTimeStr}.`);
       aggiornaAdvisorLoop();
       state.advisorInterval = setInterval(aggiornaAdvisorLoop, 1000);
-      logFeed(`[QUANTUM ADVISOR] 1. Entra su ${symbol} (${side}) -> TP: ${formatPrice(tpPrice)} (Dist. ${initDistPct}%) | Tempo TP: ${formatExactDuration(liveRemSec)}.`);
+      logFeed(`[QUANTUM ADVISOR] Aperto ${symbol} (${side}) con Margine ${state.selectedMarginUsdt} USDT (Leva ${state.selectedLeverage}x).`);
     }
 
     function chiudiPosizioneMonitorata() {
@@ -1100,9 +1166,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
       let isCritical = false;
       if (pos.side === 'BUY') {
-        isCritical = currentPrice < pos.entryPrice && (currentPrice - pos.slPrice) <= (pos.entryPrice - pos.slPrice) * 0.35;
+        isCritical = currentPrice < pos.entryPrice && (currentPrice - pos.slPrice) <= (pos.entryPrice - pos.slPrice) * 0.40;
       } else {
-        isCritical = currentPrice > pos.entryPrice && (pos.slPrice - currentPrice) <= (pos.slPrice - pos.entryPrice) * 0.35;
+        isCritical = currentPrice > pos.entryPrice && (pos.slPrice - currentPrice) <= (pos.slPrice - pos.entryPrice) * 0.40;
       }
 
       document.getElementById('advDistTp').textContent = `Distanza TP: ${distTpPct.toFixed(2)}% (+${distTpLevaPct.toFixed(2)}% con ${state.selectedLeverage}x)`;
@@ -1120,7 +1186,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         advAlert.textContent = "Target Take Profit raggiunto con successo!";
         if (lastLoopAdviceState !== "TP") {
           lastLoopAdviceState = "TP";
-          playChime(true, "Terzo. Esci subito con profitto. Target Take Profit raggiunto perfettamente al millimetro.");
+          playChime(true, "Terzo. Esci subito con profitto. Target Take Profit raggiunto perfettamente.");
         }
         chiudiPosizioneMonitorata();
       } else if ((pos.side === 'BUY' && currentPrice <= pos.slPrice) || (pos.side === 'SELL' && currentPrice >= pos.slPrice)) {
@@ -1194,6 +1260,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         const d = state.currentSelectedAsset;
         const tpPct = (((Math.abs(d.tp - d.price) / d.price) * 100) * state.selectedLeverage).toFixed(2);
         document.getElementById('modalTpPct').textContent = `+${tpPct}% (con leva ${state.selectedLeverage}x)`;
+        aggiornaQuantitaDaCapitale();
       }
       renderDashboard();
     }
@@ -1222,7 +1289,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('btnMarketFutures').className = state.marketType === 'FUTURES' ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-[#0066FF] text-white" : "px-2.5 py-1 rounded-lg text-xs font-bold text-white/50 hover:text-white";
       document.getElementById('btnMarketStandard').className = state.marketType === 'STANDARD_FUTURES' ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500 text-black shadow-lg" : "px-2.5 py-1 rounded-lg text-xs font-bold text-white/50 hover:text-white";
       document.getElementById('btnMarketSpot').className = state.marketType === 'SPOT' ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-[#00FF66] text-black shadow-lg" : "px-2.5 py-1 rounded-lg text-xs font-bold text-white/50 hover:text-white";
-      document.getElementById('kpiMarketBadge').textContent = `🟢 MULTI-TF 4H+1H+15M+5M ACTIVE`;
+      document.getElementById('kpiMarketBadge').textContent = `🟢 MARGINE LIBERO REGOLABILE`;
       document.getElementById('tableMarketLabel').textContent = state.marketType;
     }
 
@@ -1287,12 +1354,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <div class="space-y-2">
               <strong class="text-white text-sm">${masterAsset.symbol} - MASTER QUANTUM ${state.marketType}</strong>
               <div class="flex justify-between"><span class="text-white/70">Prezzo Live:</span><strong class="text-[#00FF66] text-sm">$${formatPrice(masterAsset.price)}</strong></div>
-              <div class="flex justify-between"><span class="text-white/70">Direzione Quantistica:</span><strong class="${local.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]'} font-bold">${local.side === 'BUY' ? 'LONG SUPERIORE 🚀' : 'SHORT SUPERIORE 📉'}</strong></div>
-              <div class="flex justify-between"><span class="text-white/70">TP Garantito (+% Leva ${state.selectedLeverage}x):</span><strong class="text-yellow-400 font-extrabold">$${formatPrice(local.tp)} (+${local.tpPct}%)</strong></div>
+              <div class="flex justify-between"><span class="text-white/70">Direzione Quantistica:</span><strong class="${local.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]'} font-bold">${local.side === 'BUY' ? 'LONG CHIRURGICO 🚀' : 'SHORT CHIRURGICO 📉'}</strong></div>
+              <div class="flex justify-between"><span class="text-white/70">TP Calibrato (+% Leva ${state.selectedLeverage}x):</span><strong class="text-yellow-400 font-extrabold">$${formatPrice(local.tp)} (+${local.tpPct}%)</strong></div>
               <div class="flex justify-between"><span class="text-white/70">⏱️ Tempo al TP:</span><strong class="text-cyan-300 font-bold tabular-nums" data-countdown-sym="${masterAsset.symbol}" data-base-sec="${local.tempoSec}">${formatExactDuration(liveRemMaster)}</strong></div>
             </div>
             <div class="flex flex-col justify-end">
-              <button onclick='openModal("${masterAsset.symbol}")' class="green-gradient-btn w-full py-2 rounded-xl text-xs shadow-lg">⚡ APRI SCANNER SUPERIORE &amp; ENTRA &#8599;</button>
+              <button onclick='openModal("${masterAsset.symbol}")' class="green-gradient-btn w-full py-2 rounded-xl text-xs shadow-lg">⚡ APRI SCANNER &amp; SCEGLI CAPITALE &#8599;</button>
             </div>
           </div>`;
       }
@@ -1321,7 +1388,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             <div class="grid grid-cols-2 gap-2 text-[11px] font-mono">
               <div class="bg-white/5 p-2 rounded-lg">
-                <span class="text-white/60 text-[10px] block">🎯 TARGET TP GARANTITO</span>
+                <span class="text-white/60 text-[10px] block">🎯 TARGET TP CALIBRATO</span>
                 <strong class="text-[#00FF66]">$${formatPrice(local.tp)}</strong>
                 <span class="text-yellow-400 text-[10px] block">+${local.tpPct}% (con ${state.selectedLeverage}x)</span>
               </div>
@@ -1350,8 +1417,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('assetModal').classList.remove('hidden');
       document.getElementById('assetModal').classList.add('flex');
       document.getElementById('modalSymbol').textContent = symbol;
-      document.getElementById('modalOhlcvBadge').textContent = "SCANSIONE QUANTITATIVA 4H/1H/15M/5M...";
-      document.getElementById('tfPanel').innerHTML = '<div class="col-span-4 text-center text-xs text-white/60 py-4">Elaborazione multi-timeframe simultanea...</div>';
+      document.getElementById('modalOhlcvBadge').textContent = "CALIBRAZIONE CAPITALE...";
+      document.getElementById('tfPanel').innerHTML = '<div class="col-span-4 text-center text-xs text-white/60 py-4">Caricamento parametri e calcolo quantità...</div>';
 
       const btn = document.getElementById('executeBingXBtn');
       const fb = document.getElementById('executionFeedback');
@@ -1375,23 +1442,23 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           document.getElementById('modalCategory').textContent = d.marketType;
 
           const tfEl = document.getElementById('modalTF');
-          tfEl.textContent = `${d.exactTf.toUpperCase()} SINCRONIZZATO ⚡`;
+          tfEl.textContent = `${d.exactTf.toUpperCase()} CALIBRATO ⚡`;
           tfEl.className = "px-2.5 py-0.5 rounded bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66] font-extrabold animate-pulse";
 
           document.getElementById('modalSentiment').textContent = d.sentiment;
           document.getElementById('modalExactTime').textContent = `${formatExactDuration(d.tempoSec)} 🎯`;
 
           document.getElementById('modalEma').textContent = `EMA9: ${formatPrice(d.ema9)} | EMA21: ${formatPrice(d.ema21)}`;
-          document.getElementById('modalEmaSignal').textContent = "Trend Superiore ⚡";
+          document.getElementById('modalEmaSignal').textContent = "Trend Calibrato ⚡";
           document.getElementById('modalEmaSignal').className = "text-[10px] block mt-0.5 text-[#00FF66]";
 
           document.getElementById('modalRsi').textContent = `RSI: ${d.rsi14}`;
-          document.getElementById('modalRsiZone').textContent = "Quantum Ottimale 🎯";
+          document.getElementById('modalRsiZone').textContent = "Ottimale 🎯";
 
           document.getElementById('modalLivePrice').textContent = `$${formatPrice(d.price)}`;
 
           const sideEl = document.getElementById('modalSide');
-          sideEl.textContent = `${d.side} (${d.side === 'BUY' ? 'LONG SUPERIORE 🚀' : 'SHORT SUPERIORE 📉'})`;
+          sideEl.textContent = `${d.side} (${d.side === 'BUY' ? 'LONG CHIRURGICO 🚀' : 'SHORT CHIRURGICO 📉'})`;
           sideEl.className = `text-[12px] font-bold ${d.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
 
           document.getElementById('modalSL').textContent = `$${formatPrice(d.sl)}`;
@@ -1403,10 +1470,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           document.getElementById('tableParamTp').textContent = formatPrice(d.tp);
           document.getElementById('tableParamSl').textContent = formatPrice(d.sl);
 
-          if (d.price > 0) {
-            const minQty2Usd = Math.max(0.0001, Number((2.5 / d.price).toFixed(d.price >= 1000 ? 4 : (d.price >= 1 ? 4 : 2))));
-            document.getElementById('tradeQuantityInput').value = minQty2Usd;
-          }
+          // Calcola la quantità iniziale in base ai 10 USDT predefiniti
+          aggiornaQuantitaDaCapitale();
 
           renderTfPanel(d.tfs, d.exactTf);
           renderDashboard();
