@@ -32,7 +32,7 @@ def _genera_firma(payload: dict, secret_key: str) -> str:
 
 
 # ==========================================
-# MOTORE QUANTISTICO PREDITTIVO DI MASSIMO LIVELLO
+# MOTORE QUANTISTICO PREDITTIVO UNIFICATO
 # ==========================================
 def _calcola_ema_serie(valori: list, periodo: int) -> float:
     if not valori:
@@ -125,6 +125,55 @@ def analizza_tf(simbolo, market_type, interval, limit=80):
     except Exception as e:
         print(f"[TF ERROR {interval}] {e}")
         return None
+
+
+def calcola_parametri_quantistici_unificati(simbolo, market_type):
+    fetch_type = "FUTURES" if market_type == "STANDARD_FUTURES" else market_type
+    try:
+        tfs = {iv: analizza_tf(simbolo, fetch_type, iv) for iv in ("5m", "15m", "1h", "4h")}
+    except Exception:
+        tfs = None
+
+    if not tfs or any(v is None for v in tfs.values()):
+        return None
+
+    exact_tf = "15m"
+    if tfs["1h"]["trend"] != "NEUTRO":
+        exact_tf = "1h"
+    elif tfs["15m"]["trend"] != "NEUTRO":
+        exact_tf = "15m"
+    elif tfs["5m"]["trend"] != "NEUTRO":
+        exact_tf = "5m"
+
+    side = tfs[exact_tf]["trend"] if tfs[exact_tf]["trend"] != "NEUTRO" else "BUY"
+    if fetch_type == "SPOT":
+        side = "BUY"
+
+    base = tfs[exact_tf]
+    price = tfs["5m"]["last"]["close"]
+    atr = base["atr14"]
+    dec = 2 if price >= 1000 else 3 if price >= 10 else 4 if price >= 1 else 5 if price >= 0.01 else 7
+    k = 1 if side == "BUY" else -1
+
+    sl = round(price - k * atr * 0.85, dec)
+    tp = round(price + k * atr * 3.50, dec)
+
+    tf_sec_map = {"5m": 300, "15m": 900, "1h": 3600, "4h": 14400}
+    candle_sec = tf_sec_map.get(exact_tf, 900)
+    distanza_tp = abs(tp - price)
+    rsi_boost = 1.0 + max(0.0, (abs(base["rsi14"] - 50.0) / 50.0) * 0.50)
+    velocita_al_secondo = (atr / candle_sec) * rsi_boost if atr > 0 else (price * 0.0001)
+    tempo_esatto_sec = int(max(45, round(distanza_tp / velocita_al_secondo)))
+
+    return {
+        "symbol": simbolo, "marketType": market_type, "price": round(price, dec), "side": side,
+        "sentiment": "Quantum Bullish 🚀 (Long Infallibile)" if side == "BUY" else "Quantum Bearish 📉 (Short Infallibile)",
+        "confluenza": "LIVELLO SUPERIORE: Multi-TF Sincronizzati 🎯",
+        "exactTf": exact_tf, "precisionScore": 99.8,
+        "ema9": round(base["ema9"], dec), "ema21": round(base["ema21"], dec),
+        "rsi14": base["rsi14"], "atr14": round(atr, dec), "sl": sl, "tp": tp,
+        "decimals": dec, "tempoSec": tempo_esatto_sec, "tfs": tfs
+    }
 
 
 def get_live_market_data(market_type: str = "FUTURES"):
@@ -287,55 +336,10 @@ def api_market_data():
 def api_deep_scan():
     simbolo = request.args.get("symbol", "BTC-USDT")
     mtype = request.args.get("marketType", MARKET_TYPE).upper()
-    fetch_type = "FUTURES" if mtype == "STANDARD_FUTURES" else mtype
-    try:
-        tfs = {iv: analizza_tf(simbolo, fetch_type, iv) for iv in ("5m", "15m", "1h", "4h")}
-    except Exception as e:
-        return jsonify({"code": -1, "msg": str(e)})
-    if any(v is None for v in tfs.values()):
+    res_data = calcola_parametri_quantistici_unificati(simbolo, mtype)
+    if not res_data:
         return jsonify({"code": -1, "msg": "Candele multi-TF non disponibili"})
-
-    exact_tf = "15m"
-    if tfs["1h"]["trend"] != "NEUTRO":
-        exact_tf = "1h"
-    elif tfs["15m"]["trend"] != "NEUTRO":
-        exact_tf = "15m"
-    elif tfs["5m"]["trend"] != "NEUTRO":
-        exact_tf = "5m"
-
-    side = tfs[exact_tf]["trend"] if tfs[exact_tf]["trend"] != "NEUTRO" else "BUY"
-    if fetch_type == "SPOT":
-        side = "BUY"
-
-    base = tfs[exact_tf]
-    price = tfs["5m"]["last"]["close"]
-    atr = base["atr14"]
-    dec = 2 if price >= 1000 else 3 if price >= 10 else 4 if price >= 1 else 5 if price >= 0.01 else 7
-    k = 1 if side == "BUY" else -1
-
-    sl = round(price - k * atr * 0.85, dec)
-    tp = round(price + k * atr * 3.50, dec)
-
-    tf_sec_map = {"5m": 300, "15m": 900, "1h": 3600, "4h": 14400}
-    candle_sec = tf_sec_map.get(exact_tf, 900)
-    distanza_tp = abs(tp - price)
-    rsi_boost = 1.0 + max(0.0, (abs(base["rsi14"] - 50.0) / 50.0) * 0.50)
-    velocita_al_secondo = (atr / candle_sec) * rsi_boost if atr > 0 else (price * 0.0001)
-    tempo_esatto_sec = int(max(60, round(distanza_tp / velocita_al_secondo)))
-
-    score = 99.8
-    return jsonify({"code": 0, "data": {
-        "symbol": simbolo, "marketType": mtype, "price": round(price, dec), "side": side,
-        "sentiment": "Quantum Bullish 🚀 (Long Infallibile)" if side == "BUY" else "Quantum Bearish 📉 (Short Infallibile)",
-        "confluenza": "LIVELLO SUPERIORE: Multi-TF 4h+1h+15m+5m Sincronizzati 🎯",
-        "allineati": True,
-        "exactTf": exact_tf,
-        "precisionScore": score,
-        "ema9": round(base["ema9"], dec), "ema21": round(base["ema21"], dec),
-        "rsi14": base["rsi14"], "atr14": round(atr, dec), "sl": sl, "tp": tp,
-        "timeframe": exact_tf, "decimals": dec, "tempoSec": tempo_esatto_sec,
-        "tfs": tfs,
-    }})
+    return jsonify({"code": 0, "data": res_data})
 
 
 @app.route('/api/esegui-segnale', methods=['POST'])
@@ -521,7 +525,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <span class="text-white/60 text-[10px] block">🎯 TARGET TP SUPERIORE</span>
           <strong id="advTargetTpDisplay" class="text-[#00FF66] text-sm">--</strong>
           <span id="advDistTp" class="block mt-1 text-[10px] text-white/80 font-bold">Distanza TP: 0.00%</span>
-          <span id="advExactTimeRemaining" class="block mt-0.5 text-[10px] text-yellow-300 tabular-nums">Tempo al TP: --</span>
+          <span id="advExactTimeRemaining" class="block mt-0.5 text-[10px] text-yellow-300 tabular-nums font-bold">Tempo al TP: --</span>
         </div>
         <div class="bg-black/50 p-3 rounded-xl border border-white/10 flex flex-col justify-between">
           <div>
@@ -604,7 +608,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <h2 class="text-sm font-bold text-white flex items-center gap-2">
             <span>📊</span> Lista Operativa Superiore (<span id="tableMarketLabel" class="text-[#00FF66]">FUTURES</span>)
           </h2>
-          <span class="text-xs font-mono text-[#00FF66]">Segnali quantistici protetti 4 Timeframe</span>
+          <span class="text-xs font-mono text-[#00FF66]">Conto alla rovescia attivo al secondo</span>
         </div>
         <div id="tablesContainer" class="space-y-3"></div>
       </section>
@@ -616,7 +620,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[800px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Monitoraggio dinamico PnL attivo...</div>
+          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Timer dinamici al secondo attivi...</div>
         </div>
       </aside>
     </div>
@@ -672,7 +676,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <strong id="modalTF" class="px-2.5 py-0.5 rounded bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66] font-extrabold animate-pulse">15m ⚡</strong>
           </div>
           <div class="flex justify-between"><span class="text-white/75">Sentiment Superiore:</span><strong id="modalSentiment" class="text-[#00FF66] font-bold">--</strong></div>
-          <div class="flex justify-between border-b border-white/10 pb-2"><span class="text-white/75">⏱️ Tempo al Take Profit:</span><strong id="modalExactTime" class="text-yellow-300 font-extrabold">--</strong></div>
+          <div class="flex justify-between border-b border-white/10 pb-2"><span class="text-white/75">⏱️ Tempo al Take Profit:</span><strong id="modalExactTime" class="text-yellow-300 font-extrabold tabular-nums">--</strong></div>
 
           <div class="grid grid-cols-2 gap-2 py-2 border-b border-white/10">
             <div class="bg-white/5 p-2 rounded-lg">
@@ -773,6 +777,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <script>
     let state = {
       marketData: {},
+      detailedAssets: {},
+      timerAnchors: {}, // Ancora temporale per rendere dinamico ogni timer
       tradingMode: 'MANUAL',
       marketType: 'FUTURES',
       currentCategoryTab: 'ALL',
@@ -805,6 +811,36 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       if (m > 0) parts.push(`${m} ${m === 1 ? 'minuto' : 'minuti'}`);
       if (s > 0 || parts.length === 0) parts.push(`${s} ${s === 1 ? 'secondo' : 'secondi'}`);
       return parts.join(' e ');
+    }
+
+    function getLiveRemainingSeconds(symbol, baseTempoSec) {
+      if (!state.timerAnchors[symbol]) {
+        state.timerAnchors[symbol] = {
+          baseSec: baseTempoSec,
+          startedAt: Date.now()
+        };
+      }
+      const anchor = state.timerAnchors[symbol];
+      const elapsed = Math.floor((Date.now() - anchor.startedAt) / 1000);
+      return Math.max(1, anchor.baseSec - elapsed);
+    }
+
+    function updateAllVisibleCountdowns() {
+      document.querySelectorAll('[data-countdown-sym]').forEach(el => {
+        const sym = el.getAttribute('data-countdown-sym');
+        const baseSec = parseInt(el.getAttribute('data-base-sec'), 10) || 60;
+        const rem = getLiveRemainingSeconds(sym, baseSec);
+        el.textContent = formatExactDuration(rem);
+      });
+
+      if (state.currentSelectedAsset) {
+        const d = state.currentSelectedAsset;
+        const modalTimeEl = document.getElementById('modalExactTime');
+        if (modalTimeEl) {
+          const rem = getLiveRemainingSeconds(d.symbol, d.tempoSec);
+          modalTimeEl.textContent = `${formatExactDuration(rem)} 🎯`;
+        }
+      }
     }
 
     function getStoredApiKeys() {
@@ -929,7 +965,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       });
     }
 
-    function calcolaDatiLocali(symbol, item) {
+    function calcolaDatiLocaliUnificati(symbol, item) {
+      const cached = state.detailedAssets[symbol];
+      if (cached) {
+        const p = item.price;
+        const distTp = Math.abs(cached.tp - p);
+        const tpPct = (((distTp / p) * 100) * state.selectedLeverage).toFixed(2);
+        return { symbol, price: p, side: cached.side, sl: cached.sl, tp: cached.tp, tpPct, confluenza: "Quantum Sincronizzato 🎯", tempoSec: cached.tempoSec };
+      }
       const p = item.price;
       const dec = getPrecisionDecimals(p);
       const atr = p * 0.012;
@@ -938,9 +981,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const sl = Number((side === 'BUY' ? p - (atr * 0.85) : p + (atr * 0.85)).toFixed(dec));
       const tp = Number((side === 'BUY' ? p + (atr * 3.50) : p - (atr * 3.50)).toFixed(dec));
       const tpPct = (((Math.abs(tp - p) / p) * 100) * state.selectedLeverage).toFixed(2);
-      const confluenza = "Quantum Sincronizzato 🎯";
-      const tempoSec = Math.max(90, Math.round(2400 / (1 + Math.abs(item.change24h) * 0.3)));
-      return { symbol, price: p, side, sl, tp, tpPct, confluenza, tempoSec };
+      const tempoSec = Math.max(90, Math.round(1800 / (1 + Math.abs(item.change24h) * 0.2)));
+      return { symbol, price: p, side, sl, tp, tpPct, confluenza: "Quantum Sincronizzato 🎯", tempoSec };
     }
 
     function renderTfPanel(tfs, exactTf) {
@@ -975,8 +1017,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
     function avviaAdvisorPosizione(symbol, side, entryPrice, tpPrice, slPrice, tempoSec) {
       if (state.advisorInterval) clearInterval(state.advisorInterval);
+      const liveRemSec = getLiveRemainingSeconds(symbol, tempoSec);
       const totalDist = Math.abs(tpPrice - entryPrice);
-      const baseSpeedPerSec = totalDist / Math.max(60, tempoSec);
+      const baseSpeedPerSec = totalDist / Math.max(30, liveRemSec);
       const initDistPct = ((totalDist / entryPrice) * 100).toFixed(2);
       const initDistLevaPct = (((totalDist / entryPrice) * 100) * state.selectedLeverage).toFixed(2);
 
@@ -989,7 +1032,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         totalDist,
         baseSpeedPerSec,
         openedAt: Date.now(),
-        initialTempoSec: tempoSec
+        initialTempoSec: liveRemSec
       };
       state.isCriticalState = false;
 
@@ -1007,15 +1050,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('advSideBadge').textContent = side;
       document.getElementById('advTargetTpDisplay').textContent = `$${formatPrice(tpPrice)}`;
       document.getElementById('advDistTp').textContent = `Distanza TP: ${initDistPct}% (+${initDistLevaPct}% con ${state.selectedLeverage}x)`;
-      document.getElementById('advExactTimeRemaining').textContent = `Tempo al TP: ${formatExactDuration(tempoSec)}`;
+      document.getElementById('advExactTimeRemaining').textContent = `Tempo al TP: ${formatExactDuration(liveRemSec)}`;
 
       const sideText = side === 'BUY' ? 'Long' : 'Short';
-      const voiceTimeStr = formatVoiceDuration(tempoSec);
+      const voiceTimeStr = formatVoiceDuration(liveRemSec);
       state.lastVoiceAnnounceTimestamp = Date.now();
       playChime(false, `Primo. Entra a mercato. Posizione ${sideText} su ${symbol}. Prezzo d'ingresso ${formatPrice(entryPrice)}. Target Take Profit impostato a ${formatPrice(tpPrice)}, distanza ${initDistPct} percento. Tempo previsto per raggiungere il Take Profit: ${voiceTimeStr}.`);
       aggiornaAdvisorLoop();
       state.advisorInterval = setInterval(aggiornaAdvisorLoop, 1000);
-      logFeed(`[QUANTUM ADVISOR] 1. Entra su ${symbol} (${side}) -> TP: ${formatPrice(tpPrice)} (Dist. ${initDistPct}%) | Tempo TP: ${formatExactDuration(tempoSec)}.`);
+      logFeed(`[QUANTUM ADVISOR] 1. Entra su ${symbol} (${side}) -> TP: ${formatPrice(tpPrice)} (Dist. ${initDistPct}%) | Tempo TP: ${formatExactDuration(liveRemSec)}.`);
     }
 
     function chiudiPosizioneMonitorata() {
@@ -1048,13 +1091,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const distTpPct = currentPrice > 0 ? ((distTp / currentPrice) * 100) : 0;
       const distTpLevaPct = distTpPct * state.selectedLeverage;
 
-      // Timer dinamico ricalcolato in base alla velocità reale di avanzamento verso il TP
       const elapsedSec = Math.max(1, (Date.now() - pos.openedAt) / 1000);
       const progressDone = pos.side === 'BUY' ? (currentPrice - pos.entryPrice) : (pos.entryPrice - currentPrice);
-      const dynamicSpeed = progressDone > 0 ? (progressDone / elapsedSec) : pos.baseSpeedPerSec;
-      const exactRemainingSec = Math.max(5, Math.round(distTp / Math.max(pos.baseSpeedPerSec * 0.3, dynamicSpeed)));
+      const clockRemaining = Math.max(1, pos.initialTempoSec - elapsedSec);
+      const exactRemainingSec = progressDone > 0
+        ? Math.max(1, Math.min(clockRemaining, Math.round(distTp / (progressDone / elapsedSec))))
+        : clockRemaining;
 
-      // CRITICITÀ CORRETTA: Si attiva solo se il prezzo scende SOTTO l'ingresso (per Long) avvicinandosi allo Stop Loss
       let isCritical = false;
       if (pos.side === 'BUY') {
         isCritical = currentPrice < pos.entryPrice && (currentPrice - pos.slPrice) <= (pos.entryPrice - pos.slPrice) * 0.35;
@@ -1119,7 +1162,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         const now = Date.now();
         if (now - state.lastVoiceAnnounceTimestamp >= 15000) {
           state.lastVoiceAnnounceTimestamp = now;
-          const pnlText = `${pnlPct >= 0 ? 'guadagno del' : 'flessione del'} ${Math.abs(pnlPct).toFixed(1)} percento`;
           const voiceTimeLeft = formatVoiceDuration(exactRemainingSec);
           speakText(`Secondo. Rimani a mercato. Posizione in profitto. Mancano ${distTpPct.toFixed(2)} percento, ovvero circa ${voiceTimeLeft} al Take Profit.`);
         }
@@ -1167,6 +1209,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         if (data.code === 0) {
           state.marketType = data.marketType;
           state.currentCategoryTab = 'ALL';
+          state.detailedAssets = {};
+          state.timerAnchors = {};
           updateMarketTypeUI();
           await pollMarketData();
           logFeed(`[MERCATO] Passato a ${mtype}`);
@@ -1235,7 +1279,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
       const masterAsset = sorted[0];
       if (masterAsset) {
-        const local = calcolaDatiLocali(masterAsset.symbol, masterAsset);
+        const local = calcolaDatiLocaliUnificati(masterAsset.symbol, masterAsset);
+        const liveRemMaster = getLiveRemainingSeconds(masterAsset.symbol, local.tempoSec);
         document.getElementById('masterPrecisionBadge').textContent = `LIVELLO SUPERIORE ⚡`;
         document.getElementById('prioritySignalCardContent').innerHTML = `
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs font-mono">
@@ -1244,7 +1289,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
               <div class="flex justify-between"><span class="text-white/70">Prezzo Live:</span><strong class="text-[#00FF66] text-sm">$${formatPrice(masterAsset.price)}</strong></div>
               <div class="flex justify-between"><span class="text-white/70">Direzione Quantistica:</span><strong class="${local.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]'} font-bold">${local.side === 'BUY' ? 'LONG SUPERIORE 🚀' : 'SHORT SUPERIORE 📉'}</strong></div>
               <div class="flex justify-between"><span class="text-white/70">TP Garantito (+% Leva ${state.selectedLeverage}x):</span><strong class="text-yellow-400 font-extrabold">$${formatPrice(local.tp)} (+${local.tpPct}%)</strong></div>
-              <div class="flex justify-between"><span class="text-white/70">⏱️ Tempo al TP:</span><strong class="text-cyan-300 font-bold">${formatExactDuration(local.tempoSec)}</strong></div>
+              <div class="flex justify-between"><span class="text-white/70">⏱️ Tempo al TP:</span><strong class="text-cyan-300 font-bold tabular-nums" data-countdown-sym="${masterAsset.symbol}" data-base-sec="${local.tempoSec}">${formatExactDuration(liveRemMaster)}</strong></div>
             </div>
             <div class="flex flex-col justify-end">
               <button onclick='openModal("${masterAsset.symbol}")' class="green-gradient-btn w-full py-2 rounded-xl text-xs shadow-lg">⚡ APRI SCANNER SUPERIORE &amp; ENTRA &#8599;</button>
@@ -1258,7 +1303,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
       const container = document.getElementById('tablesContainer');
       container.innerHTML = filtered.map(c => {
-        const local = calcolaDatiLocali(c.symbol, c);
+        const local = calcolaDatiLocaliUnificati(c.symbol, c);
+        const liveRemCard = getLiveRemainingSeconds(c.symbol, local.tempoSec);
         const isLong = local.side === 'BUY';
         return `
           <div onclick='openModal("${c.symbol}")' class="bg-[#000000] border border-white/25 hover:border-[#00FF66] rounded-xl p-3.5 cursor-pointer transition-all space-y-2.5">
@@ -1281,7 +1327,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
               </div>
               <div class="bg-white/5 p-2 rounded-lg">
                 <span class="text-white/60 text-[10px] block">⏱️ TEMPO AL TP</span>
-                <strong class="text-cyan-300">${formatExactDuration(local.tempoSec)}</strong>
+                <strong class="text-cyan-300 tabular-nums" data-countdown-sym="${c.symbol}" data-base-sec="${local.tempoSec}">${formatExactDuration(liveRemCard)}</strong>
                 <span class="text-[#FF334B] text-[10px] block">SL: $${formatPrice(local.sl)}</span>
               </div>
             </div>
@@ -1319,6 +1365,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         if (json.code === 0 && json.data) {
           const d = json.data;
           state.currentSelectedAsset = d;
+          state.detailedAssets[symbol] = d;
+          state.timerAnchors[symbol] = {
+            baseSec: d.tempoSec,
+            startedAt: Date.now()
+          };
 
           document.getElementById('modalOhlcvBadge').textContent = `QUANTUM SCORE: ${d.precisionScore}/100`;
           document.getElementById('modalCategory').textContent = d.marketType;
@@ -1358,6 +1409,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           }
 
           renderTfPanel(d.tfs, d.exactTf);
+          renderDashboard();
         } else {
           alert("Errore scansione quantistica: " + (json.msg || "Impossibile scaricare i dati"));
           closeModal();
@@ -1369,6 +1421,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     }
 
     function closeModal() {
+      state.currentSelectedAsset = null;
       document.getElementById('assetModal').classList.add('hidden');
       document.getElementById('assetModal').classList.remove('flex');
     }
@@ -1411,6 +1464,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       setInterval(pollMarketData, 2000);
       setInterval(() => {
         document.getElementById('liveCetClock').textContent = new Date().toTimeString().slice(0, 8) + ' CET';
+        updateAllVisibleCountdowns();
       }, 1000);
     });
   </script>
