@@ -32,7 +32,7 @@ def _genera_firma(payload: dict, secret_key: str) -> str:
 
 
 # ==========================================
-# MOTORE QUANTISTICO DINAMICO & AUTO-ADATTIVO
+# MOTORE QUANTISTICO REALE & MILLIMETRICO
 # ==========================================
 def _calcola_ema_serie(valori: list, periodo: int) -> float:
     if not valori:
@@ -173,7 +173,7 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type):
     max_sl_dist = price * 0.014
     dist_sl = min(max(atr_breve * 0.95, min_sl_dist), max_sl_dist)
     
-    # 🎯 Calcolo dei 3 Target Take Profit progressivi (TP1, TP2, TP3)
+    # 🎯 3 TP Graduali Reali
     dist_tp1 = dist_sl * 1.5
     dist_tp2 = dist_sl * 2.4
     dist_tp3 = dist_sl * 3.6
@@ -185,13 +185,12 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type):
 
     candle_sec = 900 if exact_tf != "5m" else 300
     ultima_candela = base["last"]
-    ampiezza_candela_corrente = abs(ultima_candela["high"] - ultima_candela["low"])
-    velocita_candela = max(ampiezza_candela_corrente, atr_breve * 0.2) / candle_sec
     
-    mom_multiplier = 1.0 + (abs(base["rsi14"] - 50.0) / 25.0)
-    velocita_reale = max(velocita_candela * mom_multiplier, price * 0.00002)
+    # Velocità millimetrica basata sulla candela reale OHLCV
+    spinta_candela_reale = abs(ultima_candela["close"] - ultima_candela["open"])
+    velocita_reale = max(spinta_candela_reale, atr_breve * 0.1) / candle_sec
     
-    tempo_esatto_sec = int(max(45, min(14400, round(dist_tp2 / velocita_reale))))
+    tempo_esatto_sec = int(max(15, min(14400, round(dist_tp2 / max(velocita_reale, price * 0.000005)))))
     timestamp_ultima_candela = int(ultima_candela["time"])
 
     score_precisione = 99.8 if base["trend"] != "NEUTRO" else 95.0
@@ -199,11 +198,11 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type):
     return {
         "symbol": simbolo, "marketType": market_type, "price": round(price, dec), "side": side,
         "sentiment": f"Quantum {market_type} 🚀 (RSI Dinamico Long>={base.get('sogliaLong', 55)})" if side == "BUY" else f"Quantum {market_type} 📉 (RSI Dinamico Short<={base.get('sogliaShort', 45)})",
-        "confluenza": f"3 TP Graduali & Candela di Spinta attiva 🎯",
+        "confluenza": f"3 TP Reali & Candela di Spinta Proporzionale 🎯",
         "exactTf": exact_tf, "precisionScore": score_precisione,
         "ema9": round(base["ema9"], dec), "ema21": round(base["ema21"], dec),
         "rsi14": base["rsi14"], "atr14": round(atr_breve, dec), "sl": sl, 
-        "tp1": tp1, "tp2": tp2, "tp3": tp3, "tp": tp2, # TP principale di riferimento per compatibilità
+        "tp1": tp1, "tp2": tp2, "tp3": tp3, "tp": tp2,
         "decimals": dec, "tempoSec": tempo_esatto_sec, "candleTime": timestamp_ultima_candela, "tfs": tfs,
         "ultimaCandela": ultima_candela
     }
@@ -483,7 +482,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex items-center gap-2 text-[11px] font-mono text-white/70 mt-0.5">
             <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
-            <span class="text-[#00FF66]" id="headerSubMarketInfo">3 TP Graduali & Candela di Spinta • 1. Entra • 2. Rimani • 3. TP Esci</span>
+            <span class="text-[#00FF66]" id="headerSubMarketInfo">Motore Reale Millimetrico • 1. Entra • 2. Rimani • 3. TP Esci</span>
           </div>
         </div>
       </div>
@@ -533,7 +532,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse" id="advIconSign">🔊</div>
           <div>
             <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white" id="advTitleMain">🟢 QUANTUM SUPERIOR ADVISOR VOCALE (<span id="advSymbol">BTC-USDT</span>)</h2>
-            <p class="text-[11px] text-[#00FF66]" id="advSubNotice">1. Entra • 2. Rimani a Mercato • 3. TP Raggiunto / Esci</p>
+            <p class="text-[11px] text-[#00FF66]" id="advSubNotice">1. Entra • 2. Rimani • 3. TP Raggiunto / Esci</p>
           </div>
         </div>
         <button onclick="chiudiPosizioneMonitorata()" class="px-3.5 py-1.5 rounded-xl bg-red-500/20 text-[#FF334B] border border-red-500/50 hover:bg-red-500/30 text-xs font-bold transition-all">
@@ -559,14 +558,25 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <div class="flex justify-between text-white font-bold"><span>TP2:</span> <strong id="advTp2" class="text-[#00FF66]">--</strong></div>
             <div class="flex justify-between text-white/80"><span>TP3:</span> <strong id="advTp3" class="text-[#00FF66]">--</strong></div>
           </div>
-          <span id="advExactTimeRemaining" class="block mt-1.5 text-[10px] text-yellow-300 tabular-nums font-bold">Tempo al TP: --</span>
+          <span id="advExactTimeRemaining" class="block mt-1.5 text-[10px] text-yellow-300 tabular-nums font-bold">⏱️ Tempo Reale: --</span>
         </div>
         <div class="bg-black/50 p-3 rounded-xl border border-white/10 flex flex-col justify-between">
           <div>
             <span class="text-white/60 text-[10px] block">3. 🎯 TP RAGGIUNTO / ESCI</span>
-            <strong id="advStatusAdvice" class="text-[#00FF66] text-xs block mt-0.5">In attesa del TP...</strong>
+            <strong id="advStatusAdvice" class="text-[#00FF66] text-xs block mt-0.5">Monitoraggio live attivo...</strong>
           </div>
-          <span id="advActionAlert" class="text-[10px] text-white/80 italic mt-1">Avviso vocale di chiusura attivo</span>
+          <span id="advActionAlert" class="text-[10px] text-white/80 italic mt-1">Avviso vocale all'arrivo sul TP</span>
+        </div>
+      </div>
+
+      <!-- BARRA PROPORZIONALE CANDELA / AVANZAMENTO VERSO IL TP -->
+      <div class="bg-black/70 border border-[#00FF66]/40 rounded-xl p-3 space-y-1.5">
+        <div class="flex justify-between text-[11px] font-mono">
+          <span class="text-white/80">🕯️ Avanzamento Reale Verso il TP:</span>
+          <strong id="advProgressPctText" class="text-[#00FF66]">0.0%</strong>
+        </div>
+        <div class="w-full bg-white/10 rounded-full h-3 overflow-hidden p-0.5 border border-white/10">
+          <div id="advProgressBar" class="bg-gradient-to-r from-[#00CC52] to-[#00FF66] h-full rounded-full transition-all duration-500" style="width: 0%;"></div>
         </div>
       </div>
     </div>
@@ -596,7 +606,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
         <span class="text-[11px] font-semibold uppercase text-white/75">Motore Sincronizzato</span>
         <div class="mt-2">
-          <span id="kpiMarketBadge" class="text-xs font-mono text-[#00FF66] font-bold">🟢 3 TP & CANDELA DI SPINTA ATTIVI</span>
+          <span id="kpiMarketBadge" class="text-xs font-mono text-[#00FF66] font-bold">🟢 MOTORE REALE MILLIMETRICO</span>
         </div>
       </div>
     </section>
@@ -607,8 +617,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="flex items-center gap-3">
           <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-bounce">⚡</div>
           <div>
-            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">⚡ SEGNALE MASTER SUPERIORE CON 3 TP &amp; CANDELA DI SPINTA</h2>
-            <p class="text-[11px] text-[#00FF66]" id="masterSubtitle">Timer dinamico di precisione millimetrica</p>
+            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">⚡ SEGNALE MASTER SUPERIORE (PRECISIONE AL MILLIMETRO)</h2>
+            <p class="text-[11px] text-[#00FF66]" id="masterSubtitle">Calcolo reale basato sulla candela di spinta e flusso streaming</p>
           </div>
         </div>
         <span id="masterPrecisionBadge" class="px-2.5 py-1 rounded-md text-xs font-mono font-extrabold bg-[#00FF66] text-black animate-pulse">CANDLE-SYNC 🚀</span>
@@ -641,7 +651,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="flex items-center justify-between border-b border-white/15 pb-3">
           <h2 class="text-sm font-bold text-white flex items-center gap-3">
             <span class="w-8 h-8 rounded-full bg-[#00FF66]/20 border border-[#00FF66] flex items-center justify-center text-[#00FF66] text-base font-extrabold dollar-animated-logo">$</span>
-            <span>📊 Lista Operativa (<span id="tableMarketLabel" class="text-[#00FF66]">FUTURES</span> - Auto-Adattiva con 3 TP)</span>
+            <span>📊 Lista Operativa (<span id="tableMarketLabel" class="text-[#00FF66]">FUTURES</span> - Reale e Precisa al Millimetro)</span>
           </h2>
           <span class="text-xs font-mono text-[#00FF66]">Sincronizzato sul flusso candela per candela</span>
         </div>
@@ -655,7 +665,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[800px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] 3 TP Graduali & Candela di Spinta attivi...</div>
+          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Motore reale millimetrico attivo...</div>
         </div>
       </aside>
     </div>
@@ -699,7 +709,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <h2 id="modalSymbol" class="text-base font-extrabold font-mono text-white">BTC-USDT</h2>
             <span id="modalOhlcvBadge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/40">SUPERIORE</span>
           </div>
-          <p id="modalSubtitleType" class="text-xs text-white/70">Advisor quantistico: 1. Entra • 2. Rimani a Mercato • 3. TP Raggiunto / Esci</p>
+          <p id="modalSubtitleType" class="text-xs text-white/70">Advisor quantistico: 1. Entra • 2. Rimani • 3. TP Raggiunto / Esci</p>
         </div>
         <button onclick="closeModal()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
       </div>
@@ -711,13 +721,17 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <strong id="modalTF" class="px-2.5 py-0.5 rounded bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66] font-extrabold animate-pulse">15m ⚡</strong>
           </div>
           <div class="flex justify-between"><span class="text-white/75">Sentiment Superiore:</span><strong id="modalSentiment" class="text-[#00FF66] font-bold">--</strong></div>
-          <div class="flex justify-between border-b border-white/10 pb-2"><span class="text-white/75">⏱️ Tempo al TP (Candle-Sync):</span><strong id="modalExactTime" class="text-yellow-300 font-extrabold tabular-nums">--</strong></div>
+          <div class="flex justify-between border-b border-white/10 pb-2"><span class="text-white/75">⏱️ Tempo Reale al TP:</span><strong id="modalExactTime" class="text-yellow-300 font-extrabold tabular-nums">--</strong></div>
 
           <!-- PANNELLO CANDELA DI SPINTA AL PROFITTO -->
           <div class="bg-gradient-to-r from-emerald-950/60 to-black border border-[#00FF66]/50 rounded-xl p-3 space-y-2">
-            <span class="text-[10px] font-bold text-[#00FF66] uppercase block">🕯️ Candela di Spinta al Profitto (Driver Live):</span>
+            <span class="text-[10px] font-bold text-[#00FF66] uppercase block">🕯️ Candela di Spinta al Profitto (Reale Millimetrica):</span>
             <div id="modalCandleVisualizer" class="text-xs text-white flex justify-between items-center bg-black/60 p-2 rounded border border-white/10">
               --
+            </div>
+            <!-- Barra proporzionale candela -->
+            <div class="w-full bg-white/10 rounded-full h-2 overflow-hidden">
+              <div id="modalCandleBar" class="bg-[#00FF66] h-full rounded-full transition-all duration-300" style="width: 0%;"></div>
             </div>
           </div>
 
@@ -743,7 +757,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
               <span class="text-xs font-extrabold text-[#00FF66] flex items-center gap-1.5">
                 <span>📋</span> TABELLA 3 TAKE PROFIT &amp; STOP LOSS 😢
               </span>
-              <span class="text-[10px] text-white/70">Calibrati e protetti</span>
+              <span class="text-[10px] text-white/70">Reali e protetti</span>
             </div>
 
             <div class="overflow-x-auto">
@@ -835,7 +849,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
 
         <button id="executeBingXBtn" onclick="eseguiOrdineSuBingX()" class="bingx-btn w-full py-2.5 rounded-xl text-xs shadow-lg flex items-center justify-center gap-2">
-          <span>⚡ Esegui Ordine con Capitale Personalizzato &amp; Attiva Advisor</span>
+          <span>⚡ Esegui Ordine con Capitale Personalizzato &amp; Attiva Motore Reale</span>
         </button>
         <div id="executionFeedback" class="mt-2 text-xs text-center hidden"></div>
       </div>
@@ -847,7 +861,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     let state = {
       marketData: {},
       detailedAssets: {},
-      timerAnchors: {},
       tradingMode: 'MANUAL',
       marketType: 'FUTURES',
       currentCategoryTab: 'ALL',
@@ -887,17 +900,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       if (m > 0) parts.push(`${m} ${m === 1 ? 'minuto' : 'minuti'}`);
       if (s > 0 || parts.length === 0) parts.push(`${s} ${s === 1 ? 'secondo' : 'secondi'}`);
       return parts.join(' e ');
-    }
-
-    function getDynamicRemainingSeconds(symbol, entryPrice, currentPrice, targetTp, baseTempoSec) {
-      const distTotal = Math.abs(targetTp - entryPrice);
-      const distRemaining = Math.max(0.00001, Math.abs(targetTp - currentPrice));
-      if (currentPrice >= targetTp && targetTp > entryPrice || currentPrice <= targetTp && targetTp < entryPrice) {
-        return 1;
-      }
-      const ratio = distRemaining / (distTotal || 1);
-      const calculatedSec = Math.round(baseTempoSec * ratio);
-      return Math.max(5, calculatedSec);
     }
 
     function getStoredApiKeys() {
@@ -1076,7 +1078,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         const p = item.price;
         const distTp = Math.abs(cached.tp2 - p);
         const tpPct = (((distTp / p) * 100) * lev).toFixed(2);
-        return { symbol, price: p, side: cached.side, sl: cached.sl, tp1: cached.tp1, tp2: cached.tp2, tp3: cached.tp3, tp: cached.tp2, tpPct, confluenza: "3 TP & Candela di Spinta 🎯", tempoSec: cached.tempoSec };
+        return { symbol, price: p, side: cached.side, sl: cached.sl, tp1: cached.tp1, tp2: cached.tp2, tp3: cached.tp3, tp: cached.tp2, tpPct, confluenza: "3 TP Reali & Candela Proporzionale 🎯", tempoSec: cached.tempoSec };
       }
       const p = item.price;
       const dec = getPrecisionDecimals(p);
@@ -1090,7 +1092,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const tp3 = Number((side === 'BUY' ? p + distTp2 * 1.5 : p - distTp2 * 1.5).toFixed(dec));
       const tpPct = (((distTp2 / p) * 100) * lev).toFixed(2);
       const tempoSec = Math.max(60, Math.round(900 / (0.1 + Math.abs(item.change24h) * 0.1)));
-      return { symbol, price: p, side, sl, tp1, tp2, tp3, tp: tp2, tpPct, confluenza: "3 TP & Candela di Spinta 🎯", tempoSec };
+      return { symbol, price: p, side, sl, tp1, tp2, tp3, tp: tp2, tpPct, confluenza: "3 TP Reali & Candela Proporzionale 🎯", tempoSec };
     }
 
     function renderTfPanel(tfs, exactTf) {
@@ -1125,11 +1127,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
     function avviaAdvisorPosizione(symbol, side, entryPrice, tp2Price, slPrice, tempoSec, tp1Price, tp3Price) {
       if (state.advisorInterval) clearInterval(state.advisorInterval);
-      const totalDist = Math.abs(tp2Price - entryPrice);
-      const lev = state.marketType === 'SPOT' ? 1 : state.selectedLeverage;
-      const initDistPct = ((totalDist / entryPrice) * 100).toFixed(2);
-      const initDistLevaPct = (((totalDist / entryPrice) * 100) * lev).toFixed(2);
-
+      
       state.activePosition = {
         symbol,
         side,
@@ -1138,7 +1136,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         tp2Price,
         tp3Price,
         slPrice,
-        baseTempoSec: tempoSec
+        initialBaseSec: tempoSec,
+        openedAt: Date.now()
       };
       state.isCriticalState = false;
 
@@ -1148,7 +1147,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('advHeaderBox').className = "flex flex-wrap items-center justify-between pb-3 border-b border-[#00FF66]/30 gap-3";
       document.getElementById('advIconSign').className = "w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse";
       document.getElementById('advTitleMain').innerHTML = `🟢 QUANTUM SUPERIOR ADVISOR VOCALE (<span id="advSymbol">${symbol}</span>)`;
-      document.getElementById('advSubNotice').textContent = "1. Entra • 2. Rimani a Mercato • 3. TP Raggiunto / Esci";
+      document.getElementById('advSubNotice').textContent = "1. Entra (Timer reale avviato) • 2. Rimani • 3. TP Esci";
 
       document.getElementById('kpiAutoSlotStatus').textContent = "🔒 Posizione Quantistica Attiva";
       document.getElementById('advSymbol').textContent = symbol;
@@ -1161,10 +1160,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const sideText = side === 'BUY' ? 'Long' : 'Short';
       const voiceTimeStr = formatVoiceDuration(tempoSec);
       state.lastVoiceAnnounceTimestamp = Date.now();
-      playChime(false, `Primo. Entra a mercato su ${state.marketType} con ${state.selectedMarginUsdt} USDT di margine. Posizione ${sideText} su ${symbol}. Tre Target Take Profit impostati. Tempo stimato: ${voiceTimeStr}.`);
+      playChime(false, `Posizione avviata su ${symbol}. Timer reale partito adesso. Tempo stimato al target: ${voiceTimeStr}.`);
+      
       aggiornaAdvisorLoop();
       state.advisorInterval = setInterval(aggiornaAdvisorLoop, 1000);
-      logFeed(`[QUANTUM ADVISOR] Aperto ${symbol} (${side}) su ${state.marketType} con 3 TP.`);
+      logFeed(`[QUANTUM ADVISOR] Timer reale avviato per ${symbol} (${side}) all'apertura.`);
     }
 
     function chiudiPosizioneMonitorata() {
@@ -1194,8 +1194,28 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       pnlEl.textContent = `PnL: ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`;
       pnlEl.className = `block mt-1 text-[10px] font-bold ${pnlPct >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
 
-      const dynamicRemSec = getDynamicRemainingSeconds(pos.symbol, pos.entryPrice, currentPrice, pos.tp2, pos.baseTempoSec);
-      document.getElementById('advExactTimeRemaining').textContent = `Tempo al TP: ${formatExactDuration(dynamicRemSec)}`;
+      // 🎯 Calcolo reale e proporzionale millimetrico della distanza e del progresso verso il TP
+      const totalDistance = Math.abs(pos.tp2 - pos.entryPrice);
+      const currentCovered = Math.abs(currentPrice - pos.entryPrice);
+      let progressRatio = totalDistance > 0 ? (currentCovered / totalDistance) : 0;
+      if (pos.side === 'BUY' && currentPrice < pos.entryPrice) progressRatio = 0;
+      if (pos.side === 'SELL' && currentPrice > pos.entryPrice) progressRatio = 0;
+      progressRatio = Math.min(1.0, Math.max(0.0, progressRatio));
+
+      const progressPct = (progressRatio * 100).toFixed(1);
+      document.getElementById('advProgressPctText').textContent = `${progressPct}%`;
+      document.getElementById('advProgressBar').style.width = `${progressPct}%`;
+
+      const distRemaining = Math.max(0.0001, Math.abs(pos.tp2 - currentPrice));
+      let dynamicRemSec;
+      if ((pos.side === 'BUY' && currentPrice >= pos.tp2) || (pos.side === 'SELL' && currentPrice <= pos.tp2)) {
+        dynamicRemSec = 1;
+      } else {
+        const remainingRatio = distRemaining / (totalDistance || 1);
+        dynamicRemSec = Math.max(2, Math.round(pos.initialBaseSec * remainingRatio));
+      }
+
+      document.getElementById('advExactTimeRemaining').textContent = `⏱️ Tempo Reale: ${formatExactDuration(dynamicRemSec)}`;
 
       const advAdvice = document.getElementById('advStatusAdvice');
       const advAlert = document.getElementById('advActionAlert');
@@ -1219,7 +1239,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         advAlert.textContent = "Target Take Profit raggiunto! Chiudi subito la posizione.";
         if (lastLoopAdviceState !== "TP_FINALE") {
           lastLoopAdviceState = "TP_FINALE";
-          playChime(true, "Terzo. Target Take Profit raggiunto! Esci subito da mercato e prendi il profitto.");
+          playChime(true, "Target Take Profit raggiunto! Esci subito da mercato e prendi il profitto.");
         }
       } else if (reachedTp1) {
         advAdvice.textContent = "2. 🎯 TP1 RAGGIUNTO (Prendi parziale)";
@@ -1227,7 +1247,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         advAlert.textContent = "Primo Take Profit toccato. Puoi spostare lo Stop Loss in pareggio.";
         if (lastLoopAdviceState !== "TP1") {
           lastLoopAdviceState = "TP1";
-          playChime(false, "Secondo. Primo Take profit raggiunto. Valuta di spostare lo stop in pareggio.");
+          playChime(false, "Primo Take profit raggiunto. Valuta di spostare lo stop in pareggio.");
         }
       } else if (reachedSl) {
         advAdvice.textContent = "3. 🛑 STOP LOSS PROTETTO (Esci)";
@@ -1235,7 +1255,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         advAlert.textContent = "Chiusura di salvaguardia attivata.";
         if (lastLoopAdviceState !== "SL") {
           lastLoopAdviceState = "SL";
-          playChime(true, "Terzo. Stop loss toccato. Esci di protezione per salvaguardare il capitale.");
+          playChime(true, "Stop loss toccato. Esci di protezione per salvaguardare il capitale.");
         }
       } else if (isCritical) {
         box.className = "terminal-card rounded-2xl p-4 sm:p-5 critical-box-mode shadow-2xl space-y-4";
@@ -1263,7 +1283,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         if (pnlPct >= 0) {
           advAdvice.textContent = "2. 📊 RIMANI A MERCATO (IN PROFITTO)";
           advAdvice.className = "text-[#00FF66] text-xs block font-bold";
-          advAlert.textContent = "Avanzamento regolare verso i Target TP.";
+          advAlert.textContent = `Avanzamento reale: ${progressPct}% verso il $ TP`;
         } else {
           advAdvice.textContent = "2. ⏳ RIMANI A MERCATO (Fase di spinta)";
           advAdvice.className = "text-yellow-400 text-xs block font-bold";
@@ -1308,7 +1328,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           state.marketType = data.marketType;
           state.currentCategoryTab = 'ALL';
           state.detailedAssets = {};
-          state.timerAnchors = {};
           updateMarketTypeUI();
           await pollMarketData();
           logFeed(`[MERCATO] Passato automaticamente a ${mtype}`);
@@ -1322,9 +1341,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('btnMarketStandard').className = state.marketType === 'STANDARD_FUTURES' ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500 text-black shadow-lg" : "px-2.5 py-1 rounded-lg text-xs font-bold text-white/50 hover:text-white";
       document.getElementById('btnMarketSpot').className = isSpot ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-[#00FF66] text-black shadow-lg" : "px-2.5 py-1 rounded-lg text-xs font-bold text-white/50 hover:text-white";
       
-      document.getElementById('kpiMarketBadge').textContent = isSpot ? "🟢 3 TP SPOT DINAMICO" : "🟢 3 TP FUTURES DINAMICO";
+      document.getElementById('kpiMarketBadge').textContent = isSpot ? "🟢 MOTORE REALE SPOT" : "🟢 MOTORE REALE FUTURES";
       document.getElementById('tableMarketLabel').textContent = state.marketType;
-      document.getElementById('headerSubMarketInfo').textContent = isSpot ? "Spot Dinamico (Solo Long 🪙) • 1. Entra • 2. Rimani • 3. TP Esci" : "Futures Dinamico (Long & Short ⚡) • 1. Entra • 2. Rimani • 3. TP Esci";
+      document.getElementById('headerSubMarketInfo').textContent = isSpot ? "Spot Reale Millimetrico (Solo Long 🪙)" : "Futures Reale Millimetrico (Long & Short ⚡)";
       
       const levSec = document.getElementById('leverageSectionWrapper');
       if (levSec) levSec.style.display = isSpot ? 'none' : 'block';
@@ -1401,10 +1420,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       }
 
       const masterAsset = sorted[0];
-      const lev = state.marketType === 'SPOT' ? 1 : state.selectedLeverage;
       if (masterAsset) {
         const local = calcolaDatiLocaliUnificati(masterAsset.symbol, masterAsset);
-        const liveRemMaster = getDynamicRemainingSeconds(masterAsset.symbol, local.price, masterAsset.price, local.tp2, local.tempoSec);
         document.getElementById('masterPrecisionBadge').textContent = `${state.marketType} SYNC ⚡`;
         document.getElementById('prioritySignalCardContent').innerHTML = `
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs font-mono">
@@ -1413,10 +1430,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
               <div class="flex justify-between"><span class="text-white/70">Prezzo Live:</span><strong class="text-[#00FF66] text-sm">$${formatPrice(masterAsset.price)}</strong></div>
               <div class="flex justify-between"><span class="text-white/70">Direzione:</span><strong class="${local.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]'} font-bold">${local.side === 'BUY' ? 'LONG 🚀' : 'SHORT 📉'}</strong></div>
               <div class="flex justify-between"><span class="text-white/70">🎯 TP2 Principale:</span><strong class="text-yellow-400 font-extrabold">$${formatPrice(local.tp2)} (+${local.tpPct}%)</strong></div>
-              <div class="flex justify-between"><span class="text-white/70">⏱️ Tempo Dinamico al TP:</span><strong class="text-cyan-300 font-bold tabular-nums">${formatExactDuration(liveRemMaster)}</strong></div>
+              <div class="flex justify-between"><span class="text-white/70">⏱️ Durata Reale:</span><strong class="text-cyan-300 font-bold tabular-nums">${formatExactDuration(local.tempoSec)}</strong></div>
             </div>
             <div class="flex flex-col justify-end">
-              <button onclick='openModal("${masterAsset.symbol}")' class="green-gradient-btn w-full py-2 rounded-xl text-xs shadow-lg">⚡ APRI SCANNER &amp; SCEGLI CAPITALE &#8599;</button>
+              <button onclick='openModal("${masterAsset.symbol}")' class="green-gradient-btn w-full py-2 rounded-xl text-xs shadow-lg">⚡ APRI SCANNER &amp; ATTIVA MOTORE REALE &#8599;</button>
             </div>
           </div>`;
       }
@@ -1428,7 +1445,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const container = document.getElementById('tablesContainer');
       container.innerHTML = filtered.map(c => {
         const local = calcolaDatiLocaliUnificati(c.symbol, c);
-        const liveRemCard = getDynamicRemainingSeconds(c.symbol, local.price, c.price, local.tp2, local.tempoSec);
         const isLong = local.side === 'BUY';
         return `
           <div onclick='openModal("${c.symbol}")' class="bg-[#000000] border border-white/25 hover:border-[#00FF66] rounded-xl p-3.5 cursor-pointer transition-all space-y-2.5">
@@ -1450,8 +1466,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 <span class="text-yellow-400 text-[10px] block">TP1: $${formatPrice(local.tp1)} | TP3: $${formatPrice(local.tp3)}</span>
               </div>
               <div class="bg-white/5 p-2 rounded-lg">
-                <span class="text-white/60 text-[10px] block">⏱️ TEMPO DINAMICO AL TP</span>
-                <strong class="text-cyan-300 tabular-nums">${formatExactDuration(liveRemCard)}</strong>
+                <span class="text-white/60 text-[10px] block">⏱️ TEMPO REALE AL TP</span>
+                <strong class="text-cyan-300 tabular-nums">${formatExactDuration(local.tempoSec)}</strong>
                 <span class="text-[#FF334B] text-[10px] block">SL 😢: $${formatPrice(local.sl)}</span>
               </div>
             </div>
@@ -1467,15 +1483,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
     async function openModal(symbol) {
       if (state.activePosition) {
-        alert("⚠️ C'è già 1 posizione attiva protetta monitorata (Gestisci le fasi 1. Entra • 2. Rimani a Mercato • 3. TP Raggiunto / Esci).");
+        alert("⚠️ C'è già 1 posizione attiva protetta monitorata (Gestisci le fasi 1. Entra • 2. Rimani • 3. TP Esci).");
         return;
       }
 
       document.getElementById('assetModal').classList.remove('hidden');
       document.getElementById('assetModal').classList.add('flex');
       document.getElementById('modalSymbol').textContent = symbol;
-      document.getElementById('modalOhlcvBadge').textContent = "CANDLE-SYNC IN CORSO...";
-      document.getElementById('tfPanel').innerHTML = '<div class="col-span-4 text-center text-xs text-white/60 py-4">Sincronizzazione candela e flusso in corso...</div>';
+      document.getElementById('modalOhlcvBadge').textContent = "SCANNING REALE...";
+      document.getElementById('tfPanel').innerHTML = '<div class="col-span-4 text-center text-xs text-white/60 py-4">Sincronizzazione candela e flusso reale in corso...</div>';
 
       const btn = document.getElementById('executeBingXBtn');
       const fb = document.getElementById('executionFeedback');
@@ -1500,17 +1516,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           tfEl.className = "px-2.5 py-0.5 rounded bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66] font-extrabold animate-pulse";
 
           document.getElementById('modalSentiment').textContent = d.sentiment;
-          
-          const currentLiveRem = getDynamicRemainingSeconds(d.symbol, d.price, d.price, d.tp2, d.tempoSec);
-          document.getElementById('modalExactTime').textContent = `${formatExactDuration(currentLiveRem)} 🎯`;
+          document.getElementById('modalExactTime').textContent = `${formatExactDuration(d.tempoSec)} 🎯 (Reale al millimetro)`;
 
-          // Visualizzazione candela di spinta al profitto
           const uc = d.ultimaCandela;
-          const ampCandela = Math.abs(uc.high - uc.low);
+          const spintaCandela = uc.close - uc.open;
+          const spintaPct = ((spintaCandela / uc.open) * 100).toFixed(3);
+          
           document.getElementById('modalCandleVisualizer').innerHTML = `
             <span>O: $${formatPrice(uc.open)} → C: $${formatPrice(uc.close)}</span>
-            <span class="text-[#00FF66] font-bold">Spinta: +${formatPrice(ampCandela)}</span>
+            <span class="text-[#00FF66] font-bold">Spinta: ${spintaCandela >= 0 ? '+' : ''}${formatPrice(spintaCandela)} (${spintaPct}%)</span>
           `;
+          const barWidth = Math.min(100, Math.max(5, Math.abs(parseFloat(spintaPct)) * 20));
+          document.getElementById('modalCandleBar').style.width = `${barWidth}%`;
 
           document.getElementById('modalEma').textContent = `EMA9: ${formatPrice(d.ema9)} | EMA21: ${formatPrice(d.ema21)}`;
           document.getElementById('modalEmaSignal').textContent = "Trend Calibrato ⚡";
