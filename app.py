@@ -32,7 +32,7 @@ def _genera_firma(payload: dict, secret_key: str) -> str:
 
 
 # ==========================================
-# MOTORE SINCRONIZZATO MT4 & PRECISIONE TP/SL
+# MOTORE MT4 & GESTIONE MARGINE MINIMO BINGX
 # ==========================================
 def _calcola_ema_serie(valori: list, periodo: int) -> float:
     if not valori:
@@ -158,9 +158,6 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type):
     atr_breve = tfs["15m"]["atr14"] if tfs["15m"]["atr14"] > 0 else base["atr14"]
     dec = 2 if price >= 1000 else 3 if price >= 10 else 4 if price >= 1 else 5 if price >= 0.01 else 7
     
-    # 🎯 Correzione matematica direzione: 
-    # Per BUY (Long): TP sopra il prezzo (+), SL sotto il prezzo (-)
-    # Per SELL (Short): TP sotto il prezzo (-), SL sopra il prezzo (+)
     k = 1 if side == "BUY" else -1
 
     min_sl_dist = price * 0.015
@@ -281,6 +278,11 @@ def esegui_ordine_con_3tp_su_bingx(simbolo: str, lato: str, quantita_totale: flo
 
     if not active_api or not active_secret:
         return {"code": -1, "msg": "API Key o Secret Key BingX mancanti."}
+
+    # 🛡️ Controllo e adeguamento taglia minima per evitare "Insufficient margin" o taglia troppo piccola
+    min_qty = 0.001 if "BTC" in simbolo or "ETH" in simbolo else 0.01
+    if quantita_totale < min_qty:
+        quantita_totale = min_qty
 
     q1 = round(quantita_totale * 0.40, 4)
     q2 = round(quantita_totale * 0.40, 4)
@@ -489,7 +491,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex items-center gap-2 text-[11px] font-mono text-[#848e9c] mt-0.5">
             <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
-            <span class="text-[#00FF66]" id="headerSubMarketInfo">Sincronizzazione TP/SL Perfetta • 3 TP attivi • Advisor Vocale MT4</span>
+            <span class="text-[#00FF66]" id="headerSubMarketInfo">Min 2$ / 5$ BingX • 3 TP attivi • Advisor Vocale MT4</span>
           </div>
         </div>
       </div>
@@ -654,7 +656,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <div class="px-4 py-3 mt4-header flex items-center justify-between">
         <div>
           <h2 id="modalSymbol" class="text-sm font-bold font-mono text-white">BTC-USDT</h2>
-          <p class="text-[10px] text-[#848e9c]">Order Ticket MT4 Style — TP/SL Sincronizzati</p>
+          <p class="text-[10px] text-[#848e9c]">Order Ticket MT4 Style — Min 2$ / 5$ BingX</p>
         </div>
         <button onclick="closeModal()" class="text-[#848e9c] hover:text-white">&#10005;</button>
       </div>
@@ -831,14 +833,23 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const prezzo = d.price;
       if (prezzo <= 0) return;
       const lev = state.marketType === 'SPOT' ? 1 : state.selectedLeverage;
+      
+      // Assicura un margine minimo di almeno 2 USDT per evitare Insufficient Margin su BingX
+      if (state.selectedMarginUsdt < 2) state.selectedMarginUsdt = 2;
+
       const valoreNominale = state.selectedMarginUsdt * lev;
-      const quantita = Number((valoreNominale / prezzo).toFixed(d.decimals >= 4 ? 2 : 4));
+      let quantita = Number((valoreNominale / prezzo).toFixed(d.decimals >= 4 ? 2 : 4));
+      
+      // Controllo taglia minima BTC/ETH o altcoin
+      const minQ = (d.symbol.includes('BTC') || d.symbol.includes('ETH')) ? 0.001 : 0.01;
+      if (quantita < minQ) quantita = minQ;
+
       document.getElementById('tradeQuantityInput').value = quantita;
       document.getElementById('marginUsdtLabel').textContent = `${state.selectedMarginUsdt} USDT (Nominale: ${valoreNominale}$ con ${lev}x)`;
     }
 
     function setMarginUsdt(usdt) {
-      state.selectedMarginUsdt = usdt;
+      state.selectedMarginUsdt = Math.max(2, usdt);
       document.querySelectorAll('[id^="marBtn"]').forEach(b => {
         b.className = "py-1 rounded bg-[#1e222d] text-white font-bold";
       });
