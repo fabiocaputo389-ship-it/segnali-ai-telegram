@@ -461,7 +461,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex items-center gap-2 text-[11px] font-mono text-white/70 mt-0.5">
             <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
-            <span class="text-[#00FF66]">Candle-Sync Attivo • 1. Entra • 2. Rimani in Profit • 3. Esci al $ TP</span>
+            <span class="text-[#00FF66]">Candle-Sync Attivo • 1. Entra • 2. Rimani in Mercato • 3. Esci al $ TP</span>
           </div>
         </div>
       </div>
@@ -511,7 +511,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse" id="advIconSign">🔊</div>
           <div>
             <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white" id="advTitleMain">🟢 QUANTUM SUPERIOR ADVISOR VOCALE (<span id="advSymbol">BTC-USDT</span>)</h2>
-            <p class="text-[11px] text-[#00FF66]" id="advSubNotice">1. Entra • 2. Rimani in Profit • 3. Esci al $ TP Certo</p>
+            <p class="text-[11px] text-[#00FF66]" id="advSubNotice">1. Entra • 2. Rimani a Mercato • 3. Esci al $ TP Certo</p>
           </div>
         </div>
         <button onclick="chiudiPosizioneMonitorata()" class="px-3.5 py-1.5 rounded-xl bg-red-500/20 text-[#FF334B] border border-red-500/50 hover:bg-red-500/30 text-xs font-bold transition-all">
@@ -674,7 +674,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <h2 id="modalSymbol" class="text-base font-extrabold font-mono text-white">BTC-USDT</h2>
             <span id="modalOhlcvBadge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/40">SUPERIORE</span>
           </div>
-          <p id="modalSubtitleType" class="text-xs text-white/70">Advisor quantistico: 1. Entra • 2. Rimani in Profit • 3. Esci al $ TP</p>
+          <p id="modalSubtitleType" class="text-xs text-white/70">Advisor quantistico: 1. Entra • 2. Rimani a Mercato • 3. Esci al $ TP</p>
         </div>
         <button onclick="closeModal()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
       </div>
@@ -798,7 +798,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div id="executionFeedback" class="mt-2 text-xs text-center hidden"></div>
       </div>
     </div>
-  </div>
+  </main>
 
   <!-- JAVASCRIPT ENGINE -->
   <script>
@@ -1120,7 +1120,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('advHeaderBox').className = "flex flex-wrap items-center justify-between pb-3 border-b border-[#00FF66]/30 gap-3";
       document.getElementById('advIconSign').className = "w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse";
       document.getElementById('advTitleMain').innerHTML = `🟢 QUANTUM SUPERIOR ADVISOR VOCALE (<span id="advSymbol">${symbol}</span>)`;
-      document.getElementById('advSubNotice').textContent = "1. Entra • 2. Rimani in Profit • 3. Esci al $ TP Certo";
+      document.getElementById('advSubNotice').textContent = "1. Entra • 2. Rimani a Mercato • 3. Esci al $ TP Certo";
 
       document.getElementById('kpiAutoSlotStatus').textContent = "🔒 Posizione Quantistica Attiva";
       document.getElementById('advSymbol').textContent = symbol;
@@ -1231,17 +1231,28 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         document.getElementById('advHeaderBox').className = "flex flex-wrap items-center justify-between pb-3 border-b border-[#00FF66]/30 gap-3";
         document.getElementById('advIconSign').className = "w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse";
         document.getElementById('advTitleMain').innerHTML = `🟢 QUANTUM SUPERIOR ADVISOR VOCALE (<span id="advSymbol">${pos.symbol}</span>)`;
-        document.getElementById('advSubNotice').textContent = "1. Entra • 2. Rimani in Profit • 3. Esci al $ TP Certo";
+        document.getElementById('advSubNotice').textContent = "1. Entra • 2. Rimani a Mercato • 3. Esci al $ TP Certo";
 
-        advAdvice.textContent = "2. 📊 RIMANI A MERCATO (IN PROFITTO)";
-        advAdvice.className = "text-[#00FF66] text-xs block font-bold";
-        advAlert.textContent = `Avanzamento regolare verso il $ TP: $${formatPrice(pos.tpPrice)}`;
+        # COERENZA REALE CON IL PNL: Se pnl < 0 mostra che siamo in attesa/ritracciamento, altrimenti in profitto
+        if (pnlPct >= 0) {
+          advAdvice.textContent = "2. 📊 RIMANI A MERCATO (IN PROFITTO)";
+          advAdvice.className = "text-[#00FF66] text-xs block font-bold";
+          advAlert.textContent = `Avanzamento regolare verso il $ TP: $${formatPrice(pos.tpPrice)}`;
+        } else {
+          advAdvice.textContent = "2. ⏳ RIMANI A MERCATO (FASE DI RITRACCIAMENTO)";
+          advAdvice.className = "text-yellow-400 text-xs block font-bold";
+          advAlert.textContent = `Il prezzo sta fluttuando prima della spinta verso il TP: $${formatPrice(pos.tpPrice)}`;
+        }
 
         const now = Date.now();
         if (now - state.lastVoiceAnnounceTimestamp >= 15000) {
           state.lastVoiceAnnounceTimestamp = now;
           const voiceTimeLeft = formatVoiceDuration(exactRemainingSec);
-          speakText(`Secondo. Rimani a mercato. Posizione in profitto. Mancano ${distTpPct.toFixed(2)} percento, ovvero circa ${voiceTimeLeft} al Take Profit.`);
+          if (pnlPct >= 0) {
+            speakText(`Secondo. Rimani a mercato. Posizione in profitto. Mancano circa ${voiceTimeLeft} al Take Profit.`);
+          } else {
+            speakText(`Secondo. Rimani a mercato. Posizione in fase di normale fluttuazione. Mancano circa ${voiceTimeLeft} al Take Profit.`);
+          }
         }
 
         if (lastLoopAdviceState !== "RIMANI") {
@@ -1441,7 +1452,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
     async function openModal(symbol) {
       if (state.activePosition) {
-        alert("⚠️ C'è già 1 posizione attiva protetta monitorata (Gestisci le fasi 1. Entra • 2. Rimani • 3. Esci).");
+        alert("⚠️ C'è già 1 posizione attiva protetta monitorata (Gestisci le fasi 1. Entra • 2. Rimani a Mercato • 3. Esci).");
         return;
       }
 
