@@ -32,7 +32,7 @@ def _genera_firma(payload: dict, secret_key: str) -> str:
 
 
 # ==========================================
-# MOTORE MT4 & SINGOLO TP SINCRONIZZATO
+# MOTORE MT4 & SINGOLO TP SINCRONIZZATO (MIN 2$)
 # ==========================================
 def _calcola_ema_serie(valori: list, periodo: int) -> float:
     if not valori:
@@ -163,7 +163,7 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type):
     min_sl_dist = price * 0.015
     max_sl_dist = price * 0.035
     dist_sl = min(max(atr_breve * 1.8, min_sl_dist), max_sl_dist)
-    dist_tp = dist_sl * 2.0  # Singolo Take Profit ottimizzato
+    dist_tp = dist_sl * 2.0
 
     sl = round(price - (k * dist_sl), dec)
     tp = round(price + (k * dist_tp), dec)
@@ -172,7 +172,7 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type):
 
     return {
         "symbol": simbolo, "marketType": market_type, "price": round(price, dec), "side": side,
-        "sentiment": f"MT4 Single TP {market_type} 🚀",
+        "sentiment": f"MT4 Min 2$ {market_type} 🚀",
         "confluenza": f"Singolo TP Sincronizzato & SL MT4 🛡️",
         "exactTf": exact_tf, "precisionScore": 99.9,
         "ema9": round(base["ema9"], dec), "ema21": round(base["ema21"], dec),
@@ -274,7 +274,7 @@ def esegui_ordine_con_singolotp_su_bingx(simbolo: str, lato: str, quantita_total
     if not active_api or not active_secret:
         return {"code": -1, "msg": "API Key o Secret Key BingX mancanti."}
 
-    # 🛡️ Controllo taglia minima BingX
+    # 🛡️ Controllo taglia minima BingX per evitare "Insufficient margin"
     min_qty = 0.001 if "BTC" in simbolo or "ETH" in simbolo else 0.01
     if quantita_totale < min_qty:
         quantita_totale = min_qty
@@ -319,7 +319,6 @@ def esegui_ordine_con_singolotp_su_bingx(simbolo: str, lato: str, quantita_total
         if res_main.get("code") != 0:
             return res_main
 
-        # Invio unico ordine TP limit reduceOnly
         lato_chiusura = "SELL" if lato == "BUY" else "BUY"
         tp_payload = {
             "symbol": simbolo,
@@ -336,7 +335,7 @@ def esegui_ordine_con_singolotp_su_bingx(simbolo: str, lato: str, quantita_total
         res_tp = _invia_richiesta_ordine(endpoint, tp_payload, active_api, active_secret)
         risultati.append(res_tp)
 
-        return {"code": 0, "msg": "Ordine eseguito e Singolo TP sincronizzato con successo su BingX!", "details": risultati}
+        return {"code": 0, "msg": "Ordine eseguito e TP sincronizzato con successo su BingX!", "details": risultati}
     except Exception as e:
         return {"code": -1, "msg": str(e)}
 
@@ -474,7 +473,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex items-center gap-2 text-[11px] font-mono text-[#848e9c] mt-0.5">
             <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
-            <span class="text-[#00FF66]" id="headerSubMarketInfo">Singolo TP Sincronizzato • Min 2$ • Advisor Vocale MT4</span>
+            <span class="text-[#00FF66]" id="headerSubMarketInfo">Margine Min 2$ • Singolo TP Sincronizzato • Advisor Vocale</span>
           </div>
         </div>
       </div>
@@ -566,11 +565,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="flex items-center gap-2.5">
           <div class="w-8 h-8 rounded bg-[#1e222d] text-[#00FF66] flex items-center justify-center font-extrabold text-sm">⭐</div>
           <div>
-            <h2 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Segnale Master MT4 (Singolo TP)</h2>
+            <h2 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Segnale Master MT4 (Margine Min 2$)</h2>
             <p class="text-[10px] text-[#848e9c]">Setup con TP e SL millimetricamente allineati alla direzione di mercato</p>
           </div>
         </div>
-        <span class="px-2 py-0.5 rounded text-[10px] font-mono font-extrabold bg-[#00FF66] text-black">SYNC OK</span>
+        <span class="px-2 py-0.5 rounded text-[10px] font-mono font-extrabold bg-[#00FF66] text-black">MIN 2$ OK</span>
       </div>
       <div id="prioritySignalCardContent"></div>
     </section>
@@ -628,7 +627,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <div class="px-4 py-3 mt4-header flex items-center justify-between">
         <div>
           <h2 id="modalSymbol" class="text-sm font-bold font-mono text-white">BTC-USDT</h2>
-          <p class="text-[10px] text-[#848e9c]">Order Ticket MT4 Style — Singolo TP Sincronizzato</p>
+          <p class="text-[10px] text-[#848e9c]">Order Ticket MT4 Style — Min 2$ Margine BingX</p>
         </div>
         <button onclick="closeModal()" class="text-[#848e9c] hover:text-white">&#10005;</button>
       </div>
@@ -645,13 +644,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         <div class="bg-[#0b0e14] border border-[#2a2e39] rounded p-3 space-y-2">
           <div class="flex justify-between items-center">
-            <label class="text-[#848e9c]">Capitale / Margine (USDT):</label>
-            <span id="marginUsdtLabel" class="text-xs font-bold text-[#00FF66]">10 USDT</span>
+            <label class="text-[#848e9c]">Capitale / Margine (USDT - Min 2$):</label>
+            <span id="marginUsdtLabel" class="text-xs font-bold text-[#00FF66]">2 USDT</span>
           </div>
           <div class="grid grid-cols-6 gap-1">
-            <button onclick="setMarginUsdt(2)" id="marBtn2" class="py-1 rounded bg-[#1e222d] text-white font-bold">2$</button>
+            <button onclick="setMarginUsdt(2)" id="marBtn2" class="py-1 rounded bg-[#00FF66]/20 border border-[#00FF66] text-[#00FF66] font-bold">2$</button>
             <button onclick="setMarginUsdt(5)" id="marBtn5" class="py-1 rounded bg-[#1e222d] text-white font-bold">5$</button>
-            <button onclick="setMarginUsdt(10)" id="marBtn10" class="py-1 rounded bg-[#00FF66]/20 border border-[#00FF66] text-[#00FF66] font-bold">10$</button>
+            <button onclick="setMarginUsdt(10)" id="marBtn10" class="py-1 rounded bg-[#1e222d] text-white font-bold">10$</button>
             <button onclick="setMarginUsdt(25)" id="marBtn25" class="py-1 rounded bg-[#1e222d] text-white font-bold">25$</button>
             <button onclick="setMarginUsdt(50)" id="marBtn50" class="py-1 rounded bg-[#1e222d] text-white font-bold">50$</button>
             <button onclick="setMarginUsdt(100)" id="marBtn100" class="py-1 rounded bg-[#1e222d] text-white font-bold">100$</button>
@@ -670,11 +669,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         <div>
           <label class="text-[#848e9c] block mb-1">Quantità Calcolata:</label>
-          <input type="number" id="tradeQuantityInput" value="1.0" step="any" class="w-full bg-[#0b0e14] border border-[#2a2e39] rounded px-3 py-2 text-white font-mono font-bold outline-none focus:border-[#00FF66]" />
+          <input type="number" id="tradeQuantityInput" value="0.001" step="any" class="w-full bg-[#0b0e14] border border-[#2a2e39] rounded px-3 py-2 text-white font-mono font-bold outline-none focus:border-[#00FF66]" />
         </div>
 
         <button onclick="eseguiOrdineSuBingX()" class="bingx-btn w-full py-2.5 rounded text-xs shadow">
-          🚀 Invia Ordine a Mercato con Singolo TP su BingX
+          🚀 Invia Ordine a Mercato con Min 2$ su BingX
         </button>
       </div>
     </div>
@@ -690,7 +689,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       currentCategoryTab: 'ALL',
       searchQuery: '',
       selectedLeverage: 10,
-      selectedMarginUsdt: 10,
+      selectedMarginUsdt: 2, // Default a 2$ come richiesto
       currentSelectedAsset: null,
       activePosition: null,
       advisorInterval: null,
@@ -803,6 +802,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       if (prezzo <= 0) return;
       const lev = state.marketType === 'SPOT' ? 1 : state.selectedLeverage;
       
+      // Margine minimo bloccato a 2 USDT
       if (state.selectedMarginUsdt < 2) state.selectedMarginUsdt = 2;
 
       const valoreNominale = state.selectedMarginUsdt * lev;
@@ -865,7 +865,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('advSideBadge').textContent = side;
       document.getElementById('advTp').textContent = `$${formatPrice(tpPrice)}`;
 
-      playChime(false, `Posizione aperta su ${symbol} con singolo Take Profit sincronizzato. Monitoraggio MT4 attivo.`);
+      playChime(false, `Posizione aperta su ${symbol} con margine minimo di due dollari. Monitoraggio MT4 attivo.`);
       
       aggiornaAdvisorLoop();
       state.advisorInterval = setInterval(aggiornaAdvisorLoop, 1000);
@@ -908,7 +908,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const reachedSl = (pos.side === 'BUY' && currentPrice <= pos.slPrice) || (pos.side === 'SELL' && currentPrice >= pos.slPrice);
 
       if (reachedTp) {
-        playChime(true, "Take profit raggiunto! Ottimo lavoro.");
+        playChime(true, "Take profit raggiunto!");
       } else if (reachedSl) {
         playChime(true, "Stop loss raggiunto.");
       }
@@ -1078,7 +1078,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     async function eseguiOrdineSuBingX() {
       if (!state.currentSelectedAsset) return;
       const asset = state.currentSelectedAsset;
-      const qty = parseFloat(document.getElementById('tradeQuantityInput').value) || 1.0;
+      const qty = parseFloat(document.getElementById('tradeQuantityInput').value) || 0.001;
       const keys = getStoredApiKeys();
 
       const res = await fetch('/api/esegui-segnale', {
