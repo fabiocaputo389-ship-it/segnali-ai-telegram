@@ -189,7 +189,7 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type):
     spinta_candela_reale = abs(ultima_candela["close"] - ultima_candela["open"])
     velocita_reale = max(spinta_candela_reale, atr_breve * 0.1) / candle_sec
     
-    tempo_esatto_sec = int(max(15, min(14400, round(dist_tp2 / max(velocita_reale, price * 0.000005)))))
+    tempo_esatto_sec = int(max(30, min(14400, round(dist_tp2 / max(velocita_reale, price * 0.000001)))))
     timestamp_ultima_candela = int(ultima_candela["time"])
 
     score_precisione = 99.8 if base["trend"] != "NEUTRO" else 95.0
@@ -298,7 +298,6 @@ def esegui_ordine_con_3tp_su_bingx(simbolo: str, lato: str, quantita_totale: flo
     if not active_api or not active_secret:
         return {"code": -1, "msg": "API Key o Secret Key BingX mancanti."}
 
-    # Suddivisione della quantità sui 3 TP (es. 40% su TP1, 40% su TP2, 20% su TP3)
     q1 = round(quantita_totale * 0.40, 4)
     q2 = round(quantita_totale * 0.40, 4)
     q3 = round(quantita_totale - q1 - q2, 4)
@@ -307,7 +306,6 @@ def esegui_ordine_con_3tp_su_bingx(simbolo: str, lato: str, quantita_totale: flo
 
     risultati = []
 
-    # 1. Invio dell'Ordine Principale di Mercato (Apertura)
     if market_type == "STANDARD_FUTURES":
         endpoint = "/openApi/futures/v1/trade/order"
         payload_ordine = {
@@ -346,7 +344,6 @@ def esegui_ordine_con_3tp_su_bingx(simbolo: str, lato: str, quantita_totale: flo
         if res_main.get("code") != 0:
             return res_main
 
-        # 2. Invio automatico dei Take Profit multipli (TP1, TP2, TP3) come ordini limite di chiusura (REDUCE_ONLY)
         lato_chiusura = "SELL" if lato == "BUY" else "BUY"
         tp_levels = [(tp1, q1), (tp2, q2), (tp3, q3)]
 
@@ -512,7 +509,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex items-center gap-2 text-[11px] font-mono text-white/70 mt-0.5">
             <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
-            <span class="text-[#00FF66]" id="headerSubMarketInfo">Invio Automatico 3 TP su BingX • 1. Entra • 2. Rimani • 3. TP Esci</span>
+            <span class="text-[#00FF66]" id="headerSubMarketInfo">Anti-NaN Fix • 1. Entra • 2. Rimani • 3. TP Esci</span>
           </div>
         </div>
       </div>
@@ -562,7 +559,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse" id="advIconSign">🔊</div>
           <div>
             <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white" id="advTitleMain">🟢 QUANTUM SUPERIOR ADVISOR VOCALE (<span id="advSymbol">BTC-USDT</span>)</h2>
-            <p class="text-[11px] text-[#00FF66]" id="advSubNotice">1. Entra • 2. Rimani • 3. TP Raggiunto / Esci</p>
+            <p class="text-[11px] text-[#00FF66]" id="advSubNotice">1. Entra • 2. Rimani • 3. TP Esci</p>
           </div>
         </div>
         <button onclick="chiudiPosizioneMonitorata()" class="px-3.5 py-1.5 rounded-xl bg-red-500/20 text-[#FF334B] border border-red-500/50 hover:bg-red-500/30 text-xs font-bold transition-all">
@@ -695,7 +692,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[800px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Invio automatico 3 TP attivo...</div>
+          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Motore anti-NaN attivo...</div>
         </div>
       </aside>
     </div>
@@ -911,7 +908,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     ];
 
     function formatExactDuration(totalSeconds) {
-      const sec = Math.max(1, Math.round(totalSeconds));
+      const sec = Math.max(1, Math.round(Number(totalSeconds) || 60));
       const h = Math.floor(sec / 3600);
       const m = Math.floor((sec % 3600) / 60);
       const s = sec % 60;
@@ -921,7 +918,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     }
 
     function formatVoiceDuration(totalSeconds) {
-      const sec = Math.max(1, Math.round(totalSeconds));
+      const sec = Math.max(1, Math.round(Number(totalSeconds) || 60));
       const h = Math.floor(sec / 3600);
       const m = Math.floor((sec % 3600) / 60);
       const s = sec % 60;
@@ -1108,7 +1105,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         const p = item.price;
         const distTp = Math.abs(cached.tp2 - p);
         const tpPct = (((distTp / p) * 100) * lev).toFixed(2);
-        return { symbol, price: p, side: cached.side, sl: cached.sl, tp1: cached.tp1, tp2: cached.tp2, tp3: cached.tp3, tp: cached.tp2, tpPct, confluenza: "3 TP Inviati su BingX 🎯", tempoSec: cached.tempoSec };
+        return { symbol, price: p, side: cached.side, sl: cached.sl, tp1: cached.tp1, tp2: cached.tp2, tp3: cached.tp3, tp: cached.tp2, tpPct, confluenza: "3 TP Inviati su BingX 🎯", tempoSec: cached.tempoSec || 300 };
       }
       const p = item.price;
       const dec = getPrecisionDecimals(p);
@@ -1121,7 +1118,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const tp2 = Number((side === 'BUY' ? p + distTp2 : p - distTp2).toFixed(dec));
       const tp3 = Number((side === 'BUY' ? p + distTp2 * 1.5 : p - distTp2 * 1.5).toFixed(dec));
       const tpPct = (((distTp2 / p) * 100) * lev).toFixed(2);
-      const tempoSec = Math.max(60, Math.round(900 / (0.1 + Math.abs(item.change24h) * 0.1)));
+      const tempoSec = 300;
       return { symbol, price: p, side, sl, tp1, tp2, tp3, tp: tp2, tpPct, confluenza: "3 TP Inviati su BingX 🎯", tempoSec };
     }
 
@@ -1166,7 +1163,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         tp2Price,
         tp3Price,
         slPrice,
-        initialBaseSec: tempoSec,
+        initialBaseSec: Number(tempoSec) || 300,
         openedAt: Date.now()
       };
       state.isCriticalState = false;
@@ -1187,8 +1184,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('advTp2').textContent = `$${formatPrice(tp2Price)}`;
       document.getElementById('advTp3').textContent = `$${formatPrice(tp3Price)}`;
 
-      const sideText = side === 'BUY' ? 'Long' : 'Short';
-      const voiceTimeStr = formatVoiceDuration(tempoSec);
+      const voiceTimeStr = formatVoiceDuration(tempoSec || 300);
       state.lastVoiceAnnounceTimestamp = Date.now();
       playChime(false, `Ordine eseguito su ${symbol} con tutti e tre i Take Profit registrati su BingX. Tempo stimato al target: ${voiceTimeStr}.`);
       
@@ -1241,7 +1237,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         dynamicRemSec = 1;
       } else {
         const remainingRatio = distRemaining / (totalDistance || 1);
-        dynamicRemSec = Math.max(2, Math.round(pos.initialBaseSec * remainingRatio));
+        dynamicRemSec = Math.max(2, Math.round((pos.initialBaseSec || 300) * remainingRatio));
       }
 
       document.getElementById('advExactTimeRemaining').textContent = `⏱️ Tempo Reale: ${formatExactDuration(dynamicRemSec)}`;
@@ -1545,11 +1541,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           tfEl.className = "px-2.5 py-0.5 rounded bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66] font-extrabold animate-pulse";
 
           document.getElementById('modalSentiment').textContent = d.sentiment;
-          document.getElementById('modalExactTime').textContent = `${formatExactDuration(d.tempoSec)} 🎯 (Invio 3 TP automatico)`;
+          document.getElementById('modalExactTime').textContent = `${formatExactDuration(d.tempoSec || 300)} 🎯 (Invio 3 TP automatico)`;
 
           const uc = d.ultimaCandela;
           const spintaCandela = uc.close - uc.open;
-          const spintaPct = ((spintaCandela / uc.open) * 100).toFixed(3);
+          const spintaPct = ((spintaCandela / (uc.open || 1)) * 100).toFixed(3);
           
           document.getElementById('modalCandleVisualizer').innerHTML = `
             <span>O: $${formatPrice(uc.open)} → C: $${formatPrice(uc.close)}</span>
