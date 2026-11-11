@@ -32,7 +32,7 @@ def _genera_firma(payload: dict, secret_key: str) -> str:
 
 
 # ==========================================
-# MOTORE QUANTISTICO MILLIMETRICO & CANDLE-SYNC
+# MOTORE QUANTISTICO DINAMICO & AUTO-ADATTIVO
 # ==========================================
 def _calcola_ema_serie(valori: list, periodo: int) -> float:
     if not valori:
@@ -113,15 +113,26 @@ def analizza_tf(simbolo, market_type, interval, limit=100):
         rsi = _calcola_rsi_wilder(closes, 14)
         atr = _calcola_atr_reale(highs, lows, closes, 14)
 
-        # Logica di confluenza rigorosa al millimetro per azzerare le perdite
-        bull = ema9 > ema21 and ema21 >= ema50 * 0.998 and rsi >= 48 and closes[-1] >= ema9 * 0.997
-        bear = ema9 < ema21 and ema21 <= ema50 * 1.002 and rsi <= 52 and closes[-1] <= ema9 * 1.003
+        # 🚀 CALCOLO AUTOMATICO E DINAMICO DELLE SOGLIE RSI IN BASE ALLA VOLATILITÀ (ATR)
+        volatilita_pct = (atr / closes[-1]) * 100 if closes[-1] > 0 else 0.5
+        # Se la volatilità sale, irrigidisce la soglia per evitare falsi segnali; se è stabile, la ottimizza
+        soglia_long_dinamica = round(54.0 + min(3.5, max(0.5, volatilita_pct * 0.4)), 1)
+        soglia_short_dinamica = round(46.0 - min(3.5, max(0.5, volatilita_pct * 0.4)), 1)
+
+        if market_type == "SPOT":
+            bull = ema9 > ema21 and rsi >= soglia_long_dinamica
+            bear = False
+        else:
+            bull = ema9 > ema21 and ema21 >= ema50 * 0.998 and rsi >= soglia_long_dinamica and closes[-1] >= ema9 * 0.997
+            bear = ema9 < ema21 and ema21 <= ema50 * 1.002 and rsi <= soglia_short_dinamica and closes[-1] <= ema9 * 1.003
 
         trend = "BUY" if bull else ("SELL" if bear else "NEUTRO")
         return {
             "interval": interval,
             "trend": trend,
             "ema9": ema9, "ema21": ema21, "ema50": ema50, "rsi14": round(rsi, 2), "atr14": atr,
+            "sogliaLong": soglia_long_dinamica,
+            "sogliaShort": soglia_short_dinamica,
             "last": candles[-1],
             "candles": candles[-14:],
         }
@@ -149,10 +160,10 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type):
         exact_tf = "1h"
 
     side = tfs[exact_tf]["trend"]
-    if side == "NEUTRO":
-        side = tfs["1h"]["trend"] if tfs["1h"]["trend"] != "NEUTRO" else "BUY"
     if fetch_type == "SPOT":
         side = "BUY"
+    elif side == "NEUTRO":
+        side = tfs["1h"]["trend"] if tfs["1h"]["trend"] != "NEUTRO" else "BUY"
 
     base = tfs[exact_tf]
     price = tfs["5m"]["last"]["close"]
@@ -160,11 +171,10 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type):
     dec = 2 if price >= 1000 else 3 if price >= 10 else 4 if price >= 1 else 5 if price >= 0.01 else 7
     k = 1 if side == "BUY" else -1
 
-    # Calcolo millimetrico di Stop Loss e Take Profit basato sulla volatilità reale (ATR)
     min_sl_dist = price * 0.006
     max_sl_dist = price * 0.014
     dist_sl = min(max(atr_breve * 0.95, min_sl_dist), max_sl_dist)
-    dist_tp = dist_sl * 2.4  # Rapporto R:R superiore a 1:2.4 per massimizzare il guadagno
+    dist_tp = dist_sl * 2.4
 
     sl = round(price - k * dist_sl, dec)
     tp = round(price + k * dist_tp, dec)
@@ -184,8 +194,8 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type):
 
     return {
         "symbol": simbolo, "marketType": market_type, "price": round(price, dec), "side": side,
-        "sentiment": "Quantum Bullish 🚀 (Long Chirurgico ad alta confluenza)" if side == "BUY" else "Quantum Bearish 📉 (Short Chirurgico ad alta confluenza)",
-        "confluenza": "Candle-Sync Avanzato: Confluenza Multi-TF & ATR Protetto 🎯",
+        "sentiment": f"Quantum {market_type} 🚀 (RSI Dinamico Long>={base.get('sogliaLong', 55)})" if side == "BUY" else f"Quantum {market_type} 📉 (RSI Dinamico Short<={base.get('sogliaShort', 45)})",
+        "confluenza": f"Soglie RSI Auto-Adattive in base alla volatilità ATR 🎯",
         "exactTf": exact_tf, "precisionScore": score_precisione,
         "ema9": round(base["ema9"], dec), "ema21": round(base["ema21"], dec),
         "rsi14": base["rsi14"], "atr14": round(atr_breve, dec), "sl": sl, "tp": tp,
@@ -467,7 +477,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex items-center gap-2 text-[11px] font-mono text-white/70 mt-0.5">
             <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
-            <span class="text-[#00FF66]">Candle-Sync Millimetrico • 1. Entra • 2. Rimani a Mercato • 3. TP Raggiunto / Esci</span>
+            <span class="text-[#00FF66]" id="headerSubMarketInfo">Soglie RSI Auto-Adattive • 1. Entra • 2. Rimani • 3. TP Esci</span>
           </div>
         </div>
       </div>
@@ -577,7 +587,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
         <span class="text-[11px] font-semibold uppercase text-white/75">Motore Sincronizzato</span>
         <div class="mt-2">
-          <span id="kpiMarketBadge" class="text-xs font-mono text-[#00FF66] font-bold">🟢 SCANNER MILLIMETRICO ATTIVO</span>
+          <span id="kpiMarketBadge" class="text-xs font-mono text-[#00FF66] font-bold">🟢 RSI DINAMICO ATTIVO</span>
         </div>
       </div>
     </section>
@@ -622,7 +632,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="flex items-center justify-between border-b border-white/15 pb-3">
           <h2 class="text-sm font-bold text-white flex items-center gap-3">
             <span class="w-8 h-8 rounded-full bg-[#00FF66]/20 border border-[#00FF66] flex items-center justify-center text-[#00FF66] text-base font-extrabold dollar-animated-logo">$</span>
-            <span>📊 Lista Operativa (Cripto Ordine Alta Capitalizzazione: <span id="tableMarketLabel" class="text-[#00FF66]">BTC, ETH, SOL...</span>)</span>
+            <span>📊 Lista Operativa (<span id="tableMarketLabel" class="text-[#00FF66]">FUTURES</span> - Auto-Adattiva)</span>
           </h2>
           <span class="text-xs font-mono text-[#00FF66]">Sincronizzato sul flusso candela per candela</span>
         </div>
@@ -636,7 +646,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[800px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Sincronizzazione candela per candela attiva...</div>
+          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Soglie RSI Dinamiche attive...</div>
         </div>
       </aside>
     </div>
@@ -701,7 +711,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
               <span id="modalEmaSignal" class="text-[10px] block mt-0.5">--</span>
             </div>
             <div class="bg-white/5 p-2 rounded-lg">
-              <span class="text-[10px] text-white/60 block">📊 RSI (14) Wilder</span>
+              <span class="text-[10px] text-white/60 block">📊 RSI (14) Dinamico</span>
               <strong id="modalRsi" class="text-white text-xs">--</strong>
               <span id="modalRsiZone" class="text-[10px] block mt-0.5">--</span>
             </div>
@@ -1011,11 +1021,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const prezzo = d.price;
       if (prezzo <= 0) return;
 
-      const valoreNominale = state.selectedMarginUsdt * state.selectedLeverage;
+      const lev = state.marketType === 'SPOT' ? 1 : state.selectedLeverage;
+      const valoreNominale = state.selectedMarginUsdt * lev;
       const quantita = Number((valoreNominale / prezzo).toFixed(d.decimals >= 4 ? 2 : 4));
 
       document.getElementById('tradeQuantityInput').value = quantita;
-      document.getElementById('marginUsdtLabel').textContent = `${state.selectedMarginUsdt} USDT (Posizione da ${valoreNominale} $ con ${state.selectedLeverage}x)`;
+      document.getElementById('marginUsdtLabel').textContent = `${state.selectedMarginUsdt} USDT (Posizione da ${valoreNominale} $ con ${lev}x)`;
     }
 
     function setMarginUsdt(usdt) {
@@ -1045,18 +1056,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       if (state.currentSelectedAsset) {
         const q = parseFloat(val) || 0;
         const valNom = q * state.currentSelectedAsset.price;
-        const marEst = valNom / state.selectedLeverage;
+        const lev = state.marketType === 'SPOT' ? 1 : state.selectedLeverage;
+        const marEst = valNom / lev;
         document.getElementById('marginUsdtLabel').textContent = `Margine st.: ~${marEst.toFixed(2)} USDT`;
       }
     }
 
     function calcolaDatiLocaliUnificati(symbol, item) {
       const cached = state.detailedAssets[symbol];
+      const lev = state.marketType === 'SPOT' ? 1 : state.selectedLeverage;
       if (cached) {
         const p = item.price;
         const distTp = Math.abs(cached.tp - p);
-        const tpPct = (((distTp / p) * 100) * state.selectedLeverage).toFixed(2);
-        return { symbol, price: p, side: cached.side, sl: cached.sl, tp: cached.tp, tpPct, confluenza: "Candle-Sync Attivo 🎯", tempoSec: cached.tempoSec };
+        const tpPct = (((distTp / p) * 100) * lev).toFixed(2);
+        return { symbol, price: p, side: cached.side, sl: cached.sl, tp: cached.tp, tpPct, confluenza: "RSI Dinamico & Candela-Sync 🎯", tempoSec: cached.tempoSec };
       }
       const p = item.price;
       const dec = getPrecisionDecimals(p);
@@ -1066,9 +1079,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const distTp = p * 0.024;
       const sl = Number((side === 'BUY' ? p - distSl : p + distSl).toFixed(dec));
       const tp = Number((side === 'BUY' ? p + distTp : p - distTp).toFixed(dec));
-      const tpPct = (((distTp / p) * 100) * state.selectedLeverage).toFixed(2);
+      const tpPct = (((distTp / p) * 100) * lev).toFixed(2);
       const tempoSec = Math.max(60, Math.round(900 / (0.1 + Math.abs(item.change24h) * 0.1)));
-      return { symbol, price: p, side, sl, tp, tpPct, confluenza: "Candle-Sync Attivo 🎯", tempoSec };
+      return { symbol, price: p, side, sl, tp, tpPct, confluenza: "RSI Dinamico & Candela-Sync 🎯", tempoSec };
     }
 
     function renderTfPanel(tfs, exactTf) {
@@ -1095,7 +1108,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <b style="color:${col}">${t.trend}</b>
           </div>
           <svg viewBox="0 0 100 32" class="w-full h-8">${bars}</svg>
-          <div class="text-[9px] text-white/60">RSI ${t.rsi14} • ${t.ema9 >= t.ema21 ? 'EMA↑' : 'EMA↓'}</div>
+          <div class="text-[9px] text-white/60">RSI ${t.rsi14} (Soglia din: ${t.sogliaLong || 55})</div>
           <div class="text-[9px] text-[#00FF66]">● ora: ${formatPrice(t.last.close)}</div>
         </div>`;
       }).join('');
@@ -1105,8 +1118,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       if (state.advisorInterval) clearInterval(state.advisorInterval);
       const liveRemSec = getLiveRemainingSeconds(symbol, tempoSec);
       const totalDist = Math.abs(tpPrice - entryPrice);
+      const lev = state.marketType === 'SPOT' ? 1 : state.selectedLeverage;
       const initDistPct = ((totalDist / entryPrice) * 100).toFixed(2);
-      const initDistLevaPct = (((totalDist / entryPrice) * 100) * state.selectedLeverage).toFixed(2);
+      const initDistLevaPct = (((totalDist / entryPrice) * 100) * lev).toFixed(2);
 
       state.activePosition = {
         symbol,
@@ -1133,16 +1147,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('advEntryPrice').textContent = `$${formatPrice(entryPrice)}`;
       document.getElementById('advSideBadge').textContent = side;
       document.getElementById('advTargetTpDisplay').textContent = `$${formatPrice(tpPrice)}`;
-      document.getElementById('advDistTp').textContent = `Distanza TP: ${initDistPct}% (+${initDistLevaPct}% con ${state.selectedLeverage}x)`;
+      document.getElementById('advDistTp').textContent = `Distanza TP: ${initDistPct}% (+${initDistLevaPct}% con ${lev}x)`;
       document.getElementById('advExactTimeRemaining').textContent = `Tempo al TP: ${formatExactDuration(liveRemSec)}`;
 
       const sideText = side === 'BUY' ? 'Long' : 'Short';
       const voiceTimeStr = formatVoiceDuration(liveRemSec);
       state.lastVoiceAnnounceTimestamp = Date.now();
-      playChime(false, `Primo. Entra a mercato con ${state.selectedMarginUsdt} USDT di margine. Posizione ${sideText} su ${symbol}. Target Take Profit a ${formatPrice(tpPrice)}. Tempo previsto basato sul flusso candela: ${voiceTimeStr}.`);
+      playChime(false, `Primo. Entra a mercato su ${state.marketType} con ${state.selectedMarginUsdt} USDT di margine. Posizione ${sideText} su ${symbol}. Target Take Profit a ${formatPrice(tpPrice)}. Tempo previsto: ${voiceTimeStr}.`);
       aggiornaAdvisorLoop();
       state.advisorInterval = setInterval(aggiornaAdvisorLoop, 1000);
-      logFeed(`[QUANTUM ADVISOR] Aperto ${symbol} (${side}) con Margine ${state.selectedMarginUsdt} USDT (Leva ${state.selectedLeverage}x).`);
+      logFeed(`[QUANTUM ADVISOR] Aperto ${symbol} (${side}) su ${state.marketType} con Margine ${state.selectedMarginUsdt} USDT.`);
     }
 
     function chiudiPosizioneMonitorata() {
@@ -1164,8 +1178,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const currentPrice = liveItem.price;
       document.getElementById('advLivePrice').textContent = `$${formatPrice(currentPrice)}`;
 
+      const lev = state.marketType === 'SPOT' ? 1 : state.selectedLeverage;
       const rawDiff = pos.side === 'BUY' ? (currentPrice - pos.entryPrice) : (pos.entryPrice - currentPrice);
-      const pnlPct = ((rawDiff / pos.entryPrice) * 100) * state.selectedLeverage;
+      const pnlPct = ((rawDiff / pos.entryPrice) * 100) * lev;
 
       const pnlEl = document.getElementById('advPnlVal');
       pnlEl.textContent = `PnL: ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`;
@@ -1173,7 +1188,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
       const distTp = Math.max(0, pos.side === 'BUY' ? (pos.tpPrice - currentPrice) : (currentPrice - pos.tpPrice));
       const distTpPct = currentPrice > 0 ? ((distTp / currentPrice) * 100) : 0;
-      const distTpLevaPct = distTpPct * state.selectedLeverage;
+      const distTpLevaPct = distTpPct * lev;
 
       const elapsedSec = Math.max(1, (Date.now() - pos.openedAt) / 1000);
       const progressDone = pos.side === 'BUY' ? (currentPrice - pos.entryPrice) : (pos.entryPrice - currentPrice);
@@ -1189,7 +1204,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         isCritical = currentPrice > pos.entryPrice && (pos.slPrice - currentPrice) <= (pos.slPrice - pos.entryPrice) * 0.40;
       }
 
-      document.getElementById('advDistTp').textContent = `Distanza TP: ${distTpPct.toFixed(2)}% (+${distTpLevaPct.toFixed(2)}% con ${state.selectedLeverage}x)`;
+      document.getElementById('advDistTp').textContent = `Distanza TP: ${distTpPct.toFixed(2)}% (+${distTpLevaPct.toFixed(2)}% con ${lev}x)`;
       document.getElementById('advExactTimeRemaining').textContent = `Tempo al TP: ${formatExactDuration(exactRemainingSec)}`;
 
       const advAdvice = document.getElementById('advStatusAdvice');
@@ -1286,8 +1301,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
       if (state.currentSelectedAsset) {
         const d = state.currentSelectedAsset;
-        const tpPct = (((Math.abs(d.tp - d.price) / d.price) * 100) * state.selectedLeverage).toFixed(2);
-        document.getElementById('modalTpPct').textContent = `+${tpPct}% (con leva ${state.selectedLeverage}x)`;
+        const actualLev = state.marketType === 'SPOT' ? 1 : state.selectedLeverage;
+        const tpPct = (((Math.abs(d.tp - d.price) / d.price) * 100) * actualLev).toFixed(2);
+        document.getElementById('modalTpPct').textContent = `+${tpPct}% (con leva ${actualLev}x)`;
         aggiornaQuantitaDaCapitale();
       }
       renderDashboard();
@@ -1308,17 +1324,23 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           state.timerAnchors = {};
           updateMarketTypeUI();
           await pollMarketData();
-          logFeed(`[MERCATO] Passato a ${mtype}`);
+          logFeed(`[MERCATO] Passato automaticamente a ${mtype}`);
         }
       } catch (e) {}
     }
 
     function updateMarketTypeUI() {
+      const isSpot = state.marketType === 'SPOT';
       document.getElementById('btnMarketFutures').className = state.marketType === 'FUTURES' ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-[#0066FF] text-white" : "px-2.5 py-1 rounded-lg text-xs font-bold text-white/50 hover:text-white";
       document.getElementById('btnMarketStandard').className = state.marketType === 'STANDARD_FUTURES' ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500 text-black shadow-lg" : "px-2.5 py-1 rounded-lg text-xs font-bold text-white/50 hover:text-white";
-      document.getElementById('btnMarketSpot').className = state.marketType === 'SPOT' ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-[#00FF66] text-black shadow-lg" : "px-2.5 py-1 rounded-lg text-xs font-bold text-white/50 hover:text-white";
-      document.getElementById('kpiMarketBadge').textContent = `🟢 SCANNER MILLIMETRICO ATTIVO`;
+      document.getElementById('btnMarketSpot').className = isSpot ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-[#00FF66] text-black shadow-lg" : "px-2.5 py-1 rounded-lg text-xs font-bold text-white/50 hover:text-white";
+      
+      document.getElementById('kpiMarketBadge').textContent = isSpot ? "🟢 RSI SPOT DINAMICO" : "🟢 RSI FUTURES DINAMICO";
       document.getElementById('tableMarketLabel').textContent = state.marketType;
+      document.getElementById('headerSubMarketInfo').textContent = isSpot ? "Spot Dinamico (Solo Long 🪙) • 1. Entra • 2. Rimani • 3. TP Esci" : "Futures Dinamico (Long & Short ⚡) • 1. Entra • 2. Rimani • 3. TP Esci";
+      
+      const levSec = document.getElementById('leverageSectionWrapper');
+      if (levSec) levSec.style.display = isSpot ? 'none' : 'block';
     }
 
     async function switchMode(mode) {
@@ -1392,17 +1414,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       }
 
       const masterAsset = sorted[0];
+      const lev = state.marketType === 'SPOT' ? 1 : state.selectedLeverage;
       if (masterAsset) {
         const local = calcolaDatiLocaliUnificati(masterAsset.symbol, masterAsset);
         const liveRemMaster = getLiveRemainingSeconds(masterAsset.symbol, local.tempoSec);
-        document.getElementById('masterPrecisionBadge').textContent = `CANDLE-SYNC ⚡`;
+        document.getElementById('masterPrecisionBadge').textContent = `${state.marketType} SYNC ⚡`;
         document.getElementById('prioritySignalCardContent').innerHTML = `
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs font-mono">
             <div class="space-y-2">
               <strong class="text-white text-sm">${masterAsset.symbol} - MASTER QUANTUM ${state.marketType}</strong>
               <div class="flex justify-between"><span class="text-white/70">Prezzo Live:</span><strong class="text-[#00FF66] text-sm">$${formatPrice(masterAsset.price)}</strong></div>
               <div class="flex justify-between"><span class="text-white/70">Direzione Quantistica:</span><strong class="${local.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]'} font-bold">${local.side === 'BUY' ? 'LONG CHIRURGICO 🚀' : 'SHORT CHIRURGICO 📉'}</strong></div>
-              <div class="flex justify-between"><span class="text-white/70">$ TP Calibrato (+% Leva ${state.selectedLeverage}x):</span><strong class="text-yellow-400 font-extrabold">$${formatPrice(local.tp)} (+${local.tpPct}%)</strong></div>
+              <div class="flex justify-between"><span class="text-white/70">$ TP Calibrato (+% ${state.marketType === 'SPOT' ? 'Spot' : 'Leva ' + lev + 'x'}):</span><strong class="text-yellow-400 font-extrabold">$${formatPrice(local.tp)} (+${local.tpPct}%)</strong></div>
               <div class="flex justify-between"><span class="text-white/70">⏱️ Tempo al $ TP (Candle-Sync):</span><strong class="text-cyan-300 font-bold tabular-nums" data-countdown-sym="${masterAsset.symbol}" data-base-sec="${local.tempoSec}">${formatExactDuration(liveRemMaster)}</strong></div>
             </div>
             <div class="flex flex-col justify-end">
@@ -1437,7 +1460,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
               <div class="bg-white/5 p-2 rounded-lg">
                 <span class="text-white/60 text-[10px] block">🎯 TARGET $ TP CALIBRATO</span>
                 <strong class="text-[#00FF66]">$${formatPrice(local.tp)}</strong>
-                <span class="text-yellow-400 text-[10px] block">+${local.tpPct}% (con ${state.selectedLeverage}x)</span>
+                <span class="text-yellow-400 text-[10px] block">+${local.tpPct}% (${state.marketType === 'SPOT' ? 'Spot' : lev + 'x'})</span>
               </div>
               <div class="bg-white/5 p-2 rounded-lg">
                 <span class="text-white/60 text-[10px] block">⏱️ TEMPO AL $ TP (CANDLE)</span>
@@ -1508,7 +1531,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           document.getElementById('modalEmaSignal').className = "text-[10px] block mt-0.5 text-[#00FF66]";
 
           document.getElementById('modalRsi').textContent = `RSI: ${d.rsi14}`;
-          document.getElementById('modalRsiZone').textContent = "Ottimale 🎯";
+          document.getElementById('modalRsiZone').textContent = "Ottimale Dinamico 🎯";
 
           document.getElementById('modalLivePrice').textContent = `$${formatPrice(d.price)}`;
 
@@ -1518,8 +1541,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
           document.getElementById('modalSL').textContent = `$${formatPrice(d.sl)}`;
           document.getElementById('modalTrendingTP').textContent = `$${formatPrice(d.tp)}`;
-          const tpPct = (((Math.abs(d.tp - d.price) / d.price) * 100) * state.selectedLeverage).toFixed(2);
-          document.getElementById('modalTpPct').textContent = `+${tpPct}% (con leva ${state.selectedLeverage}x)`;
+          const lev = state.marketType === 'SPOT' ? 1 : state.selectedLeverage;
+          const tpPct = (((Math.abs(d.tp - d.price) / d.price) * 100) * lev).toFixed(2);
+          document.getElementById('modalTpPct').textContent = `+${tpPct}% (${state.marketType === 'SPOT' ? 'Spot' : 'con leva ' + lev + 'x'})`;
 
           document.getElementById('tableParamEntry').textContent = formatPrice(d.price);
           document.getElementById('tableParamTp').textContent = formatPrice(d.tp);
@@ -1556,7 +1580,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           symbol: asset.symbol, action: asset.side, size: qty, entry: asset.price,
-          tp: asset.tp, sl: asset.sl, leverage: state.selectedLeverage, timeframe: asset.timeframe,
+          tp: asset.tp, sl: asset.sl, leverage: state.marketType === 'SPOT' ? 1 : state.selectedLeverage, timeframe: asset.timeframe,
           marketType: state.marketType, apiKey: keys.apiKey, secretKey: keys.secretKey
         })
       });
@@ -1579,6 +1603,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
     window.addEventListener('DOMContentLoaded', async () => {
       updateApiStatusUI();
+      updateMarketTypeUI();
       await pollMarketData();
       setInterval(pollMarketData, 2000);
       setInterval(() => {
