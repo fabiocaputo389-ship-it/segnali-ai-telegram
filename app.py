@@ -819,7 +819,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       isCriticalState: false
     };
 
-    // Ordine di priorità per Capitalizzazione di Mercato
     const TOP_MARKET_CAP_ORDER = [
       'BTC-USDT', 'ETH-USDT', 'SOL-USDT', 'XRP-USDT', 'BNB-USDT', 'DOGE-USDT', 'ADA-USDT',
       'AVAX-USDT', 'SHIB-USDT', 'DOT-USDT', 'LINK-USDT', 'SUI-USDT', 'NEAR-USDT', 'LTC-USDT',
@@ -1337,7 +1336,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const keys = Object.keys(state.marketData);
       if (keys.length === 0) return;
       
-      // Ordinamento Ticker per Capitalizzazione
       let sortedKeys = keys.sort((a, b) => {
         let idxA = TOP_MARKET_CAP_ORDER.indexOf(a);
         let idxB = TOP_MARKET_CAP_ORDER.indexOf(b);
@@ -1362,7 +1360,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const keys = Object.keys(state.marketData);
       if (keys.length === 0) return;
 
-      // Ordinamento Principale Tabella: Prima le Cripto Top Cap (BTC, ETH, SOL, XRP...), poi per Volume di Mercato
       let sorted = keys.map(sym => ({ symbol: sym, ...state.marketData[sym] })).sort((a, b) => {
         let idxA = TOP_MARKET_CAP_ORDER.indexOf(a.symbol);
         let idxB = TOP_MARKET_CAP_ORDER.indexOf(b.symbol);
@@ -1372,7 +1369,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         return (b.volume || 0) - (a.volume || 0);
       });
 
-      // Top Mover per KPI
       let topMover = [...sorted].sort((a, b) => Math.abs(b.change24h) - Math.abs(a.change24h))[0];
       if (topMover) {
         document.getElementById('kpiTopMoverSymbol').textContent = topMover.symbol;
@@ -1577,3 +1573,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   </script>
 </body>
 </html>
+"""
+
+@app.route('/')
+def home():
+    return render_template_string(HTML_TEMPLATE)
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port)
