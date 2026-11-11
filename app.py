@@ -509,7 +509,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex items-center gap-2 text-[11px] font-mono text-white/70 mt-0.5">
             <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
-            <span class="text-[#00FF66]" id="headerSubMarketInfo">Anti-NaN Fix • 1. Entra • 2. Rimani • 3. TP Esci</span>
+            <span class="text-[#00FF66]" id="headerSubMarketInfo">Barra Attiva • 1. Entra • 2. Rimani • 3. TP Esci</span>
           </div>
         </div>
       </div>
@@ -558,8 +558,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="flex items-center gap-3">
           <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse" id="advIconSign">🔊</div>
           <div>
-            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white" id="advTitleMain">🟢 QUANTUM SUPERIOR ADVISOR VOCALE (<span id="advSymbol">BTC-USDT</span>)</h2>
-            <p class="text-[11px] text-[#00FF66]" id="advSubNotice">1. Entra • 2. Rimani • 3. TP Esci</p>
+            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white" id="advTitleMain">🟢 1. ENTRA &amp; 2. RIMANI A MERCATO (<span id="advSymbol">BTC-USDT</span>)</h2>
+            <p class="text-[11px] text-[#00FF66]" id="advSubNotice">Monitoraggio live attivo con 3 TP su BingX</p>
           </div>
         </div>
         <button onclick="chiudiPosizioneMonitorata()" class="px-3.5 py-1.5 rounded-xl bg-red-500/20 text-[#FF334B] border border-red-500/50 hover:bg-red-500/30 text-xs font-bold transition-all">
@@ -596,14 +596,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
       </div>
 
-      <!-- BARRA PROPORZIONALE CANDELA / AVANZAMENTO VERSO IL TP -->
+      <!-- BARRA PROPORZIONALE ATTIVA -->
       <div class="bg-black/70 border border-[#00FF66]/40 rounded-xl p-3 space-y-1.5">
         <div class="flex justify-between text-[11px] font-mono">
           <span class="text-white/80">🕯️ Avanzamento Reale Verso i TP:</span>
           <strong id="advProgressPctText" class="text-[#00FF66]">0.0%</strong>
         </div>
         <div class="w-full bg-white/10 rounded-full h-3 overflow-hidden p-0.5 border border-white/10">
-          <div id="advProgressBar" class="bg-gradient-to-r from-[#00CC52] to-[#00FF66] h-full rounded-full transition-all duration-500" style="width: 0%;"></div>
+          <div id="advProgressBar" class="bg-gradient-to-r from-[#00CC52] to-[#00FF66] h-full rounded-full transition-all duration-300" style="width: 0%;"></div>
         </div>
       </div>
     </div>
@@ -633,7 +633,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
         <span class="text-[11px] font-semibold uppercase text-white/75">Motore Sincronizzato</span>
         <div class="mt-2">
-          <span id="kpiMarketBadge" class="text-xs font-mono text-[#00FF66] font-bold">🟢 INVIO AUTOMATICO 3 TP</span>
+          <span id="kpiMarketBadge" class="text-xs font-mono text-[#00FF66] font-bold">🟢 BARRA &amp; ADVISOR ATTIVI</span>
         </div>
       </div>
     </section>
@@ -692,7 +692,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[800px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Motore anti-NaN attivo...</div>
+          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Motore barra di avanzamento attivo...</div>
         </div>
       </aside>
     </div>
@@ -1173,8 +1173,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       box.className = "terminal-card rounded-2xl p-4 sm:p-5 border-2 border-[#00FF66] bg-gradient-to-r from-emerald-950/40 via-[#08080A] to-emerald-950/40 shadow-2xl space-y-4";
       document.getElementById('advHeaderBox').className = "flex flex-wrap items-center justify-between pb-3 border-b border-[#00FF66]/30 gap-3";
       document.getElementById('advIconSign').className = "w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse";
-      document.getElementById('advTitleMain').innerHTML = `🟢 QUANTUM SUPERIOR ADVISOR VOCALE (<span id="advSymbol">${symbol}</span>)`;
-      document.getElementById('advSubNotice').textContent = "1. Entra (3 TP inseriti su BingX) • 2. Rimani • 3. TP Esci";
+      document.getElementById('advTitleMain').innerHTML = `🟢 1. ENTRA &amp; 2. RIMANI A MERCATO (<span id="advSymbol">${symbol}</span>)`;
+      document.getElementById('advSubNotice').textContent = "Monitoraggio live attivo con 3 TP su BingX";
 
       document.getElementById('kpiAutoSlotStatus').textContent = "🔒 Posizione con 3 TP Attiva";
       document.getElementById('advSymbol').textContent = symbol;
@@ -1220,11 +1220,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       pnlEl.textContent = `PnL: ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`;
       pnlEl.className = `block mt-1 text-[10px] font-bold ${pnlPct >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
 
+      // 🎯 Barra di avanzamento reale millimetrica
       const totalDistance = Math.abs(pos.tp2 - pos.entryPrice);
-      const currentCovered = Math.abs(currentPrice - pos.entryPrice);
+      const currentCovered = pos.side === 'BUY' ? (currentPrice - pos.entryPrice) : (pos.entryPrice - currentPrice);
       let progressRatio = totalDistance > 0 ? (currentCovered / totalDistance) : 0;
-      if (pos.side === 'BUY' && currentPrice < pos.entryPrice) progressRatio = 0;
-      if (pos.side === 'SELL' && currentPrice > pos.entryPrice) progressRatio = 0;
       progressRatio = Math.min(1.0, Math.max(0.0, progressRatio));
 
       const progressPct = (progressRatio * 100).toFixed(1);
@@ -1259,7 +1258,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       }
 
       if (reachedTp3 || reachedTp2) {
-        advAdvice.textContent = "3. 🎯 TP RAGGIUNTO SU BINGX!";
+        advAdvice.textContent = "3. 🎯 TP RAGGIUNTO / ESCI";
         advAdvice.className = "text-[#00FF66] text-xs block font-extrabold animate-pulse";
         advAlert.textContent = "Take Profit eseguito automaticamente da BingX.";
         if (lastLoopAdviceState !== "TP_FINALE") {
@@ -1302,8 +1301,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         box.className = "terminal-card rounded-2xl p-4 sm:p-5 border-2 border-[#00FF66] bg-gradient-to-r from-emerald-950/40 via-[#08080A] to-emerald-950/40 shadow-2xl space-y-4";
         document.getElementById('advHeaderBox').className = "flex flex-wrap items-center justify-between pb-3 border-b border-[#00FF66]/30 gap-3";
         document.getElementById('advIconSign').className = "w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse";
-        document.getElementById('advTitleMain').innerHTML = `🟢 QUANTUM SUPERIOR ADVISOR VOCALE (<span id="advSymbol">${pos.symbol}</span>)`;
-        document.getElementById('advSubNotice').textContent = "1. Entra • 2. Rimani • 3. TP Esci";
+        document.getElementById('advTitleMain').innerHTML = `🟢 1. ENTRA &amp; 2. RIMANI A MERCATO (<span id="advSymbol">${pos.symbol}</span>)`;
+        document.getElementById('advSubNotice').textContent = "Monitoraggio live attivo con 3 TP su BingX";
 
         if (pnlPct >= 0) {
           advAdvice.textContent = "2. 📊 RIMANI A MERCATO (IN PROFITTO)";
