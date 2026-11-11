@@ -461,7 +461,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex items-center gap-2 text-[11px] font-mono text-white/70 mt-0.5">
             <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
-            <span class="text-[#00FF66]">Candle-Sync Attivo • 1. Entra • 2. Rimani in Mercato • 3. Esci al $ TP</span>
+            <span class="text-[#00FF66]">Candle-Sync Attivo • 1. Entra • 2. Rimani a Mercato • 3. TP Raggiunto / Esci</span>
           </div>
         </div>
       </div>
@@ -511,7 +511,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse" id="advIconSign">🔊</div>
           <div>
             <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white" id="advTitleMain">🟢 QUANTUM SUPERIOR ADVISOR VOCALE (<span id="advSymbol">BTC-USDT</span>)</h2>
-            <p class="text-[11px] text-[#00FF66]" id="advSubNotice">1. Entra • 2. Rimani a Mercato • 3. Esci al $ TP Certo</p>
+            <p class="text-[11px] text-[#00FF66]" id="advSubNotice">1. Entra • 2. Rimani a Mercato • 3. TP Raggiunto / Esci</p>
           </div>
         </div>
         <button onclick="chiudiPosizioneMonitorata()" class="px-3.5 py-1.5 rounded-xl bg-red-500/20 text-[#FF334B] border border-red-500/50 hover:bg-red-500/30 text-xs font-bold transition-all">
@@ -538,7 +538,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
         <div class="bg-black/50 p-3 rounded-xl border border-white/10 flex flex-col justify-between">
           <div>
-            <span class="text-white/60 text-[10px] block">3. 🔴 ESCI (VOCE IN TEMPO REALE)</span>
+            <span class="text-white/60 text-[10px] block">3. 🎯 TP RAGGIUNTO / ESCI</span>
             <strong id="advStatusAdvice" class="text-[#00FF66] text-xs block mt-0.5">In attesa del TP...</strong>
           </div>
           <span id="advActionAlert" class="text-[10px] text-white/80 italic mt-1">Guida dinamica al profitto attiva</span>
@@ -674,7 +674,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <h2 id="modalSymbol" class="text-base font-extrabold font-mono text-white">BTC-USDT</h2>
             <span id="modalOhlcvBadge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/40">SUPERIORE</span>
           </div>
-          <p id="modalSubtitleType" class="text-xs text-white/70">Advisor quantistico: 1. Entra • 2. Rimani a Mercato • 3. Esci al $ TP</p>
+          <p id="modalSubtitleType" class="text-xs text-white/70">Advisor quantistico: 1. Entra • 2. Rimani a Mercato • 3. TP Raggiunto / Esci</p>
         </div>
         <button onclick="closeModal()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
       </div>
@@ -1120,7 +1120,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('advHeaderBox').className = "flex flex-wrap items-center justify-between pb-3 border-b border-[#00FF66]/30 gap-3";
       document.getElementById('advIconSign').className = "w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse";
       document.getElementById('advTitleMain').innerHTML = `🟢 QUANTUM SUPERIOR ADVISOR VOCALE (<span id="advSymbol">${symbol}</span>)`;
-      document.getElementById('advSubNotice').textContent = "1. Entra • 2. Rimani a Mercato • 3. Esci al $ TP Certo";
+      document.getElementById('advSubNotice').textContent = "1. Entra • 2. Rimani a Mercato • 3. TP Raggiunto / Esci";
 
       document.getElementById('kpiAutoSlotStatus').textContent = "🔒 Posizione Quantistica Attiva";
       document.getElementById('advSymbol').textContent = symbol;
@@ -1145,7 +1145,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       state.isCriticalState = false;
       document.getElementById('activePositionAdvisorBox').classList.add('hidden');
       document.getElementById('kpiAutoSlotStatus').textContent = "🟢 Slot Libero (1 max)";
-      logFeed(`[QUANTUM ADVISOR] 3. Esci completato con successo. Slot liberato.`);
+      logFeed(`[QUANTUM ADVISOR] 3. TP Raggiunto / Esci completato. Slot liberato.`);
     }
 
     let lastLoopAdviceState = "";
@@ -1193,12 +1193,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       if ((pos.side === 'BUY' && currentPrice >= pos.tpPrice) || (pos.side === 'SELL' && currentPrice <= pos.tpPrice)) {
         document.getElementById('advDistTp').textContent = "Distanza TP: 0.00% (RAGGIUNTO!)";
         document.getElementById('advExactTimeRemaining').textContent = "Tempo al TP: 0s";
-        advAdvice.textContent = "3. 🎯 ESCI SUBITO (PROFITTO $ TP RAGGIUNTO!)";
+        advAdvice.textContent = "3. 🎯 TP RAGGIUNTO! ESCI DA MERCATO";
         advAdvice.className = "text-[#00FF66] text-xs block font-bold animate-pulse";
         advAlert.textContent = "Target Take Profit raggiunto con successo!";
         if (lastLoopAdviceState !== "TP") {
           lastLoopAdviceState = "TP";
-          playChime(true, "Terzo. Esci subito con profitto. Target Take Profit raggiunto perfettamente.");
+          playChime(true, "Terzo. Target Take profit raggiunto! Esci subito da mercato con profitto.");
         }
         chiudiPosizioneMonitorata();
       } else if ((pos.side === 'BUY' && currentPrice <= pos.slPrice) || (pos.side === 'SELL' && currentPrice >= pos.slPrice)) {
@@ -1207,33 +1207,32 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         advAlert.textContent = "Chiusura di salvaguardia attivata.";
         if (lastLoopAdviceState !== "SL") {
           lastLoopAdviceState = "SL";
-          playChime(true, "Terzo. Esci di protezione per salvaguardare il capitale.");
+          playChime(true, "Terzo. Stop loss toccato. Esci di protezione per salvaguardare il capitale.");
         }
         chiudiPosizioneMonitorata();
       } else if (isCritical) {
         box.className = "terminal-card rounded-2xl p-4 sm:p-5 critical-box-mode shadow-2xl space-y-4";
         document.getElementById('advHeaderBox').className = "flex flex-wrap items-center justify-between pb-3 border-b border-[#FF334B]/40 gap-3";
         document.getElementById('advIconSign').className = "w-9 h-9 rounded-xl bg-[#FF334B] text-white flex items-center justify-center font-extrabold animate-ping";
-        document.getElementById('advTitleMain').innerHTML = `🚨 LIVELLO CRITICO DI ALLERTA 😢 (<span id="advSymbol">${pos.symbol}</span>)`;
+        document.getElementById('advTitleMain').innerHTML = `🚨 SITUAZIONE CRITICA DI ALLERTA 😢 (<span id="advSymbol">${pos.symbol}</span>)`;
         document.getElementById('advSubNotice').textContent = "⚠️ ATTENZIONE: Il prezzo si sta muovendo contro la posizione!";
 
-        advAdvice.textContent = "⚠️ ATTENZIONE: LIVELLO CRITICO RAGGIUNTO!";
+        advAdvice.textContent = "⚠️ ATTENZIONE: SITUAZIONE CRITICA!";
         advAdvice.className = "text-[#FF334B] text-xs block font-extrabold animate-pulse";
         advAlert.textContent = "Prezzo in zona di pericolo vicina allo Stop Loss.";
 
         if (!state.isCriticalState || (Date.now() - state.lastVoiceAnnounceTimestamp >= 12000)) {
           state.isCriticalState = true;
           state.lastVoiceAnnounceTimestamp = Date.now();
-          playChime(true, "Attenzione, livello critico raggiunto. Il prezzo sta testando la soglia di protezione.");
+          playChime(true, "Attenzione! Situazione critica raggiunta. Il prezzo si avvicina allo stop loss.");
         }
       } else {
         box.className = "terminal-card rounded-2xl p-4 sm:p-5 border-2 border-[#00FF66] bg-gradient-to-r from-emerald-950/40 via-[#08080A] to-emerald-950/40 shadow-2xl space-y-4";
         document.getElementById('advHeaderBox').className = "flex flex-wrap items-center justify-between pb-3 border-b border-[#00FF66]/30 gap-3";
         document.getElementById('advIconSign').className = "w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse";
         document.getElementById('advTitleMain').innerHTML = `🟢 QUANTUM SUPERIOR ADVISOR VOCALE (<span id="advSymbol">${pos.symbol}</span>)`;
-        document.getElementById('advSubNotice').textContent = "1. Entra • 2. Rimani a Mercato • 3. Esci al $ TP Certo";
+        document.getElementById('advSubNotice').textContent = "1. Entra • 2. Rimani a Mercato • 3. TP Raggiunto / Esci";
 
-        # COERENZA REALE CON IL PNL: Se pnl < 0 mostra che siamo in attesa/ritracciamento, altrimenti in profitto
         if (pnlPct >= 0) {
           advAdvice.textContent = "2. 📊 RIMANI A MERCATO (IN PROFITTO)";
           advAdvice.className = "text-[#00FF66] text-xs block font-bold";
@@ -1251,7 +1250,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           if (pnlPct >= 0) {
             speakText(`Secondo. Rimani a mercato. Posizione in profitto. Mancano circa ${voiceTimeLeft} al Take Profit.`);
           } else {
-            speakText(`Secondo. Rimani a mercato. Posizione in fase di normale fluttuazione. Mancano circa ${voiceTimeLeft} al Take Profit.`);
+            speakText(`Secondo. Rimani a mercato. Posizione in fase di fluttuazione normale. Mancano circa ${voiceTimeLeft} al Take Profit.`);
           }
         }
 
@@ -1452,7 +1451,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
     async function openModal(symbol) {
       if (state.activePosition) {
-        alert("⚠️ C'è già 1 posizione attiva protetta monitorata (Gestisci le fasi 1. Entra • 2. Rimani a Mercato • 3. Esci).");
+        alert("⚠️ C'è già 1 posizione attiva protetta monitorata (Gestisci le fasi 1. Entra • 2. Rimani a Mercato • 3. TP Raggiunto / Esci).");
         return;
       }
 
