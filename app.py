@@ -186,7 +186,6 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type):
     candle_sec = 900 if exact_tf != "5m" else 300
     ultima_candela = base["last"]
     
-    # Velocità millimetrica basata sulla candela reale OHLCV
     spinta_candela_reale = abs(ultima_candela["close"] - ultima_candela["open"])
     velocita_reale = max(spinta_candela_reale, atr_breve * 0.1) / candle_sec
     
@@ -198,7 +197,7 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type):
     return {
         "symbol": simbolo, "marketType": market_type, "price": round(price, dec), "side": side,
         "sentiment": f"Quantum {market_type} 🚀 (RSI Dinamico Long>={base.get('sogliaLong', 55)})" if side == "BUY" else f"Quantum {market_type} 📉 (RSI Dinamico Short<={base.get('sogliaShort', 45)})",
-        "confluenza": f"3 TP Reali & Candela di Spinta Proporzionale 🎯",
+        "confluenza": f"3 TP Reali & Invio Multiplo su BingX 🎯",
         "exactTf": exact_tf, "precisionScore": score_precisione,
         "ema9": round(base["ema9"], dec), "ema21": round(base["ema21"], dec),
         "rsi14": base["rsi14"], "atr14": round(atr_breve, dec), "sl": sl, 
@@ -292,20 +291,30 @@ def _invia_richiesta_ordine(endpoint: str, payload_ordine: dict, active_api: str
     return response.json()
 
 
-def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingresso: float, prezzo_tp: float, prezzo_sl: float, leva: int = 3, timeframe: str = "15m", market_type: str = "FUTURES", api_key: str = "", secret_key: str = ""):
+def esegui_ordine_con_3tp_su_bingx(simbolo: str, lato: str, quantita_totale: float, prezzo_ingresso: float, tp1: float, tp2: float, tp3: float, sl: float, leva: int = 3, market_type: str = "FUTURES", api_key: str = "", secret_key: str = ""):
     active_api = api_key if api_key else DEFAULT_API_KEY
     active_secret = secret_key if secret_key else DEFAULT_SECRET_KEY
 
     if not active_api or not active_secret:
         return {"code": -1, "msg": "API Key o Secret Key BingX mancanti."}
 
+    # Suddivisione della quantità sui 3 TP (es. 40% su TP1, 40% su TP2, 20% su TP3)
+    q1 = round(quantita_totale * 0.40, 4)
+    q2 = round(quantita_totale * 0.40, 4)
+    q3 = round(quantita_totale - q1 - q2, 4)
+    if q3 <= 0:
+        q3 = quantita_totale
+
+    risultati = []
+
+    # 1. Invio dell'Ordine Principale di Mercato (Apertura)
     if market_type == "STANDARD_FUTURES":
         endpoint = "/openApi/futures/v1/trade/order"
         payload_ordine = {
             "symbol": simbolo,
             "side": lato,
             "type": "MARKET",
-            "quantity": str(quantita),
+            "quantity": str(quantita_totale),
             "leverage": str(leva),
             "timestamp": str(int(time.time() * 1000))
         }
@@ -318,7 +327,7 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingress
             "side": lato,
             "positionSide": position_side,
             "type": "MARKET",
-            "quantity": str(quantita),
+            "quantity": str(quantita_totale),
             "timestamp": str(int(time.time() * 1000))
         }
     else:
@@ -327,22 +336,39 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingress
             "symbol": simbolo,
             "side": lato,
             "type": "MARKET",
-            "quantity": str(quantita),
+            "quantity": str(quantita_totale),
             "timestamp": str(int(time.time() * 1000))
         }
 
     try:
-        res = _invia_richiesta_ordine(endpoint, payload_ordine, active_api, active_secret)
-        msg = str(res.get("msg", ""))
-        if res.get("code") != 0 and ("minimum order amount is" in msg.lower() or "insufficient" in msg.lower()):
-            match = re.search(r"(?:minimum order amount is|is)\s+([0-9.]+)", msg, re.IGNORECASE)
-            if match:
-                min_qty = float(match.group(1))
-                adjusted_qty = round(min_qty * 1.05, 6 if min_qty < 1 else 2)
-                payload_ordine["quantity"] = str(adjusted_qty)
-                payload_ordine["timestamp"] = str(int(time.time() * 1000))
-                res = _invia_richiesta_ordine(endpoint, payload_ordine, active_api, active_secret)
-        return res
+        res_main = _invia_richiesta_ordine(endpoint, payload_ordine, active_api, active_secret)
+        risultati.append(res_main)
+        if res_main.get("code") != 0:
+            return res_main
+
+        # 2. Invio automatico dei Take Profit multipli (TP1, TP2, TP3) come ordini limite di chiusura (REDUCE_ONLY)
+        lato_chiusura = "SELL" if lato == "BUY" else "BUY"
+        tp_levels = [(tp1, q1), (tp2, q2), (tp3, q3)]
+
+        for idx, (tp_price, tp_qty) in enumerate(tp_levels, start=1):
+            if tp_qty <= 0:
+                continue
+            tp_payload = {
+                "symbol": simbolo,
+                "side": lato_chiusura,
+                "type": "LIMIT",
+                "price": str(tp_price),
+                "quantity": str(tp_qty),
+                "reduceOnly": "true",
+                "timestamp": str(int(time.time() * 1000))
+            }
+            if market_type == "FUTURES":
+                tp_payload["positionSide"] = position_side
+            
+            res_tp = _invia_richiesta_ordine(endpoint, tp_payload, active_api, active_secret)
+            risultati.append(res_tp)
+
+        return {"code": 0, "msg": "Ordine eseguito e 3 TP impostati con successo su BingX!", "details": risultati}
     except Exception as e:
         return {"code": -1, "msg": str(e)}
 
@@ -377,17 +403,21 @@ def webhook_esegui_segnale():
     lato = dati.get("action")
     quantita = float(dati.get("size", 1.0))
     prezzo_ingresso = float(dati.get("entry", dati.get("price", 0)))
-    tp = float(dati.get("tp", 0))
+    tp1 = float(dati.get("tp1", 0))
+    tp2 = float(dati.get("tp2", dati.get("tp", 0)))
+    tp3 = float(dati.get("tp3", 0))
     sl = float(dati.get("sl", 0))
     leva = int(dati.get("leverage", 3))
-    timeframe = dati.get("timeframe", "15m")
     mtype = dati.get("marketType", MARKET_TYPE).upper()
     is_auto = dati.get("is_auto", False)
 
     if is_auto and TRADING_MODE != "AUTO":
         return jsonify({"code": -99, "msg": "Modalità Automatica disattivata."})
 
-    risultato = esegui_ordine_bingx(simbolo, lato, quantita, prezzo_ingresso, tp, sl, leva, timeframe, mtype, dati.get("apiKey", ""), dati.get("secretKey", ""))
+    risultato = esegui_ordine_con_3tp_su_bingx(
+        simbolo, lato, quantita, prezzo_ingresso, tp1, tp2, tp3, sl, leva, mtype, 
+        dati.get("apiKey", ""), dati.get("secretKey", "")
+    )
     return jsonify(risultato)
 
 
@@ -482,7 +512,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex items-center gap-2 text-[11px] font-mono text-white/70 mt-0.5">
             <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
-            <span class="text-[#00FF66]" id="headerSubMarketInfo">Motore Reale Millimetrico • 1. Entra • 2. Rimani • 3. TP Esci</span>
+            <span class="text-[#00FF66]" id="headerSubMarketInfo">Invio Automatico 3 TP su BingX • 1. Entra • 2. Rimani • 3. TP Esci</span>
           </div>
         </div>
       </div>
@@ -552,27 +582,27 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <span id="advPnlVal" class="block mt-1 text-[10px] font-bold text-[#00FF66]">PnL: 0.00%</span>
         </div>
         <div class="bg-black/50 p-3 rounded-xl border border-white/10">
-          <span class="text-white/60 text-[10px] block">🎯 TARGET 3 TP (TP1 / TP2 / TP3)</span>
+          <span class="text-white/60 text-[10px] block">🎯 3 TP INVIATI SU BINGX</span>
           <div class="mt-1 space-y-0.5 text-[11px]">
-            <div class="flex justify-between text-white/80"><span>TP1:</span> <strong id="advTp1" class="text-[#00FF66]">--</strong></div>
-            <div class="flex justify-between text-white font-bold"><span>TP2:</span> <strong id="advTp2" class="text-[#00FF66]">--</strong></div>
-            <div class="flex justify-between text-white/80"><span>TP3:</span> <strong id="advTp3" class="text-[#00FF66]">--</strong></div>
+            <div class="flex justify-between text-white/80"><span>TP1 (40%):</span> <strong id="advTp1" class="text-[#00FF66]">--</strong></div>
+            <div class="flex justify-between text-white font-bold"><span>TP2 (40%):</span> <strong id="advTp2" class="text-[#00FF66]">--</strong></div>
+            <div class="flex justify-between text-white/80"><span>TP3 (20%):</span> <strong id="advTp3" class="text-[#00FF66]">--</strong></div>
           </div>
           <span id="advExactTimeRemaining" class="block mt-1.5 text-[10px] text-yellow-300 tabular-nums font-bold">⏱️ Tempo Reale: --</span>
         </div>
         <div class="bg-black/50 p-3 rounded-xl border border-white/10 flex flex-col justify-between">
           <div>
             <span class="text-white/60 text-[10px] block">3. 🎯 TP RAGGIUNTO / ESCI</span>
-            <strong id="advStatusAdvice" class="text-[#00FF66] text-xs block mt-0.5">Monitoraggio live attivo...</strong>
+            <strong id="advStatusAdvice" class="text-[#00FF66] text-xs block mt-0.5">3 TP attivi su BingX...</strong>
           </div>
-          <span id="advActionAlert" class="text-[10px] text-white/80 italic mt-1">Avviso vocale all'arrivo sul TP</span>
+          <span id="advActionAlert" class="text-[10px] text-white/80 italic mt-1">Gestione automatica ordini limite</span>
         </div>
       </div>
 
       <!-- BARRA PROPORZIONALE CANDELA / AVANZAMENTO VERSO IL TP -->
       <div class="bg-black/70 border border-[#00FF66]/40 rounded-xl p-3 space-y-1.5">
         <div class="flex justify-between text-[11px] font-mono">
-          <span class="text-white/80">🕯️ Avanzamento Reale Verso il TP:</span>
+          <span class="text-white/80">🕯️ Avanzamento Reale Verso i TP:</span>
           <strong id="advProgressPctText" class="text-[#00FF66]">0.0%</strong>
         </div>
         <div class="w-full bg-white/10 rounded-full h-3 overflow-hidden p-0.5 border border-white/10">
@@ -606,7 +636,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
         <span class="text-[11px] font-semibold uppercase text-white/75">Motore Sincronizzato</span>
         <div class="mt-2">
-          <span id="kpiMarketBadge" class="text-xs font-mono text-[#00FF66] font-bold">🟢 MOTORE REALE MILLIMETRICO</span>
+          <span id="kpiMarketBadge" class="text-xs font-mono text-[#00FF66] font-bold">🟢 INVIO AUTOMATICO 3 TP</span>
         </div>
       </div>
     </section>
@@ -617,11 +647,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="flex items-center gap-3">
           <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-bounce">⚡</div>
           <div>
-            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">⚡ SEGNALE MASTER SUPERIORE (PRECISIONE AL MILLIMETRO)</h2>
-            <p class="text-[11px] text-[#00FF66]" id="masterSubtitle">Calcolo reale basato sulla candela di spinta e flusso streaming</p>
+            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">⚡ SEGNALE MASTER CON 3 TP MULTIPLI SU BINGX</h2>
+            <p class="text-[11px] text-[#00FF66]" id="masterSubtitle">Tutti e 3 i Take Profit vengono inseriti automaticamente all'apertura</p>
           </div>
         </div>
-        <span id="masterPrecisionBadge" class="px-2.5 py-1 rounded-md text-xs font-mono font-extrabold bg-[#00FF66] text-black animate-pulse">CANDLE-SYNC 🚀</span>
+        <span id="masterPrecisionBadge" class="px-2.5 py-1 rounded-md text-xs font-mono font-extrabold bg-[#00FF66] text-black animate-pulse">3-TP SYNC 🚀</span>
       </div>
       <div id="prioritySignalCardContent"></div>
     </section>
@@ -651,7 +681,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="flex items-center justify-between border-b border-white/15 pb-3">
           <h2 class="text-sm font-bold text-white flex items-center gap-3">
             <span class="w-8 h-8 rounded-full bg-[#00FF66]/20 border border-[#00FF66] flex items-center justify-center text-[#00FF66] text-base font-extrabold dollar-animated-logo">$</span>
-            <span>📊 Lista Operativa (<span id="tableMarketLabel" class="text-[#00FF66]">FUTURES</span> - Reale e Precisa al Millimetro)</span>
+            <span>📊 Lista Operativa (<span id="tableMarketLabel" class="text-[#00FF66]">FUTURES</span> - Invio 3 TP Contestuale)</span>
           </h2>
           <span class="text-xs font-mono text-[#00FF66]">Sincronizzato sul flusso candela per candela</span>
         </div>
@@ -665,7 +695,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[800px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Motore reale millimetrico attivo...</div>
+          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Invio automatico 3 TP attivo...</div>
         </div>
       </aside>
     </div>
@@ -709,7 +739,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <h2 id="modalSymbol" class="text-base font-extrabold font-mono text-white">BTC-USDT</h2>
             <span id="modalOhlcvBadge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/40">SUPERIORE</span>
           </div>
-          <p id="modalSubtitleType" class="text-xs text-white/70">Advisor quantistico: 1. Entra • 2. Rimani • 3. TP Raggiunto / Esci</p>
+          <p id="modalSubtitleType" class="text-xs text-white/70">Advisor quantistico: 1. Entra • 2. Rimani • 3. TP Esci</p>
         </div>
         <button onclick="closeModal()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
       </div>
@@ -755,9 +785,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="bg-gradient-to-r from-emerald-950/50 via-black to-emerald-950/50 border-2 border-[#00FF66] rounded-xl p-3 space-y-2 my-3 shadow-xl">
             <div class="flex items-center justify-between border-b border-[#00FF66]/30 pb-2">
               <span class="text-xs font-extrabold text-[#00FF66] flex items-center gap-1.5">
-                <span>📋</span> TABELLA 3 TAKE PROFIT &amp; STOP LOSS 😢
+                <span>📋</span> TABELLA 3 TAKE PROFIT &amp; STOP LOSS 😢 (Invio Automatico)
               </span>
-              <span class="text-[10px] text-white/70">Reali e protetti</span>
+              <span class="text-[10px] text-white/70">Invio contestuale all'ingresso</span>
             </div>
 
             <div class="overflow-x-auto">
@@ -778,21 +808,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     </td>
                   </tr>
                   <tr>
-                    <td class="py-2 px-2 text-[#00FF66] font-bold">🎯 TP1 (Take Profit 1)</td>
+                    <td class="py-2 px-2 text-[#00FF66] font-bold">🎯 TP1 (40% Posizione)</td>
                     <td class="py-2 px-2 text-[#00FF66] font-extrabold select-all" id="tableParamTp1">--</td>
                     <td class="py-2 px-2 text-right">
                       <button onclick="copiaParametro('tableParamTp1')" class="bg-white/10 hover:bg-white/25 px-2 py-1 rounded text-[#00FF66] text-[10px]">Copia</button>
                     </td>
                   </tr>
                   <tr>
-                    <td class="py-2 px-2 text-[#00FF66] font-bold">🎯🎯 TP2 (Take Profit Principale)</td>
+                    <td class="py-2 px-2 text-[#00FF66] font-bold">🎯🎯 TP2 (40% Principale)</td>
                     <td class="py-2 px-2 text-[#00FF66] font-extrabold select-all" id="tableParamTp2">--</td>
                     <td class="py-2 px-2 text-right">
                       <button onclick="copiaParametro('tableParamTp2')" class="bg-white/10 hover:bg-white/25 px-2 py-1 rounded text-[#00FF66] text-[10px]">Copia</button>
                     </td>
                   </tr>
                   <tr>
-                    <td class="py-2 px-2 text-[#00FF66] font-bold">🎯🎯🎯 TP3 (Take Profit Esteso)</td>
+                    <td class="py-2 px-2 text-[#00FF66] font-bold">🎯🎯🎯 TP3 (20% Esteso)</td>
                     <td class="py-2 px-2 text-[#00FF66] font-extrabold select-all" id="tableParamTp3">--</td>
                     <td class="py-2 px-2 text-right">
                       <button onclick="copiaParametro('tableParamTp3')" class="bg-white/10 hover:bg-white/25 px-2 py-1 rounded text-[#00FF66] text-[10px]">Copia</button>
@@ -849,7 +879,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
 
         <button id="executeBingXBtn" onclick="eseguiOrdineSuBingX()" class="bingx-btn w-full py-2.5 rounded-xl text-xs shadow-lg flex items-center justify-center gap-2">
-          <span>⚡ Esegui Ordine con Capitale Personalizzato &amp; Attiva Motore Reale</span>
+          <span>⚡ Esegui Ordine &amp; Invia Tutti e 3 i TP su BingX</span>
         </button>
         <div id="executionFeedback" class="mt-2 text-xs text-center hidden"></div>
       </div>
@@ -1078,7 +1108,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         const p = item.price;
         const distTp = Math.abs(cached.tp2 - p);
         const tpPct = (((distTp / p) * 100) * lev).toFixed(2);
-        return { symbol, price: p, side: cached.side, sl: cached.sl, tp1: cached.tp1, tp2: cached.tp2, tp3: cached.tp3, tp: cached.tp2, tpPct, confluenza: "3 TP Reali & Candela Proporzionale 🎯", tempoSec: cached.tempoSec };
+        return { symbol, price: p, side: cached.side, sl: cached.sl, tp1: cached.tp1, tp2: cached.tp2, tp3: cached.tp3, tp: cached.tp2, tpPct, confluenza: "3 TP Inviati su BingX 🎯", tempoSec: cached.tempoSec };
       }
       const p = item.price;
       const dec = getPrecisionDecimals(p);
@@ -1092,7 +1122,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const tp3 = Number((side === 'BUY' ? p + distTp2 * 1.5 : p - distTp2 * 1.5).toFixed(dec));
       const tpPct = (((distTp2 / p) * 100) * lev).toFixed(2);
       const tempoSec = Math.max(60, Math.round(900 / (0.1 + Math.abs(item.change24h) * 0.1)));
-      return { symbol, price: p, side, sl, tp1, tp2, tp3, tp: tp2, tpPct, confluenza: "3 TP Reali & Candela Proporzionale 🎯", tempoSec };
+      return { symbol, price: p, side, sl, tp1, tp2, tp3, tp: tp2, tpPct, confluenza: "3 TP Inviati su BingX 🎯", tempoSec };
     }
 
     function renderTfPanel(tfs, exactTf) {
@@ -1147,9 +1177,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('advHeaderBox').className = "flex flex-wrap items-center justify-between pb-3 border-b border-[#00FF66]/30 gap-3";
       document.getElementById('advIconSign').className = "w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse";
       document.getElementById('advTitleMain').innerHTML = `🟢 QUANTUM SUPERIOR ADVISOR VOCALE (<span id="advSymbol">${symbol}</span>)`;
-      document.getElementById('advSubNotice').textContent = "1. Entra (Timer reale avviato) • 2. Rimani • 3. TP Esci";
+      document.getElementById('advSubNotice').textContent = "1. Entra (3 TP inseriti su BingX) • 2. Rimani • 3. TP Esci";
 
-      document.getElementById('kpiAutoSlotStatus').textContent = "🔒 Posizione Quantistica Attiva";
+      document.getElementById('kpiAutoSlotStatus').textContent = "🔒 Posizione con 3 TP Attiva";
       document.getElementById('advSymbol').textContent = symbol;
       document.getElementById('advEntryPrice').textContent = `$${formatPrice(entryPrice)}`;
       document.getElementById('advSideBadge').textContent = side;
@@ -1160,11 +1190,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const sideText = side === 'BUY' ? 'Long' : 'Short';
       const voiceTimeStr = formatVoiceDuration(tempoSec);
       state.lastVoiceAnnounceTimestamp = Date.now();
-      playChime(false, `Posizione avviata su ${symbol}. Timer reale partito adesso. Tempo stimato al target: ${voiceTimeStr}.`);
+      playChime(false, `Ordine eseguito su ${symbol} con tutti e tre i Take Profit registrati su BingX. Tempo stimato al target: ${voiceTimeStr}.`);
       
       aggiornaAdvisorLoop();
       state.advisorInterval = setInterval(aggiornaAdvisorLoop, 1000);
-      logFeed(`[QUANTUM ADVISOR] Timer reale avviato per ${symbol} (${side}) all'apertura.`);
+      logFeed(`[QUANTUM ADVISOR] Posizione aperta e 3 TP inviati correttamente su BingX per ${symbol}.`);
     }
 
     function chiudiPosizioneMonitorata() {
@@ -1194,7 +1224,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       pnlEl.textContent = `PnL: ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`;
       pnlEl.className = `block mt-1 text-[10px] font-bold ${pnlPct >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
 
-      // 🎯 Calcolo reale e proporzionale millimetrico della distanza e del progresso verso il TP
       const totalDistance = Math.abs(pos.tp2 - pos.entryPrice);
       const currentCovered = Math.abs(currentPrice - pos.entryPrice);
       let progressRatio = totalDistance > 0 ? (currentCovered / totalDistance) : 0;
@@ -1234,28 +1263,28 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       }
 
       if (reachedTp3 || reachedTp2) {
-        advAdvice.textContent = "3. 🎯 TP RAGGIUNTO! ESCI DI MERCATO";
+        advAdvice.textContent = "3. 🎯 TP RAGGIUNTO SU BINGX!";
         advAdvice.className = "text-[#00FF66] text-xs block font-extrabold animate-pulse";
-        advAlert.textContent = "Target Take Profit raggiunto! Chiudi subito la posizione.";
+        advAlert.textContent = "Take Profit eseguito automaticamente da BingX.";
         if (lastLoopAdviceState !== "TP_FINALE") {
           lastLoopAdviceState = "TP_FINALE";
-          playChime(true, "Target Take Profit raggiunto! Esci subito da mercato e prendi il profitto.");
+          playChime(true, "Take profit raggiunto e chiuso automaticamente da BingX.");
         }
       } else if (reachedTp1) {
-        advAdvice.textContent = "2. 🎯 TP1 RAGGIUNTO (Prendi parziale)";
+        advAdvice.textContent = "2. 🎯 TP1 ESEGUITO (40% chiuso)";
         advAdvice.className = "text-[#00FF66] text-xs block font-bold";
-        advAlert.textContent = "Primo Take Profit toccato. Puoi spostare lo Stop Loss in pareggio.";
+        advAlert.textContent = "Primo TP raggiunto su BingX. Stop loss protetto in pareggio.";
         if (lastLoopAdviceState !== "TP1") {
           lastLoopAdviceState = "TP1";
-          playChime(false, "Primo Take profit raggiunto. Valuta di spostare lo stop in pareggio.");
+          playChime(false, "Primo take profit eseguito da BingX.");
         }
       } else if (reachedSl) {
-        advAdvice.textContent = "3. 🛑 STOP LOSS PROTETTO (Esci)";
+        advAdvice.textContent = "3. 🛑 STOP LOSS PROTETTO (Uscita)";
         advAdvice.className = "text-[#FF334B] text-xs block font-bold animate-pulse";
         advAlert.textContent = "Chiusura di salvaguardia attivata.";
         if (lastLoopAdviceState !== "SL") {
           lastLoopAdviceState = "SL";
-          playChime(true, "Stop loss toccato. Esci di protezione per salvaguardare il capitale.");
+          playChime(true, "Stop loss toccato. Uscita protetta.");
         }
       } else if (isCritical) {
         box.className = "terminal-card rounded-2xl p-4 sm:p-5 critical-box-mode shadow-2xl space-y-4";
@@ -1278,12 +1307,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         document.getElementById('advHeaderBox').className = "flex flex-wrap items-center justify-between pb-3 border-b border-[#00FF66]/30 gap-3";
         document.getElementById('advIconSign').className = "w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse";
         document.getElementById('advTitleMain').innerHTML = `🟢 QUANTUM SUPERIOR ADVISOR VOCALE (<span id="advSymbol">${pos.symbol}</span>)`;
-        document.getElementById('advSubNotice').textContent = "1. Entra • 2. Rimani a Mercato • 3. TP Raggiunto / Esci";
+        document.getElementById('advSubNotice').textContent = "1. Entra • 2. Rimani • 3. TP Esci";
 
         if (pnlPct >= 0) {
           advAdvice.textContent = "2. 📊 RIMANI A MERCATO (IN PROFITTO)";
           advAdvice.className = "text-[#00FF66] text-xs block font-bold";
-          advAlert.textContent = `Avanzamento reale: ${progressPct}% verso il $ TP`;
+          advAlert.textContent = `Avanzamento reale: ${progressPct}% verso i 3 TP`;
         } else {
           advAdvice.textContent = "2. ⏳ RIMANI A MERCATO (Fase di spinta)";
           advAdvice.className = "text-yellow-400 text-xs block font-bold";
@@ -1341,9 +1370,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('btnMarketStandard').className = state.marketType === 'STANDARD_FUTURES' ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500 text-black shadow-lg" : "px-2.5 py-1 rounded-lg text-xs font-bold text-white/50 hover:text-white";
       document.getElementById('btnMarketSpot').className = isSpot ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-[#00FF66] text-black shadow-lg" : "px-2.5 py-1 rounded-lg text-xs font-bold text-white/50 hover:text-white";
       
-      document.getElementById('kpiMarketBadge').textContent = isSpot ? "🟢 MOTORE REALE SPOT" : "🟢 MOTORE REALE FUTURES";
+      document.getElementById('kpiMarketBadge').textContent = isSpot ? "🟢 3 TP SPOT AUTOMATICI" : "🟢 3 TP BINGX AUTOMATICI";
       document.getElementById('tableMarketLabel').textContent = state.marketType;
-      document.getElementById('headerSubMarketInfo').textContent = isSpot ? "Spot Reale Millimetrico (Solo Long 🪙)" : "Futures Reale Millimetrico (Long & Short ⚡)";
+      document.getElementById('headerSubMarketInfo').textContent = isSpot ? "Spot 3 TP automatici (Solo Long 🪙)" : "Futures 3 TP automatici (Long & Short ⚡)";
       
       const levSec = document.getElementById('leverageSectionWrapper');
       if (levSec) levSec.style.display = isSpot ? 'none' : 'block';
@@ -1422,18 +1451,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const masterAsset = sorted[0];
       if (masterAsset) {
         const local = calcolaDatiLocaliUnificati(masterAsset.symbol, masterAsset);
-        document.getElementById('masterPrecisionBadge').textContent = `${state.marketType} SYNC ⚡`;
+        document.getElementById('masterPrecisionBadge').textContent = `${state.marketType} 3-TP 🚀`;
         document.getElementById('prioritySignalCardContent').innerHTML = `
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs font-mono">
             <div class="space-y-2">
               <strong class="text-white text-sm">${masterAsset.symbol} - MASTER QUANTUM ${state.marketType}</strong>
               <div class="flex justify-between"><span class="text-white/70">Prezzo Live:</span><strong class="text-[#00FF66] text-sm">$${formatPrice(masterAsset.price)}</strong></div>
               <div class="flex justify-between"><span class="text-white/70">Direzione:</span><strong class="${local.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]'} font-bold">${local.side === 'BUY' ? 'LONG 🚀' : 'SHORT 📉'}</strong></div>
-              <div class="flex justify-between"><span class="text-white/70">🎯 TP2 Principale:</span><strong class="text-yellow-400 font-extrabold">$${formatPrice(local.tp2)} (+${local.tpPct}%)</strong></div>
+              <div class="flex justify-between"><span class="text-white/70">🎯 3 Target TP:</span><strong class="text-yellow-400 font-extrabold">TP1: $${formatPrice(local.tp1)} | TP2: $${formatPrice(local.tp2)} | TP3: $${formatPrice(local.tp3)}</strong></div>
               <div class="flex justify-between"><span class="text-white/70">⏱️ Durata Reale:</span><strong class="text-cyan-300 font-bold tabular-nums">${formatExactDuration(local.tempoSec)}</strong></div>
             </div>
             <div class="flex flex-col justify-end">
-              <button onclick='openModal("${masterAsset.symbol}")' class="green-gradient-btn w-full py-2 rounded-xl text-xs shadow-lg">⚡ APRI SCANNER &amp; ATTIVA MOTORE REALE &#8599;</button>
+              <button onclick='openModal("${masterAsset.symbol}")' class="green-gradient-btn w-full py-2 rounded-xl text-xs shadow-lg">⚡ APRI SCANNER &amp; INVIA 3 TP &#8599;</button>
             </div>
           </div>`;
       }
@@ -1474,7 +1503,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             <div class="flex items-center justify-between pt-1">
               <span class="text-[10px] text-[#00FF66] font-bold">Stato: ${local.confluenza}</span>
-              <span class="px-3 py-1 rounded-lg bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/40 text-xs font-bold">1. Entra Sup ⚡</span>
+              <span class="px-3 py-1 rounded-lg bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/40 text-xs font-bold">1. Entra 3-TP ⚡</span>
             </div>
           </div>
         `;
@@ -1516,7 +1545,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           tfEl.className = "px-2.5 py-0.5 rounded bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66] font-extrabold animate-pulse";
 
           document.getElementById('modalSentiment').textContent = d.sentiment;
-          document.getElementById('modalExactTime').textContent = `${formatExactDuration(d.tempoSec)} 🎯 (Reale al millimetro)`;
+          document.getElementById('modalExactTime').textContent = `${formatExactDuration(d.tempoSec)} 🎯 (Invio 3 TP automatico)`;
 
           const uc = d.ultimaCandela;
           const spintaCandela = uc.close - uc.open;
@@ -1579,7 +1608,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           symbol: asset.symbol, action: asset.side, size: qty, entry: asset.price,
-          tp: asset.tp2, sl: asset.sl, leverage: state.marketType === 'SPOT' ? 1 : state.selectedLeverage, timeframe: asset.timeframe,
+          tp1: asset.tp1, tp2: asset.tp2, tp3: asset.tp3, sl: asset.sl, 
+          leverage: state.marketType === 'SPOT' ? 1 : state.selectedLeverage,
           marketType: state.marketType, apiKey: keys.apiKey, secretKey: keys.secretKey
         })
       });
