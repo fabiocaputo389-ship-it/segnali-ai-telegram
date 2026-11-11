@@ -563,7 +563,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
         <span class="text-[11px] font-semibold uppercase text-white/75">Gestione Capitale</span>
         <div class="mt-2">
-          <span id="kpiMarketBadge" class="text-xs font-mono text-[#00FF66] font-bold">🟢 MARGINE LIBERO REGOLABILE</span>
+          <span id="kpiMarketBadge" class="text-xs font-mono text-[#00FF66] font-bold">🟢 MARGINE LIBERO DA 2 USDT</span>
         </div>
       </div>
     </section>
@@ -575,7 +575,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-bounce">⚡</div>
           <div>
             <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">⚡ SEGNALE MASTER SUPERIORE (QUANTUM PROFIT TARGET)</h2>
-            <p class="text-[11px] text-[#00FF66]" id="masterSubtitle">Apri posizioni con il capitale desiderato per guadagni reali alti</p>
+            <p class="text-[11px] text-[#00FF66]" id="masterSubtitle">Apri posizioni con il capitale desiderato (da 2$ in su)</p>
           </div>
         </div>
         <span id="masterPrecisionBadge" class="px-2.5 py-1 rounded-md text-xs font-mono font-extrabold bg-[#00FF66] text-black animate-pulse">LIVELLO SUPERIORE 🚀</span>
@@ -609,7 +609,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <h2 class="text-sm font-bold text-white flex items-center gap-2">
             <span>📊</span> Lista Operativa Superiore (<span id="tableMarketLabel" class="text-[#00FF66]">FUTURES</span>)
           </h2>
-          <span class="text-xs font-mono text-[#00FF66]">Capitale libero e profitti scalabili</span>
+          <span class="text-xs font-mono text-[#00FF66]">Capitale flessibile e profitti scalabili</span>
         </div>
         <div id="tablesContainer" class="space-y-3"></div>
       </section>
@@ -752,10 +752,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <!-- SELETTORE CAPITALE / MARGINE LIBERO -->
         <div class="bg-[#000000] border border-[#00FF66]/40 rounded-xl p-4 space-y-3">
           <div class="flex justify-between items-center">
-            <label class="block text-xs font-bold text-white uppercase tracking-wider">💰 Capitale / Margine da Investire (USDT):</label>
+            <label class="block text-xs font-bold text-white uppercase tracking-wider">💰 CAPITALE / MARGINE DA INVESTIRE (USDT):</label>
             <span id="marginUsdtLabel" class="text-xs font-bold text-[#00FF66]">10 USDT</span>
           </div>
-          <div class="grid grid-cols-5 gap-2">
+          <div class="grid grid-cols-6 gap-1.5">
+            <button type="button" onclick="setMarginUsdt(2)" id="marBtn2" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold text-xs">2 $</button>
             <button type="button" onclick="setMarginUsdt(5)" id="marBtn5" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold text-xs">5 $</button>
             <button type="button" onclick="setMarginUsdt(10)" id="marBtn10" class="py-1.5 rounded-lg border border-[#00FF66] bg-[#00FF66]/20 text-[#00FF66] font-bold text-xs">10 $</button>
             <button type="button" onclick="setMarginUsdt(25)" id="marBtn25" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold text-xs">25 $</button>
@@ -801,7 +802,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       currentCategoryTab: 'ALL',
       searchQuery: '',
       selectedLeverage: 10,
-      selectedMarginUsdt: 10, // Capitale predefinito impostato a 10 USDT
+      selectedMarginUsdt: 10,
       currentSelectedAsset: null,
       activePosition: null,
       advisorInterval: null,
@@ -989,7 +990,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const prezzo = d.price;
       if (prezzo <= 0) return;
 
-      // Valore Nominale = Capitale Scelto * Leva
       const valoreNominale = state.selectedMarginUsdt * state.selectedLeverage;
       const quantita = Number((valoreNominale / prezzo).toFixed(d.decimals >= 4 ? 2 : 4));
 
@@ -1021,7 +1021,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     }
 
     function onQuantityManualChange(val) {
-      // Se l'utente modifica manualmente la quantità, ricalcoliamo il margine approssimativo
       if (state.currentSelectedAsset) {
         const q = parseFloat(val) || 0;
         const valNom = q * state.currentSelectedAsset.price;
@@ -1289,7 +1288,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('btnMarketFutures').className = state.marketType === 'FUTURES' ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-[#0066FF] text-white" : "px-2.5 py-1 rounded-lg text-xs font-bold text-white/50 hover:text-white";
       document.getElementById('btnMarketStandard').className = state.marketType === 'STANDARD_FUTURES' ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500 text-black shadow-lg" : "px-2.5 py-1 rounded-lg text-xs font-bold text-white/50 hover:text-white";
       document.getElementById('btnMarketSpot').className = state.marketType === 'SPOT' ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-[#00FF66] text-black shadow-lg" : "px-2.5 py-1 rounded-lg text-xs font-bold text-white/50 hover:text-white";
-      document.getElementById('kpiMarketBadge').textContent = `🟢 MARGINE LIBERO REGOLABILE`;
+      document.getElementById('kpiMarketBadge').textContent = `🟢 MARGINE LIBERO DA 2 USDT`;
       document.getElementById('tableMarketLabel').textContent = state.marketType;
     }
 
@@ -1470,7 +1469,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           document.getElementById('tableParamTp').textContent = formatPrice(d.tp);
           document.getElementById('tableParamSl').textContent = formatPrice(d.sl);
 
-          // Calcola la quantità iniziale in base ai 10 USDT predefiniti
           aggiornaQuantitaDaCapitale();
 
           renderTfPanel(d.tfs, d.exactTf);
