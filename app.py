@@ -32,7 +32,7 @@ def _genera_firma(payload: dict, secret_key: str) -> str:
 
 
 # ==========================================
-# MOTORE MT4 & GESTIONE MARGINE MINIMO BINGX
+# MOTORE MT4 & SINGOLO TP SINCRONIZZATO
 # ==========================================
 def _calcola_ema_serie(valori: list, periodo: int) -> float:
     if not valori:
@@ -163,26 +163,21 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type):
     min_sl_dist = price * 0.015
     max_sl_dist = price * 0.035
     dist_sl = min(max(atr_breve * 1.8, min_sl_dist), max_sl_dist)
-    
-    dist_tp1 = dist_sl * 1.2
-    dist_tp2 = dist_sl * 2.0
-    dist_tp3 = dist_sl * 3.2
+    dist_tp = dist_sl * 2.0  # Singolo Take Profit ottimizzato
 
     sl = round(price - (k * dist_sl), dec)
-    tp1 = round(price + (k * dist_tp1), dec)
-    tp2 = round(price + (k * dist_tp2), dec)
-    tp3 = round(price + (k * dist_tp3), dec)
+    tp = round(price + (k * dist_tp), dec)
 
     timestamp_ultima_candela = int(base["last"]["time"])
 
     return {
         "symbol": simbolo, "marketType": market_type, "price": round(price, dec), "side": side,
-        "sentiment": f"MT4 Synchronized {market_type} 🚀",
-        "confluenza": f"3 TP Sincronizzati & SL MT4 🛡️",
+        "sentiment": f"MT4 Single TP {market_type} 🚀",
+        "confluenza": f"Singolo TP Sincronizzato & SL MT4 🛡️",
         "exactTf": exact_tf, "precisionScore": 99.9,
         "ema9": round(base["ema9"], dec), "ema21": round(base["ema21"], dec),
         "rsi14": base["rsi14"], "atr14": round(atr_breve, dec), "sl": sl, 
-        "tp1": tp1, "tp2": tp2, "tp3": tp3, "tp": tp2,
+        "tp": tp,
         "decimals": dec, "candleTime": timestamp_ultima_candela, "tfs": tfs,
         "ultimaCandela": base["last"]
     }
@@ -272,23 +267,17 @@ def _invia_richiesta_ordine(endpoint: str, payload_ordine: dict, active_api: str
     return response.json()
 
 
-def esegui_ordine_con_3tp_su_bingx(simbolo: str, lato: str, quantita_totale: float, prezzo_ingresso: float, tp1: float, tp2: float, tp3: float, sl: float, leva: int = 3, market_type: str = "FUTURES", api_key: str = "", secret_key: str = ""):
+def esegui_ordine_con_singolotp_su_bingx(simbolo: str, lato: str, quantita_totale: float, prezzo_ingresso: float, tp: float, sl: float, leva: int = 3, market_type: str = "FUTURES", api_key: str = "", secret_key: str = ""):
     active_api = api_key if api_key else DEFAULT_API_KEY
     active_secret = secret_key if secret_key else DEFAULT_SECRET_KEY
 
     if not active_api or not active_secret:
         return {"code": -1, "msg": "API Key o Secret Key BingX mancanti."}
 
-    # 🛡️ Controllo e adeguamento taglia minima per evitare "Insufficient margin" o taglia troppo piccola
+    # 🛡️ Controllo taglia minima BingX
     min_qty = 0.001 if "BTC" in simbolo or "ETH" in simbolo else 0.01
     if quantita_totale < min_qty:
         quantita_totale = min_qty
-
-    q1 = round(quantita_totale * 0.40, 4)
-    q2 = round(quantita_totale * 0.40, 4)
-    q3 = round(quantita_totale - q1 - q2, 4)
-    if q3 <= 0:
-        q3 = quantita_totale
 
     risultati = []
 
@@ -330,28 +319,24 @@ def esegui_ordine_con_3tp_su_bingx(simbolo: str, lato: str, quantita_totale: flo
         if res_main.get("code") != 0:
             return res_main
 
+        # Invio unico ordine TP limit reduceOnly
         lato_chiusura = "SELL" if lato == "BUY" else "BUY"
-        tp_levels = [(tp1, q1), (tp2, q2), (tp3, q3)]
+        tp_payload = {
+            "symbol": simbolo,
+            "side": lato_chiusura,
+            "type": "LIMIT",
+            "price": str(tp),
+            "quantity": str(quantita_totale),
+            "reduceOnly": "true",
+            "timestamp": str(int(time.time() * 1000))
+        }
+        if market_type == "FUTURES":
+            tp_payload["positionSide"] = position_side
+        
+        res_tp = _invia_richiesta_ordine(endpoint, tp_payload, active_api, active_secret)
+        risultati.append(res_tp)
 
-        for idx, (tp_price, tp_qty) in enumerate(tp_levels, start=1):
-            if tp_qty <= 0:
-                continue
-            tp_payload = {
-                "symbol": simbolo,
-                "side": lato_chiusura,
-                "type": "LIMIT",
-                "price": str(tp_price),
-                "quantity": str(tp_qty),
-                "reduceOnly": "true",
-                "timestamp": str(int(time.time() * 1000))
-            }
-            if market_type == "FUTURES":
-                tp_payload["positionSide"] = position_side
-            
-            res_tp = _invia_richiesta_ordine(endpoint, tp_payload, active_api, active_secret)
-            risultati.append(res_tp)
-
-        return {"code": 0, "msg": "Ordine eseguito e 3 TP MT4 sincronizzati con successo su BingX!", "details": risultati}
+        return {"code": 0, "msg": "Ordine eseguito e Singolo TP sincronizzato con successo su BingX!", "details": risultati}
     except Exception as e:
         return {"code": -1, "msg": str(e)}
 
@@ -386,9 +371,7 @@ def webhook_esegui_segnale():
     lato = dati.get("action")
     quantita = float(dati.get("size", 1.0))
     prezzo_ingresso = float(dati.get("entry", dati.get("price", 0)))
-    tp1 = float(dati.get("tp1", 0))
-    tp2 = float(dati.get("tp2", dati.get("tp", 0)))
-    tp3 = float(dati.get("tp3", 0))
+    tp = float(dati.get("tp", 0))
     sl = float(dati.get("sl", 0))
     leva = int(dati.get("leverage", 3))
     mtype = dati.get("marketType", MARKET_TYPE).upper()
@@ -397,8 +380,8 @@ def webhook_esegui_segnale():
     if is_auto and TRADING_MODE != "AUTO":
         return jsonify({"code": -99, "msg": "Modalità Automatica disattivata."})
 
-    risultato = esegui_ordine_con_3tp_su_bingx(
-        simbolo, lato, quantita, prezzo_ingresso, tp1, tp2, tp3, sl, leva, mtype, 
+    risultato = esegui_ordine_con_singolotp_su_bingx(
+        simbolo, lato, quantita, prezzo_ingresso, tp, sl, leva, mtype, 
         dati.get("apiKey", ""), dati.get("secretKey", "")
     )
     return jsonify(risultato)
@@ -491,7 +474,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex items-center gap-2 text-[11px] font-mono text-[#848e9c] mt-0.5">
             <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
-            <span class="text-[#00FF66]" id="headerSubMarketInfo">Min 2$ / 5$ BingX • 3 TP attivi • Advisor Vocale MT4</span>
+            <span class="text-[#00FF66]" id="headerSubMarketInfo">Singolo TP Sincronizzato • Min 2$ • Advisor Vocale MT4</span>
           </div>
         </div>
       </div>
@@ -540,7 +523,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="w-7 h-7 rounded bg-[#1e222d] text-[#00FF66] flex items-center justify-center font-extrabold text-sm animate-pulse">🎙️</div>
           <div>
             <h2 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Terminal Advisor Vocale — <span id="advSymbol" class="text-[#00FF66]">BTC-USDT</span></h2>
-            <p class="text-[10px] text-[#848e9c]">Monitoraggio posizione in tempo reale (Stile MetaTrader)</p>
+            <p class="text-[10px] text-[#848e9c]">Monitoraggio posizione con Singolo TP (Stile MetaTrader)</p>
           </div>
         </div>
         <button onclick="chiudiPosizioneMonitorata()" class="px-2.5 py-1 rounded bg-[#ff334b]/20 text-[#ff334b] border border-[#ff334b]/40 hover:bg-[#ff334b]/30 text-[11px] font-bold transition-all">
@@ -548,7 +531,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </button>
       </div>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs font-mono">
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
         <div class="bg-[#1e222d] p-2.5 rounded border border-[#2a2e39]">
           <span class="text-[#848e9c] text-[10px] block">APERTURA (ENTRY)</span>
           <strong id="advEntryPrice" class="text-white text-sm">--</strong>
@@ -560,26 +543,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <span id="advPnlVal" class="block mt-1 text-[10px] font-bold text-[#00FF66]">Profit/Loss: +0.00%</span>
         </div>
         <div class="bg-[#1e222d] p-2.5 rounded border border-[#2a2e39]">
-          <span class="text-[#848e9c] text-[10px] block">TARGETS (3 TP SU BINGX)</span>
-          <div class="mt-1 space-y-0.5 text-[10px]">
-            <div class="flex justify-between text-[#848e9c]"><span>TP1:</span> <strong id="advTp1" class="text-[#00FF66]">--</strong></div>
-            <div class="flex justify-between text-white font-bold"><span>TP2:</span> <strong id="advTp2" class="text-[#00FF66]">--</strong></div>
-            <div class="flex justify-between text-[#848e9c]"><span>TP3:</span> <strong id="advTp3" class="text-[#00FF66]">--</strong></div>
-          </div>
-        </div>
-        <div class="bg-[#1e222d] p-2.5 rounded border border-[#2a2e39] flex flex-col justify-between">
-          <div>
-            <span class="text-[#848e9c] text-[10px] block">STATO ADVISOR</span>
-            <strong id="advStatusAdvice" class="text-[#00FF66] text-xs block mt-0.5">Posizione protetta attiva...</strong>
-          </div>
-          <span id="advActionAlert" class="text-[9px] text-[#848e9c] italic mt-1">Gestione ordini limite attiva</span>
+          <span class="text-[#848e9c] text-[10px] block">TARGET (TAKE PROFIT)</span>
+          <strong id="advTp" class="text-[#00FF66] text-sm block mt-1">--</strong>
         </div>
       </div>
 
       <!-- BARRA DI AVANZAMENTO PULITA -->
       <div class="bg-[#1e222d] border border-[#2a2e39] rounded p-2.5 space-y-1">
         <div class="flex justify-between text-[11px] font-mono">
-          <span class="text-[#848e9c]">Progresso Verso il Target Principale (TP2):</span>
+          <span class="text-[#848e9c]">Progresso Verso il Take Profit:</span>
           <strong id="advProgressPctText" class="text-[#00FF66]">0.0%</strong>
         </div>
         <div class="w-full bg-[#0b0e14] rounded-full h-2 overflow-hidden p-0.5 border border-[#2a2e39]">
@@ -594,8 +566,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="flex items-center gap-2.5">
           <div class="w-8 h-8 rounded bg-[#1e222d] text-[#00FF66] flex items-center justify-center font-extrabold text-sm">⭐</div>
           <div>
-            <h2 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Segnale Master MT4 Sincronizzato</h2>
-            <p class="text-[10px] text-[#848e9c]">Setup con TP/SL millimetricamente allineati alla direzione di mercato</p>
+            <h2 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-white">Segnale Master MT4 (Singolo TP)</h2>
+            <p class="text-[10px] text-[#848e9c]">Setup con TP e SL millimetricamente allineati alla direzione di mercato</p>
           </div>
         </div>
         <span class="px-2 py-0.5 rounded text-[10px] font-mono font-extrabold bg-[#00FF66] text-black">SYNC OK</span>
@@ -656,7 +628,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <div class="px-4 py-3 mt4-header flex items-center justify-between">
         <div>
           <h2 id="modalSymbol" class="text-sm font-bold font-mono text-white">BTC-USDT</h2>
-          <p class="text-[10px] text-[#848e9c]">Order Ticket MT4 Style — Min 2$ / 5$ BingX</p>
+          <p class="text-[10px] text-[#848e9c]">Order Ticket MT4 Style — Singolo TP Sincronizzato</p>
         </div>
         <button onclick="closeModal()" class="text-[#848e9c] hover:text-white">&#10005;</button>
       </div>
@@ -667,9 +639,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           
           <div class="grid grid-cols-2 gap-2 pt-2 border-t border-[#2a2e39] text-[11px]">
             <div><span class="text-[#848e9c] block">Stop Loss (SL):</span><strong id="tableParamSl" class="text-[#ff334b]">--</strong></div>
-            <div><span class="text-[#848e9c] block">Target Principale (TP2):</span><strong id="tableParamTp2" class="text-[#00FF66]">--</strong></div>
-            <div><span class="text-[#848e9c] block">TP1 (40%):</span><strong id="tableParamTp1" class="text-[#00FF66]">--</strong></div>
-            <div><span class="text-[#848e9c] block">TP3 (20%):</span><strong id="tableParamTp3" class="text-[#00FF66]">--</strong></div>
+            <div><span class="text-[#848e9c] block">Take Profit (TP):</span><strong id="tableParamTp" class="text-[#00FF66]">--</strong></div>
           </div>
         </div>
 
@@ -704,7 +674,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
 
         <button onclick="eseguiOrdineSuBingX()" class="bingx-btn w-full py-2.5 rounded text-xs shadow">
-          🚀 Invia Ordine a Mercato con 3 TP su BingX
+          🚀 Invia Ordine a Mercato con Singolo TP su BingX
         </button>
       </div>
     </div>
@@ -724,8 +694,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       currentSelectedAsset: null,
       activePosition: null,
       advisorInterval: null,
-      lastVoiceTimestamp: 0,
-      isCriticalState: false
+      lastVoiceTimestamp: 0
     };
 
     const TOP_MARKET_CAP_ORDER = [
@@ -834,13 +803,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       if (prezzo <= 0) return;
       const lev = state.marketType === 'SPOT' ? 1 : state.selectedLeverage;
       
-      // Assicura un margine minimo di almeno 2 USDT per evitare Insufficient Margin su BingX
       if (state.selectedMarginUsdt < 2) state.selectedMarginUsdt = 2;
 
       const valoreNominale = state.selectedMarginUsdt * lev;
       let quantita = Number((valoreNominale / prezzo).toFixed(d.decimals >= 4 ? 2 : 4));
       
-      // Controllo taglia minima BTC/ETH o altcoin
       const minQ = (d.symbol.includes('BTC') || d.symbol.includes('ETH')) ? 0.001 : 0.01;
       if (quantita < minQ) quantita = minQ;
 
@@ -871,7 +838,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     function calcolaDatiLocaliUnificati(symbol, item) {
       const cached = state.detailedAssets[symbol];
       if (cached) {
-        return { symbol, price: item.price, side: cached.side, sl: cached.sl, tp1: cached.tp1, tp2: cached.tp2, tp3: cached.tp3 };
+        return { symbol, price: item.price, side: cached.side, sl: cached.sl, tp: cached.tp };
       }
       const p = item.price;
       const dec = getPrecisionDecimals(p);
@@ -881,17 +848,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const distSl = p * 0.022;
       const distTp = p * 0.035;
       const sl = Number((p - (k * distSl)).toFixed(dec));
-      const tp1 = Number((p + (k * distTp * 0.5)).toFixed(dec));
-      const tp2 = Number((p + (k * distTp)).toFixed(dec));
-      const tp3 = Number((p + (k * distTp * 1.6)).toFixed(dec));
-      return { symbol, price: p, side, sl, tp1, tp2, tp3 };
+      const tp = Number((p + (k * distTp)).toFixed(dec));
+      return { symbol, price: p, side, sl, tp };
     }
 
-    function avviaAdvisorPosizione(symbol, side, entryPrice, tp2Price, slPrice, tp1Price, tp3Price) {
+    function avviaAdvisorPosizione(symbol, side, entryPrice, tpPrice, slPrice) {
       if (state.advisorInterval) clearInterval(state.advisorInterval);
       
-      state.activePosition = { symbol, side, entryPrice, tp1Price, tp2Price, tp3Price, slPrice };
-      state.isCriticalState = false;
+      state.activePosition = { symbol, side, entryPrice, tpPrice, slPrice };
 
       const box = document.getElementById('activePositionAdvisorBox');
       box.classList.remove('hidden');
@@ -899,11 +863,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('advSymbol').textContent = symbol;
       document.getElementById('advEntryPrice').textContent = `$${formatPrice(entryPrice)}`;
       document.getElementById('advSideBadge').textContent = side;
-      document.getElementById('advTp1').textContent = `$${formatPrice(tp1Price)}`;
-      document.getElementById('advTp2').textContent = `$${formatPrice(tp2Price)}`;
-      document.getElementById('advTp3').textContent = `$${formatPrice(tp3Price)}`;
+      document.getElementById('advTp').textContent = `$${formatPrice(tpPrice)}`;
 
-      playChime(false, `Posizione aperta su ${symbol} con tre Take Profit sincronizzati. Monitoraggio MT4 attivo.`);
+      playChime(false, `Posizione aperta su ${symbol} con singolo Take Profit sincronizzato. Monitoraggio MT4 attivo.`);
       
       aggiornaAdvisorLoop();
       state.advisorInterval = setInterval(aggiornaAdvisorLoop, 1000);
@@ -933,7 +895,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       pnlEl.textContent = `Profit/Loss: ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`;
       pnlEl.className = `block mt-1 text-[10px] font-bold ${pnlPct >= 0 ? 'text-[#00FF66]' : 'text-[#ff334b]'}`;
 
-      const totalDistance = Math.abs(pos.tp2 - pos.entryPrice);
+      const totalDistance = Math.abs(pos.tpPrice - pos.entryPrice);
       const currentCovered = pos.side === 'BUY' ? (currentPrice - pos.entryPrice) : (pos.entryPrice - currentPrice);
       let progressRatio = totalDistance > 0 ? (currentCovered / totalDistance) : 0;
       progressRatio = Math.min(1.0, Math.max(0.0, progressRatio));
@@ -942,19 +904,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('advProgressPctText').textContent = `${progressPct}%`;
       document.getElementById('advProgressBar').style.width = `${progressPct}%`;
 
-      const advAdvice = document.getElementById('advStatusAdvice');
-      const reachedTp2 = (pos.side === 'BUY' && currentPrice >= pos.tp2) || (pos.side === 'SELL' && currentPrice <= pos.tp2);
+      const reachedTp = (pos.side === 'BUY' && currentPrice >= pos.tpPrice) || (pos.side === 'SELL' && currentPrice <= pos.tpPrice);
       const reachedSl = (pos.side === 'BUY' && currentPrice <= pos.slPrice) || (pos.side === 'SELL' && currentPrice >= pos.slPrice);
 
-      if (reachedTp2) {
-        advAdvice.textContent = "🎯 TAKE PROFIT RAGGIUNTO";
-        advAdvice.className = "text-[#00FF66] text-xs block font-bold";
+      if (reachedTp) {
+        playChime(true, "Take profit raggiunto! Ottimo lavoro.");
       } else if (reachedSl) {
-        advAdvice.textContent = "🛑 STOP LOSS RAGGIUNTO";
-        advAdvice.className = "text-[#ff334b] text-xs block font-bold";
-      } else {
-        advAdvice.textContent = pnlPct >= 0 ? "🟢 In profitto a mercato" : "⏳ In attesa di spinta";
-        advAdvice.className = pnlPct >= 0 ? "text-[#00FF66] text-xs block font-bold" : "text-yellow-400 text-xs block font-bold";
+        playChime(true, "Stop loss raggiunto.");
       }
     }
 
@@ -1054,7 +1010,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
               <strong class="text-white text-sm">${masterAsset.symbol}</strong>
               <div class="flex justify-between"><span class="text-[#848e9c]">Prezzo:</span><strong class="text-[#00FF66]">$${formatPrice(masterAsset.price)}</strong></div>
               <div class="flex justify-between"><span class="text-[#848e9c]">Direzione:</span><strong class="${local.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#ff334b]'}">${local.side}</strong></div>
-              <div class="flex justify-between"><span class="text-[#848e9c]">Target TP2:</span><strong class="text-yellow-400">$${formatPrice(local.tp2)}</strong></div>
+              <div class="flex justify-between"><span class="text-[#848e9c]">Target (TP):</span><strong class="text-yellow-400">$${formatPrice(local.tp)}</strong></div>
             </div>
             <div class="flex flex-col justify-end">
               <button onclick='openModal("${masterAsset.symbol}")' class="green-gradient-btn w-full py-2 rounded text-xs shadow">Apri Ticket MT4 &#8599;</button>
@@ -1104,9 +1060,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           document.getElementById('modalLivePrice').textContent = `$${formatPrice(d.price)}`;
           document.getElementById('modalSide').textContent = d.side;
           document.getElementById('tableParamSl').textContent = `$${formatPrice(d.sl)}`;
-          document.getElementById('tableParamTp1').textContent = `$${formatPrice(d.tp1)}`;
-          document.getElementById('tableParamTp2').textContent = `$${formatPrice(d.tp2)}`;
-          document.getElementById('tableParamTp3').textContent = `$${formatPrice(d.tp3)}`;
+          document.getElementById('tableParamTp').textContent = `$${formatPrice(d.tp)}`;
           aggiornaQuantitaDaCapitale();
         }
       } catch (e) {
@@ -1132,14 +1086,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           symbol: asset.symbol, action: asset.side, size: qty, entry: asset.price,
-          tp1: asset.tp1, tp2: asset.tp2, tp3: asset.tp3, sl: asset.sl, 
+          tp: asset.tp, sl: asset.sl, 
           leverage: state.marketType === 'SPOT' ? 1 : state.selectedLeverage,
           marketType: state.marketType, apiKey: keys.apiKey, secretKey: keys.secretKey
         })
       });
       const data = await res.json();
       if (data.code === 0) {
-        avviaAdvisorPosizione(asset.symbol, asset.side, asset.price, asset.tp2, asset.sl, asset.tp1, asset.tp3);
+        avviaAdvisorPosizione(asset.symbol, asset.side, asset.price, asset.tp, asset.sl);
         closeModal();
       } else {
         alert("Errore esecuzione: " + (data.msg || "Verifica chiavi API"));
