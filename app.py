@@ -113,9 +113,7 @@ def analizza_tf(simbolo, market_type, interval, limit=100):
         rsi = _calcola_rsi_wilder(closes, 14)
         atr = _calcola_atr_reale(highs, lows, closes, 14)
 
-        # 🚀 CALCOLO AUTOMATICO E DINAMICO DELLE SOGLIE RSI IN BASE ALLA VOLATILITÀ (ATR)
         volatilita_pct = (atr / closes[-1]) * 100 if closes[-1] > 0 else 0.5
-        # Se la volatilità sale, irrigidisce la soglia per evitare falsi segnali; se è stabile, la ottimizza
         soglia_long_dinamica = round(54.0 + min(3.5, max(0.5, volatilita_pct * 0.4)), 1)
         soglia_short_dinamica = round(46.0 - min(3.5, max(0.5, volatilita_pct * 0.4)), 1)
 
@@ -174,10 +172,16 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type):
     min_sl_dist = price * 0.006
     max_sl_dist = price * 0.014
     dist_sl = min(max(atr_breve * 0.95, min_sl_dist), max_sl_dist)
-    dist_tp = dist_sl * 2.4
+    
+    # 🎯 Calcolo dei 3 Target Take Profit progressivi (TP1, TP2, TP3)
+    dist_tp1 = dist_sl * 1.5
+    dist_tp2 = dist_sl * 2.4
+    dist_tp3 = dist_sl * 3.6
 
     sl = round(price - k * dist_sl, dec)
-    tp = round(price + k * dist_tp, dec)
+    tp1 = round(price + k * dist_tp1, dec)
+    tp2 = round(price + k * dist_tp2, dec)
+    tp3 = round(price + k * dist_tp3, dec)
 
     candle_sec = 900 if exact_tf != "5m" else 300
     ultima_candela = base["last"]
@@ -187,7 +191,7 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type):
     mom_multiplier = 1.0 + (abs(base["rsi14"] - 50.0) / 25.0)
     velocita_reale = max(velocita_candela * mom_multiplier, price * 0.00002)
     
-    tempo_esatto_sec = int(max(30, min(10800, round(dist_tp / velocita_reale))))
+    tempo_esatto_sec = int(max(45, min(14400, round(dist_tp2 / velocita_reale))))
     timestamp_ultima_candela = int(ultima_candela["time"])
 
     score_precisione = 99.8 if base["trend"] != "NEUTRO" else 95.0
@@ -195,11 +199,13 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type):
     return {
         "symbol": simbolo, "marketType": market_type, "price": round(price, dec), "side": side,
         "sentiment": f"Quantum {market_type} 🚀 (RSI Dinamico Long>={base.get('sogliaLong', 55)})" if side == "BUY" else f"Quantum {market_type} 📉 (RSI Dinamico Short<={base.get('sogliaShort', 45)})",
-        "confluenza": f"Soglie RSI Auto-Adattive in base alla volatilità ATR 🎯",
+        "confluenza": f"3 TP Graduali & Candela di Spinta attiva 🎯",
         "exactTf": exact_tf, "precisionScore": score_precisione,
         "ema9": round(base["ema9"], dec), "ema21": round(base["ema21"], dec),
-        "rsi14": base["rsi14"], "atr14": round(atr_breve, dec), "sl": sl, "tp": tp,
-        "decimals": dec, "tempoSec": tempo_esatto_sec, "candleTime": timestamp_ultima_candela, "tfs": tfs
+        "rsi14": base["rsi14"], "atr14": round(atr_breve, dec), "sl": sl, 
+        "tp1": tp1, "tp2": tp2, "tp3": tp3, "tp": tp2, # TP principale di riferimento per compatibilità
+        "decimals": dec, "tempoSec": tempo_esatto_sec, "candleTime": timestamp_ultima_candela, "tfs": tfs,
+        "ultimaCandela": ultima_candela
     }
 
 
@@ -477,7 +483,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex items-center gap-2 text-[11px] font-mono text-white/70 mt-0.5">
             <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
-            <span class="text-[#00FF66]" id="headerSubMarketInfo">Soglie RSI Auto-Adattive • 1. Entra • 2. Rimani • 3. TP Esci</span>
+            <span class="text-[#00FF66]" id="headerSubMarketInfo">3 TP Graduali & Candela di Spinta • 1. Entra • 2. Rimani • 3. TP Esci</span>
           </div>
         </div>
       </div>
@@ -547,17 +553,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <span id="advPnlVal" class="block mt-1 text-[10px] font-bold text-[#00FF66]">PnL: 0.00%</span>
         </div>
         <div class="bg-black/50 p-3 rounded-xl border border-white/10">
-          <span class="text-white/60 text-[10px] block">🎯 TARGET TAKE PROFIT ($ TP) SUPERIORE</span>
-          <strong id="advTargetTpDisplay" class="text-[#00FF66] text-sm">--</strong>
-          <span id="advDistTp" class="block mt-1 text-[10px] text-white/80 font-bold">Distanza TP: 0.00%</span>
-          <span id="advExactTimeRemaining" class="block mt-0.5 text-[10px] text-yellow-300 tabular-nums font-bold">Tempo al TP: --</span>
+          <span class="text-white/60 text-[10px] block">🎯 TARGET 3 TP (TP1 / TP2 / TP3)</span>
+          <div class="mt-1 space-y-0.5 text-[11px]">
+            <div class="flex justify-between text-white/80"><span>TP1:</span> <strong id="advTp1" class="text-[#00FF66]">--</strong></div>
+            <div class="flex justify-between text-white font-bold"><span>TP2:</span> <strong id="advTp2" class="text-[#00FF66]">--</strong></div>
+            <div class="flex justify-between text-white/80"><span>TP3:</span> <strong id="advTp3" class="text-[#00FF66]">--</strong></div>
+          </div>
+          <span id="advExactTimeRemaining" class="block mt-1.5 text-[10px] text-yellow-300 tabular-nums font-bold">Tempo al TP: --</span>
         </div>
         <div class="bg-black/50 p-3 rounded-xl border border-white/10 flex flex-col justify-between">
           <div>
             <span class="text-white/60 text-[10px] block">3. 🎯 TP RAGGIUNTO / ESCI</span>
             <strong id="advStatusAdvice" class="text-[#00FF66] text-xs block mt-0.5">In attesa del TP...</strong>
           </div>
-          <span id="advActionAlert" class="text-[10px] text-white/80 italic mt-1">Guida dinamica al profitto attiva</span>
+          <span id="advActionAlert" class="text-[10px] text-white/80 italic mt-1">Avviso vocale di chiusura attivo</span>
         </div>
       </div>
     </div>
@@ -587,7 +596,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
         <span class="text-[11px] font-semibold uppercase text-white/75">Motore Sincronizzato</span>
         <div class="mt-2">
-          <span id="kpiMarketBadge" class="text-xs font-mono text-[#00FF66] font-bold">🟢 RSI DINAMICO ATTIVO</span>
+          <span id="kpiMarketBadge" class="text-xs font-mono text-[#00FF66] font-bold">🟢 3 TP & CANDELA DI SPINTA ATTIVI</span>
         </div>
       </div>
     </section>
@@ -598,8 +607,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="flex items-center gap-3">
           <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-bounce">⚡</div>
           <div>
-            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">⚡ SEGNALE MASTER SUPERIORE ($ TP &amp; SL 😢)</h2>
-            <p class="text-[11px] text-[#00FF66]" id="masterSubtitle">Timer aggiornato ad ogni singola candela di mercato</p>
+            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">⚡ SEGNALE MASTER SUPERIORE CON 3 TP &amp; CANDELA DI SPINTA</h2>
+            <p class="text-[11px] text-[#00FF66]" id="masterSubtitle">Timer dinamico di precisione millimetrica</p>
           </div>
         </div>
         <span id="masterPrecisionBadge" class="px-2.5 py-1 rounded-md text-xs font-mono font-extrabold bg-[#00FF66] text-black animate-pulse">CANDLE-SYNC 🚀</span>
@@ -632,7 +641,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="flex items-center justify-between border-b border-white/15 pb-3">
           <h2 class="text-sm font-bold text-white flex items-center gap-3">
             <span class="w-8 h-8 rounded-full bg-[#00FF66]/20 border border-[#00FF66] flex items-center justify-center text-[#00FF66] text-base font-extrabold dollar-animated-logo">$</span>
-            <span>📊 Lista Operativa (<span id="tableMarketLabel" class="text-[#00FF66]">FUTURES</span> - Auto-Adattiva)</span>
+            <span>📊 Lista Operativa (<span id="tableMarketLabel" class="text-[#00FF66]">FUTURES</span> - Auto-Adattiva con 3 TP)</span>
           </h2>
           <span class="text-xs font-mono text-[#00FF66]">Sincronizzato sul flusso candela per candela</span>
         </div>
@@ -646,7 +655,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[800px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Soglie RSI Dinamiche attive...</div>
+          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] 3 TP Graduali & Candela di Spinta attivi...</div>
         </div>
       </aside>
     </div>
@@ -702,7 +711,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <strong id="modalTF" class="px-2.5 py-0.5 rounded bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66] font-extrabold animate-pulse">15m ⚡</strong>
           </div>
           <div class="flex justify-between"><span class="text-white/75">Sentiment Superiore:</span><strong id="modalSentiment" class="text-[#00FF66] font-bold">--</strong></div>
-          <div class="flex justify-between border-b border-white/10 pb-2"><span class="text-white/75">⏱️ Tempo al $ TP (Candle-Sync):</span><strong id="modalExactTime" class="text-yellow-300 font-extrabold tabular-nums">--</strong></div>
+          <div class="flex justify-between border-b border-white/10 pb-2"><span class="text-white/75">⏱️ Tempo al TP (Candle-Sync):</span><strong id="modalExactTime" class="text-yellow-300 font-extrabold tabular-nums">--</strong></div>
+
+          <!-- PANNELLO CANDELA DI SPINTA AL PROFITTO -->
+          <div class="bg-gradient-to-r from-emerald-950/60 to-black border border-[#00FF66]/50 rounded-xl p-3 space-y-2">
+            <span class="text-[10px] font-bold text-[#00FF66] uppercase block">🕯️ Candela di Spinta al Profitto (Driver Live):</span>
+            <div id="modalCandleVisualizer" class="text-xs text-white flex justify-between items-center bg-black/60 p-2 rounded border border-white/10">
+              --
+            </div>
+          </div>
 
           <div class="grid grid-cols-2 gap-2 py-2 border-b border-white/10">
             <div class="bg-white/5 p-2 rounded-lg">
@@ -720,11 +737,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <!-- Pannello Multi-Timeframe SVG a 4 livelli (5m, 15m, 1h, 4h) -->
           <div id="tfPanel" class="grid grid-cols-2 sm:grid-cols-4 gap-2 my-2"></div>
 
-          <!-- TABELLA PARAMETRI MILLIMETRICI PRECISI -->
+          <!-- TABELLA 3 PARAMETRI TAKE PROFIT E STOP LOSS -->
           <div class="bg-gradient-to-r from-emerald-950/50 via-black to-emerald-950/50 border-2 border-[#00FF66] rounded-xl p-3 space-y-2 my-3 shadow-xl">
             <div class="flex items-center justify-between border-b border-[#00FF66]/30 pb-2">
               <span class="text-xs font-extrabold text-[#00FF66] flex items-center gap-1.5">
-                <span>📋</span> TABELLA PARAMETRI CHIRURGICI ($ TP &amp; SL 😢)
+                <span>📋</span> TABELLA 3 TAKE PROFIT &amp; STOP LOSS 😢
               </span>
               <span class="text-[10px] text-white/70">Calibrati e protetti</span>
             </div>
@@ -747,14 +764,28 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     </td>
                   </tr>
                   <tr>
-                    <td class="py-2 px-2 text-[#00FF66] font-bold">2. $ Take Profit (TP Rapido)</td>
-                    <td class="py-2 px-2 text-[#00FF66] font-extrabold select-all" id="tableParamTp">--</td>
+                    <td class="py-2 px-2 text-[#00FF66] font-bold">🎯 TP1 (Take Profit 1)</td>
+                    <td class="py-2 px-2 text-[#00FF66] font-extrabold select-all" id="tableParamTp1">--</td>
                     <td class="py-2 px-2 text-right">
-                      <button onclick="copiaParametro('tableParamTp')" class="bg-white/10 hover:bg-white/25 px-2 py-1 rounded text-[#00FF66] text-[10px]">Copia</button>
+                      <button onclick="copiaParametro('tableParamTp1')" class="bg-white/10 hover:bg-white/25 px-2 py-1 rounded text-[#00FF66] text-[10px]">Copia</button>
                     </td>
                   </tr>
                   <tr>
-                    <td class="py-2 px-2 text-[#FF334B] font-bold">3. $ Stop Loss 😢 (Protetto)</td>
+                    <td class="py-2 px-2 text-[#00FF66] font-bold">🎯🎯 TP2 (Take Profit Principale)</td>
+                    <td class="py-2 px-2 text-[#00FF66] font-extrabold select-all" id="tableParamTp2">--</td>
+                    <td class="py-2 px-2 text-right">
+                      <button onclick="copiaParametro('tableParamTp2')" class="bg-white/10 hover:bg-white/25 px-2 py-1 rounded text-[#00FF66] text-[10px]">Copia</button>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="py-2 px-2 text-[#00FF66] font-bold">🎯🎯🎯 TP3 (Take Profit Esteso)</td>
+                    <td class="py-2 px-2 text-[#00FF66] font-extrabold select-all" id="tableParamTp3">--</td>
+                    <td class="py-2 px-2 text-right">
+                      <button onclick="copiaParametro('tableParamTp3')" class="bg-white/10 hover:bg-white/25 px-2 py-1 rounded text-[#00FF66] text-[10px]">Copia</button>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="py-2 px-2 text-[#FF334B] font-bold">🛑 Stop Loss 😢 (Protetto)</td>
                     <td class="py-2 px-2 text-[#FF334B] font-extrabold select-all" id="tableParamSl">--</td>
                     <td class="py-2 px-2 text-right">
                       <button onclick="copiaParametro('tableParamSl')" class="bg-white/10 hover:bg-white/25 px-2 py-1 rounded text-[#FF334B] text-[10px]">Copia</button>
@@ -767,11 +798,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
           <div class="flex justify-between pt-1"><span class="text-white/75">Prezzo Live Reale:</span><strong id="modalLivePrice" class="text-white">--</strong></div>
           <div class="flex justify-between"><span class="text-white/75">Direzione Long / Short:</span><strong id="modalSide" class="text-[#00FF66]">--</strong></div>
-          <div>
-            <div class="flex justify-between"><span class="text-white/75">$ Stop Loss Protetto 😢:</span><strong id="modalSL" class="text-[#FF334B]">--</strong></div>
-            <div class="flex justify-between"><span class="text-white/75">🎯 TARGET $ TAKE PROFIT RAPIDO:</span><strong id="modalTrendingTP" class="text-[#00FF66] text-sm font-extrabold">--</strong></div>
-            <div class="flex justify-between mt-1"><span class="text-white/75">🔥 ROI Stimato al $ TP (Leva):</span><strong id="modalTpPct" class="text-yellow-400 font-extrabold">--</strong></div>
-          </div>
         </div>
 
         <!-- SELETTORE CAPITALE / MARGINE LIBERO -->
@@ -842,7 +868,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     ];
 
     function formatExactDuration(totalSeconds) {
-      const sec = Math.max(0, Math.round(totalSeconds));
+      const sec = Math.max(1, Math.round(totalSeconds));
       const h = Math.floor(sec / 3600);
       const m = Math.floor((sec % 3600) / 60);
       const s = sec % 60;
@@ -852,7 +878,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     }
 
     function formatVoiceDuration(totalSeconds) {
-      const sec = Math.max(0, Math.round(totalSeconds));
+      const sec = Math.max(1, Math.round(totalSeconds));
       const h = Math.floor(sec / 3600);
       const m = Math.floor((sec % 3600) / 60);
       const s = sec % 60;
@@ -863,34 +889,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       return parts.join(' e ');
     }
 
-    function getLiveRemainingSeconds(symbol, baseTempoSec) {
-      if (!state.timerAnchors[symbol]) {
-        state.timerAnchors[symbol] = {
-          baseSec: baseTempoSec,
-          startedAt: Date.now()
-        };
+    function getDynamicRemainingSeconds(symbol, entryPrice, currentPrice, targetTp, baseTempoSec) {
+      const distTotal = Math.abs(targetTp - entryPrice);
+      const distRemaining = Math.max(0.00001, Math.abs(targetTp - currentPrice));
+      if (currentPrice >= targetTp && targetTp > entryPrice || currentPrice <= targetTp && targetTp < entryPrice) {
+        return 1;
       }
-      const anchor = state.timerAnchors[symbol];
-      const elapsed = Math.floor((Date.now() - anchor.startedAt) / 1000);
-      return Math.max(1, anchor.baseSec - elapsed);
-    }
-
-    function updateAllVisibleCountdowns() {
-      document.querySelectorAll('[data-countdown-sym]').forEach(el => {
-        const sym = el.getAttribute('data-countdown-sym');
-        const baseSec = parseInt(el.getAttribute('data-base-sec'), 10) || 60;
-        const rem = getLiveRemainingSeconds(sym, baseSec);
-        el.textContent = formatExactDuration(rem);
-      });
-
-      if (state.currentSelectedAsset) {
-        const d = state.currentSelectedAsset;
-        const modalTimeEl = document.getElementById('modalExactTime');
-        if (modalTimeEl) {
-          const rem = getLiveRemainingSeconds(d.symbol, d.tempoSec);
-          modalTimeEl.textContent = `${formatExactDuration(rem)} 🎯`;
-        }
-      }
+      const ratio = distRemaining / (distTotal || 1);
+      const calculatedSec = Math.round(baseTempoSec * ratio);
+      return Math.max(5, calculatedSec);
     }
 
     function getStoredApiKeys() {
@@ -1067,21 +1074,23 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const lev = state.marketType === 'SPOT' ? 1 : state.selectedLeverage;
       if (cached) {
         const p = item.price;
-        const distTp = Math.abs(cached.tp - p);
+        const distTp = Math.abs(cached.tp2 - p);
         const tpPct = (((distTp / p) * 100) * lev).toFixed(2);
-        return { symbol, price: p, side: cached.side, sl: cached.sl, tp: cached.tp, tpPct, confluenza: "RSI Dinamico & Candela-Sync 🎯", tempoSec: cached.tempoSec };
+        return { symbol, price: p, side: cached.side, sl: cached.sl, tp1: cached.tp1, tp2: cached.tp2, tp3: cached.tp3, tp: cached.tp2, tpPct, confluenza: "3 TP & Candela di Spinta 🎯", tempoSec: cached.tempoSec };
       }
       const p = item.price;
       const dec = getPrecisionDecimals(p);
       const isBull = item.change24h >= 0;
       const side = (state.marketType === 'SPOT' || isBull) ? "BUY" : "SELL";
       const distSl = p * 0.01;
-      const distTp = p * 0.024;
+      const distTp2 = p * 0.024;
       const sl = Number((side === 'BUY' ? p - distSl : p + distSl).toFixed(dec));
-      const tp = Number((side === 'BUY' ? p + distTp : p - distTp).toFixed(dec));
-      const tpPct = (((distTp / p) * 100) * lev).toFixed(2);
+      const tp1 = Number((side === 'BUY' ? p + distTp2 * 0.6 : p - distTp2 * 0.6).toFixed(dec));
+      const tp2 = Number((side === 'BUY' ? p + distTp2 : p - distTp2).toFixed(dec));
+      const tp3 = Number((side === 'BUY' ? p + distTp2 * 1.5 : p - distTp2 * 1.5).toFixed(dec));
+      const tpPct = (((distTp2 / p) * 100) * lev).toFixed(2);
       const tempoSec = Math.max(60, Math.round(900 / (0.1 + Math.abs(item.change24h) * 0.1)));
-      return { symbol, price: p, side, sl, tp, tpPct, confluenza: "RSI Dinamico & Candela-Sync 🎯", tempoSec };
+      return { symbol, price: p, side, sl, tp1, tp2, tp3, tp: tp2, tpPct, confluenza: "3 TP & Candela di Spinta 🎯", tempoSec };
     }
 
     function renderTfPanel(tfs, exactTf) {
@@ -1108,16 +1117,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <b style="color:${col}">${t.trend}</b>
           </div>
           <svg viewBox="0 0 100 32" class="w-full h-8">${bars}</svg>
-          <div class="text-[9px] text-white/60">RSI ${t.rsi14} (Soglia din: ${t.sogliaLong || 55})</div>
+          <div class="text-[9px] text-white/60">RSI ${t.rsi14} (Soglia: ${t.sogliaLong || 55})</div>
           <div class="text-[9px] text-[#00FF66]">● ora: ${formatPrice(t.last.close)}</div>
         </div>`;
       }).join('');
     }
 
-    function avviaAdvisorPosizione(symbol, side, entryPrice, tpPrice, slPrice, tempoSec) {
+    function avviaAdvisorPosizione(symbol, side, entryPrice, tp2Price, slPrice, tempoSec, tp1Price, tp3Price) {
       if (state.advisorInterval) clearInterval(state.advisorInterval);
-      const liveRemSec = getLiveRemainingSeconds(symbol, tempoSec);
-      const totalDist = Math.abs(tpPrice - entryPrice);
+      const totalDist = Math.abs(tp2Price - entryPrice);
       const lev = state.marketType === 'SPOT' ? 1 : state.selectedLeverage;
       const initDistPct = ((totalDist / entryPrice) * 100).toFixed(2);
       const initDistLevaPct = (((totalDist / entryPrice) * 100) * lev).toFixed(2);
@@ -1126,11 +1134,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         symbol,
         side,
         entryPrice,
-        tpPrice,
+        tp1Price,
+        tp2Price,
+        tp3Price,
         slPrice,
-        totalDist,
-        openedAt: Date.now(),
-        initialTempoSec: liveRemSec
+        baseTempoSec: tempoSec
       };
       state.isCriticalState = false;
 
@@ -1146,17 +1154,17 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('advSymbol').textContent = symbol;
       document.getElementById('advEntryPrice').textContent = `$${formatPrice(entryPrice)}`;
       document.getElementById('advSideBadge').textContent = side;
-      document.getElementById('advTargetTpDisplay').textContent = `$${formatPrice(tpPrice)}`;
-      document.getElementById('advDistTp').textContent = `Distanza TP: ${initDistPct}% (+${initDistLevaPct}% con ${lev}x)`;
-      document.getElementById('advExactTimeRemaining').textContent = `Tempo al TP: ${formatExactDuration(liveRemSec)}`;
+      document.getElementById('advTp1').textContent = `$${formatPrice(tp1Price)}`;
+      document.getElementById('advTp2').textContent = `$${formatPrice(tp2Price)}`;
+      document.getElementById('advTp3').textContent = `$${formatPrice(tp3Price)}`;
 
       const sideText = side === 'BUY' ? 'Long' : 'Short';
-      const voiceTimeStr = formatVoiceDuration(liveRemSec);
+      const voiceTimeStr = formatVoiceDuration(tempoSec);
       state.lastVoiceAnnounceTimestamp = Date.now();
-      playChime(false, `Primo. Entra a mercato su ${state.marketType} con ${state.selectedMarginUsdt} USDT di margine. Posizione ${sideText} su ${symbol}. Target Take Profit a ${formatPrice(tpPrice)}. Tempo previsto: ${voiceTimeStr}.`);
+      playChime(false, `Primo. Entra a mercato su ${state.marketType} con ${state.selectedMarginUsdt} USDT di margine. Posizione ${sideText} su ${symbol}. Tre Target Take Profit impostati. Tempo stimato: ${voiceTimeStr}.`);
       aggiornaAdvisorLoop();
       state.advisorInterval = setInterval(aggiornaAdvisorLoop, 1000);
-      logFeed(`[QUANTUM ADVISOR] Aperto ${symbol} (${side}) su ${state.marketType} con Margine ${state.selectedMarginUsdt} USDT.`);
+      logFeed(`[QUANTUM ADVISOR] Aperto ${symbol} (${side}) su ${state.marketType} con 3 TP.`);
     }
 
     function chiudiPosizioneMonitorata() {
@@ -1165,7 +1173,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       state.isCriticalState = false;
       document.getElementById('activePositionAdvisorBox').classList.add('hidden');
       document.getElementById('kpiAutoSlotStatus').textContent = "🟢 Slot Libero (1 max)";
-      logFeed(`[QUANTUM ADVISOR] 3. TP Raggiunto / Esci completato. Slot liberato.`);
+      logFeed(`[QUANTUM ADVISOR] Posizione chiusa. Slot liberato.`);
     }
 
     let lastLoopAdviceState = "";
@@ -1186,16 +1194,17 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       pnlEl.textContent = `PnL: ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`;
       pnlEl.className = `block mt-1 text-[10px] font-bold ${pnlPct >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
 
-      const distTp = Math.max(0, pos.side === 'BUY' ? (pos.tpPrice - currentPrice) : (currentPrice - pos.tpPrice));
-      const distTpPct = currentPrice > 0 ? ((distTp / currentPrice) * 100) : 0;
-      const distTpLevaPct = distTpPct * lev;
+      const dynamicRemSec = getDynamicRemainingSeconds(pos.symbol, pos.entryPrice, currentPrice, pos.tp2, pos.baseTempoSec);
+      document.getElementById('advExactTimeRemaining').textContent = `Tempo al TP: ${formatExactDuration(dynamicRemSec)}`;
 
-      const elapsedSec = Math.max(1, (Date.now() - pos.openedAt) / 1000);
-      const progressDone = pos.side === 'BUY' ? (currentPrice - pos.entryPrice) : (pos.entryPrice - currentPrice);
-      const clockRemaining = Math.max(1, pos.initialTempoSec - elapsedSec);
-      const exactRemainingSec = progressDone > 0
-        ? Math.max(1, Math.min(clockRemaining, Math.round(distTp / (progressDone / elapsedSec))))
-        : clockRemaining;
+      const advAdvice = document.getElementById('advStatusAdvice');
+      const advAlert = document.getElementById('advActionAlert');
+      const box = document.getElementById('activePositionAdvisorBox');
+
+      const reachedTp1 = (pos.side === 'BUY' && currentPrice >= pos.tp1) || (pos.side === 'SELL' && currentPrice <= pos.tp1);
+      const reachedTp2 = (pos.side === 'BUY' && currentPrice >= pos.tp2) || (pos.side === 'SELL' && currentPrice <= pos.tp2);
+      const reachedTp3 = (pos.side === 'BUY' && currentPrice >= pos.tp3) || (pos.side === 'SELL' && currentPrice <= pos.tp3);
+      const reachedSl = (pos.side === 'BUY' && currentPrice <= pos.slPrice) || (pos.side === 'SELL' && currentPrice >= pos.slPrice);
 
       let isCritical = false;
       if (pos.side === 'BUY') {
@@ -1204,33 +1213,30 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         isCritical = currentPrice > pos.entryPrice && (pos.slPrice - currentPrice) <= (pos.slPrice - pos.entryPrice) * 0.40;
       }
 
-      document.getElementById('advDistTp').textContent = `Distanza TP: ${distTpPct.toFixed(2)}% (+${distTpLevaPct.toFixed(2)}% con ${lev}x)`;
-      document.getElementById('advExactTimeRemaining').textContent = `Tempo al TP: ${formatExactDuration(exactRemainingSec)}`;
-
-      const advAdvice = document.getElementById('advStatusAdvice');
-      const advAlert = document.getElementById('advActionAlert');
-      const box = document.getElementById('activePositionAdvisorBox');
-
-      if ((pos.side === 'BUY' && currentPrice >= pos.tpPrice) || (pos.side === 'SELL' && currentPrice <= pos.tpPrice)) {
-        document.getElementById('advDistTp').textContent = "Distanza TP: 0.00% (RAGGIUNTO!)";
-        document.getElementById('advExactTimeRemaining').textContent = "Tempo al TP: 0s";
-        advAdvice.textContent = "3. 🎯 TP RAGGIUNTO! ESCI DA MERCATO";
-        advAdvice.className = "text-[#00FF66] text-xs block font-bold animate-pulse";
-        advAlert.textContent = "Target Take Profit raggiunto con successo!";
-        if (lastLoopAdviceState !== "TP") {
-          lastLoopAdviceState = "TP";
-          playChime(true, "Terzo. Target Take profit raggiunto! Esci subito da mercato con profitto.");
+      if (reachedTp3 || reachedTp2) {
+        advAdvice.textContent = "3. 🎯 TP RAGGIUNTO! ESCI DI MERCATO";
+        advAdvice.className = "text-[#00FF66] text-xs block font-extrabold animate-pulse";
+        advAlert.textContent = "Target Take Profit raggiunto! Chiudi subito la posizione.";
+        if (lastLoopAdviceState !== "TP_FINALE") {
+          lastLoopAdviceState = "TP_FINALE";
+          playChime(true, "Terzo. Target Take Profit raggiunto! Esci subito da mercato e prendi il profitto.");
         }
-        chiudiPosizioneMonitorata();
-      } else if ((pos.side === 'BUY' && currentPrice <= pos.slPrice) || (pos.side === 'SELL' && currentPrice >= pos.slPrice)) {
-        advAdvice.textContent = "3. 🛑 ESCI DI PROTEZIONE 😢";
+      } else if (reachedTp1) {
+        advAdvice.textContent = "2. 🎯 TP1 RAGGIUNTO (Prendi parziale)";
+        advAdvice.className = "text-[#00FF66] text-xs block font-bold";
+        advAlert.textContent = "Primo Take Profit toccato. Puoi spostare lo Stop Loss in pareggio.";
+        if (lastLoopAdviceState !== "TP1") {
+          lastLoopAdviceState = "TP1";
+          playChime(false, "Secondo. Primo Take profit raggiunto. Valuta di spostare lo stop in pareggio.");
+        }
+      } else if (reachedSl) {
+        advAdvice.textContent = "3. 🛑 STOP LOSS PROTETTO (Esci)";
         advAdvice.className = "text-[#FF334B] text-xs block font-bold animate-pulse";
         advAlert.textContent = "Chiusura di salvaguardia attivata.";
         if (lastLoopAdviceState !== "SL") {
           lastLoopAdviceState = "SL";
           playChime(true, "Terzo. Stop loss toccato. Esci di protezione per salvaguardare il capitale.");
         }
-        chiudiPosizioneMonitorata();
       } else if (isCritical) {
         box.className = "terminal-card rounded-2xl p-4 sm:p-5 critical-box-mode shadow-2xl space-y-4";
         document.getElementById('advHeaderBox').className = "flex flex-wrap items-center justify-between pb-3 border-b border-[#FF334B]/40 gap-3";
@@ -1257,26 +1263,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         if (pnlPct >= 0) {
           advAdvice.textContent = "2. 📊 RIMANI A MERCATO (IN PROFITTO)";
           advAdvice.className = "text-[#00FF66] text-xs block font-bold";
-          advAlert.textContent = `Avanzamento regolare verso il $ TP: $${formatPrice(pos.tpPrice)}`;
+          advAlert.textContent = "Avanzamento regolare verso i Target TP.";
         } else {
-          advAdvice.textContent = "2. ⏳ RIMANI A MERCATO (FASE DI RITRACCIAMENTO)";
+          advAdvice.textContent = "2. ⏳ RIMANI A MERCATO (Fase di spinta)";
           advAdvice.className = "text-yellow-400 text-xs block font-bold";
-          advAlert.textContent = `Il prezzo sta fluttuando prima della spinta verso il TP: $${formatPrice(pos.tpPrice)}`;
-        }
-
-        const now = Date.now();
-        if (now - state.lastVoiceAnnounceTimestamp >= 15000) {
-          state.lastVoiceAnnounceTimestamp = now;
-          const voiceTimeLeft = formatVoiceDuration(exactRemainingSec);
-          if (pnlPct >= 0) {
-            speakText(`Secondo. Rimani a mercato. Posizione in profitto. Mancano circa ${voiceTimeLeft} al Take Profit.`);
-          } else {
-            speakText(`Secondo. Rimani a mercato. Posizione in fase di fluttuazione normale. Mancano circa ${voiceTimeLeft} al Take Profit.`);
-          }
-        }
-
-        if (lastLoopAdviceState !== "RIMANI") {
-          lastLoopAdviceState = "RIMANI";
+          advAlert.textContent = "Il prezzo sta completando la candela di spinta al profitto.";
         }
       }
     }
@@ -1300,10 +1291,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       if (activeBtn) activeBtn.className = "py-1.5 rounded-lg border border-[#00FF66] bg-[#00FF66]/20 text-[#00FF66] font-bold";
 
       if (state.currentSelectedAsset) {
-        const d = state.currentSelectedAsset;
-        const actualLev = state.marketType === 'SPOT' ? 1 : state.selectedLeverage;
-        const tpPct = (((Math.abs(d.tp - d.price) / d.price) * 100) * actualLev).toFixed(2);
-        document.getElementById('modalTpPct').textContent = `+${tpPct}% (con leva ${actualLev}x)`;
         aggiornaQuantitaDaCapitale();
       }
       renderDashboard();
@@ -1335,7 +1322,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('btnMarketStandard').className = state.marketType === 'STANDARD_FUTURES' ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500 text-black shadow-lg" : "px-2.5 py-1 rounded-lg text-xs font-bold text-white/50 hover:text-white";
       document.getElementById('btnMarketSpot').className = isSpot ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-[#00FF66] text-black shadow-lg" : "px-2.5 py-1 rounded-lg text-xs font-bold text-white/50 hover:text-white";
       
-      document.getElementById('kpiMarketBadge').textContent = isSpot ? "🟢 RSI SPOT DINAMICO" : "🟢 RSI FUTURES DINAMICO";
+      document.getElementById('kpiMarketBadge').textContent = isSpot ? "🟢 3 TP SPOT DINAMICO" : "🟢 3 TP FUTURES DINAMICO";
       document.getElementById('tableMarketLabel').textContent = state.marketType;
       document.getElementById('headerSubMarketInfo').textContent = isSpot ? "Spot Dinamico (Solo Long 🪙) • 1. Entra • 2. Rimani • 3. TP Esci" : "Futures Dinamico (Long & Short ⚡) • 1. Entra • 2. Rimani • 3. TP Esci";
       
@@ -1417,16 +1404,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const lev = state.marketType === 'SPOT' ? 1 : state.selectedLeverage;
       if (masterAsset) {
         const local = calcolaDatiLocaliUnificati(masterAsset.symbol, masterAsset);
-        const liveRemMaster = getLiveRemainingSeconds(masterAsset.symbol, local.tempoSec);
+        const liveRemMaster = getDynamicRemainingSeconds(masterAsset.symbol, local.price, masterAsset.price, local.tp2, local.tempoSec);
         document.getElementById('masterPrecisionBadge').textContent = `${state.marketType} SYNC ⚡`;
         document.getElementById('prioritySignalCardContent').innerHTML = `
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs font-mono">
             <div class="space-y-2">
               <strong class="text-white text-sm">${masterAsset.symbol} - MASTER QUANTUM ${state.marketType}</strong>
               <div class="flex justify-between"><span class="text-white/70">Prezzo Live:</span><strong class="text-[#00FF66] text-sm">$${formatPrice(masterAsset.price)}</strong></div>
-              <div class="flex justify-between"><span class="text-white/70">Direzione Quantistica:</span><strong class="${local.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]'} font-bold">${local.side === 'BUY' ? 'LONG CHIRURGICO 🚀' : 'SHORT CHIRURGICO 📉'}</strong></div>
-              <div class="flex justify-between"><span class="text-white/70">$ TP Calibrato (+% ${state.marketType === 'SPOT' ? 'Spot' : 'Leva ' + lev + 'x'}):</span><strong class="text-yellow-400 font-extrabold">$${formatPrice(local.tp)} (+${local.tpPct}%)</strong></div>
-              <div class="flex justify-between"><span class="text-white/70">⏱️ Tempo al $ TP (Candle-Sync):</span><strong class="text-cyan-300 font-bold tabular-nums" data-countdown-sym="${masterAsset.symbol}" data-base-sec="${local.tempoSec}">${formatExactDuration(liveRemMaster)}</strong></div>
+              <div class="flex justify-between"><span class="text-white/70">Direzione:</span><strong class="${local.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]'} font-bold">${local.side === 'BUY' ? 'LONG 🚀' : 'SHORT 📉'}</strong></div>
+              <div class="flex justify-between"><span class="text-white/70">🎯 TP2 Principale:</span><strong class="text-yellow-400 font-extrabold">$${formatPrice(local.tp2)} (+${local.tpPct}%)</strong></div>
+              <div class="flex justify-between"><span class="text-white/70">⏱️ Tempo Dinamico al TP:</span><strong class="text-cyan-300 font-bold tabular-nums">${formatExactDuration(liveRemMaster)}</strong></div>
             </div>
             <div class="flex flex-col justify-end">
               <button onclick='openModal("${masterAsset.symbol}")' class="green-gradient-btn w-full py-2 rounded-xl text-xs shadow-lg">⚡ APRI SCANNER &amp; SCEGLI CAPITALE &#8599;</button>
@@ -1441,7 +1428,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const container = document.getElementById('tablesContainer');
       container.innerHTML = filtered.map(c => {
         const local = calcolaDatiLocaliUnificati(c.symbol, c);
-        const liveRemCard = getLiveRemainingSeconds(c.symbol, local.tempoSec);
+        const liveRemCard = getDynamicRemainingSeconds(c.symbol, local.price, c.price, local.tp2, local.tempoSec);
         const isLong = local.side === 'BUY';
         return `
           <div onclick='openModal("${c.symbol}")' class="bg-[#000000] border border-white/25 hover:border-[#00FF66] rounded-xl p-3.5 cursor-pointer transition-all space-y-2.5">
@@ -1458,13 +1445,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             <div class="grid grid-cols-2 gap-2 text-[11px] font-mono">
               <div class="bg-white/5 p-2 rounded-lg">
-                <span class="text-white/60 text-[10px] block">🎯 TARGET $ TP CALIBRATO</span>
-                <strong class="text-[#00FF66]">$${formatPrice(local.tp)}</strong>
-                <span class="text-yellow-400 text-[10px] block">+${local.tpPct}% (${state.marketType === 'SPOT' ? 'Spot' : lev + 'x'})</span>
+                <span class="text-white/60 text-[10px] block">🎯 3 TARGET TAKE PROFIT</span>
+                <strong class="text-[#00FF66]">TP2: $${formatPrice(local.tp2)}</strong>
+                <span class="text-yellow-400 text-[10px] block">TP1: $${formatPrice(local.tp1)} | TP3: $${formatPrice(local.tp3)}</span>
               </div>
               <div class="bg-white/5 p-2 rounded-lg">
-                <span class="text-white/60 text-[10px] block">⏱️ TEMPO AL $ TP (CANDLE)</span>
-                <strong class="text-cyan-300 tabular-nums" data-countdown-sym="${c.symbol}" data-base-sec="${local.tempoSec}">${formatExactDuration(liveRemCard)}</strong>
+                <span class="text-white/60 text-[10px] block">⏱️ TEMPO DINAMICO AL TP</span>
+                <strong class="text-cyan-300 tabular-nums">${formatExactDuration(liveRemCard)}</strong>
                 <span class="text-[#FF334B] text-[10px] block">SL 😢: $${formatPrice(local.sl)}</span>
               </div>
             </div>
@@ -1502,15 +1489,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         if (json.code === 0 && json.data) {
           const d = json.data;
           
-          const oldAnchor = state.timerAnchors[symbol];
-          if (!oldAnchor || oldAnchor.candleTime !== d.candleTime) {
-            state.timerAnchors[symbol] = {
-              baseSec: d.tempoSec,
-              candleTime: d.candleTime,
-              startedAt: Date.now()
-            };
-          }
-
           state.currentSelectedAsset = d;
           state.detailedAssets[symbol] = d;
 
@@ -1523,8 +1501,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
           document.getElementById('modalSentiment').textContent = d.sentiment;
           
-          const currentLiveRem = getLiveRemainingSeconds(symbol, d.tempoSec);
+          const currentLiveRem = getDynamicRemainingSeconds(d.symbol, d.price, d.price, d.tp2, d.tempoSec);
           document.getElementById('modalExactTime').textContent = `${formatExactDuration(currentLiveRem)} 🎯`;
+
+          // Visualizzazione candela di spinta al profitto
+          const uc = d.ultimaCandela;
+          const ampCandela = Math.abs(uc.high - uc.low);
+          document.getElementById('modalCandleVisualizer').innerHTML = `
+            <span>O: $${formatPrice(uc.open)} → C: $${formatPrice(uc.close)}</span>
+            <span class="text-[#00FF66] font-bold">Spinta: +${formatPrice(ampCandela)}</span>
+          `;
 
           document.getElementById('modalEma').textContent = `EMA9: ${formatPrice(d.ema9)} | EMA21: ${formatPrice(d.ema21)}`;
           document.getElementById('modalEmaSignal').textContent = "Trend Calibrato ⚡";
@@ -1539,14 +1525,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           sideEl.textContent = `${d.side} (${d.side === 'BUY' ? 'LONG CHIRURGICO 🚀' : 'SHORT CHIRURGICO 📉'})`;
           sideEl.className = `text-[12px] font-bold ${d.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
 
-          document.getElementById('modalSL').textContent = `$${formatPrice(d.sl)}`;
-          document.getElementById('modalTrendingTP').textContent = `$${formatPrice(d.tp)}`;
-          const lev = state.marketType === 'SPOT' ? 1 : state.selectedLeverage;
-          const tpPct = (((Math.abs(d.tp - d.price) / d.price) * 100) * lev).toFixed(2);
-          document.getElementById('modalTpPct').textContent = `+${tpPct}% (${state.marketType === 'SPOT' ? 'Spot' : 'con leva ' + lev + 'x'})`;
-
           document.getElementById('tableParamEntry').textContent = formatPrice(d.price);
-          document.getElementById('tableParamTp').textContent = formatPrice(d.tp);
+          document.getElementById('tableParamTp1').textContent = formatPrice(d.tp1);
+          document.getElementById('tableParamTp2').textContent = formatPrice(d.tp2);
+          document.getElementById('tableParamTp3').textContent = formatPrice(d.tp3);
           document.getElementById('tableParamSl').textContent = formatPrice(d.sl);
 
           aggiornaQuantitaDaCapitale();
@@ -1580,13 +1562,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           symbol: asset.symbol, action: asset.side, size: qty, entry: asset.price,
-          tp: asset.tp, sl: asset.sl, leverage: state.marketType === 'SPOT' ? 1 : state.selectedLeverage, timeframe: asset.timeframe,
+          tp: asset.tp2, sl: asset.sl, leverage: state.marketType === 'SPOT' ? 1 : state.selectedLeverage, timeframe: asset.timeframe,
           marketType: state.marketType, apiKey: keys.apiKey, secretKey: keys.secretKey
         })
       });
       const data = await res.json();
       if (data.code === 0) {
-        avviaAdvisorPosizione(asset.symbol, asset.side, asset.price, asset.tp, asset.sl, asset.tempoSec);
+        avviaAdvisorPosizione(asset.symbol, asset.side, asset.price, asset.tp2, asset.sl, asset.tempoSec, asset.tp1, asset.tp3);
         closeModal();
       } else {
         alert("Errore esecuzione: " + (data.msg || "Verifica le tue chiavi API"));
@@ -1608,7 +1590,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       setInterval(pollMarketData, 2000);
       setInterval(() => {
         document.getElementById('liveCetClock').textContent = new Date().toTimeString().slice(0, 8) + ' CET';
-        updateAllVisibleCountdowns();
       }, 1000);
     });
   </script>
