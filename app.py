@@ -38,10 +38,14 @@ def _genera_firma(payload: dict, secret_key: str) -> str:
 # ==========================================
 def verifica_finestra_temporale_sicura() -> tuple[bool, str, str, str]:
     """
-    Ritorna: (is_safe, messaggio_stato, orario_inizio_prossimo, orario_fine_sessione)
-    Fasce protette (CET/Roma):
+    Ritorna: (is_safe, messaggio_stato, orario_inizio, orario_fine)
+    Fasce protette e borse mondiali (CET/Roma):
+    - 01:00 – 09:00: Sessione Asiatica (Accumulazione / Laterale)
     - 08:45 – 09:30: Apertura Borse Europee (Caccia agli stop)
-    - 15:20 – 16:00: Apertura Wall Street (Finte rotture / Volatilità estrema)
+    - 09:30 – 14:15: Mattinata Europea (Top Liquidità / Trend puliti)
+    - 14:15 – 15:20: Transizione Pre-Wall Street
+    - 15:20 – 16:00: Apertura Wall Street (Strappi violenti / False rotture)
+    - 16:00 – 21:30: Pomeriggio / Sera USA (Finestra Altamente Redditizia)
     - 21:30 – 01:15: Chiusura USA / Calo liquidità notturna
     """
     try:
@@ -50,21 +54,20 @@ def verifica_finestra_temporale_sicura() -> tuple[bool, str, str, str]:
         ora_minuto = adesso.strftime("%H:%M")
         
         if "08:45" <= ora_minuto <= "09:30":
-            return False, "⚠️ Apertura Borse Europee (Caccia agli stop in corso)", "09:30", "14:15"
+            return False, "⚠️ Apertura Borse Europee (Caccia agli stop / Volatilità iniziale)", "09:30", "14:15"
         if "15:20" <= ora_minuto <= "16:00":
             return False, "⚠️ Apertura Wall Street (Strappi violenti / False rotture)", "16:00", "21:30"
         if ora_minuto >= "21:30" or ora_minuto <= "01:15":
-            return False, "⚠️ Chiusura USA / Calo liquidità serale", "09:30 (Domani)", "14:15"
+            return False, "⚠️ Chiusura USA / Calo liquidità serale e notturna", "09:30 (Domani)", "14:15"
             
-        # Determinazione della finestra attiva corrente
         if "09:30" <= ora_minuto < "14:15":
-            return True, "🟢 Finestra Mattutina Attiva (Londra / Europa)", "09:30", "14:15"
-        elif "14:15" < ora_minuto < "15:20":
+            return True, "🟢 Finestra Mattutina Ottimale (Londra / Europa - Top Volumi)", "09:30", "14:15"
+        elif "14:15" <= ora_minuto < "15:20":
             return True, "🟢 Finestra di Transizione Pre-Wall Street", "14:15", "15:20"
         elif "16:00" <= ora_minuto < "21:30":
-            return True, "🟢 Finestra Pomeridiana / Sera (Wall Street Post-Apertura)", "16:00", "21:30"
+            return True, "🟢 Finestra Pomeridiana / Sera USA (Altamente Redditizia)", "16:00", "21:30"
         else:
-            return True, "🟢 Finestra Asiatica / Notturna Regolare", "02:00", "06:00"
+            return True, "🟢 Sessione Asiatica / Accumulpativa (Bassa volatilità)", "01:00", "09:00"
     except Exception:
         return True, "🟢 Finestra operativa standard", "09:30", "21:30"
 
@@ -418,7 +421,7 @@ def webhook_esegui_segnale():
     is_auto = dati.get("is_auto", False)
 
     if is_auto and TRADING_MODE != "AUTO":
-        return jsonify({"code": -99, "msg": "Modalità Automatica disattivata."})
+        return jsonify({"code": -99, "msg": "Modalità Automatica disattivata. Attiva la modalità AUTO per l'esecuzione autonoma."})
 
     risultato = esegui_ordine_bingx(simbolo, lato, quantita, prezzo_ingresso, tp, sl, leva, timeframe, mtype, dati.get("apiKey", ""), dati.get("secretKey", ""))
     return jsonify(risultato)
@@ -524,7 +527,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex items-center gap-2 text-[11px] font-mono text-white/70 mt-0.5">
             <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
-            <span class="text-[#00FF66]" id="headerSubMarketInfo">Advisor Orario Attivo • 1. Entra • 2. Rimani • 3. TP Esci</span>
+            <span class="text-[#00FF66]" id="headerSubMarketInfo">Manuale & Auto • 1. Entra • 2. Rimani • 3. TP Esci</span>
           </div>
         </div>
       </div>
@@ -542,7 +545,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </button>
 
         <div class="flex items-center bg-[#08080A] p-1.5 rounded-xl border border-white/20 gap-1.5">
-          <span class="text-xs font-mono font-bold text-white/70 px-1">Esecuzione:</span>
+          <span class="text-xs font-mono font-bold text-white/70 px-1">Modalità:</span>
           <button id="btnModeManual" onclick="switchMode('MANUAL')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-white/20 text-white">MANUALE</button>
           <button id="btnModeAuto" onclick="switchMode('AUTO')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white">AUTO ⚡</button>
         </div>
@@ -567,12 +570,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <!-- MAIN -->
   <main class="flex-1 max-w-[1920px] w-full mx-auto px-3 sm:px-5 py-4 flex flex-col gap-4">
 
-    <!-- BANNER ORARIO E SESSIONE DI TRADING -->
+    <!-- BANNER ORARIO E SESSIONI DI TRADING (BORSE MONDIALI) -->
     <div id="timeSafetyBanner" class="terminal-card rounded-2xl p-4 border border-[#00FF66]/50 bg-emerald-950/20 flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
       <div class="flex items-center gap-3">
         <span id="timeBannerDot" class="w-3 h-3 rounded-full bg-[#00FF66] animate-pulse"></span>
         <div>
-          <strong id="timeBannerTitle" class="text-white text-sm block">SESSIONE DI TRADING: OTTIMALE</strong>
+          <strong id="timeBannerTitle" class="text-white text-sm block">SESSIONE DI TRADING &amp; ORARI BORSE MONDIALI: OTTIMALE 🚀</strong>
           <span id="timeBannerText" class="text-[#00FF66]">Finestra sicura attiva. Pronto per operare.</span>
         </div>
       </div>
@@ -587,10 +590,68 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <strong id="sessionEndLabel" class="text-yellow-400 font-bold">21:30 CET</strong>
         </div>
         <button onclick="testVoiceAlarm()" class="ml-2 px-3 py-1.5 rounded-lg bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/40 hover:bg-[#00FF66]/30 text-xs font-bold transition-all">
-          🔊 Test Avviso Vocale
+          🔊 Test Orari &amp; Vocale
         </button>
       </div>
     </div>
+
+    <!-- TABELLA ORARI E MOMENTI MIGLIORI PER IL GUADAGNO -->
+    <section class="terminal-card rounded-2xl p-4 space-y-3">
+      <div class="flex items-center justify-between border-b border-white/15 pb-2">
+        <h2 class="text-xs font-extrabold text-[#00FF66] uppercase tracking-wider flex items-center gap-2">
+          <span>📋 Guida Oraria Ufficiale: Borse Mondiali e Momenti Migliori per il Guadagno (CET)</span>
+        </h2>
+        <span class="text-[10px] text-white/60 font-mono">Guida Vocale &amp; Visiva Integrata</span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs font-mono">
+          <thead>
+            <tr class="border-b border-white/15 text-white/60 text-[10px]">
+              <th class="py-2 px-2">SESSIONE / BORSA</th>
+              <th class="py-2 px-2">ORARIO (CET)</th>
+              <th class="py-2 px-2">CARATTERISTICHE &amp; MOMENTI MIGLIORI</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-white/10 text-white/90">
+            <tr>
+              <td class="py-2 px-2 text-white font-bold">Sessione Asiatica (Tokyo / Sydney)</td>
+              <td class="py-2 px-2 text-cyan-300">01:00 – 09:00</td>
+              <td class="py-2 px-2 text-white/80">Fase laterale o di accumulazione. Ottimo per posizionamenti tranquilli.</td>
+            </tr>
+            <tr class="bg-red-950/20">
+              <td class="py-2 px-2 text-[#FF334B] font-bold">⚠️ Apertura Borse Europee</td>
+              <td class="py-2 px-2 text-[#FF334B]">08:45 – 09:30</td>
+              <td class="py-2 px-2 text-[#FF334B]">Caccia agli stop e alta volatilità iniziale. Consigliato attendere le 09:30.</td>
+            </tr>
+            <tr class="bg-emerald-950/30">
+              <td class="py-2 px-2 text-[#00FF66] font-bold">🟢 Mattinata Europea (Top Liquidità)</td>
+              <td class="py-2 px-2 text-[#00FF66]">09:30 – 14:15</td>
+              <td class="py-2 px-2 text-[#00FF66]">Finestra ottimale: trend puliti, massimi volumi istituzionali e alta precisione.</td>
+            </tr>
+            <tr>
+              <td class="py-2 px-2 text-white font-bold">Transizione Pre-Wall Street</td>
+              <td class="py-2 px-2 text-cyan-300">14:15 – 15:20</td>
+              <td class="py-2 px-2 text-white/80">Fase di attesa e posizionamento in vista dell'apertura americana.</td>
+            </tr>
+            <tr class="bg-red-950/20">
+              <td class="py-2 px-2 text-[#FF334B] font-bold">⚠️ Apertura Wall Street (USA)</td>
+              <td class="py-2 px-2 text-[#FF334B]">15:20 – 16:00</td>
+              <td class="py-2 px-2 text-[#FF334B]">Strappi violenti e false rotture. Prudenza massima.</td>
+            </tr>
+            <tr class="bg-emerald-950/30">
+              <td class="py-2 px-2 text-[#00FF66] font-bold">🟢 Pomeriggio / Sera USA (Altamente Redditizia)</td>
+              <td class="py-2 px-2 text-[#00FF66]">16:00 – 21:30</td>
+              <td class="py-2 px-2 text-[#00FF66]">Finestra d'oro per profitti rapidi: consolidamento dei trend di fondo.</td>
+            </tr>
+            <tr class="bg-red-950/20">
+              <td class="py-2 px-2 text-[#FF334B] font-bold">⚠️ Chiusura USA / Notturna</td>
+              <td class="py-2 px-2 text-[#FF334B]">21:30 – 01:15</td>
+              <td class="py-2 px-2 text-[#FF334B]">Calo di liquidità e spread ampi. Da evitare per nuovi ingressi.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
 
     <!-- BOX ADVISOR POSIZIONE ATTIVA -->
     <div id="activePositionAdvisorBox" class="hidden terminal-card rounded-2xl p-4 sm:p-5 border-2 border-[#00FF66] bg-gradient-to-r from-emerald-950/40 via-[#08080A] to-emerald-950/40 shadow-2xl space-y-4">
@@ -598,8 +659,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="flex items-center gap-3">
           <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse" id="advIconSign">🔊</div>
           <div>
-            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white" id="advTitleMain">🟢 QUANTUM SUPERIOR ADVISOR VOCALE (<span id="advSymbol">BTC-USDT</span>)</h2>
-            <p class="text-[11px] text-[#00FF66]" id="advSubNotice">1. Entra • 2. Rimani a Mercato • 3. TP Raggiunto / Esci</p>
+            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white" id="advTitleMain">🟢 QUANTUM ADVISOR ATTIVO (<span id="advSymbol">BTC-USDT</span>)</h2>
+            <p class="text-[11px] text-[#00FF66]" id="advSubNotice">1. Ingresso • 2. Gestione in PnL • 3. TP Raggiunto / Esci</p>
           </div>
         </div>
         <button onclick="chiudiPosizioneMonitorata()" class="px-3.5 py-1.5 rounded-xl bg-red-500/20 text-[#FF334B] border border-red-500/50 hover:bg-red-500/30 text-xs font-bold transition-all">
@@ -609,27 +670,27 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs font-mono">
         <div class="bg-black/50 p-3 rounded-xl border border-white/10">
-          <span class="text-white/60 text-[10px] block">1. 🟢 ENTRA (APERTURA)</span>
+          <span class="text-white/60 text-[10px] block">1. 🟢 INGRESSO</span>
           <strong id="advEntryPrice" class="text-white text-sm">--</strong>
           <span id="advSideBadge" class="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-green-500/20 text-[#00FF66]">LONG</span>
         </div>
         <div class="bg-black/50 p-3 rounded-xl border border-white/10">
-          <span class="text-white/60 text-[10px] block">2. 📊 RIMANI A MERCATO (PNL)</span>
+          <span class="text-white/60 text-[10px] block">2. 📊 STATO MERCATO (PNL)</span>
           <strong id="advLivePrice" class="text-cyan-300 text-sm">--</strong>
           <span id="advPnlVal" class="block mt-1 text-[10px] font-bold text-[#00FF66]">PnL: 0.00%</span>
         </div>
         <div class="bg-black/50 p-3 rounded-xl border border-white/10">
-          <span class="text-white/60 text-[10px] block">🎯 TARGET TAKE PROFIT ($ TP) SUPERIORE</span>
+          <span class="text-white/60 text-[10px] block">🎯 TARGET TAKE PROFIT ($ TP)</span>
           <strong id="advTargetTpDisplay" class="text-[#00FF66] text-sm">--</strong>
           <span id="advDistTp" class="block mt-1 text-[10px] text-white/80 font-bold">Distanza TP: 0.00%</span>
           <span id="advExactTimeRemaining" class="block mt-0.5 text-[10px] text-yellow-300 tabular-nums font-bold">Tempo al TP: --</span>
         </div>
         <div class="bg-black/50 p-3 rounded-xl border border-white/10 flex flex-col justify-between">
           <div>
-            <span class="text-white/60 text-[10px] block">3. 🎯 TP RAGGIUNTO / ESCI</span>
+            <span class="text-white/60 text-[10px] block">3. 🎯 USCITA / TP RAGGIUNTO</span>
             <strong id="advStatusAdvice" class="text-[#00FF66] text-xs block mt-0.5">In attesa del TP...</strong>
           </div>
-          <span id="advActionAlert" class="text-[10px] text-white/80 italic mt-1">Guida dinamica al profitto attiva</span>
+          <span id="advActionAlert" class="text-[10px] text-white/80 italic mt-1">Guida attiva per manuale e auto</span>
         </div>
       </div>
     </div>
@@ -640,13 +701,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <span class="text-[11px] font-semibold uppercase text-white/75">Stato Connessione Utente</span>
         <div class="mt-2">
           <strong id="kpiUserApiStatus" class="text-xs font-mono text-yellow-400 block">⚠️ API Personali non inserite</strong>
-          <span class="text-[11px] text-white/70">Inserisci chiavi per operatività</span>
+          <span class="text-[11px] text-white/70">Necessarie per Auto e Manuale</span>
         </div>
       </div>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase text-white/75">Stato Monitoraggio 🔓</span>
+        <span class="text-[11px] font-semibold uppercase text-white/75">Modalità Operativa</span>
         <div class="mt-2">
-          <span id="kpiAutoSlotStatus" class="text-xs font-mono text-[#00FF66] font-extrabold">🟢 Pronto a Monitorare</span>
+          <span id="kpiAutoSlotStatus" class="text-xs font-mono text-[#00FF66] font-extrabold">🟢 Pronto (Manuale / Auto)</span>
         </div>
       </div>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
@@ -671,7 +732,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-bounce">⚡</div>
           <div>
             <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">⚡ SEGNALE MASTER SUPERIORE ($ TP &amp; SL 😢)</h2>
-            <p class="text-[11px] text-[#00FF66]" id="masterSubtitle">Timer aggiornato ad ogni singola candela di mercato</p>
+            <p class="text-[11px] text-[#00FF66]" id="masterSubtitle">Funziona sia in inserimento manuale che automatico</p>
           </div>
         </div>
         <span id="masterPrecisionBadge" class="px-2.5 py-1 rounded-md text-xs font-mono font-extrabold bg-[#00FF66] text-black animate-pulse">CANDLE-SYNC 🚀</span>
@@ -704,7 +765,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="flex items-center justify-between border-b border-white/15 pb-3">
           <h2 class="text-sm font-bold text-white flex items-center gap-3">
             <span class="w-8 h-8 rounded-full bg-[#00FF66]/20 border border-[#00FF66] flex items-center justify-center text-[#00FF66] text-base font-extrabold dollar-animated-logo">$</span>
-            <span>📊 Lista Operativa (<span id="tableMarketLabel" class="text-[#00FF66]">FUTURES</span> - Auto-Adattiva)</span>
+            <span>📊 Lista Operativa (<span id="tableMarketLabel" class="text-[#00FF66]">FUTURES</span> - Manuale & Auto)</span>
           </h2>
           <span class="text-xs font-mono text-[#00FF66]">Sincronizzato sul flusso candela per candela</span>
         </div>
@@ -718,7 +779,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[800px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Advisor Orario Vocale attivo...</div>
+          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Advisor Vocale attivo (Manuale & Auto)...</div>
         </div>
       </aside>
     </div>
@@ -762,7 +823,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <h2 id="modalSymbol" class="text-base font-extrabold font-mono text-white">BTC-USDT</h2>
             <span id="modalOhlcvBadge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/40">SUPERIORE</span>
           </div>
-          <p id="modalSubtitleType" class="text-xs text-white/70">Advisor quantistico: 1. Entra • 2. Rimani a Mercato • 3. TP Raggiunto / Esci</p>
+          <p id="modalSubtitleType" class="text-xs text-white/70">Advisor quantistico: 1. Ingresso • 2. Gestione PnL • 3. TP Raggiunto</p>
         </div>
         <button onclick="closeModal()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
       </div>
@@ -798,7 +859,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
               <span class="text-xs font-extrabold text-[#00FF66] flex items-center gap-1.5">
                 <span>📋</span> TABELLA PARAMETRI CHIRURGICI ($ TP &amp; SL 😢)
               </span>
-              <span class="text-[10px] text-white/70">Calibrati e protetti</span>
+              <span class="text-[10px] text-white/70">Validi per Manuale e Auto</span>
             </div>
 
             <div class="overflow-x-auto">
@@ -881,7 +942,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
 
         <button id="executeBingXBtn" onclick="eseguiOrdineSuBingX()" class="bingx-btn w-full py-2.5 rounded-xl text-xs shadow-lg flex items-center justify-center gap-2">
-          <span>⚡ Esegui Ordine con Capitale Personalizzato &amp; Attiva Advisor</span>
+          <span>⚡ Esegui Ordine (Manuale o Auto) &amp; Avvia Advisor</span>
         </button>
         <div id="executionFeedback" class="mt-2 text-xs text-center hidden"></div>
       </div>
@@ -1065,8 +1126,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     }
 
     function testVoiceAlarm() {
-      playChime(false, "Attenzione! Il sistema ApexScan è attivo. Finestra di trading ottimale aperta. Orario di inizio sessione confermato.");
-      logFeed("[TEST VOCALE] Avviso acustico e vocale riprodotto con successo.");
+      playChime(false, "Attenzione! Il sistema ApexScan è attivo con le borse mondiali sincronizzate. Le finestre migliori per il guadagno sono la mattinata europea dalle 09:30 alle 14:15 e il pomeriggio americano dalle 16:00 alle 21:30.");
+      logFeed("[TEST VOCALE & ORARI] Guida vocale riprodotta con successo.");
     }
 
     function getPrecisionDecimals(val) {
@@ -1217,8 +1278,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       box.className = "terminal-card rounded-2xl p-4 sm:p-5 border-2 border-[#00FF66] bg-gradient-to-r from-emerald-950/40 via-[#08080A] to-emerald-950/40 shadow-2xl space-y-4";
       document.getElementById('advHeaderBox').className = "flex flex-wrap items-center justify-between pb-3 border-b border-[#00FF66]/30 gap-3";
       document.getElementById('advIconSign').className = "w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse";
-      document.getElementById('advTitleMain').innerHTML = `🟢 QUANTUM SUPERIOR ADVISOR VOCALE (<span id="advSymbol">${symbol}</span>)`;
-      document.getElementById('advSubNotice').textContent = "1. Entra • 2. Rimani a Mercato • 3. TP Raggiunto / Esci";
+      document.getElementById('advTitleMain').innerHTML = `🟢 QUANTUM ADVISOR ATTIVO (<span id="advSymbol">${symbol}</span>)`;
+      document.getElementById('advSubNotice').textContent = "1. Ingresso • 2. Gestione in PnL • 3. TP Raggiunto";
 
       document.getElementById('kpiAutoSlotStatus').textContent = "🔒 Monitoraggio Attivo";
       document.getElementById('advSymbol').textContent = symbol;
@@ -1231,10 +1292,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const sideText = side === 'BUY' ? 'Long' : 'Short';
       const voiceTimeStr = formatVoiceDuration(liveRemSec);
       state.lastVoiceAnnounceTimestamp = Date.now();
-      playChime(false, `Primo. Entra a mercato su ${state.marketType} con ${state.selectedMarginUsdt} USDT di margine. Posizione ${sideText} su ${symbol}. Target Take Profit a ${formatPrice(tpPrice)}. Tempo previsto: ${voiceTimeStr}.`);
+      playChime(false, `Primo. Ingresso registrato su ${state.marketType} con ${state.selectedMarginUsdt} USDT di margine. Posizione ${sideText} su ${symbol}. Target Take Profit a ${formatPrice(tpPrice)}. Tempo previsto: ${voiceTimeStr}.`);
       aggiornaAdvisorLoop();
       state.advisorInterval = setInterval(aggiornaAdvisorLoop, 1000);
-      logFeed(`[QUANTUM ADVISOR] Monitoraggio avviato su ${symbol} (${side}) con Margine ${state.selectedMarginUsdt} USDT.`);
+      logFeed(`[QUANTUM ADVISOR] Monitoraggio avviato su ${symbol} (${side}) in modalità ${state.tradingMode}.`);
     }
 
     function chiudiPosizioneMonitorata() {
@@ -1242,7 +1303,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       state.activePosition = null;
       state.isCriticalState = false;
       document.getElementById('activePositionAdvisorBox').classList.add('hidden');
-      document.getElementById('kpiAutoSlotStatus').textContent = "🟢 Pronto a Monitorare";
+      document.getElementById('kpiAutoSlotStatus').textContent = "🟢 Pronto (Manuale / Auto)";
       logFeed(`[QUANTUM ADVISOR] Monitoraggio chiuso.`);
     }
 
@@ -1292,21 +1353,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       if ((pos.side === 'BUY' && currentPrice >= pos.tpPrice) || (pos.side === 'SELL' && currentPrice <= pos.tpPrice)) {
         document.getElementById('advDistTp').textContent = "Distanza TP: 0.00% (RAGGIUNTO!)";
         document.getElementById('advExactTimeRemaining').textContent = "Tempo al TP: 0s";
-        advAdvice.textContent = "3. 🎯 TP RAGGIUNTO! ESCI DA MERCATO";
+        advAdvice.textContent = "3. 🎯 TP RAGGIUNTO! USCITA ESEGUITA";
         advAdvice.className = "text-[#00FF66] text-xs block font-bold animate-pulse";
         advAlert.textContent = "Target Take Profit raggiunto con successo!";
         if (lastLoopAdviceState !== "TP") {
           lastLoopAdviceState = "TP";
-          playChime(true, "Terzo. Target Take profit raggiunto! Esci subito da mercato con profitto.");
+          playChime(true, "Terzo. Target Take profit raggiunto! Uscita da mercato completata con profitto.");
         }
         chiudiPosizioneMonitorata();
       } else if ((pos.side === 'BUY' && currentPrice <= pos.slPrice) || (pos.side === 'SELL' && currentPrice >= pos.slPrice)) {
-        advAdvice.textContent = "3. 🛑 ESCI DI PROTEZIONE 😢";
+        advAdvice.textContent = "3. 🛑 STOP LOSS RAGGIUNTO 😢";
         advAdvice.className = "text-[#FF334B] text-xs block font-bold animate-pulse";
         advAlert.textContent = "Chiusura di salvaguardia attivata.";
         if (lastLoopAdviceState !== "SL") {
           lastLoopAdviceState = "SL";
-          playChime(true, "Terzo. Stop loss toccato. Esci di protezione per salvaguardare il capitale.");
+          playChime(true, "Terzo. Stop loss toccato. Chiusura di protezione eseguita.");
         }
         chiudiPosizioneMonitorata();
       } else if (isCritical) {
@@ -1329,17 +1390,17 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         box.className = "terminal-card rounded-2xl p-4 sm:p-5 border-2 border-[#00FF66] bg-gradient-to-r from-emerald-950/40 via-[#08080A] to-emerald-950/40 shadow-2xl space-y-4";
         document.getElementById('advHeaderBox').className = "flex flex-wrap items-center justify-between pb-3 border-b border-[#00FF66]/30 gap-3";
         document.getElementById('advIconSign').className = "w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse";
-        document.getElementById('advTitleMain').innerHTML = `🟢 QUANTUM SUPERIOR ADVISOR VOCALE (<span id="advSymbol">${pos.symbol}</span>)`;
-        document.getElementById('advSubNotice').textContent = "1. Entra • 2. Rimani a Mercato • 3. TP Raggiunto / Esci";
+        document.getElementById('advTitleMain').innerHTML = `🟢 QUANTUM ADVISOR ATTIVO (<span id="advSymbol">${pos.symbol}</span>)`;
+        document.getElementById('advSubNotice').textContent = "1. Ingresso • 2. Gestione in PnL • 3. TP Raggiunto";
 
         if (pnlPct >= 0) {
-          advAdvice.textContent = "2. 📊 RIMANI A MERCATO (IN PROFITTO)";
+          advAdvice.textContent = "2. 📊 GESTIONE PNL (IN PROFITTO)";
           advAdvice.className = "text-[#00FF66] text-xs block font-bold";
           advAlert.textContent = `Avanzamento regolare verso il $ TP: $${formatPrice(pos.tpPrice)}`;
         } else {
-          advAdvice.textContent = "2. ⏳ RIMANI A MERCATO (FASE DI RITRACCIAMENTO)";
+          advAdvice.textContent = "2. ⏳ GESTIONE PNL (FASI DI RITRACCIAMENTO)";
           advAdvice.className = "text-yellow-400 text-xs block font-bold";
-          advAlert.textContent = `Il prezzo sta fluttuando prima della spinta verso il TP: $${formatPrice(pos.tpPrice)}`;
+          advAlert.textContent = `Il prezzo fluttua prima della spinta verso il TP: $${formatPrice(pos.tpPrice)}`;
         }
 
         const now = Date.now();
@@ -1347,9 +1408,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           state.lastVoiceAnnounceTimestamp = now;
           const voiceTimeLeft = formatVoiceDuration(exactRemainingSec);
           if (pnlPct >= 0) {
-            speakText(`Secondo. Rimani a mercato. Posizione in profitto. Mancano circa ${voiceTimeLeft} al Take Profit.`);
+            speakText(`Secondo. Posizione in profitto. Mancano circa ${voiceTimeLeft} al Take Profit.`);
           } else {
-            speakText(`Secondo. Rimani a mercato. Posizione in fase di fluttuazione normale. Mancano circa ${voiceTimeLeft} al Take Profit.`);
+            speakText(`Secondo. Posizione in fase di fluttuazione normale. Mancano circa ${voiceTimeLeft} al Take Profit.`);
           }
         }
 
@@ -1415,7 +1476,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       
       document.getElementById('kpiMarketBadge').textContent = isSpot ? "🟢 RSI SPOT DINAMICO" : "🟢 RSI FUTURES DINAMICO";
       document.getElementById('tableMarketLabel').textContent = state.marketType;
-      document.getElementById('headerSubMarketInfo').textContent = isSpot ? "Spot Dinamico (Solo Long 🪙) • 1. Entra • 2. Rimani • 3. TP Esci" : "Futures Dinamico (Long & Short ⚡) • 1. Entra • 2. Rimani • 3. TP Esci";
+      document.getElementById('headerSubMarketInfo').textContent = isSpot ? "Spot (Manuale & Auto) • 1. Entra • 2. Rimani • 3. TP Esci" : "Futures (Manuale & Auto) • 1. Entra • 2. Rimani • 3. TP Esci";
       
       const levSec = document.getElementById('leverageSectionWrapper');
       if (levSec) levSec.style.display = isSpot ? 'none' : 'block';
@@ -1432,6 +1493,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         if (data.code === 0) {
           state.tradingMode = data.mode;
           document.getElementById('modeText').textContent = data.mode;
+          document.getElementById('btnModeManual').className = mode === 'MANUAL' ? "px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-white/20 text-white" : "px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
+          document.getElementById('btnModeAuto').className = mode === 'AUTO' ? "px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-[#00FF66] text-black shadow-lg" : "px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
+          logFeed(`[MODALITÀ] Impostata su ${mode}`);
         }
       } catch (e) {}
     }
@@ -1462,26 +1526,26 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           if (modeJson.isSafeTime) {
             banner.className = "terminal-card rounded-2xl p-4 border border-[#00FF66]/50 bg-emerald-950/20 flex flex-wrap items-center justify-between gap-3 text-xs font-mono";
             bannerDot.className = "w-3 h-3 rounded-full bg-[#00FF66] animate-pulse";
-            bannerTitle.textContent = "SESSIONE DI TRADING: OTTIMALE & SICURA 🚀";
+            bannerTitle.textContent = "SESSIONE DI TRADING & ORARI BORSE: OTTIMALE 🚀";
             bannerText.className = "text-[#00FF66]";
             bannerText.textContent = modeJson.timeMsg;
 
             if (state.lastSessionSafeState === false || state.lastSessionSafeState === null) {
               state.lastSessionSafeState = true;
-              playChime(false, "Attenzione. Finestra temporale di trading ottimale aperta. Inizio sessione confermato. Puoi iniziare a fare trading in sicurezza.");
-              logFeed("[ADVISOR ORARIO] Finestra sicura aperta. Avviso vocale di inizio sessione eseguito.");
+              playChime(false, "Attenzione. Finestra temporale di trading ottimale aperta. Le borse mondiali garantiscono alta liquidità per operare sia in manuale che in automatico.");
+              logFeed("[ADVISOR ORARIO] Finestra sicura aperta. Avviso vocale eseguito.");
             }
           } else {
             banner.className = "terminal-card rounded-2xl p-4 border border-[#FF334B]/60 bg-red-950/30 flex flex-wrap items-center justify-between gap-3 text-xs font-mono";
             bannerDot.className = "w-3 h-3 rounded-full bg-[#FF334B] animate-ping";
-            bannerTitle.textContent = "⚠️ ORARIO CRITICO / STOP NUOVI INGRESSI 🛑";
+            bannerTitle.textContent = "⚠️ ORARIO CRITICO / BORSE A RISCHIO 🛑";
             bannerText.className = "text-[#FF334B] font-bold";
-            bannerText.textContent = `${modeJson.timeMsg} (Gestisci solo posizioni esistenti)`;
+            bannerText.textContent = `${modeJson.timeMsg} (Prudenza massima)`;
 
             if (state.lastSessionSafeState === true || state.lastSessionSafeState === null) {
               state.lastSessionSafeState = false;
-              playChime(true, "Attenzione. Raggiunto orario critico di mercato. Si consiglia di sospendere i nuovi ingressi e gestire solo posizioni aperte.");
-              logFeed("[ADVISOR ORARIO] Orario critico rilevato. Avviso vocale di stop esecuzione eseguito.");
+              playChime(true, "Attenzione. Raggiunto orario critico o di apertura violenta delle borse. Si consiglia prudenza massima.");
+              logFeed("[ADVISOR ORARIO] Orario critico rilevato. Avviso vocale eseguito.");
             }
           }
         }
@@ -1589,7 +1653,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             <div class="flex items-center justify-between pt-1">
               <span class="text-[10px] text-[#00FF66] font-bold">Stato: ${local.confluenza}</span>
-              <span class="px-3 py-1 rounded-lg bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/40 text-xs font-bold">1. Entra Sup ⚡</span>
+              <span class="px-3 py-1 rounded-lg bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/40 text-xs font-bold">1. Esegui ⚡</span>
             </div>
           </div>
         `;
@@ -1694,7 +1758,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         body: JSON.stringify({
           symbol: asset.symbol, action: asset.side, size: qty, entry: asset.price,
           tp: asset.tp, sl: asset.sl, leverage: state.marketType === 'SPOT' ? 1 : state.selectedLeverage, timeframe: asset.timeframe,
-          marketType: state.marketType, apiKey: keys.apiKey, secretKey: keys.secretKey
+          marketType: state.marketType, apiKey: keys.apiKey, secretKey: keys.secretKey,
+          is_auto: state.tradingMode === 'AUTO'
         })
       });
       const data = await res.json();
