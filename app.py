@@ -439,8 +439,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
           colors: {
             obsidian: { 950: '#000000', 900: '#08080A', 850: '#0E0E11', 800: '#141418', 700: '#1E1E24' },
-            emeraldNeon: '#00FF66',
-            rubyNeon: '#FF334B'
+            appWhite: '#FFFFFF',
+            appGreen: '#00FF66',
+            appRed: '#FF334B',
+            appBlue: '#0066FF'
           }
         }
       }
@@ -452,11 +454,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     ::-webkit-scrollbar-track { background: #000000; }
     ::-webkit-scrollbar-thumb { background: rgba(0, 255, 102, 0.35); border-radius: 9999px; }
     @keyframes neonGlowPulse { 0%, 100% { box-shadow: 0 0 20px rgba(0, 255, 102, 0.4), inset 0 0 12px rgba(0, 255, 102, 0.15); border-color: rgba(0, 255, 102, 0.8); } 50% { box-shadow: 0 0 35px rgba(0, 255, 102, 0.7), inset 0 0 20px rgba(0, 255, 102, 0.35); border-color: #00FF66; } }
-    @keyframes criticalPulse { 0%, 100% { box-shadow: 0 0 25px rgba(255, 51, 75, 0.8), inset 0 0 15px rgba(255, 51, 75, 0.3); border-color: #FF334B; background: rgba(50, 10, 15, 0.95); } 50% { box-shadow: 0 0 45px rgba(255, 51, 75, 1); border-color: #FF334B; background: rgba(80, 15, 20, 0.98); } }
     @keyframes dollarRotateGlow { 0% { transform: scale(1) rotate(0deg); filter: drop-shadow(0 0 8px #00FF66); } 50% { transform: scale(1.15) rotate(10deg); filter: drop-shadow(0 0 20px #00FF66); } 100% { transform: scale(1) rotate(0deg); filter: drop-shadow(0 0 8px #00FF66); } }
     .dollar-animated-logo { display: inline-block; animation: dollarRotateGlow 2.5s infinite ease-in-out; }
     .priority-signal-box { background: linear-gradient(180deg, rgba(8, 24, 15, 0.98) 0%, rgba(4, 12, 8, 0.99) 100%); border: 2px solid #00FF66; animation: neonGlowPulse 3s infinite ease-in-out; }
-    .critical-box-mode { animation: criticalPulse 1.2s infinite ease-in-out !important; border: 2px solid #FF334B !important; }
     .tf-illuminated { box-shadow: 0 0 20px rgba(0, 255, 102, 0.85), inset 0 0 14px rgba(0, 255, 102, 0.3); border: 2px solid #00FF66 !important; background: rgba(0, 255, 102, 0.15) !important; }
     .terminal-card { background: linear-gradient(180deg, rgba(14, 14, 17, 0.98) 0%, rgba(8, 8, 10, 0.99) 100%); border: 1px solid rgba(255, 255, 255, 0.16); box-shadow: 0 8px 32px -6px rgba(0, 0, 0, 0.95); }
     .green-gradient-btn { background: linear-gradient(135deg, #00FF66 0%, #00CC52 100%); color: #000000; font-weight: 800; }
@@ -469,20 +469,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 </head>
 <body class="min-h-screen flex flex-col selection:bg-[#00FF66]/30 selection:text-white">
 
-  <!-- HEADER -->
-  <header class="sticky top-0 z-30 bg-[#000000]/95 backdrop-blur-md border-b border-white/15 px-3 sm:px-5 py-2.5">
+  <!-- HEADER (BIANCO, VERDE, BLU) -->
+  <header class="sticky top-0 z-30 bg-[#000000]/95 backdrop-blur-md border-b border-[#0066FF]/40 px-3 sm:px-5 py-2.5">
     <div class="max-w-[1920px] mx-auto flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3.5">
-        <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#00FF66] via-[#00CC52] to-[#006622] text-black flex items-center justify-center shadow-2xl border-2 border-[#00FF66] font-extrabold text-xl animate-pulse">⚡</div>
+        <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#00FF66] via-[#0066FF] to-[#00CC52] text-white flex items-center justify-center shadow-2xl border-2 border-[#00FF66] font-extrabold text-xl animate-pulse">⚡</div>
         <div>
           <div class="flex items-center gap-2">
-            <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-white">APEXSCAN <span class="text-[#00FF66]" id="headerEngineTitle">Quantum High-Probability Advisor</span></h1>
-            <span id="modeStatusBadge" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-white/10 text-white/80 border border-white/20">
+            <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-[#FFFFFF]">APEXSCAN <span class="text-[#00FF66]" id="headerEngineTitle">Quantum High-Probability Advisor</span></h1>
+            <span id="modeStatusBadge" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-[#0066FF]/20 text-[#0066FF] border border-[#0066FF]/40">
               <span id="modeDot" class="w-1.5 h-1.5 rounded-full bg-[#00FF66]"></span> <span id="modeText">MANUALE</span>
             </span>
           </div>
-          <div class="flex items-center gap-2 text-[11px] font-mono text-white/70 mt-0.5">
-            <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
+          <div class="flex items-center gap-2 text-[11px] font-mono text-[#FFFFFF]/70 mt-0.5">
+            <span id="liveCetClock" class="text-[#FFFFFF] font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
             <span class="text-[#00FF66]" id="headerSubMarketInfo">Filtri Anti-Falsi Segnali Attivi • 1. Entra • 2. Rimani • 3. TP Esci</span>
           </div>
@@ -490,21 +490,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
 
       <div class="flex items-center gap-3 flex-wrap">
-        <div class="flex items-center bg-[#08080A] p-1.5 rounded-xl border border-white/20 gap-1.5 flex-wrap">
-          <span class="text-xs font-mono font-bold text-white/70 px-1">Mercato:</span>
-          <button id="btnMarketFutures" onclick="switchMarketType('FUTURES')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-[#0066FF] text-white">FUTURES</button>
-          <button id="btnMarketStandard" onclick="switchMarketType('STANDARD_FUTURES')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white">STD FUTURES 📊</button>
-          <button id="btnMarketSpot" onclick="switchMarketType('SPOT')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white">SPOT 🪙</button>
+        <div class="flex items-center bg-[#08080A] p-1.5 rounded-xl border border-[#0066FF]/30 gap-1.5 flex-wrap">
+          <span class="text-xs font-mono font-bold text-[#FFFFFF]/80 px-1">Mercato:</span>
+          <button id="btnMarketFutures" onclick="switchMarketType('FUTURES')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-[#0066FF] text-[#FFFFFF] shadow-md">FUTURES</button>
+          <button id="btnMarketStandard" onclick="switchMarketType('STANDARD_FUTURES')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-[#FFFFFF]/50 hover:text-[#FFFFFF]">STD 📊</button>
+          <button id="btnMarketSpot" onclick="switchMarketType('SPOT')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-[#FFFFFF]/50 hover:text-[#FFFFFF]">SPOT 🪙</button>
         </div>
 
-        <button onclick="toggleApiModal()" class="px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 hover:bg-cyan-500/30 transition-all flex items-center gap-1.5">
+        <button onclick="toggleApiModal()" class="px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-[#0066FF]/20 text-[#0066FF] border border-[#0066FF]/50 hover:bg-[#0066FF]/30 transition-all flex items-center gap-1.5 shadow-md">
           <span>🔑</span> <span id="apiStatusText">Collega API</span>
         </button>
 
-        <div class="flex items-center bg-[#08080A] p-1.5 rounded-xl border border-white/20 gap-1.5">
-          <span class="text-xs font-mono font-bold text-white/70 px-1">Esecuzione:</span>
-          <button id="btnModeManual" onclick="switchMode('MANUAL')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-white/20 text-white">MANUALE</button>
-          <button id="btnModeAuto" onclick="switchMode('AUTO')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white">AUTO ⚡</button>
+        <div class="flex items-center bg-[#08080A] p-1.5 rounded-xl border border-[#00FF66]/30 gap-1.5">
+          <span class="text-xs font-mono font-bold text-[#FFFFFF]/80 px-1">Esecuzione:</span>
+          <button id="btnModeManual" onclick="switchMode('MANUAL')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-[#00FF66] text-[#000000]">MANUALE</button>
+          <button id="btnModeAuto" onclick="switchMode('AUTO')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-[#FFFFFF]/50 hover:text-[#FFFFFF]">AUTO ⚡</button>
         </div>
       </div>
     </div>
@@ -517,8 +517,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <span>🔥</span> Top Coins Live:
       </span>
       <div class="overflow-hidden w-full relative">
-        <div id="liveTickerMarquee" class="ticker-wrapper font-mono text-xs text-white flex items-center gap-6">
-          <span class="text-white/50">Caricamento ticker in tempo reale...</span>
+        <div id="liveTickerMarquee" class="ticker-wrapper font-mono text-xs text-[#FFFFFF] flex items-center gap-6">
+          <span class="text-[#FFFFFF]/50">Caricamento ticker in tempo reale...</span>
         </div>
       </div>
     </div>
@@ -530,30 +530,30 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <!-- CONTENITORE POSIZIONI MULTIPLE MONITORATE -->
     <div id="activePositionsContainer" class="space-y-3"></div>
 
-    <!-- KPI DINAMICI -->
+    <!-- KPI DINAMICI (Con accenti Bianco, Verde, Blu, Rosso) -->
     <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-      <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase text-white/75">Stato Connessione Utente</span>
+      <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between border-t-2 border-[#0066FF]">
+        <span class="text-[11px] font-semibold uppercase text-[#FFFFFF]/80">Stato Connessione Utente</span>
         <div class="mt-2">
-          <strong id="kpiUserApiStatus" class="text-xs font-mono text-yellow-400 block">⚠️ API Personali non inserite</strong>
-          <span class="text-[11px] text-white/70">Inserisci chiavi per operatività</span>
+          <strong id="kpiUserApiStatus" class="text-xs font-mono text-[#FF334B] block">⚠️ API Personali non inserite</strong>
+          <span class="text-[11px] text-[#FFFFFF]/60">Inserisci chiavi per operatività</span>
         </div>
       </div>
-      <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase text-white/75">Slot Posizioni Aperte 🚀</span>
+      <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between border-t-2 border-[#00FF66]">
+        <span class="text-[11px] font-semibold uppercase text-[#FFFFFF]/80">Slot Posizioni Aperte 🚀</span>
         <div class="mt-2">
           <span id="kpiAutoSlotStatus" class="text-xs font-mono text-[#00FF66] font-extrabold">🟢 Aperte in Parallelo (Illimitate)</span>
         </div>
       </div>
-      <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase text-white/75">Top Mover in Tempo Reale 🔥</span>
+      <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between border-t-2 border-[#0066FF]">
+        <span class="text-[11px] font-semibold uppercase text-[#FFFFFF]/80">Top Mover in Tempo Reale 🔥</span>
         <div class="mt-2 flex items-baseline justify-between">
-          <span id="kpiTopMoverSymbol" class="text-sm font-extrabold font-mono text-white">--</span>
+          <span id="kpiTopMoverSymbol" class="text-sm font-extrabold font-mono text-[#FFFFFF]">--</span>
           <span id="kpiTopMoverChange" class="text-sm font-extrabold font-mono text-[#00FF66]">--%</span>
         </div>
       </div>
-      <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase text-white/75">Filtro Anti-Falsi</span>
+      <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between border-t-2 border-[#00FF66]">
+        <span class="text-[11px] font-semibold uppercase text-[#FFFFFF]/80">Filtro Anti-Falsi</span>
         <div class="mt-2">
           <span id="kpiMarketBadge" class="text-xs font-mono text-[#00FF66] font-bold">🛡️ MASSIMA CONFLUENZA</span>
         </div>
@@ -564,33 +564,33 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <section class="priority-signal-box rounded-2xl p-4 sm:p-5">
       <div class="flex items-center justify-between pb-3 mb-3 border-b border-[#00FF66]/30">
         <div class="flex items-center gap-3">
-          <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-bounce">⚡</div>
+          <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-[#000000] flex items-center justify-center font-extrabold animate-bounce">⚡</div>
           <div>
-            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">⚡ SEGNALE MASTER ad Alta Probabilità ($ TP &amp; SL)</h2>
+            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-[#FFFFFF]">⚡ SEGNALE MASTER ad Alta Probabilità ($ TP &amp; SL)</h2>
             <p class="text-[11px] text-[#00FF66]" id="masterSubtitle">Filtri anti-falsi attivi su candele multi-TF</p>
           </div>
         </div>
-        <span id="masterPrecisionBadge" class="px-2.5 py-1 rounded-md text-xs font-mono font-extrabold bg-[#00FF66] text-black animate-pulse">ANTI-FAKE SYNC 🚀</span>
+        <span id="masterPrecisionBadge" class="px-2.5 py-1 rounded-md text-xs font-mono font-extrabold bg-[#00FF66] text-[#000000] animate-pulse">ANTI-FAKE SYNC 🚀</span>
       </div>
       <div id="prioritySignalCardContent"></div>
     </section>
 
     <!-- FILTRI E RICERCA -->
-    <section class="terminal-card rounded-2xl p-4 flex flex-col gap-3">
+    <section class="terminal-card rounded-2xl p-4 flex flex-col gap-3 border-l-4 border-[#0066FF]">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="flex items-center gap-2">
-          <span class="text-xs font-bold text-white/80">Filtra per Categoria di Mercato:</span>
+          <span class="text-xs font-bold text-[#FFFFFF]">Filtra per Categoria di Mercato:</span>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-          <button onclick="setCategoryTab('ALL')" id="catTabALL" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#00FF66] text-black transition-all">⭐ Tutti i Mercati</button>
-          <button onclick="setCategoryTab('Criptovalute')" id="catTabCriptovalute" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-white/80 hover:text-white transition-all">🪙 Criptovalute</button>
-          <button onclick="setCategoryTab('Materie Prime')" id="catTabMaterie Prime" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-white/80 hover:text-white transition-all">🛢️ Materie Prime</button>
-          <button onclick="setCategoryTab('Forex / Valute')" id="catTabForex / Valute" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-white/80 hover:text-white transition-all">💱 Forex &amp; Valute</button>
-          <button onclick="setCategoryTab('Azioni & Indici (TradFi)')" id="catTabTradFi" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-white/80 hover:text-white transition-all">📈 Azioni &amp; Indici</button>
+          <button onclick="setCategoryTab('ALL')" id="catTabALL" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#00FF66] text-[#000000] transition-all shadow-md">⭐ Tutti i Mercati</button>
+          <button onclick="setCategoryTab('Criptovalute')" id="catTabCriptovalute" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#0066FF]/20 text-[#0066FF] border border-[#0066FF]/40 hover:bg-[#0066FF]/30 transition-all">🪙 Criptovalute</button>
+          <button onclick="setCategoryTab('Materie Prime')" id="catTabMaterie Prime" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-[#FFFFFF]/80 hover:text-[#FFFFFF] transition-all">🛢️ Materie Prime</button>
+          <button onclick="setCategoryTab('Forex / Valute')" id="catTabForex / Valute" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-[#FFFFFF]/80 hover:text-[#FFFFFF] transition-all">💱 Forex &amp; Valute</button>
+          <button onclick="setCategoryTab('Azioni & Indici (TradFi)')" id="catTabTradFi" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-[#FFFFFF]/80 hover:text-[#FFFFFF] transition-all">📈 Azioni &amp; Indici</button>
         </div>
       </div>
       <div class="relative">
-        <input type="text" id="coinSearchInput" oninput="filterCoinSearch(this.value)" placeholder="🔍 Cerca Asset (es. BTC, ETH, SOL, XRP, SUI, GOLD)..." class="w-full bg-[#000000] border border-white/25 rounded-xl px-4 py-2.5 text-xs font-mono text-white outline-none focus:border-[#00FF66]" />
+        <input type="text" id="coinSearchInput" oninput="filterCoinSearch(this.value)" placeholder="🔍 Cerca Asset (es. BTC, ETH, SOL, XRP, SUI, GOLD)..." class="w-full bg-[#000000] border border-[#0066FF]/40 rounded-xl px-4 py-2.5 text-xs font-mono text-[#FFFFFF] outline-none focus:border-[#00FF66]" />
       </div>
     </section>
 
@@ -598,7 +598,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
       <section class="xl:col-span-9 terminal-card rounded-2xl overflow-hidden flex flex-col p-4 space-y-4">
         <div class="flex items-center justify-between border-b border-white/15 pb-3">
-          <h2 class="text-sm font-bold text-white flex items-center gap-3">
+          <h2 class="text-sm font-bold text-[#FFFFFF] flex items-center gap-3">
             <span class="w-8 h-8 rounded-full bg-[#00FF66]/20 border border-[#00FF66] flex items-center justify-center text-[#00FF66] text-base font-extrabold dollar-animated-logo">$</span>
             <span>📊 Lista Operativa Protetta (<span id="tableMarketLabel" class="text-[#00FF66]">FUTURES</span> - Anti-Falsi)</span>
           </h2>
@@ -609,12 +609,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
       <aside class="xl:col-span-3 terminal-card rounded-2xl flex flex-col overflow-hidden">
         <div class="px-4 py-3 border-b border-white/15 bg-[#08080A]">
-          <h2 class="text-sm font-bold text-white flex items-center gap-2">
+          <h2 class="text-sm font-bold text-[#FFFFFF] flex items-center gap-2">
             <span class="w-2 h-2 rounded-full bg-[#00FF66] animate-ping"></span> Feed Anti-Falsi &amp; Advisor
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[800px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Filtri rigidi di confluenza attivi...</div>
+          <div class="p-2 rounded bg-white/5 text-[#FFFFFF]/70">[Quantum Engine] Filtri rigidi di confluenza attivi...</div>
         </div>
       </aside>
     </div>
@@ -622,27 +622,27 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
   <!-- MODALE API -->
   <div id="apiModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/90 backdrop-blur-sm p-3 overflow-y-auto">
-    <div class="bg-[#08080A] border border-[#00FF66]/40 rounded-2xl w-full max-w-[500px] shadow-2xl overflow-hidden my-auto">
+    <div class="bg-[#08080A] border border-[#0066FF] rounded-2xl w-full max-w-[500px] shadow-2xl overflow-hidden my-auto">
       <div class="px-5 py-3.5 border-b border-white/15 flex items-center justify-between bg-[#000000]">
         <div>
           <h2 class="text-base font-extrabold font-mono text-[#00FF66]">🔑 Configurazione API Key Personale</h2>
-          <p class="text-xs text-white/70">Collega il tuo account BingX</p>
+          <p class="text-xs text-[#FFFFFF]/70">Collega il tuo account BingX</p>
         </div>
-        <button onclick="toggleApiModal()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
+        <button onclick="toggleApiModal()" class="p-2 rounded-xl bg-white/10 text-[#FFFFFF] hover:bg-[#FF334B] transition-colors">&#10005;</button>
       </div>
       <div class="p-5 space-y-4 text-xs font-mono">
         <div class="space-y-1.5">
-          <label class="block text-white/80 font-bold">BingX API Key:</label>
-          <input type="text" id="userApiKeyInput" placeholder="Inserisci la tua API Key..." class="w-full bg-[#000000] border border-white/30 rounded-lg px-3 py-2 text-white font-mono text-xs focus:border-[#00FF66] outline-none" />
+          <label class="block text-[#FFFFFF] font-bold">BingX API Key:</label>
+          <input type="text" id="userApiKeyInput" placeholder="Inserisci la tua API Key..." class="w-full bg-[#000000] border border-[#0066FF]/40 rounded-lg px-3 py-2 text-[#FFFFFF] font-mono text-xs focus:border-[#00FF66] outline-none" />
         </div>
         <div class="space-y-1.5">
-          <label class="block text-white/80 font-bold">BingX Secret Key:</label>
-          <input type="password" id="userSecretKeyInput" placeholder="Inserisci la tua Secret Key..." class="w-full bg-[#000000] border border-white/30 rounded-lg px-3 py-2 text-white font-mono text-xs focus:border-[#00FF66] outline-none" />
+          <label class="block text-[#FFFFFF] font-bold">BingX Secret Key:</label>
+          <input type="password" id="userSecretKeyInput" placeholder="Inserisci la tua Secret Key..." class="w-full bg-[#000000] border border-[#0066FF]/40 rounded-lg px-3 py-2 text-[#FFFFFF] font-mono text-xs focus:border-[#00FF66] outline-none" />
         </div>
-        <button onclick="saveUserApiKeys()" class="w-full py-2.5 rounded-xl text-xs font-bold bg-[#00FF66] text-black shadow-lg hover:bg-emerald-400 transition-all">
+        <button onclick="saveUserApiKeys()" class="w-full py-2.5 rounded-xl text-xs font-bold bg-[#00FF66] text-[#000000] shadow-lg hover:bg-emerald-400 transition-all">
           Salva Credenziali API
         </button>
-        <button onclick="clearUserApiKeys()" class="w-full py-1.5 rounded-xl text-xs font-bold bg-red-500/20 text-[#FF334B] border border-red-500/40 hover:bg-red-500/30 transition-all">
+        <button onclick="clearUserApiKeys()" class="w-full py-1.5 rounded-xl text-xs font-bold bg-[#FF334B]/20 text-[#FF334B] border border-[#FF334B]/40 hover:bg-[#FF334B]/30 transition-all">
           Disconnetti API
         </button>
       </div>
@@ -651,37 +651,37 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
   <!-- MODALE ESECUZIONE -->
   <div id="assetModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/90 backdrop-blur-sm p-3 overflow-y-auto">
-    <div class="bg-[#08080A] border border-white/30 rounded-2xl w-full max-w-[750px] shadow-2xl overflow-hidden my-auto">
+    <div class="bg-[#08080A] border-2 border-[#0066FF] rounded-2xl w-full max-w-[750px] shadow-2xl overflow-hidden my-auto">
       <div class="px-5 py-3.5 border-b border-white/15 flex items-center justify-between bg-[#000000]">
         <div>
           <div class="flex items-center gap-2">
-            <h2 id="modalSymbol" class="text-base font-extrabold font-mono text-white">BTC-USDT</h2>
+            <h2 id="modalSymbol" class="text-base font-extrabold font-mono text-[#FFFFFF]">BTC-USDT</h2>
             <span id="modalOhlcvBadge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/40">ALTA PROBABILITÀ</span>
           </div>
-          <p id="modalSubtitleType" class="text-xs text-white/70">Advisor anti-falsi: 1. Entra • 2. Rimani a Mercato • 3. TP Raggiunto / Esci</p>
+          <p id="modalSubtitleType" class="text-xs text-[#FFFFFF]/70">Advisor anti-falsi: 1. Entra • 2. Rimani a Mercato • 3. TP Raggiunto / Esci</p>
         </div>
-        <button onclick="closeModal()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
+        <button onclick="closeModal()" class="p-2 rounded-xl bg-white/10 text-[#FFFFFF] hover:bg-[#FF334B] transition-colors">&#10005;</button>
       </div>
       <div class="p-5 space-y-4 text-xs font-mono">
         <div class="bg-[#000000] border border-white/20 rounded-xl p-4 space-y-3">
-          <div class="flex justify-between"><span class="text-white/75">Mercato / Categoria:</span><strong id="modalCategory" class="text-[#00FF66]">--</strong></div>
+          <div class="flex justify-between"><span class="text-[#FFFFFF]/75">Mercato / Categoria:</span><strong id="modalCategory" class="text-[#00FF66]">--</strong></div>
           <div class="flex justify-between items-center">
-            <span class="text-white/75">Timeframe Confermato:</span>
+            <span class="text-[#FFFFFF]/75">Timeframe Confermato:</span>
             <strong id="modalTF" class="px-2.5 py-0.5 rounded bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66] font-extrabold animate-pulse">15m ⚡</strong>
           </div>
-          <div class="flex justify-between"><span class="text-white/75">Sentiment Anti-Falsi:</span><strong id="modalSentiment" class="text-[#00FF66] font-bold">--</strong></div>
-          <div class="flex justify-between border-b border-white/10 pb-2"><span class="text-white/75">⏱️ Tempo al $ TP (Confluenza):</span><strong id="modalExactTime" class="text-yellow-300 font-extrabold tabular-nums">--</strong></div>
+          <div class="flex justify-between"><span class="text-[#FFFFFF]/75">Sentiment Anti-Falsi:</span><strong id="modalSentiment" class="text-[#00FF66] font-bold">--</strong></div>
+          <div class="flex justify-between border-b border-white/10 pb-2"><span class="text-[#FFFFFF]/75">⏱️ Tempo al $ TP (Confluenza):</span><strong id="modalExactTime" class="text-yellow-300 font-extrabold tabular-nums">--</strong></div>
 
           <div class="grid grid-cols-2 gap-2 py-2 border-b border-white/10">
-            <div class="bg-white/5 p-2 rounded-lg">
-              <span class="text-[10px] text-white/60 block">📈 EMA 9 / 21 / 50</span>
-              <strong id="modalEma" class="text-cyan-300 text-xs">--</strong>
+            <div class="bg-white/5 p-2 rounded-lg border border-[#0066FF]/30">
+              <span class="text-[10px] text-[#FFFFFF]/60 block">📈 EMA 9 / 21 / 50</span>
+              <strong id="modalEma" class="text-[#0066FF] text-xs">--</strong>
               <span id="modalEmaSignal" class="text-[10px] block mt-0.5 text-[#00FF66]">Trend Confermato 🛡️</span>
             </div>
-            <div class="bg-white/5 p-2 rounded-lg">
-              <span class="text-[10px] text-white/60 block">📊 RSI (14) Filtrato</span>
-              <strong id="modalRsi" class="text-white text-xs">--</strong>
-              <span id="modalRsiZone" class="text-[10px] block mt-0.5">Zona Ottimale Filtrata 🎯</span>
+            <div class="bg-white/5 p-2 rounded-lg border border-[#0066FF]/30">
+              <span class="text-[10px] text-[#FFFFFF]/60 block">📊 RSI (14) Filtrato</span>
+              <strong id="modalRsi" class="text-[#FFFFFF] text-xs">--</strong>
+              <span id="modalRsiZone" class="text-[10px] block mt-0.5 text-[#0066FF]">Zona Ottimale Filtrata 🎯</span>
             </div>
           </div>
 
@@ -693,13 +693,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
               <span class="text-xs font-extrabold text-[#00FF66] flex items-center gap-1.5">
                 <span>📋</span> TABELLA PARAMETRI ANTI-FALSI ($ TP &amp; SL)
               </span>
-              <span class="text-[10px] text-white/70">Rischio/Rendimento 1:2.5</span>
+              <span class="text-[10px] text-[#FFFFFF]/70">Rischio/Rendimento 1:2.5</span>
             </div>
 
             <div class="overflow-x-auto">
               <table class="w-full text-left text-xs font-mono">
                 <thead>
-                  <tr class="border-b border-white/15 text-white/60 text-[10px]">
+                  <tr class="border-b border-white/15 text-[#FFFFFF]/60 text-[10px]">
                     <th class="py-1.5 px-2">PARAMETRO</th>
                     <th class="py-1.5 px-2">VALORE MILLIMETRICO</th>
                     <th class="py-1.5 px-2 text-right">AZIONE</th>
@@ -707,10 +707,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 </thead>
                 <tbody class="divide-y divide-white/10">
                   <tr>
-                    <td class="py-2 px-2 text-white font-bold">1. Prezzo Ingresso</td>
-                    <td class="py-2 px-2 text-cyan-300 font-bold select-all" id="tableParamEntry">--</td>
+                    <td class="py-2 px-2 text-[#FFFFFF] font-bold">1. Prezzo Ingresso</td>
+                    <td class="py-2 px-2 text-[#0066FF] font-bold select-all" id="tableParamEntry">--</td>
                     <td class="py-2 px-2 text-right">
-                      <button onclick="copiaParametro('tableParamEntry')" class="bg-white/10 hover:bg-white/25 px-2 py-1 rounded text-cyan-300 text-[10px]">Copia</button>
+                      <button onclick="copiaParametro('tableParamEntry')" class="bg-white/10 hover:bg-white/25 px-2 py-1 rounded text-[#0066FF] text-[10px]">Copia</button>
                     </td>
                   </tr>
                   <tr>
@@ -732,47 +732,47 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             </div>
           </div>
 
-          <div class="flex justify-between pt-1"><span class="text-white/75">Prezzo Live Reale:</span><strong id="modalLivePrice" class="text-white">--</strong></div>
-          <div class="flex justify-between"><span class="text-white/75">Direzione Long / Short:</span><strong id="modalSide" class="text-[#00FF66]">--</strong></div>
+          <div class="flex justify-between pt-1"><span class="text-[#FFFFFF]/75">Prezzo Live Reale:</span><strong id="modalLivePrice" class="text-[#FFFFFF]">--</strong></div>
+          <div class="flex justify-between"><span class="text-[#FFFFFF]/75">Direzione Long / Short:</span><strong id="modalSide" class="text-[#00FF66]">--</strong></div>
           <div>
-            <div class="flex justify-between"><span class="text-white/75">$ Stop Loss Protetto:</span><strong id="modalSL" class="text-[#FF334B]">--</strong></div>
-            <div class="flex justify-between"><span class="text-white/75">🎯 TARGET $ TAKE PROFIT OTTIMIZZATO:</span><strong id="modalTrendingTP" class="text-[#00FF66] text-sm font-extrabold">--</strong></div>
-            <div class="flex justify-between mt-1"><span class="text-white/75">🔥 ROI Stimato al $ TP (Leva):</span><strong id="modalTpPct" class="text-yellow-400 font-extrabold">--</strong></div>
+            <div class="flex justify-between"><span class="text-[#FFFFFF]/75">$ Stop Loss Protetto:</span><strong id="modalSL" class="text-[#FF334B]">--</strong></div>
+            <div class="flex justify-between"><span class="text-[#FFFFFF]/75">🎯 TARGET $ TAKE PROFIT OTTIMIZZATO:</span><strong id="modalTrendingTP" class="text-[#00FF66] text-sm font-extrabold">--</strong></div>
+            <div class="flex justify-between mt-1"><span class="text-[#FFFFFF]/75">🔥 ROI Stimato al $ TP (Leva):</span><strong id="modalTpPct" class="text-yellow-400 font-extrabold">--</strong></div>
           </div>
         </div>
 
         <!-- SELETTORE CAPITALE / MARGINE LIBERO -->
         <div class="bg-[#000000] border border-[#00FF66]/40 rounded-xl p-4 space-y-3">
           <div class="flex justify-between items-center">
-            <label class="block text-xs font-bold text-white uppercase tracking-wider">💰 CAPITALE DA INVESTIRE (USDT):</label>
+            <label class="block text-xs font-bold text-[#FFFFFF] uppercase tracking-wider">💰 CAPITALE DA INVESTIRE (USDT):</label>
             <span id="marginUsdtLabel" class="text-xs font-bold text-[#00FF66]">2 USDT</span>
           </div>
           <div class="grid grid-cols-6 gap-1.5">
             <button type="button" onclick="setMarginUsdt(2)" id="marBtn2" class="py-1.5 rounded-lg border border-[#00FF66] bg-[#00FF66]/20 text-[#00FF66] font-bold text-xs">2 $</button>
-            <button type="button" onclick="setMarginUsdt(5)" id="marBtn5" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold text-xs">5 $</button>
-            <button type="button" onclick="setMarginUsdt(10)" id="marBtn10" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold text-xs">10 $</button>
-            <button type="button" onclick="setMarginUsdt(25)" id="marBtn25" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold text-xs">25 $</button>
-            <button type="button" onclick="setMarginUsdt(50)" id="marBtn50" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold text-xs">50 $</button>
-            <button type="button" onclick="setMarginUsdt(100)" id="marBtn100" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold text-xs">100 $</button>
+            <button type="button" onclick="setMarginUsdt(5)" id="marBtn5" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-[#FFFFFF] font-bold text-xs">5 $</button>
+            <button type="button" onclick="setMarginUsdt(10)" id="marBtn10" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-[#FFFFFF] font-bold text-xs">10 $</button>
+            <button type="button" onclick="setMarginUsdt(25)" id="marBtn25" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-[#FFFFFF] font-bold text-xs">25 $</button>
+            <button type="button" onclick="setMarginUsdt(50)" id="marBtn50" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-[#FFFFFF] font-bold text-xs">50 $</button>
+            <button type="button" onclick="setMarginUsdt(100)" id="marBtn100" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-[#FFFFFF] font-bold text-xs">100 $</button>
           </div>
-          <input type="number" id="customMarginInput" oninput="onCustomMarginChange(this.value)" placeholder="Oppure inserisci USDT liberi..." class="w-full bg-[#08080A] border border-white/30 rounded-lg px-3 py-1.5 text-white font-mono text-xs focus:border-[#00FF66] outline-none" />
+          <input type="number" id="customMarginInput" oninput="onCustomMarginChange(this.value)" placeholder="Oppure inserisci USDT liberi..." class="w-full bg-[#08080A] border border-[#0066FF]/40 rounded-lg px-3 py-1.5 text-[#FFFFFF] font-mono text-xs focus:border-[#00FF66] outline-none" />
         </div>
 
         <div id="leverageSectionWrapper" class="bg-[#000000] border border-white/20 rounded-xl p-4 space-y-3">
-          <label class="block text-xs font-bold text-white uppercase tracking-wider">Leva Esatta del Segnale &amp; Margine Isolato:</label>
+          <label class="block text-xs font-bold text-[#FFFFFF] uppercase tracking-wider">Leva Esatta del Segnale &amp; Margine Isolato:</label>
           <div class="grid grid-cols-4 gap-2">
-            <button type="button" onclick="setLeverage(1)" id="levBtn1" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">1x</button>
+            <button type="button" onclick="setLeverage(1)" id="levBtn1" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-[#FFFFFF] font-bold">1x</button>
             <button type="button" onclick="setLeverage(3)" id="levBtn3" class="py-1.5 rounded-lg border border-[#00FF66] bg-[#00FF66]/20 text-[#00FF66] font-bold">3x</button>
-            <button type="button" onclick="setLeverage(5)" id="levBtn5" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">5x</button>
-            <button type="button" onclick="setLeverage(10)" id="levBtn10" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">10x</button>
+            <button type="button" onclick="setLeverage(5)" id="levBtn5" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-[#FFFFFF] font-bold">5x</button>
+            <button type="button" onclick="setLeverage(10)" id="levBtn10" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-[#FFFFFF] font-bold">10x</button>
           </div>
         </div>
 
         <div>
           <div class="flex justify-between items-center mb-1">
-            <label class="text-[11px] text-white/70 font-semibold">Quantità Asset Calcolata:</label>
+            <label class="text-[11px] text-[#FFFFFF]/70 font-semibold">Quantità Asset Calcolata:</label>
           </div>
-          <input type="number" id="tradeQuantityInput" value="1.0" step="any" oninput="onQuantityManualChange(this.value)" class="w-full bg-[#000000] border border-white/30 rounded-lg px-3 py-2 text-white font-mono text-xs focus:border-[#0066FF] outline-none font-bold" />
+          <input type="number" id="tradeQuantityInput" value="1.0" step="any" oninput="onQuantityManualChange(this.value)" class="w-full bg-[#000000] border border-[#0066FF]/40 rounded-lg px-3 py-2 text-[#FFFFFF] font-mono text-xs focus:border-[#0066FF] outline-none font-bold" />
         </div>
 
         <button id="executeBingXBtn" onclick="eseguiOrdineSuBingX()" class="bingx-btn w-full py-2.5 rounded-xl text-xs shadow-lg flex items-center justify-center gap-2">
@@ -863,7 +863,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         textBtn.textContent = "API Connesse 🟢";
       } else {
         statusEl.textContent = "⚠️ API Personali non inserite";
-        statusEl.className = "text-xs font-mono text-yellow-400 block";
+        statusEl.className = "text-xs font-mono text-[#FF334B] block";
         textBtn.textContent = "Collega API";
       }
     }
@@ -983,7 +983,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       state.selectedMarginUsdt = usdt;
       document.getElementById('customMarginInput').value = '';
       document.querySelectorAll('[id^="marBtn"]').forEach(b => {
-        b.className = "py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold text-xs";
+        b.className = "py-1.5 rounded-lg border border-white/20 bg-white/5 text-[#FFFFFF] font-bold text-xs";
       });
       const activeBtn = document.getElementById(`marBtn${usdt}`);
       if (activeBtn) activeBtn.className = "py-1.5 rounded-lg border border-[#00FF66] bg-[#00FF66]/20 text-[#00FF66] font-bold text-xs";
@@ -995,7 +995,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       if (!isNaN(num) && num > 0) {
         state.selectedMarginUsdt = num;
         document.querySelectorAll('[id^="marBtn"]').forEach(b => {
-          b.className = "py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold text-xs";
+          b.className = "py-1.5 rounded-lg border border-white/20 bg-white/5 text-[#FFFFFF] font-bold text-xs";
         });
         document.getElementById('marginUsdtLabel').textContent = `${num} USDT`;
         aggiornaQuantitaDaCapitale();
@@ -1044,10 +1044,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         const col = t.trend === 'BUY' ? '#00FF66' : t.trend === 'SELL' ? '#FF334B' : '#FFCC00';
         return `<div class="bg-white/5 rounded-lg p-2 border transition-all ${isExact ? 'tf-illuminated' : ''}" style="border-color:${isExact ? '#00FF66' : col + '66'}">
           <div class="flex justify-between items-center text-[10px]">
-            <b class="${isExact ? 'text-[#00FF66]' : 'text-white'}">${iv} ${isExact ? '⚡' : ''}</b>
+            <b class="${isExact ? 'text-[#00FF66]' : 'text-[#FFFFFF]'}">${iv} ${isExact ? '⚡' : ''}</b>
             <b style="color:${col}">${t.trend}</b>
           </div>
-          <div class="text-[9px] text-white/60 mt-1">RSI ${t.rsi14}</div>
+          <div class="text-[9px] text-[#FFFFFF]/60 mt-1">RSI ${t.rsi14}</div>
           <div class="text-[9px] text-[#00FF66]">● ora: ${formatPrice(t.last.close)}</div>
         </div>`;
       }).join('');
@@ -1088,11 +1088,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       container.innerHTML = state.activePositions.map(pos => `
         <div id="advisorBox_${pos.id}" class="terminal-card rounded-2xl p-4 border-2 border-[#00FF66] bg-gradient-to-r from-emerald-950/40 via-[#08080A] to-emerald-950/40 space-y-3">
           <div class="flex justify-between items-center border-b border-[#00FF66]/30 pb-2">
-            <h2 class="text-sm font-extrabold text-white">🟢 POSIZIONE MONITORATA (${pos.symbol} - ${pos.side})</h2>
-            <button onclick="chiudiPosizioneMonitorata('${pos.id}')" class="px-2.5 py-1 rounded bg-red-500/20 text-[#FF334B] text-xs font-bold">Chiudi ✕</button>
+            <h2 class="text-sm font-extrabold text-[#FFFFFF]">🟢 POSIZIONE MONITORATA (${pos.symbol} - ${pos.side})</h2>
+            <button onclick="chiudiPosizioneMonitorata('${pos.id}')" class="px-2.5 py-1 rounded bg-[#FF334B]/20 text-[#FF334B] text-xs font-bold border border-[#FF334B]/40">Chiudi ✕</button>
           </div>
           <div class="grid grid-cols-3 gap-2 text-xs font-mono">
-            <div>Ingresso: <strong class="text-white">$${formatPrice(pos.entryPrice)}</strong></div>
+            <div>Ingresso: <strong class="text-[#FFFFFF]">$${formatPrice(pos.entryPrice)}</strong></div>
             <div>Target TP: <strong class="text-[#00FF66]">$${formatPrice(pos.tpPrice)}</strong></div>
             <div>Stop Loss: <strong class="text-[#FF334B]">$${formatPrice(pos.slPrice)}</strong></div>
           </div>
@@ -1118,6 +1118,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
     function setCategoryTab(cat) {
       state.currentCategoryTab = cat;
+      ['ALL', 'Criptovalute', 'Materie Prime', 'Forex / Valute', 'Azioni & Indici (TradFi)'].forEach(cId => {
+        const btn = document.getElementById('catTab' + (cId === 'ALL' ? 'ALL' : (cId === 'Criptovalute' ? 'Criptovalute' : (cId === 'Materie Prime' ? 'Materie Prime' : (cId === 'Forex / Valute' ? 'Forex / Valute' : 'TradFi')))));
+        if (btn) {
+          if (cId === cat) {
+            btn.className = "px-3 py-1.5 rounded-xl text-xs font-bold bg-[#00FF66] text-[#000000] transition-all shadow-md";
+          } else {
+            btn.className = "px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-[#FFFFFF]/80 hover:text-[#FFFFFF] transition-all";
+          }
+        }
+      });
       renderDashboard();
     }
 
@@ -1129,7 +1139,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     function setLeverage(lev) {
       state.selectedLeverage = lev;
       document.querySelectorAll('#leverageSectionWrapper button').forEach(b => {
-        b.className = "py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold";
+        b.className = "py-1.5 rounded-lg border border-white/20 bg-white/5 text-[#FFFFFF] font-bold";
       });
       const activeBtn = document.getElementById(`levBtn${lev}`);
       if (activeBtn) activeBtn.className = "py-1.5 rounded-lg border border-[#00FF66] bg-[#00FF66]/20 text-[#00FF66] font-bold";
@@ -1156,9 +1166,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
     function updateMarketTypeUI() {
       const isSpot = state.marketType === 'SPOT';
-      document.getElementById('btnMarketFutures').className = state.marketType === 'FUTURES' ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-[#0066FF] text-white" : "px-2.5 py-1 rounded-lg text-xs font-bold text-white/50";
-      document.getElementById('btnMarketStandard').className = state.marketType === 'STANDARD_FUTURES' ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500 text-black shadow-lg" : "px-2.5 py-1 rounded-lg text-xs font-bold text-white/50";
-      document.getElementById('btnMarketSpot').className = isSpot ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-[#00FF66] text-black shadow-lg" : "px-2.5 py-1 rounded-lg text-xs font-bold text-white/50";
+      document.getElementById('btnMarketFutures').className = state.marketType === 'FUTURES' ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-[#0066FF] text-[#FFFFFF] shadow-md" : "px-2.5 py-1 rounded-lg text-xs font-bold text-[#FFFFFF]/50";
+      document.getElementById('btnMarketStandard').className = state.marketType === 'STANDARD_FUTURES' ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500 text-[#000000] shadow-lg" : "px-2.5 py-1 rounded-lg text-xs font-bold text-[#FFFFFF]/50";
+      document.getElementById('btnMarketSpot').className = isSpot ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-[#00FF66] text-[#000000] shadow-lg" : "px-2.5 py-1 rounded-lg text-xs font-bold text-[#FFFFFF]/50";
       document.getElementById('tableMarketLabel').textContent = state.marketType;
       const levSec = document.getElementById('leverageSectionWrapper');
       if (levSec) levSec.style.display = isSpot ? 'none' : 'block';
@@ -1173,6 +1183,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         });
         state.tradingMode = mode;
         document.getElementById('modeText').textContent = mode;
+        document.getElementById('btnModeManual').className = mode === 'MANUAL' ? "px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-[#00FF66] text-[#000000]" : "px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-[#FFFFFF]/50 hover:text-[#FFFFFF]";
+        document.getElementById('btnModeAuto').className = mode === 'AUTO' ? "px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-[#00FF66] text-[#000000]" : "px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-[#FFFFFF]/50 hover:text-[#FFFFFF]";
       } catch (e) {}
     }
 
@@ -1194,9 +1206,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       let sortedKeys = keys.sort((a, b) => (state.marketData[b].volume || 0) - (state.marketData[a].volume || 0));
       const items = sortedKeys.slice(0, 10).map(sym => {
         const item = state.marketData[sym];
-        return `<div class="flex items-center gap-2 bg-white/5 px-3 py-1 rounded-lg border border-white/10 shrink-0">
-          <span class="font-bold text-white">${sym.replace('-USDT', '')}</span>
-          <span class="text-white/90">$${formatPrice(item.price)}</span>
+        return `<div class="flex items-center gap-2 bg-white/5 px-3 py-1 rounded-lg border border-[#0066FF]/30 shrink-0">
+          <span class="font-bold text-[#FFFFFF]">${sym.replace('-USDT', '')}</span>
+          <span class="text-[#FFFFFF]/90">$${formatPrice(item.price)}</span>
           <span class="${item.change24h >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'} font-bold">${item.change24h >= 0 ? '+' : ''}${item.change24h.toFixed(2)}%</span>
         </div>`;
       }).join('');
@@ -1215,10 +1227,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         document.getElementById('prioritySignalCardContent').innerHTML = `
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs font-mono">
             <div class="space-y-1">
-              <strong class="text-white text-sm">${masterAsset.symbol} - MASTER</strong>
-              <div class="flex justify-between"><span class="text-white/70">Prezzo:</span><strong class="text-[#00FF66]">$${formatPrice(masterAsset.price)}</strong></div>
-              <div class="flex justify-between"><span class="text-white/70">Direzione:</span><strong class="${local.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]'}">${local.side}</strong></div>
-              <div class="flex justify-between"><span class="text-white/70">$ TP:</span><strong class="text-yellow-400">$${formatPrice(local.tp)} (+${local.tpPct}%)</strong></div>
+              <strong class="text-[#FFFFFF] text-sm">${masterAsset.symbol} - MASTER</strong>
+              <div class="flex justify-between"><span class="text-[#FFFFFF]/70">Prezzo:</span><strong class="text-[#00FF66]">$${formatPrice(masterAsset.price)}</strong></div>
+              <div class="flex justify-between"><span class="text-[#FFFFFF]/70">Direzione:</span><strong class="${local.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]'}">${local.side}</strong></div>
+              <div class="flex justify-between"><span class="text-[#FFFFFF]/70">$ TP:</span><strong class="text-yellow-400">$${formatPrice(local.tp)} (+${local.tpPct}%)</strong></div>
             </div>
             <div class="flex flex-col justify-end">
               <button onclick='openModal("${masterAsset.symbol}")' class="green-gradient-btn w-full py-2 rounded-xl text-xs shadow-lg">⚡ APRI SCANNER &amp; SCEGLI CAPITALE</button>
@@ -1235,8 +1247,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         return `
           <div onclick='openModal("${c.symbol}")' class="bg-[#000000] border border-white/25 hover:border-[#00FF66] rounded-xl p-3.5 cursor-pointer transition-all space-y-2">
             <div class="flex items-center justify-between border-b border-white/10 pb-2">
-              <span class="font-extrabold text-white text-sm">${c.symbol.replace('-USDT', '')}</span>
-              <span class="text-xs font-bold tabular-nums text-white">$${formatPrice(c.price)}</span>
+              <span class="font-extrabold text-[#FFFFFF] text-sm">${c.symbol.replace('-USDT', '')}</span>
+              <span class="text-xs font-bold tabular-nums text-[#FFFFFF]">$${formatPrice(c.price)}</span>
             </div>
             <div class="flex justify-between text-xs font-mono">
               <span class="text-[#00FF66]">TP: $${formatPrice(local.tp)} (+${local.tpPct}%)</span>
