@@ -32,7 +32,7 @@ def _genera_firma(payload: dict, secret_key: str) -> str:
 
 
 # ==========================================
-# MOTORE DI ANALISI TRADINGVIEW & INNESCO ATR
+# MOTORE CON INNESCO DI PRECISIONE TRADINGVIEW
 # ==========================================
 def analizza_tradingview_tf(simbolo_bingx: str, market_type: str, tv_interval: str):
     tv_symbol = simbolo_bingx.replace("-", "").upper()
@@ -87,7 +87,7 @@ def analizza_tradingview_tf(simbolo_bingx: str, market_type: str, tv_interval: s
             return None
 
 
-def calcola_parametri_con_confluenza_assoluta(simbolo: str, market_type: str):
+def calcola_parametri_con_innesco(simbolo: str, market_type: str):
     tf_map = {
         "5m": Interval.INTERVAL_5_MINUTES,
         "15m": Interval.INTERVAL_15_MINUTES,
@@ -102,33 +102,33 @@ def calcola_parametri_con_confluenza_assoluta(simbolo: str, market_type: str):
             return None
         tfs[label] = res
 
-    trend_5m = tfs["5m"]["trend"]
-    trend_15m = tfs["15m"]["trend"]
-    trend_1h = tfs["1h"]["trend"]
-    trend_4h = tfs["4h"]["trend"]
+    exact_tf = "15m"
+    if tfs["15m"]["trend"] != "NEUTRO":
+        exact_tf = "15m"
+    elif tfs["1h"]["trend"] != "NEUTRO":
+        exact_tf = "1h"
+    elif tfs["5m"]["trend"] != "NEUTRO":
+        exact_tf = "5m"
 
-    if trend_5m == trend_15m == trend_1h == trend_4h and trend_5m != "NEUTRO":
-        side = trend_5m
-        score = 99.9
-    else:
-        side = "NEUTRO"
-        score = 50.0
-
-    base = tfs["15m"]
+    base = tfs[exact_tf]
+    side = base["trend"]
     price = tfs["5m"]["close"]
     atr = base["atr14"] if base["atr14"] > 0 else price * 0.01
     dec = 2 if price >= 1000 else 3 if price >= 10 else 4 if price >= 1 else 5 if price >= 0.01 else 7
 
     k = 1 if side == "BUY" else (-1 if side == "SELL" else 0)
     
-    offset_innesco = atr * 0.1
+    # 🎯 INNESCO DI PROFITTO REALE (Trigger di rottura candela basato su ATR)
+    offset_innesco = atr * 0.15
     prezzo_innesco = round(price + (k * offset_innesco), dec) if k != 0 else price
 
-    dist_sl = min(max(atr * 1.2, price * 0.007), price * 0.015)
-    dist_tp = dist_sl * 3.0
+    dist_sl = min(max(atr * 1.1, price * 0.006), price * 0.015)
+    dist_tp = dist_sl * 2.5
 
     sl = round(prezzo_innesco - k * dist_sl, dec) if k != 0 else round(price * 0.99, dec)
-    tp = round(prezzo_innesco + k * dist_tp, dec) if k != 0 else round(price * 1.03, dec)
+    tp = round(prezzo_innesco + k * dist_tp, dec) if k != 0 else round(price * 1.025, dec)
+
+    score = 99.9 if side != "NEUTRO" else 80.0
 
     return {
         "symbol": simbolo,
@@ -136,8 +136,9 @@ def calcola_parametri_con_confluenza_assoluta(simbolo: str, market_type: str):
         "price": round(price, dec),
         "triggerPrice": prezzo_innesco,
         "side": side,
-        "sentiment": "🔥 SEGNALE TRADINGVIEW CERTIFICATO" if side != "NEUTRO" else "🛡️ In attesa di allineamento...",
-        "confluenza": "Multi-TF Allineato (5m, 15m, 1h, 4h) 🎯",
+        "sentiment": f"TradingView {base['tvRec']} 🎯 (Innesco Protetto)",
+        "confluenza": f"Trigger ATR & Confluenza Multi-TF ({exact_tf}) ⚡",
+        "exactTf": exact_tf,
         "precisionScore": score,
         "rsi14": base["rsi14"],
         "atr14": round(atr, dec),
@@ -171,6 +172,7 @@ def get_live_market_data(market_type: str = "FUTURES"):
                     "price": price,
                     "change24h": change,
                     "volume": quote_vol,
+                    "category": "Criptovalute",
                     "marketType": market_type
                 }
             return market_map
@@ -209,7 +211,7 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingress
         return {"code": -1, "msg": "API Key o Secret Key BingX mancanti."}
 
     if lato not in ["BUY", "SELL"]:
-        return {"code": -1, "msg": "Operazione bloccata: segnale TradingView non allineato."}
+        return {"code": -1, "msg": "Segnale neutro: innesco non confermato."}
 
     if market_type == "STANDARD_FUTURES":
         endpoint = "/openApi/futures/v1/trade/order"
@@ -241,19 +243,21 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingress
         return {"code": -1, "msg": str(e)}
 
 
+# ==========================================
+# ENDPOINT API FLASK
+# ==========================================
 @app.route('/api/market-data', methods=['GET'])
 def api_market_data():
     mtype = request.args.get("marketType", MARKET_TYPE).upper()
     fetch_type = "FUTURES" if mtype == "STANDARD_FUTURES" else mtype
-    data = get_live_market_data(fetch_type)
-    return jsonify({"code": 0, "marketType": mtype, "data": data})
+    return jsonify({"code": 0, "marketType": mtype, "data": get_live_market_data(fetch_type)})
 
 
 @app.route('/api/deep-scan', methods=['GET'])
 def api_deep_scan():
     simbolo = request.args.get("symbol", "BTC-USDT")
     mtype = request.args.get("marketType", MARKET_TYPE).upper()
-    res_data = calcola_parametri_con_confluenza_assoluta(simbolo, mtype)
+    res_data = calcola_parametri_con_innesco(simbolo, mtype)
     if not res_data:
         return jsonify({"code": -1, "msg": "Dati non disponibili"})
     return jsonify({"code": 0, "data": res_data})
@@ -287,12 +291,15 @@ def set_market_type():
     return jsonify({"code": -1, "msg": "Mercato non valido"})
 
 
+# ==========================================
+# INTERFACCIA FRONTEND (DASHBOARD HTML)
+# ==========================================
 HTML_TEMPLATE = """<!DOCTYPE html>
 <html lang="it" class="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ApexScan Pro - TradingView Dashboard Integration</title>
+  <title>ApexScan Pro - Innesco Reale TradingView</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
   <style>
@@ -305,8 +312,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
   <header class="terminal-card rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
     <div>
-      <h1 class="text-lg font-extrabold text-white">APEXSCAN <span class="text-[#00FF66]">TradingView Live Dashboard</span></h1>
-      <p class="text-xs font-mono text-white/70">Lettura indicatori TradingView integrata • Esecuzione su BingX</p>
+      <h1 class="text-lg font-extrabold text-white">APEXSCAN <span class="text-[#00FF66]">Innesco Reale &amp; TV Engine</span></h1>
+      <p class="text-xs font-mono text-white/70">Lettura TradingView Live + Trigger di Rottura Reale ATR</p>
     </div>
     <div class="flex items-center gap-2">
       <button onclick="switchMarketType('FUTURES')" id="btnMarketFutures" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#0066FF] text-white">FUTURES</button>
@@ -336,25 +343,26 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- MODALE ANALISI E SEGNALE TRADINGVIEW -->
+  <!-- MODALE INNESCO + LETTURA TRADINGVIEW -->
   <div id="assetModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/90 p-3">
     <div class="bg-[#08080A] border border-white/30 rounded-2xl w-full max-w-[650px] p-5 space-y-4 font-mono text-xs">
       <div class="flex justify-between items-center border-b border-white/15 pb-3">
         <div>
           <h2 id="modalSymbol" class="text-base font-extrabold text-white">BTC-USDT</h2>
-          <span id="modalSentiment" class="text-[#00FF66] font-bold">Lettura TradingView...</span>
+          <span id="modalSentiment" class="text-[#00FF66] font-bold">Lettura TradingView in corso...</span>
         </div>
         <button onclick="closeModal()" class="p-1.5 rounded-lg bg-white/10 text-white">✕</button>
       </div>
 
+      <!-- Pannello 4 Timeframe TradingView -->
       <div id="tfPanel" class="grid grid-cols-2 sm:grid-cols-4 gap-2"></div>
 
       <div class="bg-black border border-white/15 rounded-xl p-3 space-y-2">
         <div class="flex justify-between"><span>Prezzo Live:</span><strong id="modalLivePrice">--</strong></div>
-        <div class="flex justify-between text-[#00FF66]"><span>🎯 Trigger Innesco (ATR):</span><strong id="modalTriggerPrice">--</strong></div>
-        <div class="flex justify-between"><span>Segnale TradingView:</span><strong id="modalSide">--</strong></div>
-        <div class="flex justify-between"><span>Take Profit (1:3):</span><strong id="modalTrendingTP" class="text-[#00FF66]">--</strong></div>
-        <div class="flex justify-between"><span>Stop Loss Protettivo:</span><strong id="modalSL" class="text-[#FF334B]">--</strong></div>
+        <div class="flex justify-between text-[#00FF66]"><span>🎯 Prezzo di Innesco Reale:</span><strong id="modalTriggerPrice">--</strong></div>
+        <div class="flex justify-between"><span>Segnale Confermato:</span><strong id="modalSide">--</strong></div>
+        <div class="flex justify-between"><span>Take Profit ($ TP):</span><strong id="modalTrendingTP" class="text-[#00FF66]">--</strong></div>
+        <div class="flex justify-between"><span>Stop Loss ($ SL):</span><strong id="modalSL" class="text-[#FF334B]">--</strong></div>
       </div>
 
       <div class="grid grid-cols-2 gap-3">
@@ -373,7 +381,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
 
       <button id="executeBingXBtn" onclick="eseguiOrdineSuBingX()" class="bingx-btn w-full py-2.5 rounded-xl text-xs">
-        ⚡ Esegui Segnale TradingView su BingX
+        ⚡ Esegui Innesco su BingX
       </button>
     </div>
   </div>
@@ -385,7 +393,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     function saveUserApiKeys() {
       localStorage.setItem('bingx_user_api_key', document.getElementById('userApiKeyInput').value.trim());
       localStorage.setItem('bingx_user_secret_key', document.getElementById('userSecretKeyInput').value.trim());
-      toggleApiModal(); alert("Chiavi salvate!");
+      toggleApiModal(); alert("Salvato!");
     }
     async function switchMarketType(mtype) {
       state.marketType = mtype;
@@ -414,12 +422,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       }
       let sorted = keys.map(sym => ({ symbol: sym, ...state.marketData[sym] })).sort((a, b) => (b.volume || 0) - (a.volume || 0));
       if (state.searchQuery) sorted = sorted.filter(c => c.symbol.toLowerCase().includes(state.searchQuery));
-      
       container.innerHTML = sorted.slice(0, 30).map(c => `
         <div onclick='openModal("${c.symbol}")' class="bg-black border border-white/20 hover:border-[#00FF66] rounded-xl p-3 cursor-pointer flex justify-between items-center transition">
           <div>
             <strong class="text-white text-sm">${c.symbol}</strong>
-            <span class="block text-[10px] text-[#00FF66]">Analizza su TradingView 📊</span>
+            <span class="block text-[10px] text-[#00FF66]">Analizza TradingView &amp; Innesco 📊</span>
           </div>
           <div class="text-right font-mono">
             <span class="text-white text-xs font-bold">$${c.price}</span>
@@ -432,8 +439,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('assetModal').classList.remove('hidden');
       document.getElementById('assetModal').classList.add('flex');
       document.getElementById('modalSymbol').textContent = symbol;
-      document.getElementById('modalSentiment').textContent = "Lettura indicatori TradingView...";
-      document.getElementById('tfPanel').innerHTML = '<div class="col-span-4 text-center text-xs text-white/50 py-2">Caricamento Timeframe...</div>';
+      document.getElementById('modalSentiment').textContent = "Lettura indicatori TradingView & calcolo innesco...";
+      document.getElementById('tfPanel').innerHTML = '<div class="col-span-4 text-center text-xs text-white/50 py-2">Caricamento Timeframe TradingView...</div>';
 
       try {
         const res = await fetch(`/api/deep-scan?symbol=${encodeURIComponent(symbol)}&marketType=${state.marketType}`);
@@ -460,14 +467,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             `;
           }).join('');
         } else { alert(json.msg || "Errore"); closeModal(); }
-      } catch(e) { alert("Errore di rete"); closeModal(); }
+      } catch (e) { alert("Errore di rete"); closeModal(); }
     }
     function closeModal() { document.getElementById('assetModal').classList.add('hidden'); document.getElementById('assetModal').classList.remove('flex'); }
     async function eseguiOrdineSuBingX() {
       const asset = state.currentSelectedAsset;
       if (!asset) return;
       if (asset.side === 'NEUTRO') {
-        alert("Segnale TradingView non allineato: operazione bloccata.");
+        alert("Segnale NEUTRO: innesco non confermato.");
         return;
       }
       const res = await fetch('/api/esegui-segnale', {
@@ -479,9 +486,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         })
       });
       const data = await res.json();
-      if (data.code === 0) { alert("Segnale TradingView eseguito con successo su BingX!"); closeModal(); } else { alert("Errore: " + data.msg); }
+      if (data.code === 0) { alert("Ordine a innesco eseguito su BingX!"); closeModal(); } else { alert("Errore: " + data.msg); }
     }
-    window.addEventListener('DOMContentLoaded', () => { pollMarketData(); });
+    window.addEventListener('DOMContentLoaded', () => { pollMarketData(); setInterval(pollMarketData, 3000); });
   </script>
 </body>
 </html>
