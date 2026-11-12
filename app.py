@@ -5,6 +5,8 @@ import hmac
 import hashlib
 import urllib.parse
 import requests
+from datetime import datetime
+import pytz
 from flask import Flask, render_template_string, request, jsonify
 
 app = Flask(__name__)
@@ -29,6 +31,33 @@ def _genera_firma(payload: dict, secret_key: str) -> str:
         hashlib.sha256
     ).hexdigest()
     return query_string + "&signature=" + signature
+
+
+# ==========================================
+# CONTROLLO FINestre TEMPORALI & ORARI CRITICI
+# ==========================================
+def verifica_finestra_temporale_sicura() -> tuple[bool, str]:
+    """
+    Verifica se l'orario corrente (Europe/Rome) rientra nelle fasce pericolose.
+    - 08:45 – 09:30: Apertura borse europee (caccia agli stop)
+    - 15:20 – 16:00: Apertura Wall Street (strappi violenti / finte rotture)
+    - 21:30 – 01:15: Chiusura USA e calo di liquidità serale
+    """
+    try:
+        tz_roma = pytz.timezone("Europe/Rome")
+        adesso = datetime.now(tz_roma)
+        ora_minuto = adesso.strftime("%H:%M")
+        
+        if "08:45" <= ora_minuto <= "09:30":
+            return False, "⚠️ Apertura Borse Europee (Caccia agli stop)"
+        if "15:20" <= ora_minuto <= "16:00":
+            return False, "⚠️ Apertura Wall Street (False rotture / Volatilità estrema)"
+        if ora_minuto >= "21:30" or ora_minuto <= "01:15":
+            return False, "⚠️ Chiusura USA / Calo liquidità notturna"
+            
+        return True, "🟢 Finestra temporale ottimale"
+    except Exception:
+        return True, "🟢 Finestra temporale operativa"
 
 
 # ==========================================
@@ -188,12 +217,13 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type):
     tempo_esatto_sec = int(max(30, min(10800, round(dist_tp / velocita_reale))))
     timestamp_ultima_candela = int(ultima_candela["time"])
 
-    score_precisione = 99.8 if base["trend"] != "NEUTRO" else 95.0
+    is_safe_time, time_msg = verifica_finestra_temporale_sicura()
+    score_precisione = 99.8 if (base["trend"] != "NEUTRO" and is_safe_time) else (85.0 if is_safe_time else 65.0)
 
     return {
         "symbol": simbolo, "marketType": market_type, "price": round(price, dec), "side": side,
         "sentiment": f"Quantum {market_type} 🚀 (RSI Dinamico Long>={base.get('sogliaLong', 55)})" if side == "BUY" else f"Quantum {market_type} 📉 (RSI Dinamico Short<={base.get('sogliaShort', 45)})",
-        "confluenza": f"Soglie RSI Auto-Adattive in base alla volatilità ATR 🎯",
+        "confluenza": f"{time_msg} 🎯",
         "exactTf": exact_tf, "precisionScore": score_precisione,
         "ema9": round(base["ema9"], dec), "ema21": round(base["ema21"], dec),
         "rsi14": base["rsi14"], "atr14": round(atr_breve, dec), "sl": sl, "tp": tp,
@@ -396,7 +426,8 @@ def set_trading_mode():
 
 @app.route('/api/get-mode', methods=['GET'])
 def get_trading_mode():
-    return jsonify({"code": 0, "mode": TRADING_MODE, "marketType": MARKET_TYPE})
+    is_safe, time_msg = verifica_finestra_temporale_sicura()
+    return jsonify({"code": 0, "mode": TRADING_MODE, "marketType": MARKET_TYPE, "isSafeTime": is_safe, "timeMsg": time_msg})
 
 
 @app.route('/api/set-market-type', methods=['POST'])
@@ -475,7 +506,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex items-center gap-2 text-[11px] font-mono text-white/70 mt-0.5">
             <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
-            <span class="text-[#00FF66]" id="headerSubMarketInfo">Soglie RSI Auto-Adattive • 1. Entra • 2. Rimani • 3. TP Esci</span>
+            <span class="text-[#00FF66]" id="headerSubMarketInfo">Filtri Orari Antifrode attivi • 1. Entra • 2. Rimani • 3. TP Esci</span>
           </div>
         </div>
       </div>
@@ -517,6 +548,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
   <!-- MAIN -->
   <main class="flex-1 max-w-[1920px] w-full mx-auto px-3 sm:px-5 py-4 flex flex-col gap-4">
+
+    <!-- BANNER ORARIO SICURO -->
+    <div id="timeSafetyBanner" class="terminal-card rounded-2xl p-3 px-4 border border-[#00FF66]/50 bg-emerald-950/20 flex items-center justify-between text-xs font-mono">
+      <div class="flex items-center gap-2">
+        <span id="timeBannerDot" class="w-2.5 h-2.5 rounded-full bg-[#00FF66] animate-pulse"></span>
+        <span id="timeBannerText" class="text-[#00FF66] font-bold">Verifica finestra temporale: Finestra sicura e ottimale</span>
+      </div>
+      <span class="text-white/60 text-[11px]">Esclude orari critici Wall Street / Europa / Chiusura USA</span>
+    </div>
 
     <!-- BOX ADVISOR POSIZIONE ATTIVA -->
     <div id="activePositionAdvisorBox" class="hidden terminal-card rounded-2xl p-4 sm:p-5 border-2 border-[#00FF66] bg-gradient-to-r from-emerald-950/40 via-[#08080A] to-emerald-950/40 shadow-2xl space-y-4">
@@ -644,7 +684,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[800px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Soglie RSI Dinamiche attive...</div>
+          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Filtri orari di protezione attivi...</div>
         </div>
       </aside>
     </div>
@@ -1365,6 +1405,25 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           renderDashboard();
           renderLiveTickerMarquee();
         }
+
+        const modeRes = await fetch('/api/get-mode');
+        const modeJson = await modeRes.json();
+        if (modeJson.code === 0) {
+          const banner = document.getElementById('timeSafetyBanner');
+          const bannerText = document.getElementById('timeBannerText');
+          const bannerDot = document.getElementById('timeBannerDot');
+          if (modeJson.isSafeTime) {
+            banner.className = "terminal-card rounded-2xl p-3 px-4 border border-[#00FF66]/50 bg-emerald-950/20 flex items-center justify-between text-xs font-mono";
+            bannerDot.className = "w-2.5 h-2.5 rounded-full bg-[#00FF66] animate-pulse";
+            bannerText.className = "text-[#00FF66] font-bold";
+            bannerText.textContent = `Finestra Temporale Ottimale: ${modeJson.timeMsg}`;
+          } else {
+            banner.className = "terminal-card rounded-2xl p-3 px-4 border border-[#FF334B]/60 bg-red-950/30 flex items-center justify-between text-xs font-mono";
+            bannerDot.className = "w-2.5 h-2.5 rounded-full bg-[#FF334B] animate-ping";
+            bannerText.className = "text-[#FF334B] font-bold";
+            bannerText.textContent = `⚠️ ATTENZIONE ORARIO CRITICO: ${modeJson.timeMsg} (Gestisci solo posizioni esistenti)`;
+          }
+        }
       } catch (e) {}
     }
 
@@ -1429,7 +1488,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <div class="flex flex-col justify-end">
               <button onclick='openModal("${masterAsset.symbol}")' class="green-gradient-btn w-full py-2 rounded-xl text-xs shadow-lg">⚡ APRI SCANNER &amp; SCEGLI CAPITALE &#8599;</button>
             </div>
-          </div>`;
+          `;
       }
 
       let filtered = sorted;
