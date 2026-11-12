@@ -34,7 +34,7 @@ def _genera_firma(payload: dict, secret_key: str) -> str:
 
 
 # ==========================================
-# GESTIONE ORARIA & NOTIFICA ORARIO GIUSTO
+# GESTIONE ORARIA & NOTIFICA ORARIO SICURO
 # ==========================================
 def verifica_finestra_temporale_sicura() -> tuple[bool, str, str, str, str]:
     """
@@ -50,13 +50,13 @@ def verifica_finestra_temporale_sicura() -> tuple[bool, str, str, str, str]:
         if "08:45" <= ora_minuto < "09:30":
             return False, "⚠️ Apertura Borse Europee / Borsa Italiana (Alta volatilità)", "Borsa Italiana / Europa (09:00 - 09:01)", "09:00", "14:30"
         if "09:30" <= ora_minuto < "14:15":
-            return True, "🟡 Mattinata Europea: Liquidità elevata e trend puliti", "Borsa di Londra & Milano (09:30 - 14:30)", "09:30", "14:30"
+            return True, "🟡 Mattinata Europea: Liquidità elevata e trend puliti [Orario Sicuro]", "Borsa di Londra & Milano (09:30 - 14:30)", "09:30", "14:30"
         if "14:15" <= ora_minuto < "15:20":
-            return True, "🟡 Sovrapposizione Forex Londra/NY & Pre-Market USA [Orario ideale]", "Mercato Forex (14:00-17:00) / Pre-Market USA", "14:00", "17:00"
+            return True, "🟡 Sovrapposizione Forex Londra/NY & Pre-Market USA [Orario Ideale Profitto]", "Mercato Forex (14:00-17:00) / Pre-Market USA", "14:00", "17:00"
         if "15:20" <= ora_minuto <= "16:00":
-            return False, "⚠️ Apertura Wall Street NYSE/NASDAQ (Massima volatilità)", "Mercati USA - NYSE & NASDAQ (15:30)", "15:30", "22:00"
+            return False, "⚠️ Apertura Wall Street NYSE/NASDAQ (Massima volatilità rischiosa)", "Mercati USA - NYSE & NASDAQ (15:30)", "15:30", "22:00"
         if "16:00" <= ora_minuto < "21:30":
-            return True, "🟡 Sessione Pomeridiana USA: Consolidamento trend principali", "Mercati USA NYSE/NASDAQ (16:00 - 22:00)", "16:00", "22:00"
+            return True, "🟡 Sessione Pomeridiana USA: Consolidamento trend principali [Orario Sicuro]", "Mercati USA NYSE/NASDAQ (16:00 - 22:00)", "16:00", "22:00"
         
         return False, "⚠️ Chiusura USA / Calo drastico dei volumi notturni", "Mercati Chiusi / Cripto 24-7 (22:00 - 01:00)", "22:00", "01:00"
     except Exception:
@@ -534,10 +534,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <span>🔔</span> <span>Notifica Orario Giusto 🔊</span>
         </button>
 
-        <button onclick="leggiTabellaOrariItalia()" class="px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-[#FFD700]/20 text-[#FFD700] border border-[#FFD700]/40 hover:bg-[#FFD700]/30 transition-all flex items-center gap-1.5">
-          <span>🔊</span> <span>Audio Orari Italia</span>
-        </button>
-
         <div class="flex items-center bg-[#08080A] p-1.5 rounded-xl border border-white/20 gap-1.5 flex-wrap">
           <span class="text-xs font-mono font-bold text-white/70 px-1">Mercato:</span>
           <button id="btnMarketFutures" onclick="switchMarketType('FUTURES')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-[#0066FF] text-white">FUTURES</button>
@@ -580,8 +576,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <div class="flex items-center gap-3">
         <span id="timeBannerDot" class="w-3 h-3 rounded-full bg-[#FFD700] animate-pulse"></span>
         <div>
-          <strong id="timeBannerTitle" class="text-white text-sm block">SESSIONE DI TRADING &amp; NOTIFICA ORARIO GIUSTO (CET): ATTIVO 🟡</strong>
-          <span id="timeBannerText" class="text-[#FFD700]">Cripto ed asset evidenziati nei momenti ottimali.</span>
+          <strong id="timeBannerTitle" class="text-white text-sm block">SESSIONE DI TRADING &amp; ORARIO SICURO (CET): ATTIVO 🟡</strong>
+          <span id="timeBannerText" class="text-[#FFD700]">Cripto ed asset evidenziati nei momenti ottimali per il profitto.</span>
         </div>
       </div>
       <div class="flex items-center gap-3 bg-black/60 px-4 py-2 rounded-xl border border-white/10 flex-wrap">
@@ -591,30 +587,30 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
         <span class="text-white/40">|</span>
         <div>
-          <span class="text-[10px] text-white/60 block">🎯 MOMENTO APERTURA POSIZIONI</span>
+          <span class="text-[10px] text-white/60 block">🎯 ORARIO PERFETTO PROFITTO</span>
           <strong id="bannerMomentoLabel" class="text-[#FFD700] font-bold animate-pulse">FAVOREVOLE IN ORO 🟡</strong>
         </div>
         <button onclick="leggiNotificaOrarioGiusto()" class="px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-yellow-400 text-black hover:brightness-110 text-xs font-extrabold transition-all shadow-md flex items-center gap-1">
-          <span>🔔 Notifica Orario 🔊</span>
+          <span>🔔 Notifica Vocale Orario 🔊</span>
         </button>
         <button onclick="mostraFinestraGuidaOraria()" class="px-3 py-1.5 rounded-lg bg-[#FFD700]/20 text-[#FFD700] border border-[#FFD700]/40 hover:bg-[#FFD700]/30 text-xs font-bold transition-all">
-          📢 Tabella CET
+          📢 Tabella Orari Ufficiale
         </button>
       </div>
     </div>
 
-    <!-- TABELLA: ORARI PRINCIPALI DEI MERCATI IN ITALIA (ORA ITALIANA - SCRITTO & VOCALE) -->
-    <section class="terminal-card rounded-2xl p-4 space-y-3 border border-[#FFD700]/40">
+    <!-- TABELLA DEFINITIVA DEGLI ORARI SICURI PER INIZIARE A FARE TRADING -->
+    <section class="terminal-card rounded-2xl p-4 space-y-3 border-2 border-[#FFD700] shadow-xl">
       <div class="flex flex-wrap items-center justify-between border-b border-white/15 pb-2 gap-2">
         <h2 class="text-xs font-extrabold text-[#FFD700] uppercase tracking-wider flex items-center gap-2">
-          <span>🇮🇹 Orari Principali dei Mercati in Italia (Ora Italiana - Scritto &amp; Vocale)</span>
+          <span>🛡️ Guida Definitiva: Orari Esatti e Sicuri per Iniziare a Fare Trading (Ora Italiana)</span>
         </h2>
         <div class="flex items-center gap-2">
           <button onclick="leggiNotificaOrarioGiusto()" class="px-3 py-1.5 rounded-lg bg-amber-500 text-black hover:bg-amber-400 text-[11px] font-extrabold transition-all flex items-center gap-1.5 shadow-md">
-            <span>🔔</span> Notifica Orario Giusto
+            <span>🔔</span> Ascolta Orario Giusto
           </button>
           <button onclick="leggiTabellaOrariItalia()" class="px-3 py-1.5 rounded-lg bg-[#FFD700] text-black hover:bg-amber-400 text-[11px] font-extrabold transition-all flex items-center gap-1.5 shadow-md">
-            <span>🔊</span> Ascolta Guida Orari Italia
+            <span>🔊</span> Audio Mercati Italia
           </button>
         </div>
       </div>
@@ -622,116 +618,52 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <table class="w-full text-left text-xs font-mono">
           <thead>
             <tr class="border-b border-white/15 text-white/60 text-[10px]">
-              <th class="py-2 px-2">MERCATO / BORSA</th>
-              <th class="py-2 px-2">ORARI UFFICIALI (ORA ITALIANA)</th>
-              <th class="py-2 px-2">DETTAGLI OPERATIVI &amp; VOLATILITÀ</th>
+              <th class="py-2 px-2">MERCATO / ASSET</th>
+              <th class="py-2 px-2">ORARI UFFICIALI (CET)</th>
+              <th class="py-2 px-2 text-[#FFD700]">✅ ORARIO SICURO E IDEALE PER IL PROFITTO</th>
+              <th class="py-2 px-2 text-[#FF334B]">❌ ORARI DA EVITARE (ALTO RISCHIO)</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-white/10 text-white/90">
             <tr>
-              <td class="py-2.5 px-2 text-white font-bold">🇮🇹 Borsa Italiana (Milano / Euronext)</td>
-              <td class="py-2.5 px-2 text-cyan-300 font-semibold">
-                • Negoziazione continua: 09:01 – 17:30<br>
-                • Sessione serale (TAH): 18:00 – 20:30
+              <td class="py-2.5 px-2 text-white font-bold">🇮🇹 Borsa Italiana (Milano)</td>
+              <td class="py-2.5 px-2 text-cyan-300">09:01 – 17:30<br>(TAH: 18:00 – 20:30)</td>
+              <td class="py-2.5 px-2 text-[#FFD700] font-bold bg-amber-950/20">
+                Mattina: 09:30 – 14:15<br><em>Liquidità stabile e trend tecnici puliti.</em>
               </td>
-              <td class="py-2.5 px-2 text-white/80">
-                Orari standard azionario e derivati italiani. Maggiori dettagli sugli orari nazionali sono disponibili su <strong class="text-cyan-300">Directa</strong>.
-              </td>
-            </tr>
-            <tr class="bg-amber-950/30 border-l-4 border-[#FFD700]">
-              <td class="py-2.5 px-2 text-[#FFD700] font-bold">🇺🇸 Mercati USA (NYSE e NASDAQ)</td>
-              <td class="py-2.5 px-2 text-[#FFD700] font-semibold">
-                • Apertura: Ore 15:30 italiane<br>
-                • Chiusura: Ore 22:00 italiane
-              </td>
-              <td class="py-2.5 px-2 text-white/90">
-                Con l'ora solare/legale può esserci un piccolo scostamento stagionale, ma lo standard è 15:30 – 22:00. Panoramica completa consultabile su <strong class="text-[#FFD700]">Marco Casario</strong>.
+              <td class="py-2.5 px-2 text-[#FF334B]">
+                08:45 – 09:30<br><em>Apertura con forte rumore di fondo e false partenze[span_0](start_span)[span_0](end_span).</em>
               </td>
             </tr>
             <tr class="bg-amber-950/30 border-l-4 border-[#FFD700]">
-              <td class="py-2.5 px-2 text-[#FFD700] font-bold">💱 Mercato Forex</td>
-              <td class="py-2.5 px-2 text-[#FFD700] font-semibold">
-                • Aperto 24 ore su 24, 5 giorni a settimana<br>
-                • Da domenica sera a venerdì sera
+              <td class="py-2.5 px-2 text-[#FFD700] font-bold">🇺🇸 Mercati USA (NYSE / NASDAQ)</td>
+              <td class="py-2.5 px-2 text-[#FFD700]">15:30 – 22:00</td>
+              <td class="py-2.5 px-2 text-[#FFD700] font-bold bg-amber-950/40">
+                Pomeriggio/Sera: 16:00 – 21:30<br><em>Trend di Wall Street consolidati.</em>
               </td>
-              <td class="py-2.5 px-2 text-white/90">
-                I momenti di maggiore volatilità e volume coincidono con la <strong>sovrapposizione tra Londra e New York</strong> (pomeriggio italiano, indicativamente <strong>dalle 14:00 alle 17:00</strong>).
+              <td class="py-2.5 px-2 text-[#FF334B]">
+                15:20 – 16:00<br><em>Apertura Wall Street e dati macro (14:30): volatilità estrema[span_1](start_span)[span_1](end_span).</em>
               </td>
             </tr>
             <tr>
+              <td class="py-2.5 px-2 text-white font-bold">💱 Mercato Forex</td>
+              <td class="py-2.5 px-2 text-cyan-300">24h / 5 giorni<br>(Dom. sera - Ven. sera)[span_2](start_span)[span_2](end_span)</td>
+              <td class="py-2.5 px-2 text-[#FFD700] font-bold bg-amber-950/20">
+                Pomeriggio: 14:00 – 17:00<br><em>Sovrapposizione record tra Londra e New York[span_3](start_span)[span_3](end_span).</em>
+              </td>
+              <td class="py-2.5 px-2 text-[#FF334B]">
+                Notte fonda (dopo le 22:00)<br><em>Crollo dei volumi e movimenti laterali rischiosi.</em>
+              </td>
+            </tr>
+            <tr class="bg-amber-950/20">
               <td class="py-2.5 px-2 text-[#00FF66] font-bold">🪙 Criptovalute</td>
-              <td class="py-2.5 px-2 text-[#00FF66] font-semibold">
-                • Operative 24 ore su 24, 7 giorni su 7
+              <td class="py-2.5 px-2 text-[#00FF66]">24 ore su 24, 7 giorni su 7[span_4](start_span)[span_4](end_span)</td>
+              <td class="py-2.5 px-2 text-[#FFD700] font-bold bg-amber-950/30">
+                Orari borse aperte: 09:30 – 21:30<br><em>Massimi volumi istituzionali e reazioni pulite.</em>
               </td>
-              <td class="py-2.5 px-2 text-white/80">
-                Mercato continuo h24 senza interruzioni (salvo brevi manutenzioni tecniche dei broker o exchange).
+              <td class="py-2.5 px-2 text-[#FF334B]">
+                Weekend o notte fonda<br><em>Book sottili e alto rischio di flash crash.</em>
               </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- TABELLA REALE DI BORSA (CET) -->
-    <section class="terminal-card rounded-2xl p-4 space-y-3">
-      <div class="flex items-center justify-between border-b border-white/15 pb-2">
-        <h2 class="text-xs font-extrabold text-[#FFD700] uppercase tracking-wider flex items-center gap-2">
-          <span>📋 Tabella Reale Ufficiale: Orari di Borsa (CET) &amp; Note Operative in Oro</span>
-        </h2>
-        <span class="text-[10px] text-white/60 font-mono">Aggiornata in Tempo Reale</span>
-      </div>
-      <div class="overflow-x-auto">
-        <table class="w-full text-left text-xs font-mono">
-          <thead>
-            <tr class="border-b border-white/15 text-white/60 text-[10px]">
-              <th class="py-2 px-2">SESSIONE / BORSA</th>
-              <th class="py-2 px-2">ORARIO NELLA TABELLA (CET)</th>
-              <th class="py-2 px-2">ORARIO REALE DI BORSA (CET)</th>
-              <th class="py-2 px-2">NOTE OPERATIVE &amp; MOMENTO ORO</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-white/10 text-white/90">
-            <tr>
-              <td class="py-2 px-2 text-white font-bold">Sessione Asiatica (Tokyo / Sydney)</td>
-              <td class="py-2 px-2 text-cyan-300">01:00 – 09:00</td>
-              <td class="py-2 px-2 text-white/80">01:00 – 09:00 (Tokyo apre alle 01:00)</td>
-              <td class="py-2 px-2 text-white/80">Volatilità bassa, movimenti laterali.</td>
-            </tr>
-            <tr class="bg-red-950/25">
-              <td class="py-2 px-2 text-[#FF334B] font-bold">⚠️ Apertura Borse Europee</td>
-              <td class="py-2 px-2 text-[#FF334B]">08:45 – 09:30</td>
-              <td class="py-2 px-2 text-[#FF334B]">09:00 (Francoforte, Milano, Londra)</td>
-              <td class="py-2 px-2 text-[#FF334B]"><strong>Sconsigliato:</strong> Alta volatilità nei primi 15-30 minuti.</td>
-            </tr>
-            <tr class="bg-amber-950/40 border-l-4 border-[#FFD700]">
-              <td class="py-2 px-2 text-[#FFD700] font-bold">🟡 Mattinata Europea</td>
-              <td class="py-2 px-2 text-[#FFD700]">09:30 – 14:15</td>
-              <td class="py-2 px-2 text-[#FFD700]">09:30 – 14:30</td>
-              <td class="py-2 px-2 text-[#FFD700]"><strong>Momento Ottimale in ORO:</strong> Liquidità elevata e trend più puliti.</td>
-            </tr>
-            <tr>
-              <td class="py-2 px-2 text-white font-bold">Pre-Market USA</td>
-              <td class="py-2 px-2 text-cyan-300">14:15 – 15:20</td>
-              <td class="py-2 px-2 text-cyan-300">14:30 – 15:30</td>
-              <td class="py-2 px-2 text-white/80">Rilascio dati macroeconomici USA (spesso alle 14:30). Studio livelli.</td>
-            </tr>
-            <tr class="bg-red-950/25">
-              <td class="py-2 px-2 text-[#FF334B] font-bold">⚠️ Apertura Wall Street</td>
-              <td class="py-2 px-2 text-[#FF334B]">15:20 – 16:00</td>
-              <td class="py-2 px-2 text-[#FF334B]">15:30 (Apertura ufficiale NYSE)</td>
-              <td class="py-2 px-2 text-[#FF334B]"><strong>Sconsigliato:</strong> Massima volatilità e false rotture fino alle 16:00.</td>
-            </tr>
-            <tr class="bg-amber-950/40 border-l-4 border-[#FFD700]">
-              <td class="py-2 px-2 text-[#FFD700] font-bold">🟡 Sessione Pomeridiana USA</td>
-              <td class="py-2 px-2 text-[#FFD700]">16:00 – 21:30</td>
-              <td class="py-2 px-2 text-[#FFD700]">16:00 – 22:00</td>
-              <td class="py-2 px-2 text-[#FFD700]"><strong>Momento Ottimale in ORO:</strong> Consolidamento dei trend principali.</td>
-            </tr>
-            <tr class="bg-red-950/25">
-              <td class="py-2 px-2 text-[#FF334B] font-bold">⚠️ Chiusura USA / Notturna</td>
-              <td class="py-2 px-2 text-[#FF334B]">21:30 – 01:15</td>
-              <td class="py-2 px-2 text-[#FF334B]">22:00 – 01:00</td>
-              <td class="py-2 px-2 text-[#FF334B]"><strong>Sconsigliato:</strong> Calo drastico dei volumi dopo le 22:00.</td>
             </tr>
           </tbody>
         </table>
@@ -817,7 +749,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="w-9 h-9 rounded-xl bg-[#FFD700] text-black flex items-center justify-center font-extrabold animate-bounce">⚡</div>
           <div>
             <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">⚡ SEGNALE MASTER SUPERIORE IN ORO ($ TP &amp; SL 😢)</h2>
-            <p class="text-[11px] text-[#FFD700]" id="masterSubtitle">Cripto ed asset evidenziati in base agli orari italiani e internazionali</p>
+            <p class="text-[11px] text-[#FFD700]" id="masterSubtitle">Cripto ed asset evidenziati in base agli orari sicuri di profitto</p>
           </div>
         </div>
         <span id="masterPrecisionBadge" class="px-2.5 py-1 rounded-md text-xs font-mono font-extrabold bg-[#FFD700] text-black animate-pulse">CANDLE-SYNC ORO 🚀</span>
@@ -864,7 +796,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[800px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Advisor Orari Italia &amp; Notifiche attivo...</div>
+          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Advisor Orari Sicuri &amp; Notifiche attivo...</div>
         </div>
       </aside>
     </div>
@@ -899,15 +831,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- MODALE GUIDA ORARIO & MERCATI IN ITALIA (POPUP AUTOMATICO SCRITTO & VOCALE) -->
+  <!-- MODALE GUIDA ORARIO & MERCATI IN ITALIA (POPUP AUTOMATICO ALL'APERTURA) -->
   <div id="finestraGuidaOrariaModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/90 backdrop-blur-md p-3 overflow-y-auto">
     <div class="bg-[#08080A] border-2 border-[#FFD700] rounded-2xl w-full max-w-[680px] shadow-2xl overflow-hidden my-auto p-5 space-y-4">
       <div class="flex items-center justify-between border-b border-[#FFD700]/30 pb-3">
         <div class="flex items-center gap-3">
-          <span class="w-9 h-9 rounded-xl bg-[#FFD700] text-black flex items-center justify-center font-extrabold animate-pulse">⏰</span>
+          <span class="w-9 h-9 rounded-xl bg-[#FFD700] text-black flex items-center justify-center font-extrabold animate-pulse">🔔</span>
           <div>
-            <h2 class="text-base font-extrabold font-mono text-[#FFD700]">ORARI PRINCIPALI DEI MERCATI IN ITALIA</h2>
-            <p class="text-xs text-white/70">Notifica Orario Giusto &amp; Guida Vocale (Ora Italiana)</p>
+            <h2 class="text-base font-extrabold font-mono text-[#FFD700]">NOTIFICA ORARIO ESATTO E SICURO DI TRADING</h2>
+            <p class="text-xs text-white/70">Guida Scritta &amp; Vocale Automatica all'Apertura (Ora Italiana)</p>
           </div>
         </div>
         <button onclick="chiudiFinestraGuidaOraria()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
@@ -921,19 +853,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
 
         <div class="p-3 bg-amber-950/30 border border-[#FFD700]/40 rounded-xl space-y-2 text-white/90">
-          <strong class="text-[#FFD700] block">🔔 Notifica Orario Ideale di Trading (Ora Italiana):</strong>
-          <p>• <strong>Mattina:</strong> Dalle 09:30 alle 14:15 (Sessione Europea attiva, liquidità stabile e trend puliti).</p>
-          <p>• <strong>Pomeriggio (Top Volatilità):</strong> Dalle 14:00 alle 17:00 (Sovrapposizione Londra e New York) e dalle 16:00 alle 21:30 (Sessione USA).</p>
-          <p>• <strong>Evitare:</strong> Apertura Borsa Italiana (08:45 - 09:30) e apertura Wall Street (15:20 - 16:00) per via di false partenze e alta volatilità.</p>
+          <strong class="text-[#FFD700] block">🎯 Quando è SICURO iniziare a fare trading per il profitto:</strong>
+          <p>• <strong>Mattina Europea (09:30 – 14:15):</strong> Il momento ideale per operare sulle borse europee e su Borsa Italiana con liquidità stabile[span_5](start_span)[span_5](end_span).</p>
+          <p>• <strong>Pomeriggio Forex &amp; USA (14:00 – 17:00 / 16:00 – 21:30):</strong> Massima volatilità pulita grazie alla sovrapposizione tra Londra e New York e l'apertura di Wall Street[span_6](start_span)[span_6](end_span).</p>
+          <p>• <strong>Criptovalute:</strong> Operative h24[span_7](start_span)[span_7](end_span), ma con i profitti più alti e sicuri durante le sovrapposizioni istituzionali (09:30 – 21:30).</p>
+          <p>• <strong>🛑 DA EVITARE:</strong> Aperture secche (08:45-09:30 per Milano[span_8](start_span)[span_8](end_span) e 15:20-16:00 per Wall Street[span_9](start_span)[span_9](end_span)) per via dei falsi segnali.</p>
         </div>
       </div>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <button onclick="leggiNotificaOrarioGiusto()" class="w-full py-2.5 rounded-xl text-xs shadow-lg bg-amber-500 text-black font-extrabold hover:bg-amber-400 transition-all flex items-center justify-center gap-1.5">
-          <span>🔔</span> Ascolta Notifica Orario Giusto
+          <span>🔔</span> Ascolta Notifica Vocale Orario
         </button>
         <button onclick="chiudiFinestraGuidaOraria()" class="w-full py-2.5 rounded-xl text-xs shadow-lg bg-[#FFD700] text-black font-bold hover:bg-amber-400 transition-all">
-          Procedi al Trading in Oro ⚡
+          Procedi allo Scanner in Oro ⚡
         </button>
       </div>
     </div>
@@ -1104,9 +1037,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
     function leggiNotificaOrarioGiusto() {
       const oraCorrente = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
-      const testoNotifica = `Notifica orario di trading per le ore ${oraCorrente}. I momenti migliori per iniziare a fare trading in Italia sono: la mattina dalle 9 e 30 alle 14 e 15, durante la sessione europea; il pomeriggio dalle 14 alle 17, grazie alla sovrapposizione tra Londra e New York; e la sessione americana dalle 16 alle 21 e 30. Evitare l'apertura della borsa italiana tra le 8 e 45 e le 9 e 30, e l'apertura di Wall Street tra le 15 e 20 e le 16, per via dell'alta volatilità e dei falsi segnali.`;
+      const testoNotifica = `Notifica orario sicuro di trading per le ore ${oraCorrente}. Gli orari esatti e ideali per iniziare a fare trading e ottenere profitto sono: la mattina dalle 9 e 30 alle 14 e 15 per la borsa europea e italiana; il pomeriggio dalle 14 alle 17 per il Forex durante la sovrapposizione tra Londra e New York; e la sessione americana dalle 16 alle 21 e 30 per Wall Street. Evitare l'apertura della borsa italiana tra le 8 e 45 e le 9 e 30 e l'apertura di Wall Street tra le 15 e 20 e le 16 per via dell'alta volatilità rischiosa.`;
       playChime(false, testoNotifica);
-      logFeed(`[NOTIFICA ORARIO GIUSTO] Annuncio vocale orario eseguito per le ${oraCorrente}.`);
+      logFeed(`[NOTIFICA ORARIO GIUSTO] Annuncio vocale eseguito per le ${oraCorrente}.`);
     }
 
     function leggiTabellaOrariItalia() {
@@ -1676,7 +1609,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           if (modeJson.isSafeTime) {
             banner.className = "terminal-card rounded-2xl p-4 border border-[#FFD700]/50 bg-amber-950/20 flex flex-wrap items-center justify-between gap-3 text-xs font-mono";
             bannerDot.className = "w-3 h-3 rounded-full bg-[#FFD700] animate-pulse";
-            bannerTitle.textContent = "SESSIONE DI TRADING & NOTIFICA ORARIO GIUSTO: OTTIMALE IN ORO 🚀";
+            bannerTitle.textContent = "SESSIONE DI TRADING & ORARIO SICURO: OTTIMALE IN ORO 🚀";
             bannerText.className = "text-[#FFD700]";
             bannerText.textContent = modeJson.timeMsg;
             momentoLbl.textContent = "FAVOREVOLE IN ORO 🟡";
@@ -1688,8 +1621,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             if (state.lastSessionSafeState === false || state.lastSessionSafeState === null) {
               state.lastSessionSafeState = true;
-              playChime(false, `Notifica orario giusto. Finestra temporale ottimale aperta presso la ${modeJson.borsaRif}. Il momento per aprire posizioni è favorevole.`);
-              logFeed("[NOTIFICA ORARIO] Finestra sicura aperta. Avviso vocale eseguito.");
+              playChime(false, "Notifica orario sicuro. Finestra temporale ottimale aperta. Il momento per iniziare a fare trading è favorevole.");
+              logFeed("[NOTIFICA ORARIO] Finestra sicura aperta. Annuncio vocale eseguito.");
             }
           } else {
             banner.className = "terminal-card rounded-2xl p-4 border border-[#FF334B]/60 bg-red-950/30 flex flex-wrap items-center justify-between gap-3 text-xs font-mono";
@@ -1706,7 +1639,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             if (state.lastSessionSafeState === true || state.lastSessionSafeState === null) {
               state.lastSessionSafeState = false;
-              playChime(true, "Notifica orario. Raggiunto orario critico o di alta volatilità. Sconsigliato aprire nuove posizioni.");
+              playChime(true, "Notifica orario. Raggiunto orario critico o di alta volatilità rischiosa. Sconsigliato aprire nuove posizioni.");
               logFeed("[NOTIFICA ORARIO] Orario critico rilevato. Avviso vocale eseguito.");
             }
           }
@@ -1969,7 +1902,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         updateAllVisibleCountdowns();
       }, 1000);
 
-      setTimeout(mostraFinestraGuidaOraria, 800);
+      // Apertura automatica e notifica vocale dell'orario sicuro all'avvio dell'app/scanner
+      setTimeout(() => {
+        mostraFinestraGuidaOraria();
+        leggiNotificaOrarioGiusto();
+      }, 900);
     });
   </script>
 </body>
