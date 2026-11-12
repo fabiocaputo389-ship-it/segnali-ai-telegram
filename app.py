@@ -22,7 +22,6 @@ MARKET_TYPE = "FUTURES"
 
 
 def _genera_firma(payload: dict, secret_key: str) -> str:
-    """Genera la firma HMAC SHA256 richiesta dalle API di BingX."""
     query_string = urllib.parse.urlencode(payload)
     signature = hmac.new(
         secret_key.encode("utf-8"),
@@ -33,7 +32,7 @@ def _genera_firma(payload: dict, secret_key: str) -> str:
 
 
 # ==========================================
-# MOTORE DI ANALISI TRADINGVIEW & ALLINEAMENTO
+# MOTORE DI ANALISI TRADINGVIEW & INNESCO ATR
 # ==========================================
 def analizza_tradingview_tf(simbolo_bingx: str, market_type: str, tv_interval: str):
     tv_symbol = simbolo_bingx.replace("-", "").upper()
@@ -103,7 +102,7 @@ def calcola_parametri_con_confluenza_assoluta(simbolo: str, market_type: str):
             return None
         tfs[label] = res
 
-    # 🛡️ FILTRO ANTI-FALSI ASSOLUTO: Tutti i timeframe DEVONO essere d'accordo
+    # 🛡️ FILTRO DI ALLINEAMENTO MULTI-TF RIGOROSO
     trend_5m = tfs["5m"]["trend"]
     trend_15m = tfs["15m"]["trend"]
     trend_1h = tfs["1h"]["trend"]
@@ -123,12 +122,12 @@ def calcola_parametri_con_confluenza_assoluta(simbolo: str, market_type: str):
 
     k = 1 if side == "BUY" else (-1 if side == "SELL" else 0)
     
-    # Innesco di precisione basato sull'ATR
+    # Innesco basato sull'ATR
     offset_innesco = atr * 0.1
     prezzo_innesco = round(price + (k * offset_innesco), dec) if k != 0 else price
 
     dist_sl = min(max(atr * 1.2, price * 0.007), price * 0.015)
-    dist_tp = dist_sl * 3.0  # Rapporto Rischio/Rendimento aggressivo 1:3
+    dist_tp = dist_sl * 3.0  # Rapporto Rischio/Rendimento 1:3
 
     sl = round(prezzo_innesco - k * dist_sl, dec) if k != 0 else round(price * 0.99, dec)
     tp = round(prezzo_innesco + k * dist_tp, dec) if k != 0 else round(price * 1.03, dec)
@@ -139,9 +138,8 @@ def calcola_parametri_con_confluenza_assoluta(simbolo: str, market_type: str):
         "price": round(price, dec),
         "triggerPrice": prezzo_innesco,
         "side": side,
-        "sentiment": "🔥 SEGNALE CERTIFICATO (Multi-TF Allineato)" if side != "NEUTRO" else "🛡️ In attesa di confluenza perfetta...",
-        "confluenza": "Filtro Multi-Timeframe Stretto 🎯",
-        "exactTf": "15m",
+        "sentiment": "🔥 SEGNALE TRADINGVIEW CERTIFICATO" if side != "NEUTRO" else "🛡️ In attesa di allineamento...",
+        "confluenza": "Multi-TF Allineato (5m, 15m, 1h, 4h) 🎯",
         "precisionScore": score,
         "rsi14": base["rsi14"],
         "atr14": round(atr, dec),
@@ -175,7 +173,6 @@ def get_live_market_data(market_type: str = "FUTURES"):
                     "price": price,
                     "change24h": change,
                     "volume": quote_vol,
-                    "category": "Criptovalute",
                     "marketType": market_type
                 }
             return market_map
@@ -214,7 +211,7 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingress
         return {"code": -1, "msg": "API Key o Secret Key BingX mancanti."}
 
     if lato not in ["BUY", "SELL"]:
-        return {"code": -1, "msg": "Operazione bloccata: il segnale non è certificato (manca allineamento multi-TF)."}
+        return {"code": -1, "msg": "Operazione bloccata: segnale TradingView non allineato."}
 
     if market_type == "STANDARD_FUTURES":
         endpoint = "/openApi/futures/v1/trade/order"
@@ -302,7 +299,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ApexScan Pro - Allineamento Multi-TF Assoluto</title>
+  <title>ApexScan Pro - TradingView Dashboard Integration</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
   <style>
@@ -313,10 +310,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 </head>
 <body class="min-h-screen flex flex-col p-4 gap-4 max-w-[1600px] mx-auto">
 
+  <!-- HEADER -->
   <header class="terminal-card rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
     <div>
-      <h1 class="text-lg font-extrabold text-white">APEXSCAN <span class="text-[#00FF66]">Multi-TF Absolute Engine</span></h1>
-      <p class="text-xs font-mono text-white/70">Filtro Allineamento Rigoroso (5m, 15m, 1h, 4h) + Trigger Innesco</p>
+      <h1 class="text-lg font-extrabold text-white">APEXSCAN <span class="text-[#00FF66]">TradingView Live Dashboard</span></h1>
+      <p class="text-xs font-mono text-white/70">Lettura indicatori TradingView integrata • Esecuzione su BingX</p>
     </div>
     <div class="flex items-center gap-2">
       <button onclick="switchMarketType('FUTURES')" id="btnMarketFutures" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#0066FF] text-white">FUTURES</button>
@@ -325,8 +323,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </div>
   </header>
 
+  <!-- LISTA MERCATI E ATTIVAZIONE TRADINGVIEW -->
   <section class="terminal-card rounded-2xl p-4 space-y-4">
-    <input type="text" id="coinSearchInput" oninput="filterCoinSearch(this.value)" placeholder="🔍 Cerca asset..." class="w-full bg-black border border-white/25 rounded-xl px-4 py-2.5 text-xs font-mono text-white outline-none focus:border-[#00FF66]" />
+    <div class="flex justify-between items-center flex-wrap gap-2">
+      <h2 class="text-sm font-bold text-white/90">📊 Seleziona Asset per Lettura TradingView &amp; Innesco</h2>
+      <span class="text-xs font-mono text-[#00FF66]">● Motore TradingView attivo</span>
+    </div>
+    <input type="text" id="coinSearchInput" oninput="filterCoinSearch(this.value)" placeholder="🔍 Cerca asset (es. BTC, ETH, SOL)..." class="w-full bg-black border border-white/25 rounded-xl px-4 py-2.5 text-xs font-mono text-white outline-none focus:border-[#00FF66]" />
     <div id="tablesContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"></div>
   </section>
 
@@ -340,23 +343,24 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- MODALE OPERATIVA -->
+  <!-- MODALE ANALISI E SEGNALE TRADINGVIEW -->
   <div id="assetModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/90 p-3">
     <div class="bg-[#08080A] border border-white/30 rounded-2xl w-full max-w-[650px] p-5 space-y-4 font-mono text-xs">
       <div class="flex justify-between items-center border-b border-white/15 pb-3">
         <div>
           <h2 id="modalSymbol" class="text-base font-extrabold text-white">BTC-USDT</h2>
-          <span id="modalSentiment" class="text-[#00FF66] font-bold">Verifica allineamento...</span>
+          <span id="modalSentiment" class="text-[#00FF66] font-bold">Lettura TradingView...</span>
         </div>
         <button onclick="closeModal()" class="p-1.5 rounded-lg bg-white/10 text-white">✕</button>
       </div>
 
+      <!-- Stato dei 4 Timeframe TradingView -->
       <div id="tfPanel" class="grid grid-cols-2 sm:grid-cols-4 gap-2"></div>
 
       <div class="bg-black border border-white/15 rounded-xl p-3 space-y-2">
         <div class="flex justify-between"><span>Prezzo Live:</span><strong id="modalLivePrice">--</strong></div>
-        <div class="flex justify-between text-[#00FF66]"><span>🎯 Trigger di Innesco:</span><strong id="modalTriggerPrice">--</strong></div>
-        <div class="flex justify-between"><span>Segnale Certificato:</span><strong id="modalSide">--</strong></div>
+        <div class="flex justify-between text-[#00FF66]"><span>🎯 Trigger Innesco (ATR):</span><strong id="modalTriggerPrice">--</strong></div>
+        <div class="flex justify-between"><span>Segnale TradingView:</span><strong id="modalSide">--</strong></div>
         <div class="flex justify-between"><span>Take Profit (1:3):</span><strong id="modalTrendingTP" class="text-[#00FF66]">--</strong></div>
         <div class="flex justify-between"><span>Stop Loss Protettivo:</span><strong id="modalSL" class="text-[#FF334B]">--</strong></div>
       </div>
@@ -377,7 +381,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
 
       <button id="executeBingXBtn" onclick="eseguiOrdineSuBingX()" class="bingx-btn w-full py-2.5 rounded-xl text-xs">
-        ⚡ Esegui Segnale Certificato su BingX
+        ⚡ Esegui Segnale TradingView su BingX
       </button>
     </div>
   </div>
@@ -389,7 +393,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     function saveUserApiKeys() {
       localStorage.setItem('bingx_user_api_key', document.getElementById('userApiKeyInput').value.trim());
       localStorage.setItem('bingx_user_secret_key', document.getElementById('userSecretKeyInput').value.trim());
-      toggleApiModal(); alert("Salvato!");
+      toggleApiModal(); alert("Chiavi salvate!");
     }
     async function switchMarketType(mtype) {
       state.marketType = mtype;
@@ -406,9 +410,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       let sorted = Object.keys(state.marketData).map(sym => ({ symbol: sym, ...state.marketData[sym] })).sort((a, b) => (b.volume || 0) - (a.volume || 0));
       if (state.searchQuery) sorted = sorted.filter(c => c.symbol.toLowerCase().includes(state.searchQuery));
       document.getElementById('tablesContainer').innerHTML = sorted.slice(0, 30).map(c => `
-        <div onclick='openModal("${c.symbol}")' class="bg-black border border-white/20 hover:border-[#00FF66] rounded-xl p-3 cursor-pointer flex justify-between items-center">
-          <div><strong class="text-white text-sm">${c.symbol}</strong><span class="block text-[10px] text-[#00FF66]">Verifica Allineamento Multi-TF</span></div>
-          <div class="text-right font-mono"><span class="text-white text-xs font-bold">$${c.price}</span><span class="block text-[10px] ${c.change24h >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'}">${c.change24h.toFixed(2)}%</span></div>
+        <div onclick='openModal("${c.symbol}")' class="bg-black border border-white/20 hover:border-[#00FF66] rounded-xl p-3 cursor-pointer flex justify-between items-center transition">
+          <div>
+            <strong class="text-white text-sm">${c.symbol}</strong>
+            <span class="block text-[10px] text-[#00FF66]">Analizza su TradingView 📊</span>
+          </div>
+          <div class="text-right font-mono">
+            <span class="text-white text-xs font-bold">$${c.price}</span>
+            <span class="block text-[10px] ${c.change24h >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'}">${c.change24h.toFixed(2)}%</span>
+          </div>
         </div>
       `).join('');
     }
@@ -416,7 +426,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('assetModal').classList.remove('hidden');
       document.getElementById('assetModal').classList.add('flex');
       document.getElementById('modalSymbol').textContent = symbol;
-      document.getElementById('modalSentiment').textContent = "Controllo timeframe in corso...";
+      document.getElementById('modalSentiment').textContent = "Lettura indicatori TradingView...";
       document.getElementById('tfPanel').innerHTML = '';
 
       const res = await fetch(`/api/deep-scan?symbol=${encodeURIComponent(symbol)}&marketType=${state.marketType}`);
@@ -438,6 +448,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <div class="bg-white/5 p-2 rounded-lg border border-white/10 text-center">
               <div class="font-bold text-white">${iv}</div>
               <div style="color:${col}" class="font-extrabold text-[11px]">${t.tvRec}</div>
+              <div class="text-[9px] text-white/60">RSI: ${t.rsi14}</div>
             </div>
           `;
         }).join('');
@@ -448,7 +459,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const asset = state.currentSelectedAsset;
       if (!asset) return;
       if (asset.side === 'NEUTRO') {
-        alert("Operazione bloccata: i timeframe non sono allineati. Impossibile eseguire un segnale incerto.");
+        alert("Segnale TradingView non allineato: operazione bloccata.");
         return;
       }
       const res = await fetch('/api/esegui-segnale', {
@@ -456,11 +467,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         body: JSON.stringify({
           symbol: asset.symbol, action: asset.side, size: parseFloat(document.getElementById('tradeQuantityInput').value),
           entry: asset.triggerPrice, tp: asset.tp, sl: asset.sl, leverage: parseInt(document.getElementById('leverageSelect').value),
-          marketType: state.marketType, apiKey: localStorage.getItem('bingx_user_api_key') || '', secretKey: localStorage.getItem('bingx_user_secret_key') || ''
+          marketType: state.marketType, apiKey: localStorage.getItem('bingx_user_api_key'] || '', secretKey: localStorage.getItem('bingx_user_secret_key'] || ''
         })
       });
       const data = await res.json();
-      if (data.code === 0) { alert("Segnale certificato eseguito con successo su BingX!"); closeModal(); } else { alert("Errore: " + data.msg); }
+      if (data.code === 0) { alert("Segnale TradingView eseguito con successo su BingX!"); closeModal(); } else { alert("Errore: " + data.msg); }
     }
     window.addEventListener('DOMContentLoaded', () => { pollMarketData(); setInterval(pollMarketData, 3000); });
   </script>
