@@ -676,12 +676,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <div class="bg-white/5 p-2 rounded-lg">
               <span class="text-[10px] text-white/60 block">📈 EMA 9 / 21 / 50</span>
               <strong id="modalEma" class="text-cyan-300 text-xs">--</strong>
-              <span id="modalEmaSignal" class="text-[10px] block mt-0.5">--</span>
+              <span id="modalEmaSignal" class="text-[10px] block mt-0.5 text-[#00FF66]">Trend Confermato 🛡️</span>
             </div>
             <div class="bg-white/5 p-2 rounded-lg">
               <span class="text-[10px] text-white/60 block">📊 RSI (14) Filtrato</span>
               <strong id="modalRsi" class="text-white text-xs">--</strong>
-              <span id="modalRsiZone" class="text-[10px] block mt-0.5">--</span>
+              <span id="modalRsiZone" class="text-[10px] block mt-0.5">Zona Ottimale Filtrata 🎯</span>
             </div>
           </div>
 
@@ -835,6 +835,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         const rem = getLiveRemainingSeconds(sym, baseSec);
         el.textContent = formatExactDuration(rem);
       });
+
+      if (state.currentSelectedAsset) {
+        const d = state.currentSelectedAsset;
+        const modalTimeEl = document.getElementById('modalExactTime');
+        if (modalTimeEl) {
+          const rem = getLiveRemainingSeconds(d.symbol, d.tempoSec);
+          modalTimeEl.textContent = `${formatExactDuration(rem)} 🎯`;
+        }
+      }
     }
 
     function getStoredApiKeys() {
@@ -1223,7 +1232,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
       document.getElementById('tablesContainer').innerHTML = filtered.map(c => {
         const local = calcolaDatiLocaliUnificati(c.symbol, c);
-        const isLong = local.side === 'BUY';
         return `
           <div onclick='openModal("${c.symbol}")' class="bg-[#000000] border border-white/25 hover:border-[#00FF66] rounded-xl p-3.5 cursor-pointer transition-all space-y-2">
             <div class="flex items-center justify-between border-b border-white/10 pb-2">
@@ -1258,6 +1266,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           document.getElementById('modalSL').textContent = `$${formatPrice(d.sl)}`;
           document.getElementById('modalTrendingTP').textContent = `$${formatPrice(d.tp)}`;
           
+          document.getElementById('modalEma').textContent = `EMA9: ${formatPrice(d.ema9 || 0)} | EMA21: ${formatPrice(d.ema21 || 0)}`;
+          document.getElementById('modalRsi').textContent = `RSI: ${d.rsi14 || 50}`;
+          document.getElementById('modalExactTime').textContent = `${formatExactDuration(d.tempoSec || 60)} 🎯`;
+
           const lev = state.marketType === 'SPOT' ? 1 : state.selectedLeverage;
           const tpPct = (((Math.abs(d.tp - d.price) / d.price) * 100) * lev).toFixed(2);
           document.getElementById('modalTpPct').textContent = `+${tpPct}%`;
