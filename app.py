@@ -34,7 +34,7 @@ def _genera_firma(payload: dict, secret_key: str) -> str:
 
 
 # ==========================================
-# GESTIONE ORARIA & TABELLA REALE DI BORSA
+# GESTIONE ORARIA & NOTIFICA ORARIO GIUSTO
 # ==========================================
 def verifica_finestra_temporale_sicura() -> tuple[bool, str, str, str, str]:
     """
@@ -52,7 +52,7 @@ def verifica_finestra_temporale_sicura() -> tuple[bool, str, str, str, str]:
         if "09:30" <= ora_minuto < "14:15":
             return True, "🟡 Mattinata Europea: Liquidità elevata e trend puliti", "Borsa di Londra & Milano (09:30 - 14:30)", "09:30", "14:30"
         if "14:15" <= ora_minuto < "15:20":
-            return True, "🟡 Sovrapposizione Forex Londra/NY & Pre-Market USA", "Mercato Forex (14:00-17:00) / Pre-Market USA", "14:00", "17:00"
+            return True, "🟡 Sovrapposizione Forex Londra/NY & Pre-Market USA [Orario ideale]", "Mercato Forex (14:00-17:00) / Pre-Market USA", "14:00", "17:00"
         if "15:20" <= ora_minuto <= "16:00":
             return False, "⚠️ Apertura Wall Street NYSE/NASDAQ (Massima volatilità)", "Mercati USA - NYSE & NASDAQ (15:30)", "15:30", "22:00"
         if "16:00" <= ora_minuto < "21:30":
@@ -530,6 +530,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
 
       <div class="flex items-center gap-3 flex-wrap">
+        <button onclick="leggiNotificaOrarioGiusto()" class="px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-gradient-to-r from-amber-500 to-yellow-400 text-black shadow-lg hover:brightness-110 transition-all flex items-center gap-1.5 animate-bounce">
+          <span>🔔</span> <span>Notifica Orario Giusto 🔊</span>
+        </button>
+
         <button onclick="leggiTabellaOrariItalia()" class="px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-[#FFD700]/20 text-[#FFD700] border border-[#FFD700]/40 hover:bg-[#FFD700]/30 transition-all flex items-center gap-1.5">
           <span>🔊</span> <span>Audio Orari Italia</span>
         </button>
@@ -571,16 +575,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <!-- MAIN -->
   <main class="flex-1 max-w-[1920px] w-full mx-auto px-3 sm:px-5 py-4 flex flex-col gap-4">
 
-    <!-- BANNER ORARIO E TABELLA REALE DI BORSA -->
+    <!-- BANNER ORARIO E NOTIFICA ORARIO GIUSTO -->
     <div id="timeSafetyBanner" class="terminal-card rounded-2xl p-4 border border-[#FFD700]/50 bg-amber-950/20 flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
       <div class="flex items-center gap-3">
         <span id="timeBannerDot" class="w-3 h-3 rounded-full bg-[#FFD700] animate-pulse"></span>
         <div>
-          <strong id="timeBannerTitle" class="text-white text-sm block">SESSIONE DI TRADING &amp; ORARIO REALE DI BORSA (CET): ATTIVO 🟡</strong>
+          <strong id="timeBannerTitle" class="text-white text-sm block">SESSIONE DI TRADING &amp; NOTIFICA ORARIO GIUSTO (CET): ATTIVO 🟡</strong>
           <span id="timeBannerText" class="text-[#FFD700]">Cripto ed asset evidenziati nei momenti ottimali.</span>
         </div>
       </div>
-      <div class="flex items-center gap-4 bg-black/60 px-4 py-2 rounded-xl border border-white/10">
+      <div class="flex items-center gap-3 bg-black/60 px-4 py-2 rounded-xl border border-white/10 flex-wrap">
         <div>
           <span class="text-[10px] text-white/60 block">🏛️ BORSA ATTIVA (CET)</span>
           <strong id="bannerBorsaLabel" class="text-[#FFD700] font-bold">Borsa di Londra</strong>
@@ -590,8 +594,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <span class="text-[10px] text-white/60 block">🎯 MOMENTO APERTURA POSIZIONI</span>
           <strong id="bannerMomentoLabel" class="text-[#FFD700] font-bold animate-pulse">FAVOREVOLE IN ORO 🟡</strong>
         </div>
-        <button onclick="mostraFinestraGuidaOraria()" class="ml-2 px-3 py-1.5 rounded-lg bg-[#FFD700]/20 text-[#FFD700] border border-[#FFD700]/40 hover:bg-[#FFD700]/30 text-xs font-bold transition-all">
-          📢 Apri Tabella Reale CET
+        <button onclick="leggiNotificaOrarioGiusto()" class="px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-yellow-400 text-black hover:brightness-110 text-xs font-extrabold transition-all shadow-md flex items-center gap-1">
+          <span>🔔 Notifica Orario 🔊</span>
+        </button>
+        <button onclick="mostraFinestraGuidaOraria()" class="px-3 py-1.5 rounded-lg bg-[#FFD700]/20 text-[#FFD700] border border-[#FFD700]/40 hover:bg-[#FFD700]/30 text-xs font-bold transition-all">
+          📢 Tabella CET
         </button>
       </div>
     </div>
@@ -602,9 +609,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <h2 class="text-xs font-extrabold text-[#FFD700] uppercase tracking-wider flex items-center gap-2">
           <span>🇮🇹 Orari Principali dei Mercati in Italia (Ora Italiana - Scritto &amp; Vocale)</span>
         </h2>
-        <button onclick="leggiTabellaOrariItalia()" class="px-3 py-1.5 rounded-lg bg-[#FFD700] text-black hover:bg-amber-400 text-[11px] font-extrabold transition-all flex items-center gap-1.5 shadow-md">
-          <span>🔊</span> Ascolta Guida Orari Italia
-        </button>
+        <div class="flex items-center gap-2">
+          <button onclick="leggiNotificaOrarioGiusto()" class="px-3 py-1.5 rounded-lg bg-amber-500 text-black hover:bg-amber-400 text-[11px] font-extrabold transition-all flex items-center gap-1.5 shadow-md">
+            <span>🔔</span> Notifica Orario Giusto
+          </button>
+          <button onclick="leggiTabellaOrariItalia()" class="px-3 py-1.5 rounded-lg bg-[#FFD700] text-black hover:bg-amber-400 text-[11px] font-extrabold transition-all flex items-center gap-1.5 shadow-md">
+            <span>🔊</span> Ascolta Guida Orari Italia
+          </button>
+        </div>
       </div>
       <div class="overflow-x-auto">
         <table class="w-full text-left text-xs font-mono">
@@ -852,7 +864,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[800px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Advisor Orari Italia &amp; CET attivo...</div>
+          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Advisor Orari Italia &amp; Notifiche attivo...</div>
         </div>
       </aside>
     </div>
@@ -895,7 +907,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <span class="w-9 h-9 rounded-xl bg-[#FFD700] text-black flex items-center justify-center font-extrabold animate-pulse">⏰</span>
           <div>
             <h2 class="text-base font-extrabold font-mono text-[#FFD700]">ORARI PRINCIPALI DEI MERCATI IN ITALIA</h2>
-            <p class="text-xs text-white/70">Guida Scritta &amp; Vocale (Ora Italiana)</p>
+            <p class="text-xs text-white/70">Notifica Orario Giusto &amp; Guida Vocale (Ora Italiana)</p>
           </div>
         </div>
         <button onclick="chiudiFinestraGuidaOraria()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
@@ -909,17 +921,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
 
         <div class="p-3 bg-amber-950/30 border border-[#FFD700]/40 rounded-xl space-y-2 text-white/90">
-          <strong class="text-[#FFD700] block">🇮🇹 Riepilogo Ufficiale Ora Italiana:</strong>
-          <p>• <strong>Borsa Italiana (Milano):</strong> Negoziazione continua dalle 09:01 alle 17:30; sessione serale TAH dalle 18:00 alle 20:30 (dettagli su Directa).</p>
-          <p>• <strong>Mercati USA (NYSE e NASDAQ):</strong> Apertura ore 15:30 italiane, chiusura ore 22:00 italiane (panoramica su Marco Casario).</p>
-          <p>• <strong>Mercato Forex:</strong> Aperto 24/5 (dom-ven). Massima volatilità dalle 14:00 alle 17:00 italiane (sovrapposizione Londra-New York).</p>
-          <p>• <strong>Criptovalute:</strong> Operative 24 ore su 24, 7 giorni su 7.</p>
+          <strong class="text-[#FFD700] block">🔔 Notifica Orario Ideale di Trading (Ora Italiana):</strong>
+          <p>• <strong>Mattina:</strong> Dalle 09:30 alle 14:15 (Sessione Europea attiva, liquidità stabile e trend puliti).</p>
+          <p>• <strong>Pomeriggio (Top Volatilità):</strong> Dalle 14:00 alle 17:00 (Sovrapposizione Londra e New York) e dalle 16:00 alle 21:30 (Sessione USA).</p>
+          <p>• <strong>Evitare:</strong> Apertura Borsa Italiana (08:45 - 09:30) e apertura Wall Street (15:20 - 16:00) per via di false partenze e alta volatilità.</p>
         </div>
       </div>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <button onclick="leggiTabellaOrariItalia()" class="w-full py-2.5 rounded-xl text-xs shadow-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 font-bold hover:bg-cyan-500/30 transition-all">
-          🔊 Ascolta Guida Vocale Orari
+        <button onclick="leggiNotificaOrarioGiusto()" class="w-full py-2.5 rounded-xl text-xs shadow-lg bg-amber-500 text-black font-extrabold hover:bg-amber-400 transition-all flex items-center justify-center gap-1.5">
+          <span>🔔</span> Ascolta Notifica Orario Giusto
         </button>
         <button onclick="chiudiFinestraGuidaOraria()" class="w-full py-2.5 rounded-xl text-xs shadow-lg bg-[#FFD700] text-black font-bold hover:bg-amber-400 transition-all">
           Procedi al Trading in Oro ⚡
@@ -1090,6 +1101,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       'AVAX-USDT', 'SHIB-USDT', 'DOT-USDT', 'LINK-USDT', 'SUI-USDT', 'NEAR-USDT', 'LTC-USDT',
       'PEPE-USDT', 'APT-USDT', 'UNI-USDT', 'ICP-USDT', 'FET-USDT', 'RENDER-USDT'
     ];
+
+    function leggiNotificaOrarioGiusto() {
+      const oraCorrente = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+      const testoNotifica = `Notifica orario di trading per le ore ${oraCorrente}. I momenti migliori per iniziare a fare trading in Italia sono: la mattina dalle 9 e 30 alle 14 e 15, durante la sessione europea; il pomeriggio dalle 14 alle 17, grazie alla sovrapposizione tra Londra e New York; e la sessione americana dalle 16 alle 21 e 30. Evitare l'apertura della borsa italiana tra le 8 e 45 e le 9 e 30, e l'apertura di Wall Street tra le 15 e 20 e le 16, per via dell'alta volatilità e dei falsi segnali.`;
+      playChime(false, testoNotifica);
+      logFeed(`[NOTIFICA ORARIO GIUSTO] Annuncio vocale orario eseguito per le ${oraCorrente}.`);
+    }
 
     function leggiTabellaOrariItalia() {
       const testoVocale = "Orari principali dei mercati in Italia, ora italiana. " +
@@ -1658,7 +1676,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           if (modeJson.isSafeTime) {
             banner.className = "terminal-card rounded-2xl p-4 border border-[#FFD700]/50 bg-amber-950/20 flex flex-wrap items-center justify-between gap-3 text-xs font-mono";
             bannerDot.className = "w-3 h-3 rounded-full bg-[#FFD700] animate-pulse";
-            bannerTitle.textContent = "SESSIONE DI TRADING & ORARIO REALE DI BORSA: OTTIMALE IN ORO 🚀";
+            bannerTitle.textContent = "SESSIONE DI TRADING & NOTIFICA ORARIO GIUSTO: OTTIMALE IN ORO 🚀";
             bannerText.className = "text-[#FFD700]";
             bannerText.textContent = modeJson.timeMsg;
             momentoLbl.textContent = "FAVOREVOLE IN ORO 🟡";
@@ -1670,8 +1688,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             if (state.lastSessionSafeState === false || state.lastSessionSafeState === null) {
               state.lastSessionSafeState = true;
-              playChime(false, `Attenzione. Finestra temporale ottimale aperta presso la ${modeJson.borsaRif}. Il momento per aprire posizioni è favorevole.`);
-              logFeed("[ADVISOR ORARIO] Finestra sicura aperta. Avviso vocale eseguito.");
+              playChime(false, `Notifica orario giusto. Finestra temporale ottimale aperta presso la ${modeJson.borsaRif}. Il momento per aprire posizioni è favorevole.`);
+              logFeed("[NOTIFICA ORARIO] Finestra sicura aperta. Avviso vocale eseguito.");
             }
           } else {
             banner.className = "terminal-card rounded-2xl p-4 border border-[#FF334B]/60 bg-red-950/30 flex flex-wrap items-center justify-between gap-3 text-xs font-mono";
@@ -1688,8 +1706,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             if (state.lastSessionSafeState === true || state.lastSessionSafeState === null) {
               state.lastSessionSafeState = false;
-              playChime(true, "Attenzione. Raggiunto orario critico o di caccia agli stop. Sconsigliato aprire nuove posizioni.");
-              logFeed("[ADVISOR ORARIO] Orario critico rilevato. Avviso vocale eseguito.");
+              playChime(true, "Notifica orario. Raggiunto orario critico o di alta volatilità. Sconsigliato aprire nuove posizioni.");
+              logFeed("[NOTIFICA ORARIO] Orario critico rilevato. Avviso vocale eseguito.");
             }
           }
         }
