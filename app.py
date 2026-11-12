@@ -292,6 +292,12 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingress
     if not active_api or not active_secret:
         return {"code": -1, "msg": "API Key o Secret Key BingX mancanti."}
 
+    # Controllo e forzatura importo minimo nozionale di 2 USDT per evitare errori exchange
+    valore_nozionale = quantita * prezzo_ingresso
+    if valore_nozionale < 2.0:
+        if prezzo_ingresso > 0:
+            quantita = round(2.0 / prezzo_ingresso, 6 if (2.0 / prezzo_ingresso) < 1 else 2)
+
     if quantita <= 0:
         quantita = 0.001
 
@@ -331,11 +337,11 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingress
         res = _invia_richiesta_ordine(endpoint, payload_ordine, active_api, active_secret)
         msg = str(res.get("msg", ""))
         if res.get("code") != 0:
-            if "minimum order amount is" in msg.lower() or "is" in msg.lower():
+            if "minimum order amount is" in msg.lower() or "is" in msg.lower() or "exceeds the maximum" in msg.lower():
                 match = re.search(r"(?:minimum order amount is|is)\s+([0-9.]+)", msg, re.IGNORECASE)
                 if match:
                     min_qty = float(match.group(1))
-                    adjusted_qty = round(min_qty * 1.05, 6 if min_qty < 1 else 2)
+                    adjusted_qty = round(max(min_qty * 1.05, 2.0 / (prezzo_ingresso or 1.0)), 6 if min_qty < 1 else 2)
                     payload_ordine["quantity"] = str(adjusted_qty)
                     payload_ordine["timestamp"] = str(int(time.time() * 1000))
                     res = _invia_richiesta_ordine(endpoint, payload_ordine, active_api, active_secret)
@@ -484,7 +490,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex items-center gap-2 text-[11px] font-mono text-[#4A5568] mt-0.5">
             <span id="liveCetClock" class="text-[#1A202C] font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
-            <span class="text-[#00A859]" id="headerSubMarketInfo">Advisor Vocale Live • 1. Entra • 2. Rimani a Mercato • 3. TP Esci</span>
+            <span class="text-[#00A859]" id="headerSubMarketInfo">Min. 2$ per ordine • 1. Entra • 2. Rimani • 3. TP Esci</span>
           </div>
         </div>
       </div>
@@ -542,7 +548,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between border-t-2 border-[#00A859]">
         <span class="text-[11px] font-semibold uppercase text-[#4A5568]">Slot Posizioni Aperte (MT4 Style) 🚀</span>
         <div class="mt-2">
-          <span id="kpiAutoSlotStatus" class="text-xs font-mono text-[#00A859] font-extrabold">🟢 Parallele Illimitate (Zero Latenza)</span>
+          <span id="kpiAutoSlotStatus" class="text-xs font-mono text-[#00A859] font-extrabold">🟢 Parallele Illimitate (Min. 2$)</span>
         </div>
       </div>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between border-t-2 border-[#0052CC]">
@@ -602,7 +608,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <span class="w-8 h-8 rounded-full bg-[#00A859]/15 border border-[#00A859] flex items-center justify-center text-[#00A859] text-base font-extrabold dollar-animated-logo">$</span>
             <span>📊 Lista Operativa Protetta (<span id="tableMarketLabel" class="text-[#00A859]">FUTURES</span> - MT4 Pro)</span>
           </h2>
-          <span class="text-xs font-mono text-[#00A859] font-bold">Collegato in tempo reale a BingX</span>
+          <span class="text-xs font-mono text-[#00A859] font-bold">Minimo 2$ per ordine BingX</span>
         </div>
         <div id="tablesContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"></div>
       </section>
@@ -614,7 +620,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[800px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white text-[#4A5568] border border-[#CBD5E1]">[MT4 Engine] Connessione live BingX attiva...</div>
+          <div class="p-2 rounded bg-white text-[#4A5568] border border-[#CBD5E1]">[MT4 Engine] Ordini minimi da 2$ attivi...</div>
         </div>
       </aside>
     </div>
@@ -736,7 +742,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     <td class="py-2 px-2 text-[#E53E3E] font-bold">3. $ Stop Loss (Protetto ATR)</td>
                     <td class="py-2 px-2 text-[#E53E3E] font-extrabold select-all" id="tableParamSl">--</td>
                     <td class="py-2 px-2 text-right">
-                      <button onclick="copiaParametro('tableParamSl')" class="bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded text-[#E53E3E] text-[10px]">Copia</button>
+                      <button onclick="copiaParametro('tableParamSl')" class="bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded text-[#0052CC] text-[10px]">Copia</button>
                     </td>
                   </tr>
                 </tbody>
@@ -753,10 +759,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           </div>
         </div>
 
-        <!-- SELETTORE CAPITALE / MARGINE LIBERO -->
+        <!-- SELETTORE CAPITALE / MARGINE (MINIMO 2 USDT) -->
         <div class="bg-white border border-[#CBD5E1] rounded-xl p-4 space-y-3 shadow-sm">
           <div class="flex justify-between items-center">
-            <label class="block text-xs font-bold text-[#1A202C] uppercase tracking-wider">💰 CAPITALE DA INVESTIRE (USDT):</label>
+            <label class="block text-xs font-bold text-[#1A202C] uppercase tracking-wider">💰 CAPITALE DA INVESTIRE (Min. 2 USDT):</label>
             <span id="marginUsdtLabel" class="text-xs font-bold text-[#00A859]">2 USDT</span>
           </div>
           <div class="grid grid-cols-6 gap-1.5">
@@ -767,7 +773,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <button type="button" onclick="setMarginUsdt(50)" id="marBtn50" class="py-1.5 rounded-lg border border-[#CBD5E1] bg-gray-50 text-[#1A202C] font-bold text-xs">50 $</button>
             <button type="button" onclick="setMarginUsdt(100)" id="marBtn100" class="py-1.5 rounded-lg border border-[#CBD5E1] bg-gray-50 text-[#1A202C] font-bold text-xs">100 $</button>
           </div>
-          <input type="number" id="customMarginInput" oninput="onCustomMarginChange(this.value)" placeholder="Oppure inserisci USDT liberi..." class="w-full bg-[#F8F9FA] border border-[#CBD5E1] rounded-lg px-3 py-1.5 text-[#1A202C] font-mono text-xs focus:border-[#0052CC] outline-none" />
+          <input type="number" id="customMarginInput" min="2" oninput="onCustomMarginChange(this.value)" placeholder="Minimo 2 USDT..." class="w-full bg-[#F8F9FA] border border-[#CBD5E1] rounded-lg px-3 py-1.5 text-[#1A202C] font-mono text-xs focus:border-[#0052CC] outline-none" />
         </div>
 
         <div id="leverageSectionWrapper" class="bg-white border border-[#CBD5E1] rounded-xl p-4 space-y-3 shadow-sm">
@@ -782,20 +788,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         <div>
           <div class="flex justify-between items-center mb-1">
-            <label class="text-[11px] text-[#4A5568] font-semibold">Quantità Asset Calcolata:</label>
+            <label class="text-[11px] text-[#4A5568] font-semibold">Quantità Asset Calcolata (Basata su Min. 2$):</label>
           </div>
           <input type="number" id="tradeQuantityInput" value="1.0" step="any" oninput="onQuantityManualChange(this.value)" class="w-full bg-white border border-[#CBD5E1] rounded-lg px-3 py-2 text-[#1A202C] font-mono text-xs focus:border-[#0052CC] outline-none font-bold shadow-sm" />
         </div>
 
         <button id="executeBingXBtn" onclick="eseguiOrdineSuBingX()" class="bingx-btn w-full py-2.5 rounded-xl text-xs shadow-lg flex items-center justify-center gap-2">
-          <span>⚡ Esegui Ordine su BingX &amp; Attiva Advisor Vocale Live</span>
+          <span>⚡ Esegui Ordine su BingX (Min. 2$) &amp; Attiva Advisor Vocale Live</span>
         </button>
         <div id="executionFeedback" class="mt-2 text-xs text-center hidden"></div>
       </div>
     </div>
   </div>
 
-  <!-- JAVASCRIPT ENGINE (MT4 & ADVISOR LIVE VOCALE) -->
+  <!-- JAVASCRIPT ENGINE -->
   <script>
     let state = {
       marketData: {},
@@ -970,6 +976,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const prezzo = d.price;
       if (prezzo <= 0) return;
 
+      if (state.selectedMarginUsdt < 2) state.selectedMarginUsdt = 2;
+
       const lev = state.marketType === 'SPOT' ? 1 : state.selectedLeverage;
       const valoreNominale = state.selectedMarginUsdt * lev;
       const quantita = Number((valoreNominale / prezzo).toFixed(d.decimals >= 4 ? 2 : 4));
@@ -979,7 +987,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     }
 
     function setMarginUsdt(usdt) {
-      state.selectedMarginUsdt = usdt;
+      state.selectedMarginUsdt = Math.max(2, usdt);
       document.getElementById('customMarginInput').value = '';
       document.querySelectorAll('[id^="marBtn"]').forEach(b => {
         b.className = "py-1.5 rounded-lg border border-[#CBD5E1] bg-gray-50 text-[#1A202C] font-bold text-xs";
@@ -991,12 +999,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
     function onCustomMarginChange(val) {
       const num = parseFloat(val);
-      if (!isNaN(num) && num > 0) {
-        state.selectedMarginUsdt = num;
+      if (!isNaN(num)) {
+        state.selectedMarginUsdt = Math.max(2, num);
         document.querySelectorAll('[id^="marBtn"]').forEach(b => {
           b.className = "py-1.5 rounded-lg border border-[#CBD5E1] bg-gray-50 text-[#1A202C] font-bold text-xs";
         });
-        document.getElementById('marginUsdtLabel').textContent = `${num} USDT`;
+        document.getElementById('marginUsdtLabel').textContent = `${state.selectedMarginUsdt} USDT`;
         aggiornaQuantitaDaCapitale();
       }
     }
@@ -1006,7 +1014,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         const q = parseFloat(val) || 0;
         const valNom = q * state.currentSelectedAsset.price;
         const lev = state.marketType === 'SPOT' ? 1 : state.selectedLeverage;
-        const marEst = valNom / lev;
+        const marEst = Math.max(2, valNom / lev);
         document.getElementById('marginUsdtLabel').textContent = `Margine st.: ~${marEst.toFixed(2)} USDT`;
       }
     }
@@ -1075,7 +1083,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         return height - 20 - ((p - minP) / range) * (height - 40);
       }
 
-      // Grid lines
       ctx.strokeStyle = 'rgba(255,255,255,0.06)';
       ctx.lineWidth = 1;
       for (let i = 1; i <= 4; i++) {
@@ -1086,7 +1093,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         ctx.stroke();
       }
 
-      // Candlesticks
       const barWidth = Math.max(3, Math.floor(width / candles.length) - 4);
       candles.forEach((c, idx) => {
         const x = idx * (barWidth + 4) + 10;
@@ -1107,7 +1113,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         ctx.fillRect(x, Math.min(yOpen, yClose), barWidth, Math.max(2, Math.abs(yOpen - yClose)));
       });
 
-      // Entry, TP, SL lines
       const drawLine = (val, color, label) => {
         const y = scaleY(val);
         ctx.strokeStyle = color;
@@ -1166,7 +1171,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         const elRem = document.getElementById(`remSec_${pos.id}`);
         if (elRem) elRem.textContent = formatExactDuration(remSec);
 
-        // Advisor vocale fasi MT4 (1. Entra, 2. Rimani a mercato, 3. TP Esci)
         if (remSec > pos.initialTempoSec * 0.66 && pos.lastPhase !== "1") {
           pos.lastPhase = "1";
           playChime(false, `Fase 1. Entrata confermata su ${pos.symbol}.`);
@@ -1404,7 +1408,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     async function eseguiOrdineSuBingX() {
       if (!state.currentSelectedAsset) return;
       const asset = state.currentSelectedAsset;
-      const qty = parseFloat(document.getElementById('tradeQuantityInput').value) || 1.0;
+      let qty = parseFloat(document.getElementById('tradeQuantityInput'].value) || 0;
+      
+      const lev = state.marketType === 'SPOT' ? 1 : state.selectedLeverage;
+      const minNotionalQty = 2.0 / (asset.price * (lev || 1));
+      if (qty < minNotionalQty) {
+        qty = minNotionalQty;
+        document.getElementById('tradeQuantityInput'].value = qty;
+      }
+
       const keys = getStoredApiKeys();
 
       const res = await fetch('/api/esegui-segnale', {
@@ -1412,7 +1424,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           symbol: asset.symbol, action: asset.side, size: qty, entry: asset.price,
-          tp: asset.tp, sl: asset.sl, leverage: state.marketType === 'SPOT' ? 1 : state.selectedLeverage,
+          tp: asset.tp, sl: asset.sl, leverage: lev,
           marketType: state.marketType, apiKey: keys.apiKey, secretKey: keys.secretKey
         })
       });
