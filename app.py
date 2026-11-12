@@ -48,17 +48,17 @@ def verifica_finestra_temporale_sicura() -> tuple[bool, str, str, str, str]:
         if "01:00" <= ora_minuto < "09:00":
             return True, "🟢 Sessione Asiatica (Accumulazione / Laterale)", "Borsa di Tokyo / Sydney (01:00 - 09:00)", "01:00", "09:00"
         if "08:45" <= ora_minuto < "09:30":
-            return False, "⚠️ Apertura Borse Europee (Alta volatilità / Caccia agli stop)", "Borse Europee - Francoforte/Milano/Londra (09:00)", "09:00", "14:30"
+            return False, "⚠️ Apertura Borse Europee / Borsa Italiana (Alta volatilità)", "Borsa Italiana / Europa (09:00 - 09:01)", "09:00", "14:30"
         if "09:30" <= ora_minuto < "14:15":
-            return True, "🟡 Mattinata Europea: Liquidità elevata e trend puliti", "Borsa di Londra (09:30 - 14:30)", "09:30", "14:30"
+            return True, "🟡 Mattinata Europea: Liquidità elevata e trend puliti", "Borsa di Londra & Milano (09:30 - 14:30)", "09:30", "14:30"
         if "14:15" <= ora_minuto < "15:20":
-            return True, "🟡 Pre-Market USA: Rilascio dati macroeconomici", "Mercato Globale / USA Pre-Market (14:30 - 15:30)", "14:30", "15:30"
+            return True, "🟡 Sovrapposizione Forex Londra/NY & Pre-Market USA", "Mercato Forex (14:00-17:00) / Pre-Market USA", "14:00", "17:00"
         if "15:20" <= ora_minuto <= "16:00":
-            return False, "⚠️ Apertura Wall Street (Massima volatilità e false rotture)", "Borsa di New York - NYSE (15:30)", "15:30", "22:00"
+            return False, "⚠️ Apertura Wall Street NYSE/NASDAQ (Massima volatilità)", "Mercati USA - NYSE & NASDAQ (15:30)", "15:30", "22:00"
         if "16:00" <= ora_minuto < "21:30":
-            return True, "🟡 Sessione Pomeridiana USA: Consolidamento trend principali", "Borsa di New York (16:00 - 22:00)", "16:00", "22:00"
+            return True, "🟡 Sessione Pomeridiana USA: Consolidamento trend principali", "Mercati USA NYSE/NASDAQ (16:00 - 22:00)", "16:00", "22:00"
         
-        return False, "⚠️ Chiusura USA / Calo drastico dei volumi notturni", "Mercati Chiusi / Notturni (22:00 - 01:00)", "22:00", "01:00"
+        return False, "⚠️ Chiusura USA / Calo drastico dei volumi notturni", "Mercati Chiusi / Cripto 24-7 (22:00 - 01:00)", "22:00", "01:00"
     except Exception:
         return True, "🟡 Finestra operativa standard", "Mercato Globale 24/7", "09:30", "22:00"
 
@@ -492,12 +492,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     ::-webkit-scrollbar-thumb { background: rgba(255, 215, 0, 0.35); border-radius: 9999px; }
     @keyframes neonGlowPulse { 0%, 100% { box-shadow: 0 0 25px rgba(255, 215, 0, 0.5), inset 0 0 15px rgba(255, 215, 0, 0.2); border-color: rgba(255, 215, 0, 0.9); } 50% { box-shadow: 0 0 45px rgba(255, 215, 0, 0.9), inset 0 0 25px rgba(255, 215, 0, 0.4); border-color: #FFD700; } }
     @keyframes goldGlowPulse { 0%, 100% { box-shadow: 0 0 30px rgba(255, 215, 0, 0.7), inset 0 0 15px rgba(255, 215, 0, 0.3); border-color: #FFD700; background: rgba(50, 45, 10, 0.95); } 50% { box-shadow: 0 0 50px rgba(255, 215, 0, 1); border-color: #FFD700; background: rgba(80, 70, 15, 0.98); } }
+    @keyframes criticalPulse { 0%, 100% { box-shadow: 0 0 25px rgba(255, 51, 75, 0.8), inset 0 0 15px rgba(255, 51, 75, 0.3); border-color: #FF334B; background: rgba(50, 10, 15, 0.95); } 50% { box-shadow: 0 0 45px rgba(255, 51, 75, 1); border-color: #FF334B; background: rgba(80, 15, 20, 0.98); } }
     @keyframes dollarRotateGlow { 0% { transform: scale(1) rotate(0deg); filter: drop-shadow(0 0 8px #FFD700); } 50% { transform: scale(1.15) rotate(10deg); filter: drop-shadow(0 0 20px #FFD700); } 100% { transform: scale(1) rotate(0deg); filter: drop-shadow(0 0 8px #FFD700); } }
     .dollar-animated-logo { display: inline-block; animation: dollarRotateGlow 2.5s infinite ease-in-out; }
     .priority-signal-box { background: linear-gradient(180deg, rgba(24, 20, 8, 0.98) 0%, rgba(12, 10, 4, 0.99) 100%); border: 2px solid #FFD700; animation: neonGlowPulse 3s infinite ease-in-out; }
     .gold-highlight-card { border: 2px solid #FFD700 !important; animation: goldGlowPulse 2s infinite ease-in-out !important; }
+    .critical-box-mode { animation: criticalPulse 1.2s infinite ease-in-out !important; border: 2px solid #FF334B !important; }
+    .tf-illuminated { box-shadow: 0 0 20px rgba(255, 215, 0, 0.85), inset 0 0 14px rgba(255, 215, 0, 0.3); border: 2px solid #FFD700 !important; background: rgba(255, 215, 0, 0.15) !important; }
     .terminal-card { background: linear-gradient(180deg, rgba(14, 14, 17, 0.98) 0%, rgba(8, 8, 10, 0.99) 100%); border: 1px solid rgba(255, 255, 255, 0.16); box-shadow: 0 8px 32px -6px rgba(0, 0, 0, 0.95); }
-    .gold-gradient-btn { background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%); color: #000000; font-weight: 800; }
     .bingx-btn { background: linear-gradient(135deg, #0066FF 0%, #0044BB 100%); color: #FFFFFF; font-weight: 800; }
     .tabular-nums { font-variant-numeric: tabular-nums; }
     @keyframes tickerScroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
@@ -528,6 +530,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
 
       <div class="flex items-center gap-3 flex-wrap">
+        <button onclick="leggiTabellaOrariItalia()" class="px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-[#FFD700]/20 text-[#FFD700] border border-[#FFD700]/40 hover:bg-[#FFD700]/30 transition-all flex items-center gap-1.5">
+          <span>🔊</span> <span>Audio Orari Italia</span>
+        </button>
+
         <div class="flex items-center bg-[#08080A] p-1.5 rounded-xl border border-white/20 gap-1.5 flex-wrap">
           <span class="text-xs font-mono font-bold text-white/70 px-1">Mercato:</span>
           <button id="btnMarketFutures" onclick="switchMarketType('FUTURES')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-[#0066FF] text-white">FUTURES</button>
@@ -589,6 +595,70 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </button>
       </div>
     </div>
+
+    <!-- TABELLA: ORARI PRINCIPALI DEI MERCATI IN ITALIA (ORA ITALIANA - SCRITTO & VOCALE) -->
+    <section class="terminal-card rounded-2xl p-4 space-y-3 border border-[#FFD700]/40">
+      <div class="flex flex-wrap items-center justify-between border-b border-white/15 pb-2 gap-2">
+        <h2 class="text-xs font-extrabold text-[#FFD700] uppercase tracking-wider flex items-center gap-2">
+          <span>🇮🇹 Orari Principali dei Mercati in Italia (Ora Italiana - Scritto &amp; Vocale)</span>
+        </h2>
+        <button onclick="leggiTabellaOrariItalia()" class="px-3 py-1.5 rounded-lg bg-[#FFD700] text-black hover:bg-amber-400 text-[11px] font-extrabold transition-all flex items-center gap-1.5 shadow-md">
+          <span>🔊</span> Ascolta Guida Orari Italia
+        </button>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs font-mono">
+          <thead>
+            <tr class="border-b border-white/15 text-white/60 text-[10px]">
+              <th class="py-2 px-2">MERCATO / BORSA</th>
+              <th class="py-2 px-2">ORARI UFFICIALI (ORA ITALIANA)</th>
+              <th class="py-2 px-2">DETTAGLI OPERATIVI &amp; VOLATILITÀ</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-white/10 text-white/90">
+            <tr>
+              <td class="py-2.5 px-2 text-white font-bold">🇮🇹 Borsa Italiana (Milano / Euronext)</td>
+              <td class="py-2.5 px-2 text-cyan-300 font-semibold">
+                • Negoziazione continua: 09:01 – 17:30<br>
+                • Sessione serale (TAH): 18:00 – 20:30
+              </td>
+              <td class="py-2.5 px-2 text-white/80">
+                Orari standard azionario e derivati italiani. Maggiori dettagli sugli orari nazionali sono disponibili su <strong class="text-cyan-300">Directa</strong>.
+              </td>
+            </tr>
+            <tr class="bg-amber-950/30 border-l-4 border-[#FFD700]">
+              <td class="py-2.5 px-2 text-[#FFD700] font-bold">🇺🇸 Mercati USA (NYSE e NASDAQ)</td>
+              <td class="py-2.5 px-2 text-[#FFD700] font-semibold">
+                • Apertura: Ore 15:30 italiane<br>
+                • Chiusura: Ore 22:00 italiane
+              </td>
+              <td class="py-2.5 px-2 text-white/90">
+                Con l'ora solare/legale può esserci un piccolo scostamento stagionale, ma lo standard è 15:30 – 22:00. Panoramica completa consultabile su <strong class="text-[#FFD700]">Marco Casario</strong>.
+              </td>
+            </tr>
+            <tr class="bg-amber-950/30 border-l-4 border-[#FFD700]">
+              <td class="py-2.5 px-2 text-[#FFD700] font-bold">💱 Mercato Forex</td>
+              <td class="py-2.5 px-2 text-[#FFD700] font-semibold">
+                • Aperto 24 ore su 24, 5 giorni a settimana<br>
+                • Da domenica sera a venerdì sera
+              </td>
+              <td class="py-2.5 px-2 text-white/90">
+                I momenti di maggiore volatilità e volume coincidono con la <strong>sovrapposizione tra Londra e New York</strong> (pomeriggio italiano, indicativamente <strong>dalle 14:00 alle 17:00</strong>).
+              </td>
+            </tr>
+            <tr>
+              <td class="py-2.5 px-2 text-[#00FF66] font-bold">🪙 Criptovalute</td>
+              <td class="py-2.5 px-2 text-[#00FF66] font-semibold">
+                • Operative 24 ore su 24, 7 giorni su 7
+              </td>
+              <td class="py-2.5 px-2 text-white/80">
+                Mercato continuo h24 senza interruzioni (salvo brevi manutenzioni tecniche dei broker o exchange).
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
 
     <!-- TABELLA REALE DI BORSA (CET) -->
     <section class="terminal-card rounded-2xl p-4 space-y-3">
@@ -735,7 +805,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="w-9 h-9 rounded-xl bg-[#FFD700] text-black flex items-center justify-center font-extrabold animate-bounce">⚡</div>
           <div>
             <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">⚡ SEGNALE MASTER SUPERIORE IN ORO ($ TP &amp; SL 😢)</h2>
-            <p class="text-[11px] text-[#FFD700]" id="masterSubtitle">Cripto ed asset evidenziati in base alla tabella oraria reale CET</p>
+            <p class="text-[11px] text-[#FFD700]" id="masterSubtitle">Cripto ed asset evidenziati in base agli orari italiani e internazionali</p>
           </div>
         </div>
         <span id="masterPrecisionBadge" class="px-2.5 py-1 rounded-md text-xs font-mono font-extrabold bg-[#FFD700] text-black animate-pulse">CANDLE-SYNC ORO 🚀</span>
@@ -782,7 +852,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[800px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Advisor Tabella Reale CET attivo...</div>
+          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Advisor Orari Italia &amp; CET attivo...</div>
         </div>
       </aside>
     </div>
@@ -817,15 +887,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- MODALE GUIDA ORARIO & TABELLA REALE CET -->
+  <!-- MODALE GUIDA ORARIO & MERCATI IN ITALIA (POPUP AUTOMATICO SCRITTO & VOCALE) -->
   <div id="finestraGuidaOrariaModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/90 backdrop-blur-md p-3 overflow-y-auto">
-    <div class="bg-[#08080A] border-2 border-[#FFD700] rounded-2xl w-full max-w-[650px] shadow-2xl overflow-hidden my-auto p-5 space-y-4">
+    <div class="bg-[#08080A] border-2 border-[#FFD700] rounded-2xl w-full max-w-[680px] shadow-2xl overflow-hidden my-auto p-5 space-y-4">
       <div class="flex items-center justify-between border-b border-[#FFD700]/30 pb-3">
         <div class="flex items-center gap-3">
           <span class="w-9 h-9 rounded-xl bg-[#FFD700] text-black flex items-center justify-center font-extrabold animate-pulse">⏰</span>
           <div>
-            <h2 class="text-base font-extrabold font-mono text-[#FFD700]">TABELLA REALE ORARI DI BORSA (CET)</h2>
-            <p class="text-xs text-white/70">Momenti Ottimali in Oro per Aprire Posizioni</p>
+            <h2 class="text-base font-extrabold font-mono text-[#FFD700]">ORARI PRINCIPALI DEI MERCATI IN ITALIA</h2>
+            <p class="text-xs text-white/70">Guida Scritta &amp; Vocale (Ora Italiana)</p>
           </div>
         </div>
         <button onclick="chiudiFinestraGuidaOraria()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
@@ -834,21 +904,27 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <div class="space-y-3 text-xs font-mono">
         <div class="bg-black/60 p-3.5 rounded-xl border border-white/15 space-y-2">
           <div class="flex justify-between items-center"><span class="text-white/70">Stato Reale Orario:</span><strong id="modalPopupStatoOrario" class="text-[#FFD700]">Verifica in corso...</strong></div>
-          <div class="flex justify-between items-center"><span class="text-white/70">Borsa di Riferimento:</span><strong id="modalPopupBorsa" class="text-cyan-300">--</strong></div>
+          <div class="flex justify-between items-center"><span class="text-white/70">Borsa / Mercato Attivo:</span><strong id="modalPopupBorsa" class="text-cyan-300">--</strong></div>
           <div class="flex justify-between items-center"><span class="text-white/70">Momento Apertura Posizioni:</span><strong id="modalPopupMomento" class="text-[#FFD700] font-extrabold">--</strong></div>
         </div>
 
-        <div class="p-3 bg-amber-950/30 border border-[#FFD700]/40 rounded-xl space-y-1.5 text-white/90">
-          <strong class="text-[#FFD700] block">💡 Regole d'Oro di Borsa:</strong>
-          <p>• <strong>Mattinata Europea (09:30 - 14:30):</strong> Trend puliti e liquidità elevata.</p>
-          <p>• <strong>Pomeriggio USA (16:00 - 22:00):</strong> Consolidamento trend principali e profitti rapidi al TP.</p>
-          <p>• <strong>Evitare:</strong> Aperture di Francoforte (09:00) e Wall Street (15:30) per via della caccia agli stop e delle false rotture.</p>
+        <div class="p-3 bg-amber-950/30 border border-[#FFD700]/40 rounded-xl space-y-2 text-white/90">
+          <strong class="text-[#FFD700] block">🇮🇹 Riepilogo Ufficiale Ora Italiana:</strong>
+          <p>• <strong>Borsa Italiana (Milano):</strong> Negoziazione continua dalle 09:01 alle 17:30; sessione serale TAH dalle 18:00 alle 20:30 (dettagli su Directa).</p>
+          <p>• <strong>Mercati USA (NYSE e NASDAQ):</strong> Apertura ore 15:30 italiane, chiusura ore 22:00 italiane (panoramica su Marco Casario).</p>
+          <p>• <strong>Mercato Forex:</strong> Aperto 24/5 (dom-ven). Massima volatilità dalle 14:00 alle 17:00 italiane (sovrapposizione Londra-New York).</p>
+          <p>• <strong>Criptovalute:</strong> Operative 24 ore su 24, 7 giorni su 7.</p>
         </div>
       </div>
 
-      <button onclick="chiudiFinestraGuidaOraria()" class="w-full py-2.5 rounded-xl text-xs shadow-lg bg-[#FFD700] text-black font-bold">
-        Ho capito, procedi al trading in Oro ⚡
-      </button>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <button onclick="leggiTabellaOrariItalia()" class="w-full py-2.5 rounded-xl text-xs shadow-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 font-bold hover:bg-cyan-500/30 transition-all">
+          🔊 Ascolta Guida Vocale Orari
+        </button>
+        <button onclick="chiudiFinestraGuidaOraria()" class="w-full py-2.5 rounded-xl text-xs shadow-lg bg-[#FFD700] text-black font-bold hover:bg-amber-400 transition-all">
+          Procedi al Trading in Oro ⚡
+        </button>
+      </div>
     </div>
   </div>
 
@@ -858,7 +934,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <div class="px-5 py-3.5 border-b border-white/15 flex items-center justify-between bg-[#000000]">
         <div>
           <div class="flex items-center gap-2">
-            <!-- EVIDENZIAZIONE CRIPTO IN ORO -->
             <h2 id="modalSymbol" class="text-lg font-extrabold font-mono text-[#FFD700] bg-[#FFD700]/10 px-3 py-1 rounded-xl border border-[#FFD700]/50">BTC-USDT</h2>
             <span id="modalOhlcvBadge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#FFD700]/20 text-[#FFD700] border border-[#FFD700]/40">SUPERIORE ORO</span>
           </div>
@@ -867,7 +942,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <button onclick="closeModal()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
       </div>
       <div class="p-5 space-y-4 text-xs font-mono">
-        <!-- BANNER EVIDENZA MOMENTO ORO -->
         <div id="modalMomentoGiustoBanner" class="p-3 rounded-xl border text-center font-bold text-xs">
           Verifica momento di mercato...
         </div>
@@ -895,10 +969,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             </div>
           </div>
 
-          <!-- Pannello Multi-Timeframe SVG a 4 livelli (5m, 15m, 1h, 4h) -->
           <div id="tfPanel" class="grid grid-cols-2 sm:grid-cols-4 gap-2 my-2"></div>
 
-          <!-- TABELLA PARAMETRI MILLIMETRICI IN ORO -->
           <div class="bg-gradient-to-r from-amber-950/50 via-black to-amber-950/50 border-2 border-[#FFD700] rounded-xl p-3 space-y-2 my-3 shadow-xl">
             <div class="flex items-center justify-between border-b border-[#FFD700]/30 pb-2">
               <span class="text-xs font-extrabold text-[#FFD700] flex items-center gap-1.5">
@@ -952,7 +1024,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           </div>
         </div>
 
-        <!-- SELETTORE CAPITALE / MARGINE LIBERO -->
         <div class="bg-[#000000] border border-[#FFD700]/40 rounded-xl p-4 space-y-3">
           <div class="flex justify-between items-center">
             <label class="block text-xs font-bold text-white uppercase tracking-wider">💰 CAPITALE / MARGINE DA INVESTIRE (USDT):</label>
@@ -1019,6 +1090,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       'AVAX-USDT', 'SHIB-USDT', 'DOT-USDT', 'LINK-USDT', 'SUI-USDT', 'NEAR-USDT', 'LTC-USDT',
       'PEPE-USDT', 'APT-USDT', 'UNI-USDT', 'ICP-USDT', 'FET-USDT', 'RENDER-USDT'
     ];
+
+    function leggiTabellaOrariItalia() {
+      const testoVocale = "Orari principali dei mercati in Italia, ora italiana. " +
+        "Borsa Italiana a Milano: negoziazione continua dalle 9 e 01 alle 17 e 30; sessione serale dalle 18 alle 20 e 30. " +
+        "Mercati USA, NYSE e NASDAQ: apertura alle ore 15 e 30 italiane, chiusura alle ore 22 italiane. " +
+        "Mercato Forex: aperto 24 ore su 24, 5 giorni a settimana, da domenica sera a venerdì sera. I momenti di maggiore volatilità coincidono con la sovrapposizione tra Londra e New York, dalle 14 alle 17. " +
+        "Criptovalute: operative 24 ore su 24, 7 giorni su 7.";
+      playChime(false, testoVocale);
+      logFeed("[GUIDA VOCALE ITALIA] Lettura completa orari principali dei mercati in Italia.");
+    }
 
     function formatExactDuration(totalSeconds) {
       const sec = Math.max(0, Math.round(totalSeconds));
@@ -1669,7 +1750,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <div class="space-y-2">
               <div class="flex items-center gap-2">
                 <span class="text-white text-base font-extrabold px-3 py-1 rounded-xl bg-[#FFD700]/20 border-2 border-[#FFD700] text-[#FFD700] animate-pulse">${masterAsset.symbol} 🟡</span>
-                <span class="text-xs text-[#FFD700] font-bold">✨ MASTER CRIPTO IN ORO (TABELLA CET)</span>
+                <span class="text-xs text-[#FFD700] font-bold">✨ MASTER CRIPTO IN ORO (ORA ITALIANA)</span>
               </div>
               <div class="flex justify-between"><span class="text-white/70">Prezzo Live:</span><strong class="text-[#FFD700] text-sm">$${formatPrice(masterAsset.price)}</strong></div>
               <div class="flex justify-between"><span class="text-white/70">Direzione Quantistica:</span><strong class="${local.side === 'BUY' ? 'text-[#FFD700]' : 'text-[#FF334B]'} font-bold">${local.side === 'BUY' ? 'LONG ORO 🚀' : 'SHORT CHIRURGICO 📉'}</strong></div>
@@ -1679,7 +1760,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <div class="flex flex-col justify-end">
               <button onclick='openModal("${masterAsset.symbol}")' class="w-full py-2.5 rounded-xl text-xs shadow-lg bg-[#FFD700] text-black font-extrabold hover:bg-amber-400 transition-all">⚡ APRI SCANNER ORO &amp; SCEGLI CAPITALE &#8599;</button>
             </div>
-          </div>`;
+          `;
       }
 
       let filtered = sorted;
@@ -1700,7 +1781,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             ${isGoldHighlight ? '<div class="absolute top-2 right-2 px-2 py-0.5 rounded text-[9px] font-extrabold bg-[#FFD700] text-black animate-pulse">🟡 MOMENTO ORO</div>' : ''}
             <div class="flex items-center justify-between border-b border-white/10 pb-2">
               <div class="flex items-center gap-2">
-                <!-- EVIDENZIAZIONE CRIPTO IN ORO -->
                 <span class="font-extrabold text-sm px-2.5 py-1 rounded-xl border ${isGoldHighlight ? 'bg-[#FFD700]/20 border-[#FFD700] text-[#FFD700]' : 'bg-white/10 border-white/20 text-white'}">${c.symbol}</span>
                 <span class="px-2 py-0.5 rounded text-[10px] font-bold ${isLong ? 'bg-amber-500/20 text-[#FFD700]' : 'bg-red-500/20 text-[#FF334B]'}">${isLong ? 'LONG ORO 🚀' : 'SHORT 📉'}</span>
               </div>
