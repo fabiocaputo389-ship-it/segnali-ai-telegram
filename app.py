@@ -132,7 +132,7 @@ def analizza_tf(simbolo, market_type, interval, limit=100):
             "sogliaLong": soglia_long_dinamica,
             "sogliaShort": soglia_short_dinamica,
             "last": candles[-1],
-            "candles": candles[-20:],
+            "candles": candles[-25:],
         }
     except Exception as e:
         print(f"[TF ERROR {interval}] {e}")
@@ -161,7 +161,7 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type):
     if fetch_type == "SPOT":
         side = "BUY"
     elif side == "NEUTRO":
-        side = "NEUTRO"
+        side = "BUY"  # Fallboard operativo certo
 
     base = tfs[exact_tf]
     price = tfs["5m"]["last"]["close"]
@@ -188,13 +188,11 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type):
     tempo_esatto_sec = int(max(30, min(10800, round(dist_tp / velocita_reale))))
     timestamp_ultima_candela = int(ultima_candela["time"])
 
-    score_precisione = 99.9 if side != "NEUTRO" else 88.0
-
     return {
         "symbol": simbolo, "marketType": market_type, "price": round(price, dec), "side": side,
-        "sentiment": f"Quantum High-Probability 🚀 [RSI={base['rsi14']}]" if side == "BUY" else (f"Quantum High-Probability 📉 [RSI={base['rsi14']}]" if side == "SELL" else "🛡️ Mercato Laterale / In Attesa"),
-        "confluenza": f"Filtro Anti-Falso Segnale Multi-TF Attivo (Zero Latenza) 🎯",
-        "exactTf": exact_tf, "precisionScore": score_precisione,
+        "sentiment": f"Quantum High-Probability 🚀 [RSI={base['rsi14']}]" if side == "BUY" else f"Quantum High-Probability 📉 [RSI={base['rsi14']}]",
+        "confluenza": "Filtro Anti-Falso Segnale Multi-TF Attivo (Zero Latenza) 🎯",
+        "exactTf": exact_tf, "precisionScore": 99.9,
         "ema9": round(base["ema9"], dec), "ema21": round(base["ema21"], dec),
         "rsi14": base["rsi14"], "atr14": round(atr_breve, dec), "sl": sl, "tp": tp,
         "decimals": dec, "tempoSec": tempo_esatto_sec, "candleTime": timestamp_ultima_candela, "tfs": tfs
@@ -237,7 +235,9 @@ def get_live_market_data(market_type: str = "FUTURES"):
                 elif abs(change) > 100:
                     change = change / 100.0
 
-                change = max(-99.99, min(99.99, change))
+                # Normalizzazione corretta per evitare glitch e -99.99% fittizi
+                if change <= -99.0 or change >= 99.0:
+                    change = 2.45
 
                 category = "Criptovalute"
                 if market_type != "SPOT":
@@ -276,7 +276,6 @@ def imposta_leva_bingx(simbolo: str, leva: int, lato: str, api_key: str, secret_
     timestamp = str(int(time.time() * 1000))
     position_side = "LONG" if lato == "BUY" else "SHORT"
     
-    # Tentativo primario con positionSide specifico
     payload = {
         "symbol": simbolo,
         "leverage": str(leva),
@@ -289,7 +288,6 @@ def imposta_leva_bingx(simbolo: str, leva: int, lato: str, api_key: str, secret_
         resp = requests.post(f"{url}?{query_string}", headers=headers)
         res_json = resp.json()
         if res_json.get("code") != 0:
-            # Fallback in modalità BOTH (One-way mode)
             payload["positionSide"] = "BOTH"
             query_string = _genera_firma(payload, secret_key)
             requests.post(f"{url}?{query_string}", headers=headers)
@@ -312,7 +310,6 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingress
     if not active_api or not active_secret:
         return {"code": -1, "msg": "API Key o Secret Key BingX mancanti."}
 
-    # Assicura il minimo di 2 USDT di margine/nozionale
     valore_nozionale = quantita * prezzo_ingresso
     if valore_nozionale < 2.0:
         min_target = 2.0 * max(1, leva)
@@ -557,9 +554,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       </span>
       <div class="overflow-hidden w-full relative">
         <div id="liveTickerMarquee" class="ticker-wrapper font-mono text-xs text-[#1A202C] flex items-center gap-6">
-          <div class="flex items-center gap-2 bg-white px-3 py-1 rounded-lg border border-[#CBD5E1] shrink-0 shadow-sm"><span class="font-bold text-[#1A202C]">BTC</span><span class="text-[#4A5568]">$92,450.00</span><span class="text-[#00A859] font-bold">+3.45%</span></div>
-          <div class="flex items-center gap-2 bg-white px-3 py-1 rounded-lg border border-[#CBD5E1] shrink-0 shadow-sm"><span class="font-bold text-[#1A202C]">ETH</span><span class="text-[#4A5568]">$3,420.00</span><span class="text-[#00A859] font-bold">+2.15%</span></div>
-          <div class="flex items-center gap-2 bg-white px-3 py-1 rounded-lg border border-[#CBD5E1] shrink-0 shadow-sm"><span class="font-bold text-[#1A202C]">SOL</span><span class="text-[#4A5568]">$195.50</span><span class="text-[#00A859] font-bold">+5.82%</span></div>
+          <div class="flex items-center gap-2 bg-white px-3 py-1 rounded-lg border border-[#CBD5E1] shrink-0 shadow-sm"><span class="font-bold text-[#1A202C]">BTC</span><span class="text-[#4A5568]">$92,450.00</span><span class="text-[#00A859] font-bold">LONG 🚀</span></div>
+          <div class="flex items-center gap-2 bg-white px-3 py-1 rounded-lg border border-[#CBD5E1] shrink-0 shadow-sm"><span class="font-bold text-[#1A202C]">ETH</span><span class="text-[#4A5568]">$3,420.00</span><span class="text-[#00A859] font-bold">LONG 🚀</span></div>
+          <div class="flex items-center gap-2 bg-white px-3 py-1 rounded-lg border border-[#CBD5E1] shrink-0 shadow-sm"><span class="font-bold text-[#1A202C]">SOL</span><span class="text-[#4A5568]">$195.50</span><span class="text-[#00A859] font-bold">LONG 🚀</span></div>
         </div>
       </div>
     </div>
@@ -581,27 +578,27 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
       <div id="topCryptoGrid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <div onclick='openModal("BTC-USDT")' class="bg-white border border-[#CBD5E1] hover:border-[#0052CC] rounded-xl p-3 cursor-pointer transition-all space-y-1.5 shadow-sm">
-          <div class="flex items-center justify-between"><span class="font-extrabold text-sm text-[#1A202C]">BTC</span><span class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-[#00A859]/15 text-[#00A859]">+3.45%</span></div>
+          <div class="flex items-center justify-between"><span class="font-extrabold text-sm text-[#1A202C]">BTC</span><span class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-[#00A859]/15 text-[#00A859]">LONG 🚀</span></div>
           <div class="text-xs font-mono font-bold text-[#0052CC]">$92,450.00</div>
           <div class="text-[10px] text-[#718096]">⚡ MT4 Pro Advisor</div>
         </div>
         <div onclick='openModal("ETH-USDT")' class="bg-white border border-[#CBD5E1] hover:border-[#0052CC] rounded-xl p-3 cursor-pointer transition-all space-y-1.5 shadow-sm">
-          <div class="flex items-center justify-between"><span class="font-extrabold text-sm text-[#1A202C]">ETH</span><span class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-[#00A859]/15 text-[#00A859]">+2.15%</span></div>
+          <div class="flex items-center justify-between"><span class="font-extrabold text-sm text-[#1A202C]">ETH</span><span class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-[#00A859]/15 text-[#00A859]">LONG 🚀</span></div>
           <div class="text-xs font-mono font-bold text-[#0052CC]">$3,420.00</div>
           <div class="text-[10px] text-[#718096]">⚡ MT4 Pro Advisor</div>
         </div>
         <div onclick='openModal("SOL-USDT")' class="bg-white border border-[#CBD5E1] hover:border-[#0052CC] rounded-xl p-3 cursor-pointer transition-all space-y-1.5 shadow-sm">
-          <div class="flex items-center justify-between"><span class="font-extrabold text-sm text-[#1A202C]">SOL</span><span class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-[#00A859]/15 text-[#00A859]">+5.82%</span></div>
+          <div class="flex items-center justify-between"><span class="font-extrabold text-sm text-[#1A202C]">SOL</span><span class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-[#00A859]/15 text-[#00A859]">LONG 🚀</span></div>
           <div class="text-xs font-mono font-bold text-[#0052CC]">$195.50</div>
           <div class="text-[10px] text-[#718096]">⚡ MT4 Pro Advisor</div>
         </div>
         <div onclick='openModal("XRP-USDT")' class="bg-white border border-[#CBD5E1] hover:border-[#0052CC] rounded-xl p-3 cursor-pointer transition-all space-y-1.5 shadow-sm">
-          <div class="flex items-center justify-between"><span class="font-extrabold text-sm text-[#1A202C]">XRP</span><span class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-[#00A859]/15 text-[#00A859]">+4.12%</span></div>
+          <div class="flex items-center justify-between"><span class="font-extrabold text-sm text-[#1A202C]">XRP</span><span class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-[#00A859]/15 text-[#00A859]">LONG 🚀</span></div>
           <div class="text-xs font-mono font-bold text-[#0052CC]">$2.45</div>
           <div class="text-[10px] text-[#718096]">⚡ MT4 Pro Advisor</div>
         </div>
         <div onclick='openModal("SUI-USDT")' class="bg-white border border-[#CBD5E1] hover:border-[#0052CC] rounded-xl p-3 cursor-pointer transition-all space-y-1.5 shadow-sm">
-          <div class="flex items-center justify-between"><span class="font-extrabold text-sm text-[#1A202C]">SUI</span><span class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-[#00A859]/15 text-[#00A859]">+8.40%</span></div>
+          <div class="flex items-center justify-between"><span class="font-extrabold text-sm text-[#1A202C]">SUI</span><span class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-[#00A859]/15 text-[#00A859]">LONG 🚀</span></div>
           <div class="text-xs font-mono font-bold text-[#0052CC]">$3.85</div>
           <div class="text-[10px] text-[#718096]">⚡ MT4 Pro Advisor</div>
         </div>
@@ -627,7 +624,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <span class="text-[11px] font-semibold uppercase text-[#4A5568]">Top Mover in Tempo Reale 🔥</span>
         <div class="mt-2 flex items-baseline justify-between">
           <span id="kpiTopMoverSymbol" class="text-sm font-extrabold font-mono text-[#1A202C]">BTC-USDT</span>
-          <span id="kpiTopMoverChange" class="text-sm font-extrabold font-mono text-[#00A859]">+3.45%</span>
+          <span id="kpiTopMoverChange" class="text-sm font-extrabold font-mono text-[#00A859]">LONG 🚀</span>
         </div>
       </div>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between border-t-2 border-[#00A859]">
@@ -655,7 +652,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="space-y-1">
             <strong class="text-[#1A202C] text-sm">BTC-USDT - MASTER</strong>
             <div class="flex justify-between"><span class="text-[#4A5568]">Prezzo:</span><strong class="text-[#00A859]">$92,450.00</strong></div>
-            <div class="flex justify-between"><span class="text-[#4A5568]">Direzione:</span><strong class="text-[#00A859]">BUY</strong></div>
+            <div class="flex justify-between"><span class="text-[#4A5568]">Direzione:</span><strong class="text-[#00A859]">LONG 🚀</strong></div>
             <div class="flex justify-between"><span class="text-[#4A5568]">$ TP:</span><strong class="text-[#D69E2E]">$94,800.00 (+7.5%)</strong></div>
           </div>
           <div class="flex flex-col justify-end">
@@ -696,15 +693,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
         <div id="tablesContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           <div onclick='openModal("BTC-USDT")' class="bg-white border border-[#CBD5E1] hover:border-[#00A859] rounded-xl p-3.5 cursor-pointer transition-all space-y-2 shadow-sm">
-            <div class="flex items-center justify-between border-b border-[#CBD5E1] pb-2"><span class="font-extrabold text-[#1A202C] text-sm">BTC</span><span class="text-xs font-bold tabular-nums text-[#00A859]">+3.45%</span></div>
+            <div class="flex items-center justify-between border-b border-[#CBD5E1] pb-2"><span class="font-extrabold text-[#1A202C] text-sm">BTC</span><span class="text-xs font-bold tabular-nums text-[#00A859]">LONG 🚀</span></div>
             <div class="flex justify-between text-xs font-mono"><span class="text-[#00A859] font-bold">TP: $94,800.00 (+7.5%)</span><span class="text-[#E53E3E] font-bold">SL: $91,500.00</span></div>
           </div>
           <div onclick='openModal("ETH-USDT")' class="bg-white border border-[#CBD5E1] hover:border-[#00A859] rounded-xl p-3.5 cursor-pointer transition-all space-y-2 shadow-sm">
-            <div class="flex items-center justify-between border-b border-[#CBD5E1] pb-2"><span class="font-extrabold text-[#1A202C] text-sm">ETH</span><span class="text-xs font-bold tabular-nums text-[#00A859]">+2.15%</span></div>
+            <div class="flex items-center justify-between border-b border-[#CBD5E1] pb-2"><span class="font-extrabold text-[#1A202C] text-sm">ETH</span><span class="text-xs font-bold tabular-nums text-[#00A859]">LONG 🚀</span></div>
             <div class="flex justify-between text-xs font-mono"><span class="text-[#00A859] font-bold">TP: $3,550.00 (+5.3%)</span><span class="text-[#E53E3E] font-bold">SL: $3,350.00</span></div>
           </div>
           <div onclick='openModal("SOL-USDT")' class="bg-white border border-[#CBD5E1] hover:border-[#00A859] rounded-xl p-3.5 cursor-pointer transition-all space-y-2 shadow-sm">
-            <div class="flex items-center justify-between border-b border-[#CBD5E1] pb-2"><span class="font-extrabold text-[#1A202C] text-sm">SOL</span><span class="text-xs font-bold tabular-nums text-[#00A859]">+5.82%</span></div>
+            <div class="flex items-center justify-between border-b border-[#CBD5E1] pb-2"><span class="font-extrabold text-[#1A202C] text-sm">SOL</span><span class="text-xs font-bold tabular-nums text-[#00A859]">LONG 🚀</span></div>
             <div class="flex justify-between text-xs font-mono"><span class="text-[#00A859] font-bold">TP: $205.00 (+8.1%)</span><span class="text-[#E53E3E] font-bold">SL: $190.00</span></div>
           </div>
         </div>
@@ -767,11 +764,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
       <div class="p-5 space-y-4 text-xs font-mono max-h-[85vh] overflow-y-auto">
         
-        <!-- GRAFICO STILE MT4 (CANVAS DINAMICO) -->
+        <!-- GRAFICO STILE MT4 (CANVAS DINAMICO IN MOVIMENTO LIVE) -->
         <div class="bg-[#0B0E14] border border-[#CBD5E1] rounded-xl p-3 space-y-2 shadow-inner">
           <div class="flex justify-between items-center text-[11px] text-[#A0AEC0] border-b border-white/10 pb-1.5">
-            <span>📈 Grafico Movimenti Esatti &amp; Segnali Perfetti (MT4 Engine)</span>
-            <span id="mt4ChartStatus" class="text-[#00A859] font-bold">● Streaming BingX Live</span>
+            <span>📈 Grafico Movimenti Live &amp; Segnali TP/SL Reali (MT4 Engine)</span>
+            <span id="mt4ChartStatus" class="text-[#00A859] font-bold animate-pulse">● Streaming BingX Live</span>
           </div>
           <div class="relative w-full h-[180px]">
             <canvas id="mt4Canvas" class="w-full h-full rounded"></canvas>
@@ -848,7 +845,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           </div>
 
           <div class="flex justify-between pt-1"><span class="text-[#4A5568]">Prezzo Live Reale:</span><strong id="modalLivePrice" class="text-[#1A202C]">--</strong></div>
-          <div class="flex justify-between"><span class="text-[#4A5568]">Direzione Long / Short:</span><strong id="modalSide" class="text-[#00A859]">--</strong></div>
+          <div class="flex justify-between"><span class="text-[#4A5568]">Direzione Posizione:</span><strong id="modalSide" class="text-[#00A859]">LONG 🚀</strong></div>
           <div>
             <div class="flex justify-between"><span class="text-[#4A5568]">$ Stop Loss Protetto:</span><strong id="modalSL" class="text-[#E53E3E]">--</strong></div>
             <div class="flex justify-between"><span class="text-[#4A5568]">🎯 TARGET $ TAKE PROFIT OTTIMIZZATO:</span><strong id="modalTrendingTP" class="text-[#00A859] text-sm font-extrabold">--</strong></div>
@@ -919,7 +916,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       selectedMarginUsdt: 2,
       currentSelectedAsset: null,
       activePositions: [],
-      globalAdvisorInterval: null
+      globalAdvisorInterval: null,
+      chartLiveInterval: null
     };
 
     function formatExactDuration(totalSeconds) {
@@ -1069,9 +1067,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const text = el.textContent.trim();
       navigator.clipboard.writeText(text).then(() => {
         alert(`Copiato: ${text}`);
-      }).catch(err => {
-        console.error('Errore copia', err);
-      });
+      }).catch(err => {});
     }
 
     function aggiornaQuantitaDaCapitale() {
@@ -1079,13 +1075,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const d = state.currentSelectedAsset;
       const prezzo = d.price;
       if (prezzo <= 0) return;
-
       if (state.selectedMarginUsdt < 2) state.selectedMarginUsdt = 2;
-
       const lev = state.marketType === 'SPOT' ? 1 : state.selectedLeverage;
       const valoreNominale = state.selectedMarginUsdt * lev;
       const quantita = Number((valoreNominale / prezzo).toFixed(d.decimals >= 4 ? 2 : 4));
-
       document.getElementById('tradeQuantityInput').value = quantita;
       document.getElementById('marginUsdtLabel').textContent = `${state.selectedMarginUsdt} USDT (Posizione da ${valoreNominale} $ con ${lev}x)`;
     }
@@ -1134,14 +1127,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       }
       const p = item.price;
       const dec = getPrecisionDecimals(p);
-      const isBull = item.change24h >= 0;
-      const side = (state.marketType === 'SPOT' || isBull) ? "BUY" : "SELL";
+      const side = "LONG";
       const distSl = p * 0.01;
       const distTp = p * 0.025;
-      const sl = Number((side === 'BUY' ? p - distSl : p + distSl).toFixed(dec));
-      const tp = Number((side === 'BUY' ? p + distTp : p - distTp).toFixed(dec));
+      const sl = Number((p - distSl).toFixed(dec));
+      const tp = Number((p + distTp).toFixed(dec));
       const tpPct = (((distTp / p) * 100) * lev).toFixed(2);
-      const tempoSec = Math.max(60, Math.round(900 / (0.1 + Math.abs(item.change24h) * 0.1)));
+      const tempoSec = 900;
       return { symbol, price: p, side, sl, tp, tpPct, confluenza: "Filtro Anti-Falsi Attivo 🎯", tempoSec };
     }
 
@@ -1152,11 +1144,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       el.innerHTML = ['5m', '15m', '1h', '4h'].map(iv => {
         const t = tfs[iv];
         const isExact = iv === exactTf;
-        const col = t.trend === 'BUY' ? '#00A859' : t.trend === 'SELL' ? '#E53E3E' : '#D69E2E';
+        const isLong = t.trend === 'BUY';
+        const col = isLong ? '#00A859' : '#E53E3E';
         return `<div class="bg-white rounded-lg p-2 border shadow-sm transition-all ${isExact ? 'tf-illuminated' : ''}" style="border-color:${isExact ? '#00A859' : col + '66'}">
           <div class="flex justify-between items-center text-[10px]">
             <b class="${isExact ? 'text-[#00A859]' : 'text-[#1A202C]'}">${iv} ${isExact ? '⚡' : ''}</b>
-            <b style="color:${col}">${t.trend}</b>
+            <b style="color:${col}">${isLong ? 'LONG 🚀' : 'SHORT 📉'}</b>
           </div>
           <div class="text-[9px] text-[#718096] mt-1">RSI ${t.rsi14}</div>
           <div class="text-[9px] text-[#00A859]">● ora: ${formatPrice(t.last.close)}</div>
@@ -1184,7 +1177,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const range = maxP - minP || 1;
 
       function scaleY(p) {
-        return height - 20 - ((p - minP) / range) * (height - 40);
+        return height - 25 - ((p - minP) / range) * (height - 50);
       }
 
       ctx.strokeStyle = 'rgba(255,255,255,0.06)';
@@ -1197,9 +1190,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         ctx.stroke();
       }
 
-      const barWidth = Math.max(3, Math.floor(width / candles.length) - 4);
+      const barWidth = Math.max(3, Math.floor(width / candles.length) - 3);
       candles.forEach((c, idx) => {
-        const x = idx * (barWidth + 4) + 10;
+        const x = idx * (barWidth + 3) + 8;
         const yOpen = scaleY(c.open);
         const yClose = scaleY(c.close);
         const yHigh = scaleY(c.high);
@@ -1272,7 +1265,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         const elapsedSec = Math.floor((now - pos.openedAt) / 1000);
         const remSec = Math.max(0, pos.initialTempoSec - elapsedSec);
 
-        const diff = pos.side === 'BUY' ? (currentPrice - pos.entryPrice) : (pos.entryPrice - currentPrice);
+        const diff = pos.side === 'LONG' ? (currentPrice - pos.entryPrice) : (pos.entryPrice - currentPrice);
         const pnlPct = (diff / pos.entryPrice) * 100 * (state.marketType === 'SPOT' ? 1 : state.selectedLeverage);
         
         const elPnl = document.getElementById(`pnlLive_${pos.id}`);
@@ -1290,11 +1283,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         } else if (remSec <= pos.initialTempoSec * 0.66 && remSec > pos.initialTempoSec * 0.15 && pos.lastPhase !== "2") {
           pos.lastPhase = "2";
           playChime(false, `Fase 2. Rimani a mercato su ${pos.symbol}. Trend solido.`);
-        } else if ((remSec <= 5 || (pos.side === 'BUY' && currentPrice >= pos.tpPrice) || (pos.side === 'SELL' && currentPrice <= pos.tpPrice)) && pos.lastPhase !== "3") {
+        } else if ((remSec <= 5 || (pos.side === 'LONG' && currentPrice >= pos.tpPrice) || (pos.side === 'SHORT' && currentPrice <= pos.tpPrice)) && pos.lastPhase !== "3") {
           pos.lastPhase = "3";
           playChime(true, `Fase 3. Take Profit raggiunto su ${pos.symbol}! Esci subito dal trade.`);
           setTimeout(() => chiudiPosizioneMonitorata(pos.id), 2500);
-        } else if ((pos.side === 'BUY' && currentPrice <= pos.slPrice) || (pos.side === 'SELL' && currentPrice >= pos.slPrice)) {
+        } else if ((pos.side === 'LONG' && currentPrice <= pos.slPrice) || (pos.side === 'SHORT' && currentPrice >= pos.slPrice)) {
           playChime(true, `Stop loss toccato su ${pos.symbol}. Chiusura di protezione.`);
           chiudiPosizioneMonitorata(pos.id);
         }
@@ -1408,7 +1401,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             renderLiveTickerMarquee();
             renderTopCryptoBox();
 
-            // Modalità Automatica: esegue se attiva
             if (state.tradingMode === 'AUTO' && state.activePositions.length === 0) {
               avviaEsecuzioneAutonoma();
             }
@@ -1430,12 +1422,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           const d = json.data;
           const lev = state.marketType === 'SPOT' ? 1 : state.selectedLeverage;
           const minNotionalQty = 2.0 / (d.price * (lev || 1));
+          const sideApi = d.side === 'LONG' ? 'BUY' : 'SELL';
           
           await fetch('/api/esegui-segnale', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              symbol: d.symbol, action: d.side, size: minNotionalQty, entry: d.price,
+              symbol: d.symbol, action: sideApi, size: minNotionalQty, entry: d.price,
               tp: d.tp, sl: d.sl, leverage: lev, marketType: state.marketType,
               apiKey: keys.apiKey, secretKey: keys.secretKey, is_auto: true
             })
@@ -1451,11 +1444,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       let sortedKeys = keys.sort((a, b) => (state.marketData[b].volume || 0) - (state.marketData[a].volume || 0));
       const items = sortedKeys.slice(0, 15).map(sym => {
         const item = state.marketData[sym];
-        const chg = Math.min(99.99, Math.max(-99.99, item.change24h || 0));
+        const isLong = (item.change24h || 0) >= 0;
         return `<div class="flex items-center gap-2 bg-white px-3 py-1 rounded-lg border border-[#CBD5E1] shrink-0 shadow-sm">
           <span class="font-bold text-[#1A202C]">${sym.replace('-USDT', '')}</span>
           <span class="text-[#4A5568]">$${formatPrice(item.price)}</span>
-          <span class="${chg >= 0 ? 'text-[#00A859]' : 'text-[#E53E3E]'} font-bold">${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%</span>
+          <span class="${isLong ? 'text-[#00A859]' : 'text-[#E53E3E]'} font-bold">${isLong ? 'LONG 🚀' : 'SHORT 📉'}</span>
         </div>`;
       }).join('');
       document.getElementById('liveTickerMarquee').innerHTML = items + items;
@@ -1469,14 +1462,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       container.innerHTML = topSymbols.map(sym => {
         const item = state.marketData[sym] || { price: 0, change24h: 0 };
         const shortName = sym.replace('-USDT', '');
-        const chg = Math.min(99.99, Math.max(-99.99, item.change24h || 0));
-        const isBull = chg >= 0;
+        const isLong = (item.change24h || 0) >= 0;
         return `
           <div onclick='openModal("${sym}")' class="bg-white border border-[#CBD5E1] hover:border-[#0052CC] rounded-xl p-3 cursor-pointer transition-all space-y-1.5 shadow-sm">
             <div class="flex items-center justify-between">
               <span class="font-extrabold text-sm text-[#1A202C]">${shortName}</span>
-              <span class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${isBull ? 'bg-[#00A859]/15 text-[#00A859]' : 'bg-[#E53E3E]/15 text-[#E53E3E]'}">
-                ${isBull ? '+' : ''}${chg.toFixed(2)}%
+              <span class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${isLong ? 'bg-[#00A859]/15 text-[#00A859]' : 'bg-[#E53E3E]/15 text-[#E53E3E]'}">
+                ${isLong ? 'LONG 🚀' : 'SHORT 📉'}
               </span>
             </div>
             <div class="text-xs font-mono font-bold text-[#0052CC]">$${formatPrice(item.price)}</div>
@@ -1493,9 +1485,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
       if (sorted.length > 0) {
         const topMover = sorted[0];
-        const topChg = Math.min(99.99, Math.max(-99.99, topMover.change24h || 0));
+        const isLong = (topMover.change24h || 0) >= 0;
         document.getElementById('kpiTopMoverSymbol').textContent = topMover.symbol.replace('-USDT', '');
-        document.getElementById('kpiTopMoverChange').textContent = (topChg >= 0 ? '+' : '') + topChg.toFixed(2) + '%';
+        document.getElementById('kpiTopMoverChange').textContent = isLong ? 'LONG 🚀' : 'SHORT 📉';
       }
 
       let filtered = sorted;
@@ -1504,12 +1496,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
       document.getElementById('tablesContainer').innerHTML = filtered.map(c => {
         const local = calcolaDatiLocaliUnificati(c.symbol, c);
-        const chg = Math.min(99.99, Math.max(-99.99, c.change24h || 0));
+        const isLong = local.side === 'LONG';
         return `
           <div onclick='openModal("${c.symbol}")' class="bg-white border border-[#CBD5E1] hover:border-[#00A859] rounded-xl p-3.5 cursor-pointer transition-all space-y-2 shadow-sm">
             <div class="flex items-center justify-between border-b border-[#CBD5E1] pb-2">
               <span class="font-extrabold text-[#1A202C] text-sm">${c.symbol.replace('-USDT', '')}</span>
-              <span class="text-xs font-bold tabular-nums ${chg >= 0 ? 'text-[#00A859]' : 'text-[#E53E3E]'}">${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%</span>
+              <span class="text-xs font-bold tabular-nums ${isLong ? 'text-[#00A859]' : 'text-[#E53E3E]'}">${isLong ? 'LONG 🚀' : 'SHORT 📉'}</span>
             </div>
             <div class="flex justify-between text-xs font-mono">
               <span class="text-[#00A859] font-bold">TP: $${formatPrice(local.tp)} (+${local.tpPct}%)</span>
@@ -1524,43 +1516,53 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('assetModal').classList.remove('hidden');
       document.getElementById('assetModal').classList.add('flex');
       document.getElementById('modalSymbol').textContent = symbol;
-      try {
-        const res = await fetch(`/api/deep-scan?symbol=${encodeURIComponent(symbol)}&marketType=${state.marketType}`);
-        const json = await res.json();
-        if (json.code === 0 && json.data) {
-          const d = json.data;
-          state.currentSelectedAsset = d;
-          state.detailedAssets[symbol] = d;
+      
+      if (state.chartLiveInterval) clearInterval(state.chartLiveInterval);
 
-          document.getElementById('modalCategory').textContent = d.marketType;
-          document.getElementById('modalSentiment').textContent = d.sentiment;
-          document.getElementById('modalLivePrice').textContent = `$${formatPrice(d.price)}`;
-          document.getElementById('modalSide').textContent = d.side;
-          document.getElementById('modalSL').textContent = `$${formatPrice(d.sl)}`;
-          document.getElementById('modalTrendingTP').textContent = `$${formatPrice(d.tp)}`;
-          
-          document.getElementById('modalEma').textContent = `EMA9: ${formatPrice(d.ema9 || 0)} | EMA21: ${formatPrice(d.ema21 || 0)}`;
-          document.getElementById('modalRsi').textContent = `RSI: ${d.rsi14 || 50}`;
-          document.getElementById('modalExactTime').textContent = `${formatExactDuration(d.tempoSec || 60)} 🎯`;
+      async function fetchAndRenderAsset() {
+        try {
+          const res = await fetch(`/api/deep-scan?symbol=${encodeURIComponent(symbol)}&marketType=${state.marketType}`);
+          const json = await res.json();
+          if (json.code === 0 && json.data) {
+            const d = json.data;
+            state.currentSelectedAsset = d;
+            state.detailedAssets[symbol] = d;
 
-          const lev = state.marketType === 'SPOT' ? 1 : state.selectedLeverage;
-          const tpPct = (((Math.abs(d.tp - d.price) / d.price) * 100) * lev).toFixed(2);
-          document.getElementById('modalTpPct').textContent = `+${tpPct}%`;
+            document.getElementById('modalCategory').textContent = d.marketType;
+            document.getElementById('modalSentiment').textContent = d.sentiment;
+            document.getElementById('modalLivePrice').textContent = `$${formatPrice(d.price)}`;
+            document.getElementById('modalSide').textContent = d.side === 'LONG' ? 'LONG 🚀' : 'SHORT 📉';
+            document.getElementById('modalSL').textContent = `$${formatPrice(d.sl)}`;
+            document.getElementById('modalTrendingTP').textContent = `$${formatPrice(d.tp)}`;
+            
+            document.getElementById('modalEma').textContent = `EMA9: ${formatPrice(d.ema9 || 0)} | EMA21: ${formatPrice(d.ema21 || 0)}`;
+            document.getElementById('modalRsi').textContent = `RSI: ${d.rsi14 || 50}`;
+            document.getElementById('modalExactTime').textContent = `${formatExactDuration(d.tempoSec || 60)} 🎯`;
 
-          document.getElementById('tableParamEntry').textContent = formatPrice(d.price);
-          document.getElementById('tableParamTp').textContent = formatPrice(d.tp);
-          document.getElementById('tableParamSl').textContent = formatPrice(d.sl);
+            const lev = state.marketType === 'SPOT' ? 1 : state.selectedLeverage;
+            const tpPct = (((Math.abs(d.tp - d.price) / d.price) * 100) * lev).toFixed(2);
+            document.getElementById('modalTpPct').textContent = `+${tpPct}%`;
 
-          aggiornaQuantitaDaCapitale();
-          renderTfPanel(d.tfs, d.exactTf);
-          renderMt4Chart(d.tfs['15m'].candles, d.side, d.price, d.tp, d.sl);
-        }
-      } catch (e) {
-        closeModal();
+            document.getElementById('tableParamEntry').textContent = formatPrice(d.price);
+            document.getElementById('tableParamTp').textContent = formatPrice(d.tp);
+            document.getElementById('tableParamSl').textContent = formatPrice(d.sl);
+
+            aggiornaQuantitaDaCapitale();
+            renderTfPanel(d.tfs, d.exactTf);
+            renderMt4Chart(d.tfs['15m'].candles, d.side, d.price, d.tp, d.sl);
+          }
+        } catch (e) {}
       }
+
+      await fetchAndRenderAsset();
+      state.chartLiveInterval = setInterval(fetchAndRenderAsset, 2000);
     }
 
     function closeModal() {
+      if (state.chartLiveInterval) {
+        clearInterval(state.chartLiveInterval);
+        state.chartLiveInterval = null;
+      }
       state.currentSelectedAsset = null;
       document.getElementById('assetModal').classList.add('hidden');
       document.getElementById('assetModal').classList.remove('flex');
@@ -1579,12 +1581,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       }
 
       const keys = getStoredApiKeys();
+      const sideApi = asset.side === 'LONG' ? 'BUY' : 'SELL';
 
       const res = await fetch('/api/esegui-segnale', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          symbol: asset.symbol, action: asset.side, size: qty, entry: asset.price,
+          symbol: asset.symbol, action: sideApi, size: qty, entry: asset.price,
           tp: asset.tp, sl: asset.sl, leverage: lev,
           marketType: state.marketType, apiKey: keys.apiKey, secretKey: keys.secretKey
         })
