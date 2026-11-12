@@ -204,6 +204,8 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type):
 def get_live_market_data(market_type: str = "FUTURES"):
     if market_type == "SPOT":
         url = f"{BASE_URL}/openApi/spot/v1/ticker/24hr"
+    elif market_type == "STANDARD_FUTURES":
+        url = f"{BASE_URL}/openApi/swap/v2/quote/ticker"
     else:
         url = f"{BASE_URL}/openApi/swap/v2/quote/ticker"
 
@@ -228,13 +230,14 @@ def get_live_market_data(market_type: str = "FUTURES"):
 
                 quote_vol = float(t.get("quoteVolume", t.get("volume", 0)))
 
-                if market_type == "SPOT":
-                    raw_chg = t.get("priceChangePercent", "0")
-                    if isinstance(raw_chg, str):
-                        raw_chg = raw_chg.replace("%", "")
-                    change = float(raw_chg)
-                else:
-                    change = float(t.get("priceChangePercent", 0)) * 100
+                raw_chg = t.get("priceChangePercent", 0)
+                if isinstance(raw_chg, str):
+                    raw_chg = raw_chg.replace("%", "")
+                change = float(raw_chg)
+                if abs(change) <= 2.0 and market_type != "SPOT":
+                    change = change * 100
+                elif abs(change) > 100:
+                    change = change / 100.0
 
                 category = "Criptovalute"
                 if market_type != "SPOT":
@@ -372,7 +375,7 @@ def api_market_data():
     if mtype not in ["FUTURES", "SPOT", "STANDARD_FUTURES"]:
         mtype = "FUTURES"
     fetch_type = "FUTURES" if mtype == "STANDARD_FUTURES" else mtype
-    data = get_live_market_data(fetch_type)
+    data = get_live_market_data(mtype)
     return jsonify({"code": 0, "marketType": mtype, "data": data})
 
 
@@ -1397,10 +1400,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       let sortedKeys = keys.sort((a, b) => (state.marketData[b].volume || 0) - (state.marketData[a].volume || 0));
       const items = sortedKeys.slice(0, 15).map(sym => {
         const item = state.marketData[sym];
+        const chg = Math.min(99.99, Math.max(-99.99, item.change24h || 0));
         return `<div class="flex items-center gap-2 bg-white px-3 py-1 rounded-lg border border-[#CBD5E1] shrink-0 shadow-sm">
           <span class="font-bold text-[#1A202C]">${sym.replace('-USDT', '')}</span>
           <span class="text-[#4A5568]">$${formatPrice(item.price)}</span>
-          <span class="${item.change24h >= 0 ? 'text-[#00A859]' : 'text-[#E53E3E]'} font-bold">${item.change24h >= 0 ? '+' : ''}${item.change24h.toFixed(2)}%</span>
+          <span class="${chg >= 0 ? 'text-[#00A859]' : 'text-[#E53E3E]'} font-bold">${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%</span>
         </div>`;
       }).join('');
       document.getElementById('liveTickerMarquee').innerHTML = items + items;
@@ -1414,13 +1418,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       container.innerHTML = topSymbols.map(sym => {
         const item = state.marketData[sym] || { price: 0, change24h: 0 };
         const shortName = sym.replace('-USDT', '');
-        const isBull = item.change24h >= 0;
+        const chg = Math.min(99.99, Math.max(-99.99, item.change24h || 0));
+        const isBull = chg >= 0;
         return `
           <div onclick='openModal("${sym}")' class="bg-white border border-[#CBD5E1] hover:border-[#0052CC] rounded-xl p-3 cursor-pointer transition-all space-y-1.5 shadow-sm">
             <div class="flex items-center justify-between">
               <span class="font-extrabold text-sm text-[#1A202C]">${shortName}</span>
               <span class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${isBull ? 'bg-[#00A859]/15 text-[#00A859]' : 'bg-[#E53E3E]/15 text-[#E53E3E]'}">
-                ${isBull ? '+' : ''}${item.change24h.toFixed(2)}%
+                ${isBull ? '+' : ''}${chg.toFixed(2)}%
               </span>
             </div>
             <div class="text-xs font-mono font-bold text-[#0052CC]">$${formatPrice(item.price)}</div>
@@ -1437,8 +1442,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
       if (sorted.length > 0) {
         const topMover = sorted[0];
+        const topChg = Math.min(99.99, Math.max(-99.99, topMover.change24h || 0));
         document.getElementById('kpiTopMoverSymbol').textContent = topMover.symbol.replace('-USDT', '');
-        document.getElementById('kpiTopMoverChange').textContent = (topMover.change24h >= 0 ? '+' : '') + topMover.change24h.toFixed(2) + '%';
+        document.getElementById('kpiTopMoverChange').textContent = (topChg >= 0 ? '+' : '') + topChg.toFixed(2) + '%';
       }
 
       let filtered = sorted;
@@ -1447,11 +1453,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
       document.getElementById('tablesContainer').innerHTML = filtered.map(c => {
         const local = calcolaDatiLocaliUnificati(c.symbol, c);
+        const chg = Math.min(99.99, Math.max(-99.99, c.change24h || 0));
         return `
           <div onclick='openModal("${c.symbol}")' class="bg-white border border-[#CBD5E1] hover:border-[#00A859] rounded-xl p-3.5 cursor-pointer transition-all space-y-2 shadow-sm">
             <div class="flex items-center justify-between border-b border-[#CBD5E1] pb-2">
               <span class="font-extrabold text-[#1A202C] text-sm">${c.symbol.replace('-USDT', '')}</span>
-              <span class="text-xs font-bold tabular-nums ${c.change24h >= 0 ? 'text-[#00A859]' : 'text-[#E53E3E]'}">${c.change24h >= 0 ? '+' : ''}${c.change24h.toFixed(2)}%</span>
+              <span class="text-xs font-bold tabular-nums ${chg >= 0 ? 'text-[#00A859]' : 'text-[#E53E3E]'}">${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%</span>
             </div>
             <div class="flex justify-between text-xs font-mono">
               <span class="text-[#00A859] font-bold">TP: $${formatPrice(local.tp)} (+${local.tpPct}%)</span>
