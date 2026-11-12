@@ -102,7 +102,6 @@ def calcola_parametri_con_confluenza_assoluta(simbolo: str, market_type: str):
             return None
         tfs[label] = res
 
-    # 🛡️ FILTRO DI ALLINEAMENTO MULTI-TF RIGOROSO
     trend_5m = tfs["5m"]["trend"]
     trend_15m = tfs["15m"]["trend"]
     trend_1h = tfs["1h"]["trend"]
@@ -122,12 +121,11 @@ def calcola_parametri_con_confluenza_assoluta(simbolo: str, market_type: str):
 
     k = 1 if side == "BUY" else (-1 if side == "SELL" else 0)
     
-    # Innesco basato sull'ATR
     offset_innesco = atr * 0.1
     prezzo_innesco = round(price + (k * offset_innesco), dec) if k != 0 else price
 
     dist_sl = min(max(atr * 1.2, price * 0.007), price * 0.015)
-    dist_tp = dist_sl * 3.0  # Rapporto Rischio/Rendimento 1:3
+    dist_tp = dist_sl * 3.0
 
     sl = round(prezzo_innesco - k * dist_sl, dec) if k != 0 else round(price * 0.99, dec)
     tp = round(prezzo_innesco + k * dist_tp, dec) if k != 0 else round(price * 1.03, dec)
@@ -154,7 +152,7 @@ def get_live_market_data(market_type: str = "FUTURES"):
     url = (f"{BASE_URL}/openApi/spot/v1/ticker/24hr" if market_type == "SPOT"
            else f"{BASE_URL}/openApi/swap/v2/quote/ticker")
     try:
-        response = requests.get(url, timeout=4)
+        response = requests.get(url, timeout=5)
         data = response.json()
         if data.get("code") == 0 and "data" in data:
             market_map = {}
@@ -243,14 +241,12 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingress
         return {"code": -1, "msg": str(e)}
 
 
-# ==========================================
-# ENDPOINT API FLASK
-# ==========================================
 @app.route('/api/market-data', methods=['GET'])
 def api_market_data():
     mtype = request.args.get("marketType", MARKET_TYPE).upper()
     fetch_type = "FUTURES" if mtype == "STANDARD_FUTURES" else mtype
-    return jsonify({"code": 0, "marketType": mtype, "data": get_live_market_data(fetch_type)})
+    data = get_live_market_data(fetch_type)
+    return jsonify({"code": 0, "marketType": mtype, "data": data})
 
 
 @app.route('/api/deep-scan', methods=['GET'])
@@ -291,9 +287,6 @@ def set_market_type():
     return jsonify({"code": -1, "msg": "Mercato non valido"})
 
 
-# ==========================================
-# INTERFACCIA FRONTEND (DASHBOARD HTML)
-# ==========================================
 HTML_TEMPLATE = """<!DOCTYPE html>
 <html lang="it" class="dark">
 <head>
@@ -310,7 +303,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 </head>
 <body class="min-h-screen flex flex-col p-4 gap-4 max-w-[1600px] mx-auto">
 
-  <!-- HEADER -->
   <header class="terminal-card rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
     <div>
       <h1 class="text-lg font-extrabold text-white">APEXSCAN <span class="text-[#00FF66]">TradingView Live Dashboard</span></h1>
@@ -323,14 +315,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </div>
   </header>
 
-  <!-- LISTA MERCATI E ATTIVAZIONE TRADINGVIEW -->
   <section class="terminal-card rounded-2xl p-4 space-y-4">
     <div class="flex justify-between items-center flex-wrap gap-2">
       <h2 class="text-sm font-bold text-white/90">📊 Seleziona Asset per Lettura TradingView &amp; Innesco</h2>
       <span class="text-xs font-mono text-[#00FF66]">● Motore TradingView attivo</span>
     </div>
     <input type="text" id="coinSearchInput" oninput="filterCoinSearch(this.value)" placeholder="🔍 Cerca asset (es. BTC, ETH, SOL)..." class="w-full bg-black border border-white/25 rounded-xl px-4 py-2.5 text-xs font-mono text-white outline-none focus:border-[#00FF66]" />
-    <div id="tablesContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+    <div id="tablesContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+      <div class="text-xs text-white/50 col-span-full text-center py-6">Caricamento mercati in corso...</div>
+    </div>
   </section>
 
   <!-- MODALE API -->
@@ -354,7 +347,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <button onclick="closeModal()" class="p-1.5 rounded-lg bg-white/10 text-white">✕</button>
       </div>
 
-      <!-- Stato dei 4 Timeframe TradingView -->
       <div id="tfPanel" class="grid grid-cols-2 sm:grid-cols-4 gap-2"></div>
 
       <div class="bg-black border border-white/15 rounded-xl p-3 space-y-2">
@@ -397,19 +389,33 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     }
     async function switchMarketType(mtype) {
       state.marketType = mtype;
+      document.getElementById('btnMarketFutures').className = mtype === 'FUTURES' ? "px-3 py-1.5 rounded-lg text-xs font-bold bg-[#0066FF] text-white" : "px-3 py-1.5 rounded-lg text-xs font-bold bg-white/10 text-white";
+      document.getElementById('btnMarketSpot').className = mtype === 'SPOT' ? "px-3 py-1.5 rounded-lg text-xs font-bold bg-[#00FF66] text-black font-extrabold" : "px-3 py-1.5 rounded-lg text-xs font-bold bg-white/10 text-white";
       await fetch('/api/set-market-type', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ marketType: mtype }) });
       pollMarketData();
     }
     function filterCoinSearch(q) { state.searchQuery = q.toLowerCase().trim(); renderDashboard(); }
     async function pollMarketData() {
-      const res = await fetch(`/api/market-data?marketType=${state.marketType}`);
-      const json = await res.json();
-      if (json.code === 0) { state.marketData = json.data; renderDashboard(); }
+      try {
+        const res = await fetch(`/api/market-data?marketType=${state.marketType}`);
+        const json = await res.json();
+        if (json.code === 0 && json.data) {
+          state.marketData = json.data;
+          renderDashboard();
+        }
+      } catch (e) { console.error(e); }
     }
     function renderDashboard() {
-      let sorted = Object.keys(state.marketData).map(sym => ({ symbol: sym, ...state.marketData[sym] })).sort((a, b) => (b.volume || 0) - (a.volume || 0));
+      let keys = Object.keys(state.marketData);
+      let container = document.getElementById('tablesContainer');
+      if (keys.length === 0) {
+        container.innerHTML = '<div class="text-xs text-white/50 col-span-full text-center py-6">Nessun asset disponibile o caricamento in corso...</div>';
+        return;
+      }
+      let sorted = keys.map(sym => ({ symbol: sym, ...state.marketData[sym] })).sort((a, b) => (b.volume || 0) - (a.volume || 0));
       if (state.searchQuery) sorted = sorted.filter(c => c.symbol.toLowerCase().includes(state.searchQuery));
-      document.getElementById('tablesContainer').innerHTML = sorted.slice(0, 30).map(c => `
+      
+      container.innerHTML = sorted.slice(0, 30).map(c => `
         <div onclick='openModal("${c.symbol}")' class="bg-black border border-white/20 hover:border-[#00FF66] rounded-xl p-3 cursor-pointer flex justify-between items-center transition">
           <div>
             <strong class="text-white text-sm">${c.symbol}</strong>
@@ -427,32 +433,34 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('assetModal').classList.add('flex');
       document.getElementById('modalSymbol').textContent = symbol;
       document.getElementById('modalSentiment').textContent = "Lettura indicatori TradingView...";
-      document.getElementById('tfPanel').innerHTML = '';
+      document.getElementById('tfPanel').innerHTML = '<div class="col-span-4 text-center text-xs text-white/50 py-2">Caricamento Timeframe...</div>';
 
-      const res = await fetch(`/api/deep-scan?symbol=${encodeURIComponent(symbol)}&marketType=${state.marketType}`);
-      const json = await res.json();
-      if (json.code === 0 && json.data) {
-        const d = json.data; state.currentSelectedAsset = d;
-        document.getElementById('modalSentiment').textContent = d.sentiment;
-        document.getElementById('modalLivePrice').textContent = `$${d.price}`;
-        document.getElementById('modalTriggerPrice').textContent = `$${d.triggerPrice}`;
-        document.getElementById('modalSide').textContent = d.side;
-        document.getElementById('modalSide').className = d.side === 'BUY' ? 'text-[#00FF66]' : (d.side === 'SELL' ? 'text-[#FF334B]' : 'text-yellow-400');
-        document.getElementById('modalTrendingTP').textContent = `$${d.tp}`;
-        document.getElementById('modalSL').textContent = `$${d.sl}`;
+      try {
+        const res = await fetch(`/api/deep-scan?symbol=${encodeURIComponent(symbol)}&marketType=${state.marketType}`);
+        const json = await res.json();
+        if (json.code === 0 && json.data) {
+          const d = json.data; state.currentSelectedAsset = d;
+          document.getElementById('modalSentiment').textContent = d.sentiment;
+          document.getElementById('modalLivePrice').textContent = `$${d.price}`;
+          document.getElementById('modalTriggerPrice').textContent = `$${d.triggerPrice}`;
+          document.getElementById('modalSide').textContent = d.side;
+          document.getElementById('modalSide').className = d.side === 'BUY' ? 'text-[#00FF66]' : (d.side === 'SELL' ? 'text-[#FF334B]' : 'text-yellow-400');
+          document.getElementById('modalTrendingTP').textContent = `$${d.tp}`;
+          document.getElementById('modalSL').textContent = `$${d.sl}`;
 
-        document.getElementById('tfPanel').innerHTML = ['5m', '15m', '1h', '4h'].map(iv => {
-          const t = d.tfs[iv];
-          const col = t.trend === 'BUY' ? '#00FF66' : (t.trend === 'SELL' ? '#FF334B' : '#FFCC00');
-          return `
-            <div class="bg-white/5 p-2 rounded-lg border border-white/10 text-center">
-              <div class="font-bold text-white">${iv}</div>
-              <div style="color:${col}" class="font-extrabold text-[11px]">${t.tvRec}</div>
-              <div class="text-[9px] text-white/60">RSI: ${t.rsi14}</div>
-            </div>
-          `;
-        }).join('');
-      } else { alert(json.msg || "Errore"); closeModal(); }
+          document.getElementById('tfPanel').innerHTML = ['5m', '15m', '1h', '4h'].map(iv => {
+            const t = d.tfs[iv];
+            const col = t.trend === 'BUY' ? '#00FF66' : (t.trend === 'SELL' ? '#FF334B' : '#FFCC00');
+            return `
+              <div class="bg-white/5 p-2 rounded-lg border border-white/10 text-center">
+                <div class="font-bold text-white">${iv}</div>
+                <div style="color:${col}" class="font-extrabold text-[11px]">${t.tvRec}</div>
+                <div class="text-[9px] text-white/60">RSI: ${t.rsi14}</div>
+              </div>
+            `;
+          }).join('');
+        } else { alert(json.msg || "Errore"); closeModal(); }
+      } catch(e) { alert("Errore di rete"); closeModal(); }
     }
     function closeModal() { document.getElementById('assetModal').classList.add('hidden'); document.getElementById('assetModal').classList.remove('flex'); }
     async function eseguiOrdineSuBingX() {
@@ -467,13 +475,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         body: JSON.stringify({
           symbol: asset.symbol, action: asset.side, size: parseFloat(document.getElementById('tradeQuantityInput').value),
           entry: asset.triggerPrice, tp: asset.tp, sl: asset.sl, leverage: parseInt(document.getElementById('leverageSelect').value),
-          marketType: state.marketType, apiKey: localStorage.getItem('bingx_user_api_key'] || '', secretKey: localStorage.getItem('bingx_user_secret_key'] || ''
+          marketType: state.marketType, apiKey: localStorage.getItem('bingx_user_api_key') || '', secretKey: localStorage.getItem('bingx_user_secret_key') || ''
         })
       });
       const data = await res.json();
       if (data.code === 0) { alert("Segnale TradingView eseguito con successo su BingX!"); closeModal(); } else { alert("Errore: " + data.msg); }
     }
-    window.addEventListener('DOMContentLoaded', () => { pollMarketData(); setInterval(pollMarketData, 3000); });
+    window.addEventListener('DOMContentLoaded', () => { pollMarketData(); });
   </script>
 </body>
 </html>
