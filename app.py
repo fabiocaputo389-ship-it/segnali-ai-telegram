@@ -22,6 +22,7 @@ MARKET_TYPE = "FUTURES"
 
 
 def _genera_firma(payload: dict, secret_key: str) -> str:
+    """Genera la firma HMAC SHA256 richiesta dalle API di BingX."""
     query_string = urllib.parse.urlencode(payload)
     signature = hmac.new(
         secret_key.encode("utf-8"),
@@ -32,7 +33,7 @@ def _genera_firma(payload: dict, secret_key: str) -> str:
 
 
 # ==========================================
-# MOTORE CON INNESCO DI PRECISIONE TRADINGVIEW
+# MOTORE DI ANALISI TRADINGVIEW & ALLINEAMENTO
 # ==========================================
 def analizza_tradingview_tf(simbolo_bingx: str, market_type: str, tv_interval: str):
     tv_symbol = simbolo_bingx.replace("-", "").upper()
@@ -65,7 +66,7 @@ def analizza_tradingview_tf(simbolo_bingx: str, market_type: str, tv_interval: s
             "atr14": atr,
             "close": close_price
         }
-    except Exception as e:
+    except Exception:
         try:
             clean_sym = simbolo_bingx.replace("-", "").upper()
             handler = TA_Handler(symbol=clean_sym, screener="crypto", exchange="BINANCE", interval=tv_interval)
@@ -87,7 +88,7 @@ def analizza_tradingview_tf(simbolo_bingx: str, market_type: str, tv_interval: s
             return None
 
 
-def calcola_parametri_con_innesco(simbolo: str, market_type: str):
+def calcola_parametri_con_confluenza_assoluta(simbolo: str, market_type: str):
     tf_map = {
         "5m": Interval.INTERVAL_5_MINUTES,
         "15m": Interval.INTERVAL_15_MINUTES,
@@ -102,43 +103,45 @@ def calcola_parametri_con_innesco(simbolo: str, market_type: str):
             return None
         tfs[label] = res
 
-    exact_tf = "15m"
-    if tfs["15m"]["trend"] != "NEUTRO":
-        exact_tf = "15m"
-    elif tfs["1h"]["trend"] != "NEUTRO":
-        exact_tf = "1h"
-    elif tfs["5m"]["trend"] != "NEUTRO":
-        exact_tf = "5m"
+    # 🛡️ FILTRO ANTI-FALSI ASSOLUTO: Tutti i timeframe DEVONO essere d'accordo
+    trend_5m = tfs["5m"]["trend"]
+    trend_15m = tfs["15m"]["trend"]
+    trend_1h = tfs["1h"]["trend"]
+    trend_4h = tfs["4h"]["trend"]
 
-    base = tfs[exact_tf]
-    side = base["trend"]
+    if trend_5m == trend_15m == trend_1h == trend_4h and trend_5m != "NEUTRO":
+        side = trend_5m
+        score = 99.9
+    else:
+        side = "NEUTRO"
+        score = 50.0
+
+    base = tfs["15m"]
     price = tfs["5m"]["close"]
     atr = base["atr14"] if base["atr14"] > 0 else price * 0.01
     dec = 2 if price >= 1000 else 3 if price >= 10 else 4 if price >= 1 else 5 if price >= 0.01 else 7
 
     k = 1 if side == "BUY" else (-1 if side == "SELL" else 0)
     
-    # 🎯 INNESCO DI PROFITTO REALE (Trigger di rottura candela basato su ATR)
-    offset_innesco = atr * 0.15
+    # Innesco di precisione basato sull'ATR
+    offset_innesco = atr * 0.1
     prezzo_innesco = round(price + (k * offset_innesco), dec) if k != 0 else price
 
-    dist_sl = min(max(atr * 1.1, price * 0.006), price * 0.015)
-    dist_tp = dist_sl * 2.5
+    dist_sl = min(max(atr * 1.2, price * 0.007), price * 0.015)
+    dist_tp = dist_sl * 3.0  # Rapporto Rischio/Rendimento aggressivo 1:3
 
     sl = round(prezzo_innesco - k * dist_sl, dec) if k != 0 else round(price * 0.99, dec)
-    tp = round(prezzo_innesco + k * dist_tp, dec) if k != 0 else round(price * 1.025, dec)
-
-    score = 99.9 if side != "NEUTRO" else 80.0
+    tp = round(prezzo_innesco + k * dist_tp, dec) if k != 0 else round(price * 1.03, dec)
 
     return {
         "symbol": simbolo,
         "marketType": market_type,
         "price": round(price, dec),
-        "triggerPrice": prezzo_innesco, # Prezzo esatto di innesco
+        "triggerPrice": prezzo_innesco,
         "side": side,
-        "sentiment": f"TradingView {base['tvRec']} 🎯 (Innesco Protetto)",
-        "confluenza": f"Trigger ATR & Confluenza Multi-TF ({exact_tf}) ⚡",
-        "exactTf": exact_tf,
+        "sentiment": "🔥 SEGNALE CERTIFICATO (Multi-TF Allineato)" if side != "NEUTRO" else "🛡️ In attesa di confluenza perfetta...",
+        "confluenza": "Filtro Multi-Timeframe Stretto 🎯",
+        "exactTf": "15m",
         "precisionScore": score,
         "rsi14": base["rsi14"],
         "atr14": round(atr, dec),
@@ -211,7 +214,7 @@ def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingress
         return {"code": -1, "msg": "API Key o Secret Key BingX mancanti."}
 
     if lato not in ["BUY", "SELL"]:
-        return {"code": -1, "msg": "Segnale neutro: innesco non confermato."}
+        return {"code": -1, "msg": "Operazione bloccata: il segnale non è certificato (manca allineamento multi-TF)."}
 
     if market_type == "STANDARD_FUTURES":
         endpoint = "/openApi/futures/v1/trade/order"
@@ -257,7 +260,7 @@ def api_market_data():
 def api_deep_scan():
     simbolo = request.args.get("symbol", "BTC-USDT")
     mtype = request.args.get("marketType", MARKET_TYPE).upper()
-    res_data = calcola_parametri_con_innesco(simbolo, mtype)
+    res_data = calcola_parametri_con_confluenza_assoluta(simbolo, mtype)
     if not res_data:
         return jsonify({"code": -1, "msg": "Dati non disponibili"})
     return jsonify({"code": 0, "data": res_data})
@@ -299,7 +302,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ApexScan Pro - Innesco Reale TradingView</title>
+  <title>ApexScan Pro - Allineamento Multi-TF Assoluto</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
   <style>
@@ -312,8 +315,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
   <header class="terminal-card rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
     <div>
-      <h1 class="text-lg font-extrabold text-white">APEXSCAN <span class="text-[#00FF66]">Innesco Reale &amp; TV Engine</span></h1>
-      <p class="text-xs font-mono text-white/70">Filtro TradingView + Trigger di Rottura Reale ATR</p>
+      <h1 class="text-lg font-extrabold text-white">APEXSCAN <span class="text-[#00FF66]">Multi-TF Absolute Engine</span></h1>
+      <p class="text-xs font-mono text-white/70">Filtro Allineamento Rigoroso (5m, 15m, 1h, 4h) + Trigger Innesco</p>
     </div>
     <div class="flex items-center gap-2">
       <button onclick="switchMarketType('FUTURES')" id="btnMarketFutures" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#0066FF] text-white">FUTURES</button>
@@ -337,23 +340,25 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- MODALE INNESCO -->
+  <!-- MODALE OPERATIVA -->
   <div id="assetModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/90 p-3">
     <div class="bg-[#08080A] border border-white/30 rounded-2xl w-full max-w-[650px] p-5 space-y-4 font-mono text-xs">
       <div class="flex justify-between items-center border-b border-white/15 pb-3">
         <div>
           <h2 id="modalSymbol" class="text-base font-extrabold text-white">BTC-USDT</h2>
-          <span id="modalSentiment" class="text-[#00FF66] font-bold">Verifica innesco...</span>
+          <span id="modalSentiment" class="text-[#00FF66] font-bold">Verifica allineamento...</span>
         </div>
         <button onclick="closeModal()" class="p-1.5 rounded-lg bg-white/10 text-white">✕</button>
       </div>
 
+      <div id="tfPanel" class="grid grid-cols-2 sm:grid-cols-4 gap-2"></div>
+
       <div class="bg-black border border-white/15 rounded-xl p-3 space-y-2">
         <div class="flex justify-between"><span>Prezzo Live:</span><strong id="modalLivePrice">--</strong></div>
-        <div class="flex justify-between text-[#00FF66]"><span>🎯 Prezzo di Innesco Reale:</span><strong id="modalTriggerPrice">--</strong></div>
-        <div class="flex justify-between"><span>Segnale Confermato:</span><strong id="modalSide">--</strong></div>
-        <div class="flex justify-between"><span>Take Profit ($ TP):</span><strong id="modalTrendingTP" class="text-[#00FF66]">--</strong></div>
-        <div class="flex justify-between"><span>Stop Loss ($ SL):</span><strong id="modalSL" class="text-[#FF334B]">--</strong></div>
+        <div class="flex justify-between text-[#00FF66]"><span>🎯 Trigger di Innesco:</span><strong id="modalTriggerPrice">--</strong></div>
+        <div class="flex justify-between"><span>Segnale Certificato:</span><strong id="modalSide">--</strong></div>
+        <div class="flex justify-between"><span>Take Profit (1:3):</span><strong id="modalTrendingTP" class="text-[#00FF66]">--</strong></div>
+        <div class="flex justify-between"><span>Stop Loss Protettivo:</span><strong id="modalSL" class="text-[#FF334B]">--</strong></div>
       </div>
 
       <div class="grid grid-cols-2 gap-3">
@@ -372,7 +377,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
 
       <button id="executeBingXBtn" onclick="eseguiOrdineSuBingX()" class="bingx-btn w-full py-2.5 rounded-xl text-xs">
-        ⚡ Esegui Innesco su BingX
+        ⚡ Esegui Segnale Certificato su BingX
       </button>
     </div>
   </div>
@@ -402,7 +407,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       if (state.searchQuery) sorted = sorted.filter(c => c.symbol.toLowerCase().includes(state.searchQuery));
       document.getElementById('tablesContainer').innerHTML = sorted.slice(0, 30).map(c => `
         <div onclick='openModal("${c.symbol}")' class="bg-black border border-white/20 hover:border-[#00FF66] rounded-xl p-3 cursor-pointer flex justify-between items-center">
-          <div><strong class="text-white text-sm">${c.symbol}</strong><span class="block text-[10px] text-[#00FF66]">Attiva Innesco Reale</span></div>
+          <div><strong class="text-white text-sm">${c.symbol}</strong><span class="block text-[10px] text-[#00FF66]">Verifica Allineamento Multi-TF</span></div>
           <div class="text-right font-mono"><span class="text-white text-xs font-bold">$${c.price}</span><span class="block text-[10px] ${c.change24h >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'}">${c.change24h.toFixed(2)}%</span></div>
         </div>
       `).join('');
@@ -411,7 +416,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('assetModal').classList.remove('hidden');
       document.getElementById('assetModal').classList.add('flex');
       document.getElementById('modalSymbol').textContent = symbol;
-      document.getElementById('modalSentiment').textContent = "Calcolo innesco...";
+      document.getElementById('modalSentiment').textContent = "Controllo timeframe in corso...";
+      document.getElementById('tfPanel').innerHTML = '';
+
       const res = await fetch(`/api/deep-scan?symbol=${encodeURIComponent(symbol)}&marketType=${state.marketType}`);
       const json = await res.json();
       if (json.code === 0 && json.data) {
@@ -420,15 +427,30 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         document.getElementById('modalLivePrice').textContent = `$${d.price}`;
         document.getElementById('modalTriggerPrice').textContent = `$${d.triggerPrice}`;
         document.getElementById('modalSide').textContent = d.side;
-        document.getElementById('modalSide').className = d.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]';
+        document.getElementById('modalSide').className = d.side === 'BUY' ? 'text-[#00FF66]' : (d.side === 'SELL' ? 'text-[#FF334B]' : 'text-yellow-400');
         document.getElementById('modalTrendingTP').textContent = `$${d.tp}`;
         document.getElementById('modalSL').textContent = `$${d.sl}`;
+
+        document.getElementById('tfPanel').innerHTML = ['5m', '15m', '1h', '4h'].map(iv => {
+          const t = d.tfs[iv];
+          const col = t.trend === 'BUY' ? '#00FF66' : (t.trend === 'SELL' ? '#FF334B' : '#FFCC00');
+          return `
+            <div class="bg-white/5 p-2 rounded-lg border border-white/10 text-center">
+              <div class="font-bold text-white">${iv}</div>
+              <div style="color:${col}" class="font-extrabold text-[11px]">${t.tvRec}</div>
+            </div>
+          `;
+        }).join('');
       } else { alert(json.msg || "Errore"); closeModal(); }
     }
     function closeModal() { document.getElementById('assetModal').classList.add('hidden'); document.getElementById('assetModal').classList.remove('flex'); }
     async function eseguiOrdineSuBingX() {
       const asset = state.currentSelectedAsset;
       if (!asset) return;
+      if (asset.side === 'NEUTRO') {
+        alert("Operazione bloccata: i timeframe non sono allineati. Impossibile eseguire un segnale incerto.");
+        return;
+      }
       const res = await fetch('/api/esegui-segnale', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -438,7 +460,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         })
       });
       const data = await res.json();
-      if (data.code === 0) { alert("Ordine a innesco eseguito su BingX!"); closeModal(); } else { alert("Errore: " + data.msg); }
+      if (data.code === 0) { alert("Segnale certificato eseguito con successo su BingX!"); closeModal(); } else { alert("Errore: " + data.msg); }
     }
     window.addEventListener('DOMContentLoaded', () => { pollMarketData(); setInterval(pollMarketData, 3000); });
   </script>
