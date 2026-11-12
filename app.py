@@ -115,16 +115,13 @@ def analizza_tf(simbolo, market_type, interval, limit=100):
 
         # 🛡️ FILTRI RIGIDI ANTI-FALSI SEGNALI BASATI SU VOLATILITÀ E TREND FORTE
         volatilita_pct = (atr / closes[-1]) * 100 if closes[-1] > 0 else 0.5
-        # Soglie più rigide per evitare falsi breakout in mercati laterali
         soglia_long_dinamica = round(56.0 + min(4.0, max(1.0, volatilita_pct * 0.5)), 1)
         soglia_short_dinamica = round(44.0 - min(4.0, max(1.0, volatilita_pct * 0.5)), 1)
 
         if market_type == "SPOT":
-            # In Spot richiediamo conferma netta di forza del trend e volumi
             bull = ema9 > ema21 and ema21 > ema50 and rsi >= soglia_long_dinamica and closes[-1] > ema9
             bear = False
         else:
-            # In Futures richiediamo struttura di prezzo pulita per azzerare i falsi segnali
             bull = ema9 > ema21 and ema21 > ema50 and rsi >= soglia_long_dinamica and closes[-1] >= ema9
             bear = ema9 < ema21 and ema21 < ema50 and rsi <= soglia_short_dinamica and closes[-1] <= ema9
 
@@ -153,7 +150,6 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type):
     if not tfs or any(v is None for v in tfs.values()):
         return None
 
-    # Verifica di confluenza multi-timeframe per azzerare i falsi segnali
     exact_tf = "15m"
     if tfs["15m"]["trend"] != "NEUTRO":
         exact_tf = "15m"
@@ -166,7 +162,6 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type):
     if fetch_type == "SPOT":
         side = "BUY"
     elif side == "NEUTRO":
-        # Se il trend non è forte su nessun TF, scarta o forza lo stato neutrale sicuro
         side = "NEUTRO"
 
     base = tfs[exact_tf]
@@ -178,7 +173,7 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type):
     min_sl_dist = price * 0.007
     max_sl_dist = price * 0.015
     dist_sl = min(max(atr_breve * 1.05, min_sl_dist), max_sl_dist)
-    dist_tp = dist_sl * 2.5 # Rapporto Rischio/Rendimento protetto a 1:2.5
+    dist_tp = dist_sl * 2.5
 
     sl = round(price - k * dist_sl, dec) if k != 0 else round(price * 0.99, dec)
     tp = round(price + k * dist_tp, dec) if k != 0 else round(price * 1.025, dec)
@@ -444,9 +439,22 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     }
   </script>
   <style>
-    body { background-color: #000000; color: #FFFFFF; font-family: 'Inter', sans-serif; overflow-x: hidden; }
+    /* TEMI DINAMICI COLORI (Nero, Bianco, Rosso, Verde) */
+    body.theme-black { background-color: #000000; color: #FFFFFF; }
+    body.theme-white { background-color: #F8FAFC; color: #0F172A; }
+    body.theme-white .terminal-card { background: #FFFFFF; border-color: #CBD5E1; color: #0F172A; }
+    body.theme-white header { background-color: rgba(255, 255, 255, 0.95); border-color: #CBD5E1; }
+    body.theme-white input, body.theme-white select { background: #F1F5F9; color: #0F172A; border-color: #CBD5E1; }
+
+    body.theme-red { background-color: #180507; color: #FFF1F2; }
+    body.theme-red .terminal-card { background: linear-gradient(180deg, #2B0A0E 0%, #180507 100%); border-color: rgba(255, 51, 75, 0.4); }
+
+    body.theme-green { background-color: #03140A; color: #F0FDF4; }
+    body.theme-green .terminal-card { background: linear-gradient(180deg, #062312 0%, #03140A 100%); border-color: rgba(0, 255, 102, 0.4); }
+
+    body { font-family: 'Inter', sans-serif; overflow-x: hidden; transition: background 0.3s ease, color 0.3s ease; }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: #000000; }
+    ::-webkit-scrollbar-track { background: inherit; }
     ::-webkit-scrollbar-thumb { background: rgba(0, 255, 102, 0.35); border-radius: 9999px; }
     @keyframes neonGlowPulse { 0%, 100% { box-shadow: 0 0 20px rgba(0, 255, 102, 0.4), inset 0 0 12px rgba(0, 255, 102, 0.15); border-color: rgba(0, 255, 102, 0.8); } 50% { box-shadow: 0 0 35px rgba(0, 255, 102, 0.7), inset 0 0 20px rgba(0, 255, 102, 0.35); border-color: #00FF66; } }
     @keyframes criticalPulse { 0%, 100% { box-shadow: 0 0 25px rgba(255, 51, 75, 0.8), inset 0 0 15px rgba(255, 51, 75, 0.3); border-color: #FF334B; background: rgba(50, 10, 15, 0.95); } 50% { box-shadow: 0 0 45px rgba(255, 51, 75, 1); border-color: #FF334B; background: rgba(80, 15, 20, 0.98); } }
@@ -464,7 +472,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     .ticker-wrapper:hover { animation-play-state: paused; }
   </style>
 </head>
-<body class="min-h-screen flex flex-col selection:bg-[#00FF66]/30 selection:text-white">
+<body class="theme-black min-h-screen flex flex-col selection:bg-[#00FF66]/30 selection:text-white">
 
   <!-- HEADER -->
   <header class="sticky top-0 z-30 bg-[#000000]/95 backdrop-blur-md border-b border-white/15 px-3 sm:px-5 py-2.5">
@@ -473,49 +481,59 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#00FF66] via-[#00CC52] to-[#006622] text-black flex items-center justify-center shadow-2xl border-2 border-[#00FF66] font-extrabold text-xl animate-pulse">⚡</div>
         <div>
           <div class="flex items-center gap-2">
-            <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-white">APEXSCAN <span class="text-[#00FF66]" id="headerEngineTitle">Quantum High-Probability Advisor</span></h1>
-            <span id="modeStatusBadge" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-white/10 text-white/80 border border-white/20">
+            <h1 class="text-base sm:text-lg font-extrabold tracking-tight">APEXSCAN <span class="text-[#00FF66]">Quantum Pro</span></h1>
+            <span id="modeStatusBadge" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-white/10 border border-white/20">
               <span id="modeDot" class="w-1.5 h-1.5 rounded-full bg-[#00FF66]"></span> <span id="modeText">MANUALE</span>
             </span>
           </div>
-          <div class="flex items-center gap-2 text-[11px] font-mono text-white/70 mt-0.5">
-            <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
+          <div class="flex items-center gap-2 text-[11px] font-mono opacity-80 mt-0.5">
+            <span id="liveCetClock" class="font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
-            <span class="text-[#00FF66]" id="headerSubMarketInfo">Filtri Anti-Falsi Segnali Attivi • 1. Entra • 2. Rimani • 3. TP Esci</span>
+            <span class="text-[#00FF66]">Filtri Anti-Falsi Scanner Attivi</span>
           </div>
         </div>
       </div>
 
+      <!-- CONTROLLI INTERATTIVI DASHBOARD & TEMI -->
       <div class="flex items-center gap-3 flex-wrap">
-        <div class="flex items-center bg-[#08080A] p-1.5 rounded-xl border border-white/20 gap-1.5 flex-wrap">
-          <span class="text-xs font-mono font-bold text-white/70 px-1">Mercato:</span>
+        <!-- SELETTORE TEMI (Colore Dashboard) -->
+        <div class="flex items-center bg-black/40 p-1.5 rounded-xl border border-white/20 gap-1.5">
+          <span class="text-xs font-mono font-bold opacity-75 px-1">🎨 Tema:</span>
+          <button onclick="setTheme('black')" id="themeBtnBlack" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-white text-black">Nero</button>
+          <button onclick="setTheme('white')" id="themeBtnWhite" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all opacity-60 hover:opacity-100">Bianco ⚪</button>
+          <button onclick="setTheme('red')" id="themeBtnRed" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all opacity-60 hover:opacity-100 text-red-400">Rosso 🔴</button>
+          <button onclick="setTheme('green')" id="themeBtnGreen" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all opacity-60 hover:opacity-100 text-[#00FF66]">Verde 🟢</button>
+        </div>
+
+        <div class="flex items-center bg-black/40 p-1.5 rounded-xl border border-white/20 gap-1.5">
+          <span class="text-xs font-mono font-bold opacity-75 px-1">Mercato:</span>
           <button id="btnMarketFutures" onclick="switchMarketType('FUTURES')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-[#0066FF] text-white">FUTURES</button>
-          <button id="btnMarketStandard" onclick="switchMarketType('STANDARD_FUTURES')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white">STD FUTURES 📊</button>
-          <button id="btnMarketSpot" onclick="switchMarketType('SPOT')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white">SPOT 🪙</button>
+          <button id="btnMarketStandard" onclick="switchMarketType('STANDARD_FUTURES')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all opacity-60">STD 📊</button>
+          <button id="btnMarketSpot" onclick="switchMarketType('SPOT')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all opacity-60">SPOT 🪙</button>
         </div>
 
         <button onclick="toggleApiModal()" class="px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 hover:bg-cyan-500/30 transition-all flex items-center gap-1.5">
           <span>🔑</span> <span id="apiStatusText">Collega API</span>
         </button>
 
-        <div class="flex items-center bg-[#08080A] p-1.5 rounded-xl border border-white/20 gap-1.5">
-          <span class="text-xs font-mono font-bold text-white/70 px-1">Esecuzione:</span>
-          <button id="btnModeManual" onclick="switchMode('MANUAL')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-white/20 text-white">MANUALE</button>
-          <button id="btnModeAuto" onclick="switchMode('AUTO')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white">AUTO ⚡</button>
+        <div class="flex items-center bg-black/40 p-1.5 rounded-xl border border-white/20 gap-1.5">
+          <span class="text-xs font-mono font-bold opacity-75 px-1">Esecuzione:</span>
+          <button id="btnModeManual" onclick="switchMode('MANUAL')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-white/20">MANUALE</button>
+          <button id="btnModeAuto" onclick="switchMode('AUTO')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all opacity-60">AUTO ⚡</button>
         </div>
       </div>
     </div>
   </header>
 
   <!-- TICKER MARQUEE -->
-  <div class="bg-[#08080A] border-b border-white/10 overflow-hidden py-2 px-2">
+  <div class="bg-black/40 border-b border-white/10 overflow-hidden py-2 px-2">
     <div class="max-w-[1920px] mx-auto flex items-center gap-3">
       <span class="text-[10px] font-mono font-extrabold uppercase bg-[#00FF66]/20 text-[#00FF66] px-2 py-1 rounded border border-[#00FF66]/40 flex items-center gap-1 shrink-0">
-        <span>🔥</span> Top Coins Live:
+        <span>🔥</span> Scanner Live:
       </span>
       <div class="overflow-hidden w-full relative">
-        <div id="liveTickerMarquee" class="ticker-wrapper font-mono text-xs text-white flex items-center gap-6">
-          <span class="text-white/50">Caricamento ticker in tempo reale...</span>
+        <div id="liveTickerMarquee" class="ticker-wrapper font-mono text-xs flex items-center gap-6">
+          <span class="opacity-50">Caricamento ticker in tempo reale...</span>
         </div>
       </div>
     </div>
@@ -527,32 +545,39 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <!-- CONTENITORE POSIZIONI MULTIPLE MONITORATE -->
     <div id="activePositionsContainer" class="space-y-3"></div>
 
-    <!-- KPI DINAMICI -->
-    <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-      <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase text-white/75">Stato Connessione Utente</span>
-        <div class="mt-2">
-          <strong id="kpiUserApiStatus" class="text-xs font-mono text-yellow-400 block">⚠️ API Personali non inserite</strong>
-          <span class="text-[11px] text-white/70">Inserisci chiavi per operatività</span>
-        </div>
+    <!-- PANNELLO PARAMETRI DINAMICI PER AZZERARE I FALSO SEGNALI -->
+    <section class="terminal-card rounded-2xl p-4 flex flex-col gap-3 border border-[#00FF66]/40">
+      <div class="flex items-center justify-between flex-wrap gap-2">
+        <h2 class="text-xs sm:text-sm font-extrabold uppercase text-[#00FF66] flex items-center gap-2">
+          <span>🎛️ Pannello Controllo Parametri &amp; Sensibilità Scanner</span>
+        </h2>
+        <span class="text-[10px] opacity-75">Regola la selettività per filtrare il rumore di mercato</span>
       </div>
-      <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase text-white/75">Slot Posizioni Aperte 🚀</span>
-        <div class="mt-2">
-          <span id="kpiAutoSlotStatus" class="text-xs font-mono text-[#00FF66] font-extrabold">🟢 Aperte in Parallelo (Illimitate)</span>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-mono">
+        <div class="bg-black/30 p-3 rounded-xl border border-white/10 space-y-2">
+          <div class="flex justify-between font-bold">
+            <span>Filtro Trend (EMA Sensibilità):</span>
+            <span id="labelEmaPeriod" class="text-[#00FF66]">EMA 9 / 21 / 50</span>
+          </div>
+          <select id="selectEmaSensitivity" onchange=" aggiornaSensibilitaScanner()" class="w-full bg-black border border-white/20 rounded-lg p-1.5 text-white">
+            <option value="standard">Standard (Bilanciato)</option>
+            <option value="strict" selected>Rigido / Ultra-Selettivo (Zero Falsi)</option>
+            <option value="scalping">Rapido (Scalping veloce)</option>
+          </select>
         </div>
-      </div>
-      <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase text-white/75">Top Mover in Tempo Reale 🔥</span>
-        <div class="mt-2 flex items-baseline justify-between">
-          <span id="kpiTopMoverSymbol" class="text-sm font-extrabold font-mono text-white">--</span>
-          <span id="kpiTopMoverChange" class="text-sm font-extrabold font-mono text-[#00FF66]">--%</span>
+        <div class="bg-black/30 p-3 rounded-xl border border-white/10 space-y-2">
+          <div class="flex justify-between font-bold">
+            <span>Soglia RSI Dinamica:</span>
+            <span id="labelRsiThreshold" class="text-[#00FF66]">Long > 56 / Short < 44</span>
+          </div>
+          <input type="range" id="rangeRsiThreshold" min="50" max="65" value="56" oninput="aggiornaSensibilitaScanner()" class="w-full accent-[#00FF66] cursor-pointer" />
         </div>
-      </div>
-      <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase text-white/75">Filtro Anti-Falsi</span>
-        <div class="mt-2">
-          <span id="kpiMarketBadge" class="text-xs font-mono text-[#00FF66] font-bold">🛡️ MASSIMA CONFLUENZA</span>
+        <div class="bg-black/30 p-3 rounded-xl border border-white/10 space-y-2">
+          <div class="flex justify-between font-bold">
+            <span>Moltiplicatore Stop Loss (ATR):</span>
+            <span id="labelAtrMult" class="text-[#00FF66]">1.05x ATR</span>
+          </div>
+          <input type="range" id="rangeAtrMult" min="0.8" max="2.0" step="0.05" value="1.05" oninput="aggiornaSensibilitaScanner()" class="w-full accent-[#00FF66] cursor-pointer" />
         </div>
       </div>
     </section>
@@ -563,7 +588,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="flex items-center gap-3">
           <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-bounce">⚡</div>
           <div>
-            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">⚡ SEGNALE MASTER ad Alta Probabilità ($ TP &amp; SL 😢)</h2>
+            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider">⚡ SEGNALE MASTER ad Alta Probabilità ($ TP &amp; SL)</h2>
             <p class="text-[11px] text-[#00FF66]" id="masterSubtitle">Filtri anti-falsi attivi su candele multi-TF</p>
           </div>
         </div>
@@ -575,19 +600,17 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <!-- FILTRI E RICERCA -->
     <section class="terminal-card rounded-2xl p-4 flex flex-col gap-3">
       <div class="flex flex-wrap items-center justify-between gap-3">
-        <div class="flex items-center gap-2">
-          <span class="text-xs font-bold text-white/80">Filtra per Categoria di Mercato:</span>
-        </div>
+        <span class="text-xs font-bold">Filtra per Categoria di Mercato:</span>
         <div class="flex flex-wrap items-center gap-2">
           <button onclick="setCategoryTab('ALL')" id="catTabALL" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#00FF66] text-black transition-all">⭐ Tutti i Mercati</button>
-          <button onclick="setCategoryTab('Criptovalute')" id="catTabCriptovalute" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-white/80 hover:text-white transition-all">🪙 Criptovalute</button>
-          <button onclick="setCategoryTab('Materie Prime')" id="catTabMaterie Prime" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-white/80 hover:text-white transition-all">🛢️ Materie Prime</button>
-          <button onclick="setCategoryTab('Forex / Valute')" id="catTabForex / Valute" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-white/80 hover:text-white transition-all">💱 Forex &amp; Valute</button>
-          <button onclick="setCategoryTab('Azioni & Indici (TradFi)')" id="catTabTradFi" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-white/80 hover:text-white transition-all">📈 Azioni &amp; Indici</button>
+          <button onclick="setCategoryTab('Criptovalute')" id="catTabCriptovalute" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 transition-all">🪙 Criptovalute</button>
+          <button onclick="setCategoryTab('Materie Prime')" id="catTabMaterie Prime" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 transition-all">🛢️ Materie Prime</button>
+          <button onclick="setCategoryTab('Forex / Valute')" id="catTabForex / Valute" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 transition-all">💱 Forex &amp; Valute</button>
+          <button onclick="setCategoryTab('Azioni & Indici (TradFi)')" id="catTabTradFi" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 transition-all">📈 Azioni &amp; Indici</button>
         </div>
       </div>
       <div class="relative">
-        <input type="text" id="coinSearchInput" oninput="filterCoinSearch(this.value)" placeholder="🔍 Cerca Asset (es. BTC, ETH, SOL, XRP, SUI, GOLD)..." class="w-full bg-[#000000] border border-white/25 rounded-xl px-4 py-2.5 text-xs font-mono text-white outline-none focus:border-[#00FF66]" />
+        <input type="text" id="coinSearchInput" oninput="filterCoinSearch(this.value)" placeholder="🔍 Cerca Asset (es. BTC, ETH, SOL, XRP, SUI, GOLD)..." class="w-full bg-black/40 border border-white/25 rounded-xl px-4 py-2.5 text-xs font-mono outline-none focus:border-[#00FF66]" />
       </div>
     </section>
 
@@ -595,23 +618,23 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
       <section class="xl:col-span-9 terminal-card rounded-2xl overflow-hidden flex flex-col p-4 space-y-4">
         <div class="flex items-center justify-between border-b border-white/15 pb-3">
-          <h2 class="text-sm font-bold text-white flex items-center gap-3">
+          <h2 class="text-sm font-bold flex items-center gap-3">
             <span class="w-8 h-8 rounded-full bg-[#00FF66]/20 border border-[#00FF66] flex items-center justify-center text-[#00FF66] text-base font-extrabold dollar-animated-logo">$</span>
-            <span>📊 Lista Operativa Protetta (<span id="tableMarketLabel" class="text-[#00FF66]">FUTURES</span> - Anti-Falsi)</span>
+            <span>📊 Lista Operativa Protetta (<span id="tableMarketLabel" class="text-[#00FF66]">FUTURES</span> - Selettiva)</span>
           </h2>
-          <span class="text-xs font-mono text-[#00FF66]">Sincronizzato sui pattern di massima confluenza</span>
+          <span class="text-xs font-mono text-[#00FF66]">Sincronizzato sui parametri impostati</span>
         </div>
         <div id="tablesContainer" class="space-y-3"></div>
       </section>
 
       <aside class="xl:col-span-3 terminal-card rounded-2xl flex flex-col overflow-hidden">
-        <div class="px-4 py-3 border-b border-white/15 bg-[#08080A]">
-          <h2 class="text-sm font-bold text-white flex items-center gap-2">
+        <div class="px-4 py-3 border-b border-white/15 bg-black/30">
+          <h2 class="text-sm font-bold flex items-center gap-2">
             <span class="w-2 h-2 rounded-full bg-[#00FF66] animate-ping"></span> Feed Anti-Falsi &amp; Advisor
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[800px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Filtri rigidi di confluenza attivi...</div>
+          <div class="p-2 rounded bg-white/5 opacity-70">[Quantum Engine] Filtri rigidi di confluenza attivi...</div>
         </div>
       </aside>
     </div>
@@ -619,22 +642,22 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
   <!-- MODALE API -->
   <div id="apiModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/90 backdrop-blur-sm p-3 overflow-y-auto">
-    <div class="bg-[#08080A] border border-[#00FF66]/40 rounded-2xl w-full max-w-[500px] shadow-2xl overflow-hidden my-auto">
-      <div class="px-5 py-3.5 border-b border-white/15 flex items-center justify-between bg-[#000000]">
+    <div class="terminal-card border border-[#00FF66]/40 rounded-2xl w-full max-w-[500px] shadow-2xl overflow-hidden my-auto">
+      <div class="px-5 py-3.5 border-b border-white/15 flex items-center justify-between bg-black">
         <div>
           <h2 class="text-base font-extrabold font-mono text-[#00FF66]">🔑 Configurazione API Key Personale</h2>
-          <p class="text-xs text-white/70">Collega il tuo account BingX</p>
+          <p class="text-xs opacity-70">Collega il tuo account BingX</p>
         </div>
-        <button onclick="toggleApiModal()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
+        <button onclick="toggleApiModal()" class="p-2 rounded-xl bg-white/10 hover:bg-[#FF334B] transition-colors">&#10005;</button>
       </div>
       <div class="p-5 space-y-4 text-xs font-mono">
         <div class="space-y-1.5">
-          <label class="block text-white/80 font-bold">BingX API Key:</label>
-          <input type="text" id="userApiKeyInput" placeholder="Inserisci la tua API Key..." class="w-full bg-[#000000] border border-white/30 rounded-lg px-3 py-2 text-white font-mono text-xs focus:border-[#00FF66] outline-none" />
+          <label class="block font-bold">BingX API Key:</label>
+          <input type="text" id="userApiKeyInput" placeholder="Inserisci la tua API Key..." class="w-full bg-black border border-white/30 rounded-lg px-3 py-2 font-mono text-xs focus:border-[#00FF66] outline-none" />
         </div>
         <div class="space-y-1.5">
-          <label class="block text-white/80 font-bold">BingX Secret Key:</label>
-          <input type="password" id="userSecretKeyInput" placeholder="Inserisci la tua Secret Key..." class="w-full bg-[#000000] border border-white/30 rounded-lg px-3 py-2 text-white font-mono text-xs focus:border-[#00FF66] outline-none" />
+          <label class="block font-bold">BingX Secret Key:</label>
+          <input type="password" id="userSecretKeyInput" placeholder="Inserisci la tua Secret Key..." class="w-full bg-black border border-white/30 rounded-lg px-3 py-2 font-mono text-xs focus:border-[#00FF66] outline-none" />
         </div>
         <button onclick="saveUserApiKeys()" class="w-full py-2.5 rounded-xl text-xs font-bold bg-[#00FF66] text-black shadow-lg hover:bg-emerald-400 transition-all">
           Salva Credenziali API
@@ -648,56 +671,55 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
   <!-- MODALE ESECUZIONE -->
   <div id="assetModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/90 backdrop-blur-sm p-3 overflow-y-auto">
-    <div class="bg-[#08080A] border border-white/30 rounded-2xl w-full max-w-[750px] shadow-2xl overflow-hidden my-auto">
-      <div class="px-5 py-3.5 border-b border-white/15 flex items-center justify-between bg-[#000000]">
+    <div class="terminal-card border border-white/30 rounded-2xl w-full max-w-[750px] shadow-2xl overflow-hidden my-auto">
+      <div class="px-5 py-3.5 border-b border-white/15 flex items-center justify-between bg-black">
         <div>
           <div class="flex items-center gap-2">
-            <h2 id="modalSymbol" class="text-base font-extrabold font-mono text-white">BTC-USDT</h2>
+            <h2 id="modalSymbol" class="text-base font-extrabold font-mono">BTC-USDT</h2>
             <span id="modalOhlcvBadge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/40">ALTA PROBABILITÀ</span>
           </div>
-          <p id="modalSubtitleType" class="text-xs text-white/70">Advisor anti-falsi: 1. Entra • 2. Rimani a Mercato • 3. TP Raggiunto / Esci</p>
+          <p id="modalSubtitleType" class="text-xs opacity-70">Advisor anti-falsi: 1. Entra • 2. Rimani a Mercato • 3. TP Raggiunto / Esci</p>
         </div>
-        <button onclick="closeModal()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
+        <button onclick="closeModal()" class="p-2 rounded-xl bg-white/10 hover:bg-[#FF334B] transition-colors">&#10005;</button>
       </div>
       <div class="p-5 space-y-4 text-xs font-mono">
-        <div class="bg-[#000000] border border-white/20 rounded-xl p-4 space-y-3">
-          <div class="flex justify-between"><span class="text-white/75">Mercato / Categoria:</span><strong id="modalCategory" class="text-[#00FF66]">--</strong></div>
+        <div class="bg-black/50 border border-white/25 rounded-xl p-4 space-y-3">
+          <div class="flex justify-between"><span class="opacity-75">Mercato / Categoria:</span><strong id="modalCategory" class="text-[#00FF66]">--</strong></div>
           <div class="flex justify-between items-center">
-            <span class="text-white/75">Timeframe Confermato:</span>
+            <span class="opacity-75">Timeframe Confermato:</span>
             <strong id="modalTF" class="px-2.5 py-0.5 rounded bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66] font-extrabold animate-pulse">15m ⚡</strong>
           </div>
-          <div class="flex justify-between"><span class="text-white/75">Sentiment Anti-Falsi:</span><strong id="modalSentiment" class="text-[#00FF66] font-bold">--</strong></div>
-          <div class="flex justify-between border-b border-white/10 pb-2"><span class="text-white/75">⏱️ Tempo al $ TP (Confluenza):</span><strong id="modalExactTime" class="text-yellow-300 font-extrabold tabular-nums">--</strong></div>
+          <div class="flex justify-between"><span class="opacity-75">Sentiment Anti-Falsi:</span><strong id="modalSentiment" class="text-[#00FF66] font-bold">--</strong></div>
+          <div class="flex justify-between border-b border-white/10 pb-2"><span class="opacity-75">⏱️ Tempo al $ TP:</span><strong id="modalExactTime" class="text-yellow-300 font-extrabold tabular-nums">--</strong></div>
 
           <div class="grid grid-cols-2 gap-2 py-2 border-b border-white/10">
             <div class="bg-white/5 p-2 rounded-lg">
-              <span class="text-[10px] text-white/60 block">📈 EMA 9 / 21 / 50</span>
+              <span class="text-[10px] opacity-60 block">📈 EMA Trend</span>
               <strong id="modalEma" class="text-cyan-300 text-xs">--</strong>
               <span id="modalEmaSignal" class="text-[10px] block mt-0.5">--</span>
             </div>
             <div class="bg-white/5 p-2 rounded-lg">
-              <span class="text-[10px] text-white/60 block">📊 RSI (14) Filtrato</span>
-              <strong id="modalRsi" class="text-white text-xs">--</strong>
+              <span class="text-[10px] opacity-60 block">📊 RSI Filtrato</span>
+              <strong id="modalRsi" class="text-xs">--</strong>
               <span id="modalRsiZone" class="text-[10px] block mt-0.5">--</span>
             </div>
           </div>
 
-          <!-- Pannello Multi-Timeframe SVG a 4 livelli (5m, 15m, 1h, 4h) -->
           <div id="tfPanel" class="grid grid-cols-2 sm:grid-cols-4 gap-2 my-2"></div>
 
           <!-- TABELLA PARAMETRI MILLIMETRICI PRECISI -->
           <div class="bg-gradient-to-r from-emerald-950/50 via-black to-emerald-950/50 border-2 border-[#00FF66] rounded-xl p-3 space-y-2 my-3 shadow-xl">
             <div class="flex items-center justify-between border-b border-[#00FF66]/30 pb-2">
               <span class="text-xs font-extrabold text-[#00FF66] flex items-center gap-1.5">
-                <span>📋</span> TABELLA PARAMETRI ANTI-FALSI ($ TP &amp; SL 😢)
+                <span>📋</span> TABELLA PARAMETRI ANTI-FALSI ($ TP &amp; SL)
               </span>
-              <span class="text-[10px] text-white/70">Rischio/Rendimento 1:2.5</span>
+              <span class="text-[10px] opacity-70">Rischio/Rendimento 1:2.5</span>
             </div>
 
             <div class="overflow-x-auto">
               <table class="w-full text-left text-xs font-mono">
                 <thead>
-                  <tr class="border-b border-white/15 text-white/60 text-[10px]">
+                  <tr class="border-b border-white/15 opacity-60 text-[10px]">
                     <th class="py-1.5 px-2">PARAMETRO</th>
                     <th class="py-1.5 px-2">VALORE MILLIMETRICO</th>
                     <th class="py-1.5 px-2 text-right">AZIONE</th>
@@ -705,7 +727,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 </thead>
                 <tbody class="divide-y divide-white/10">
                   <tr>
-                    <td class="py-2 px-2 text-white font-bold">1. Prezzo Ingresso</td>
+                    <td class="py-2 px-2 font-bold">1. Prezzo Ingresso</td>
                     <td class="py-2 px-2 text-cyan-300 font-bold select-all" id="tableParamEntry">--</td>
                     <td class="py-2 px-2 text-right">
                       <button onclick="copiaParametro('tableParamEntry')" class="bg-white/10 hover:bg-white/25 px-2 py-1 rounded text-cyan-300 text-[10px]">Copia</button>
@@ -719,7 +741,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     </td>
                   </tr>
                   <tr>
-                    <td class="py-2 px-2 text-[#FF334B] font-bold">3. $ Stop Loss 😢 (Protetto ATR)</td>
+                    <td class="py-2 px-2 text-[#FF334B] font-bold">3. $ Stop Loss (Protetto ATR)</td>
                     <td class="py-2 px-2 text-[#FF334B] font-extrabold select-all" id="tableParamSl">--</td>
                     <td class="py-2 px-2 text-right">
                       <button onclick="copiaParametro('tableParamSl')" class="bg-white/10 hover:bg-white/25 px-2 py-1 rounded text-[#FF334B] text-[10px]">Copia</button>
@@ -730,47 +752,47 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             </div>
           </div>
 
-          <div class="flex justify-between pt-1"><span class="text-white/75">Prezzo Live Reale:</span><strong id="modalLivePrice" class="text-white">--</strong></div>
-          <div class="flex justify-between"><span class="text-white/75">Direzione Long / Short:</span><strong id="modalSide" class="text-[#00FF66]">--</strong></div>
+          <div class="flex justify-between pt-1"><span class="opacity-75">Prezzo Live Reale:</span><strong id="modalLivePrice">--</strong></div>
+          <div class="flex justify-between"><span class="opacity-75">Direzione Long / Short:</span><strong id="modalSide" class="text-[#00FF66]">--</strong></div>
           <div>
-            <div class="flex justify-between"><span class="text-white/75">$ Stop Loss Protetto 😢:</span><strong id="modalSL" class="text-[#FF334B]">--</strong></div>
-            <div class="flex justify-between"><span class="text-white/75">🎯 TARGET $ TAKE PROFIT OTTIMIZZATO:</span><strong id="modalTrendingTP" class="text-[#00FF66] text-sm font-extrabold">--</strong></div>
-            <div class="flex justify-between mt-1"><span class="text-white/75">🔥 ROI Stimato al $ TP (Leva):</span><strong id="modalTpPct" class="text-yellow-400 font-extrabold">--</strong></div>
+            <div class="flex justify-between"><span class="opacity-75">$ Stop Loss Protetto:</span><strong id="modalSL" class="text-[#FF334B]">--</strong></div>
+            <div class="flex justify-between"><span class="opacity-75">🎯 TARGET $ TAKE PROFIT OTTIMIZZATO:</span><strong id="modalTrendingTP" class="text-[#00FF66] text-sm font-extrabold">--</strong></div>
+            <div class="flex justify-between mt-1"><span class="opacity-75">🔥 ROI Stimato al $ TP (Leva):</span><strong id="modalTpPct" class="text-yellow-400 font-extrabold">--</strong></div>
           </div>
         </div>
 
         <!-- SELETTORE CAPITALE / MARGINE LIBERO -->
-        <div class="bg-[#000000] border border-[#00FF66]/40 rounded-xl p-4 space-y-3">
+        <div class="bg-black/50 border border-[#00FF66]/40 rounded-xl p-4 space-y-3">
           <div class="flex justify-between items-center">
-            <label class="block text-xs font-bold text-white uppercase tracking-wider">💰 CAPITALE / MARGINE DA INVESTIRE (USDT):</label>
+            <label class="block text-xs font-bold uppercase tracking-wider">💰 CAPITALE DA INVESTIRE (USDT):</label>
             <span id="marginUsdtLabel" class="text-xs font-bold text-[#00FF66]">10 USDT</span>
           </div>
           <div class="grid grid-cols-6 gap-1.5">
-            <button type="button" onclick="setMarginUsdt(2)" id="marBtn2" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold text-xs">2 $</button>
-            <button type="button" onclick="setMarginUsdt(5)" id="marBtn5" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold text-xs">5 $</button>
+            <button type="button" onclick="setMarginUsdt(2)" id="marBtn2" class="py-1.5 rounded-lg border border-white/20 bg-white/5 font-bold text-xs">2 $</button>
+            <button type="button" onclick="setMarginUsdt(5)" id="marBtn5" class="py-1.5 rounded-lg border border-white/20 bg-white/5 font-bold text-xs">5 $</button>
             <button type="button" onclick="setMarginUsdt(10)" id="marBtn10" class="py-1.5 rounded-lg border border-[#00FF66] bg-[#00FF66]/20 text-[#00FF66] font-bold text-xs">10 $</button>
-            <button type="button" onclick="setMarginUsdt(25)" id="marBtn25" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold text-xs">25 $</button>
-            <button type="button" onclick="setMarginUsdt(50)" id="marBtn50" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold text-xs">50 $</button>
-            <button type="button" onclick="setMarginUsdt(100)" id="marBtn100" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold text-xs">100 $</button>
+            <button type="button" onclick="setMarginUsdt(25)" id="marBtn25" class="py-1.5 rounded-lg border border-white/20 bg-white/5 font-bold text-xs">25 $</button>
+            <button type="button" onclick="setMarginUsdt(50)" id="marBtn50" class="py-1.5 rounded-lg border border-white/20 bg-white/5 font-bold text-xs">50 $</button>
+            <button type="button" onclick="setMarginUsdt(100)" id="marBtn100" class="py-1.5 rounded-lg border border-white/20 bg-white/5 font-bold text-xs">100 $</button>
           </div>
-          <input type="number" id="customMarginInput" oninput="onCustomMarginChange(this.value)" placeholder="Oppure inserisci USDT liberi..." class="w-full bg-[#08080A] border border-white/30 rounded-lg px-3 py-1.5 text-white font-mono text-xs focus:border-[#00FF66] outline-none" />
+          <input type="number" id="customMarginInput" oninput="onCustomMarginChange(this.value)" placeholder="Oppure inserisci USDT liberi..." class="w-full bg-black border border-white/30 rounded-lg px-3 py-1.5 font-mono text-xs focus:border-[#00FF66] outline-none" />
         </div>
 
-        <div id="leverageSectionWrapper" class="bg-[#000000] border border-white/20 rounded-xl p-4 space-y-3">
-          <label class="block text-xs font-bold text-white uppercase tracking-wider">Leva Esatta del Segnale &amp; Margine Isolato:</label>
+        <div id="leverageSectionWrapper" class="bg-black/50 border border-white/20 rounded-xl p-4 space-y-3">
+          <label class="block text-xs font-bold uppercase tracking-wider">Leva Esatta del Segnale &amp; Margine Isolato:</label>
           <div class="grid grid-cols-4 gap-2">
-            <button type="button" onclick="setLeverage(1)" id="levBtn1" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">1x</button>
-            <button type="button" onclick="setLeverage(3)" id="levBtn3" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">3x</button>
-            <button type="button" onclick="setLeverage(5)" id="levBtn5" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">5x</button>
+            <button type="button" onclick="setLeverage(1)" id="levBtn1" class="py-1.5 rounded-lg border border-white/20 bg-white/5 font-bold">1x</button>
+            <button type="button" onclick="setLeverage(3)" id="levBtn3" class="py-1.5 rounded-lg border border-white/20 bg-white/5 font-bold">3x</button>
+            <button type="button" onclick="setLeverage(5)" id="levBtn5" class="py-1.5 rounded-lg border border-white/20 bg-white/5 font-bold">5x</button>
             <button type="button" onclick="setLeverage(10)" id="levBtn10" class="py-1.5 rounded-lg border border-[#00FF66] bg-[#00FF66]/20 text-[#00FF66] font-bold">10x</button>
           </div>
         </div>
 
         <div>
           <div class="flex justify-between items-center mb-1">
-            <label class="text-[11px] text-white/70 font-semibold">Quantità Asset Calcolata (In base al capitale e alla leva):</label>
+            <label class="text-[11px] opacity-70 font-semibold">Quantità Asset Calcolata:</label>
           </div>
-          <input type="number" id="tradeQuantityInput" value="1.0" step="any" oninput="onQuantityManualChange(this.value)" class="w-full bg-[#000000] border border-white/30 rounded-lg px-3 py-2 text-white font-mono text-xs focus:border-[#0066FF] outline-none font-bold" />
+          <input type="number" id="tradeQuantityInput" value="1.0" step="any" oninput="onQuantityManualChange(this.value)" class="w-full bg-black border border-white/30 rounded-lg px-3 py-2 font-mono text-xs focus:border-[#0066FF] outline-none font-bold" />
         </div>
 
         <button id="executeBingXBtn" onclick="eseguiOrdineSuBingX()" class="bingx-btn w-full py-2.5 rounded-xl text-xs shadow-lg flex items-center justify-center gap-2">
@@ -796,7 +818,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       currentSelectedAsset: null,
       activePositions: [],
       globalAdvisorInterval: null,
-      lastVoiceAnnounceTimestamp: 0
+      scannerSettings: {
+        emaMode: 'strict',
+        rsiThreshold: 56,
+        atrMultiplier: 1.05
+      }
     };
 
     const TOP_MARKET_CAP_ORDER = [
@@ -804,6 +830,33 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       'AVAX-USDT', 'SHIB-USDT', 'DOT-USDT', 'LINK-USDT', 'SUI-USDT', 'NEAR-USDT', 'LTC-USDT',
       'PEPE-USDT', 'APT-USDT', 'UNI-USDT', 'ICP-USDT', 'FET-USDT', 'RENDER-USDT'
     ];
+
+    // GESTIONE CAMBIO TEMI COLORI (Nero, Bianco, Rosso, Verde)
+    function setTheme(themeName) {
+      document.body.className = `theme-${themeName} min-h-screen flex flex-col selection:bg-[#00FF66]/30 selection:text-white`;
+      ['black', 'white', 'red', 'green'].forEach(t => {
+        const btn = document.getElementById(`themeBtn${t.charAt(0).toUpperCase() + t.slice(1)}`);
+        if (!btn) return;
+        if (t === themeName) {
+          btn.className = "px-2.5 py-1 rounded-lg text-xs font-bold transition-all " + (t === 'white' ? 'bg-slate-900 text-white' : 'bg-white text-black');
+        } else {
+          btn.className = "px-2.5 py-1 rounded-lg text-xs font-bold transition-all opacity-60 hover:opacity-100";
+        }
+      });
+      localStorage.setItem('apexscan_theme', themeName);
+    }
+
+    function aggiornaSensibilitaScanner() {
+      state.scannerSettings.emaMode = document.getElementById('selectEmaSensitivity').value;
+      state.scannerSettings.rsiThreshold = parseInt(document.getElementById('rangeRsiThreshold').value, 10);
+      state.scannerSettings.atrMultiplier = parseFloat(document.getElementById('rangeAtrMult').value);
+
+      document.getElementById('labelRsiThreshold').textContent = `Long > ${state.scannerSettings.rsiThreshold} / Short < ${100 - state.scannerSettings.rsiThreshold}`;
+      document.getElementById('labelAtrMult').textContent = `${state.scannerSettings.atrMultiplier}x ATR`;
+
+      logFeed(`[PARAMETRI] Sensibilità scanner aggiornata (RSI soglia: ${state.scannerSettings.rsiThreshold}, ATR mult: ${state.scannerSettings.atrMultiplier}x)`);
+      renderDashboard();
+    }
 
     function formatExactDuration(totalSeconds) {
       const sec = Math.max(0, Math.round(totalSeconds));
@@ -868,6 +921,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const keys = getStoredApiKeys();
       const statusEl = document.getElementById('kpiUserApiStatus');
       const textBtn = document.getElementById('apiStatusText');
+      if (!statusEl) return;
       if (keys.apiKey && keys.secretKey) {
         statusEl.textContent = "🟢 API Personali Attive";
         statusEl.className = "text-xs font-mono text-[#00FF66] block font-bold";
@@ -950,9 +1004,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           osc.stop(now + i * 0.08 + 0.45);
         });
       }
-      if (voiceMsg) {
-        speakText(voiceMsg);
-      }
+      if (voiceMsg) speakText(voiceMsg);
     }
 
     function getPrecisionDecimals(val) {
@@ -997,7 +1049,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       state.selectedMarginUsdt = usdt;
       document.getElementById('customMarginInput').value = '';
       document.querySelectorAll('[id^="marBtn"]').forEach(b => {
-        b.className = "py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold text-xs";
+        b.className = "py-1.5 rounded-lg border border-white/20 bg-white/5 font-bold text-xs";
       });
       const activeBtn = document.getElementById(`marBtn${usdt}`);
       if (activeBtn) activeBtn.className = "py-1.5 rounded-lg border border-[#00FF66] bg-[#00FF66]/20 text-[#00FF66] font-bold text-xs";
@@ -1009,7 +1061,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       if (!isNaN(num) && num > 0) {
         state.selectedMarginUsdt = num;
         document.querySelectorAll('[id^="marBtn"]').forEach(b => {
-          b.className = "py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold text-xs";
+          b.className = "py-1.5 rounded-lg border border-white/20 bg-white/5 font-bold text-xs";
         });
         document.getElementById('marginUsdtLabel').textContent = `${num} USDT`;
         aggiornaQuantitaDaCapitale();
@@ -1039,8 +1091,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const dec = getPrecisionDecimals(p);
       const isBull = item.change24h >= 0;
       const side = (state.marketType === 'SPOT' || isBull) ? "BUY" : "SELL";
-      const distSl = p * 0.01;
-      const distTp = p * 0.025;
+      const distSl = p * 0.01 * state.scannerSettings.atrMultiplier;
+      const distTp = distSl * 2.5;
       const sl = Number((side === 'BUY' ? p - distSl : p + distSl).toFixed(dec));
       const tp = Number((side === 'BUY' ? p + distTp : p - distTp).toFixed(dec));
       const tpPct = (((distTp / p) * 100) * lev).toFixed(2);
@@ -1068,11 +1120,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }).join('');
         return `<div class="bg-white/5 rounded-lg p-2 border transition-all ${isExact ? 'tf-illuminated' : ''}" style="border-color:${isExact ? '#00FF66' : col + '66'}">
           <div class="flex justify-between items-center text-[10px]">
-            <b class="${isExact ? 'text-[#00FF66]' : 'text-white'}">${iv} ${isExact ? '⚡' : ''}</b>
+            <b class="${isExact ? 'text-[#00FF66]' : ''}">${iv} ${isExact ? '⚡' : ''}</b>
             <b style="color:${col}">${t.trend}</b>
           </div>
           <svg viewBox="0 0 100 32" class="w-full h-8">${bars}</svg>
-          <div class="text-[9px] text-white/60">RSI ${t.rsi14} (Filtro: ${t.sogliaLong || 56})</div>
+          <div class="text-[9px] opacity-60">RSI ${t.rsi14}</div>
           <div class="text-[9px] text-[#00FF66]">● ora: ${formatPrice(t.last.close)}</div>
         </div>`;
       }).join('');
@@ -1080,11 +1132,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
     function avviaAdvisorPosizione(symbol, side, entryPrice, tpPrice, slPrice, tempoSec) {
       const liveRemSec = getLiveRemainingSeconds(symbol, tempoSec);
-      const totalDist = Math.abs(tpPrice - entryPrice);
-      const lev = state.marketType === 'SPOT' ? 1 : state.selectedLeverage;
-      const initDistPct = ((totalDist / entryPrice) * 100).toFixed(2);
-      const initDistLevaPct = (((totalDist / entryPrice) * 100) * lev).toFixed(2);
-
       const posId = 'pos_' + Math.random().toString(36).substring(2, 9);
       const newPos = {
         id: posId,
@@ -1093,7 +1140,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         entryPrice,
         tpPrice,
         slPrice,
-        totalDist,
         openedAt: Date.now(),
         initialTempoSec: liveRemSec,
         isCriticalState: false,
@@ -1108,9 +1154,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       }
 
       const sideText = side === 'BUY' ? 'Long' : 'Short';
-      const voiceTimeStr = formatVoiceDuration(liveRemSec);
-      playChime(false, `Segnale ad alta probabilità confermato su ${symbol}. Direzione ${sideText}. Target Take Profit a ${formatPrice(tpPrice)}. Tempo stimato: ${voiceTimeStr}.`);
-      logFeed(`[ANTI-FAKE ADVISOR] Posizione ${symbol} (${side}) protetta e monitorata in parallelo.`);
+      playChime(false, `Segnale ad alta probabilità confermato su ${symbol}. Direzione ${sideText}. Target Take Profit a ${formatPrice(tpPrice)}.`);
+      logFeed(`[ADVISOR] Posizione ${symbol} (${side}) monitorata in parallelo.`);
     }
 
     function chiudiPosizioneMonitorata(posId) {
@@ -1120,7 +1165,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         state.globalAdvisorInterval = null;
       }
       renderActivePositionsContainer();
-      logFeed(`[ANTI-FAKE ADVISOR] Posizione completata o rimossa.`);
+      logFeed(`[ADVISOR] Posizione completata o rimossa.`);
     }
 
     function renderActivePositionsContainer() {
@@ -1129,51 +1174,48 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
       if (state.activePositions.length === 0) {
         container.innerHTML = '';
-        document.getElementById('kpiAutoSlotStatus').textContent = "🟢 Aperte in Parallelo (Illimitate)";
         return;
       }
 
-      document.getElementById('kpiAutoSlotStatus').textContent = `⚡ ${state.activePositions.length} Posizioni Protette`;
-
       container.innerHTML = state.activePositions.map(pos => {
         return `
-          <div id="advisorBox_${pos.id}" class="terminal-card rounded-2xl p-4 sm:p-5 border-2 border-[#00FF66] bg-gradient-to-r from-emerald-950/40 via-[#08080A] to-emerald-950/40 shadow-2xl space-y-4">
+          <div id="advisorBox_${pos.id}" class="terminal-card rounded-2xl p-4 sm:p-5 border-2 border-[#00FF66] bg-gradient-to-r from-emerald-950/40 via-black to-emerald-950/40 shadow-2xl space-y-4">
             <div class="flex flex-wrap items-center justify-between pb-3 border-b border-[#00FF66]/30 gap-3" id="headerBox_${pos.id}">
               <div class="flex items-center gap-3">
                 <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse" id="iconSign_${pos.id}">🔊</div>
                 <div>
-                  <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">🟢 ADVISOR VOCALE ANTI-FALSI (<span id="sym_${pos.id}">${pos.symbol}</span>)</h2>
-                  <p class="text-[11px] text-[#00FF66]" id="subNotice_${pos.id}">1. Entra • 2. Rimani a Mercato • 3. TP Raggiunto / Esci</p>
+                  <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider">🟢 ADVISOR VOCALE (<span id="sym_${pos.id}">${pos.symbol}</span>)</h2>
+                  <p class="text-[11px] text-[#00FF66]">1. Entra • 2. Rimani a Mercato • 3. TP Raggiunto / Esci</p>
                 </div>
               </div>
               <button onclick="chiudiPosizioneMonitorata('${pos.id}')" class="px-3.5 py-1.5 rounded-xl bg-red-500/20 text-[#FF334B] border border-red-500/50 hover:bg-red-500/30 text-xs font-bold transition-all">
-                Chiudi / Rimuovi Monitor ✕
+                Chiudi Monitor ✕
               </button>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs font-mono">
               <div class="bg-black/50 p-3 rounded-xl border border-white/10">
-                <span class="text-white/60 text-[10px] block">1. 🟢 ENTRA (APERTURA)</span>
-                <strong class="text-white text-sm">$${formatPrice(pos.entryPrice)}</strong>
+                <span class="opacity-60 text-[10px] block">1. 🟢 ENTRA (APERTURA)</span>
+                <strong class="text-sm">$${formatPrice(pos.entryPrice)}</strong>
                 <span class="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold ${pos.side === 'BUY' ? 'bg-green-500/20 text-[#00FF66]' : 'bg-red-500/20 text-[#FF334B]'}">${pos.side}</span>
               </div>
               <div class="bg-black/50 p-3 rounded-xl border border-white/10">
-                <span class="text-white/60 text-[10px] block">2. 📊 RIMANI A MERCATO (PNL)</span>
+                <span class="opacity-60 text-[10px] block">2. 📊 RIMANI A MERCATO (PNL)</span>
                 <strong id="livePrice_${pos.id}" class="text-cyan-300 text-sm">--</strong>
                 <span id="pnlVal_${pos.id}" class="block mt-1 text-[10px] font-bold text-[#00FF66]">PnL: 0.00%</span>
               </div>
               <div class="bg-black/50 p-3 rounded-xl border border-white/10">
-                <span class="text-white/60 text-[10px] block">🎯 TARGET TAKE PROFIT ($ TP) OTTIMIZZATO</span>
+                <span class="opacity-60 text-[10px] block">🎯 TARGET TAKE PROFIT ($ TP)</span>
                 <strong class="text-[#00FF66] text-sm">$${formatPrice(pos.tpPrice)}</strong>
-                <span id="distTp_${pos.id}" class="block mt-1 text-[10px] text-white/80 font-bold">Distanza TP: --</span>
+                <span id="distTp_${pos.id}" class="block mt-1 text-[10px] opacity-80 font-bold">Distanza TP: --</span>
                 <span id="exactTimeRemaining_${pos.id}" class="block mt-0.5 text-[10px] text-yellow-300 tabular-nums font-bold">Tempo al TP: --</span>
               </div>
               <div class="bg-black/50 p-3 rounded-xl border border-white/10 flex flex-col justify-between">
                 <div>
-                  <span class="text-white/60 text-[10px] block">3. 🎯 TP RAGGIUNTO / ESCI</span>
+                  <span class="opacity-60 text-[10px] block">3. 🎯 TP RAGGIUNTO / ESCI</span>
                   <strong id="statusAdvice_${pos.id}" class="text-[#00FF66] text-xs block mt-0.5">In attesa del TP...</strong>
                 </div>
-                <span id="actionAlert_${pos.id}" class="text-[10px] text-white/80 italic mt-1">Guida anti-falsi attiva</span>
+                <span id="actionAlert_${pos.id}" class="text-[10px] opacity-80 italic mt-1">Guida attiva</span>
               </div>
             </div>
           </div>
@@ -1219,75 +1261,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         const timeRemEl = document.getElementById(`exactTimeRemaining_${pos.id}`);
         if (timeRemEl) timeRemEl.textContent = `Tempo al TP: ${formatExactDuration(exactRemainingSec)}`;
 
-        let isCritical = false;
-        if (pos.side === 'BUY') {
-          isCritical = currentPrice < pos.entryPrice && (currentPrice - pos.slPrice) <= (pos.entryPrice - pos.slPrice) * 0.40;
-        } else {
-          isCritical = currentPrice > pos.entryPrice && (pos.slPrice - currentPrice) <= (pos.slPrice - pos.entryPrice) * 0.40;
-        }
-
-        const advAdvice = document.getElementById(`statusAdvice_${pos.id}`);
-        const advAlert = document.getElementById(`actionAlert_${pos.id}`);
-        const box = document.getElementById(`advisorBox_${pos.id}`);
-
         if ((pos.side === 'BUY' && currentPrice >= pos.tpPrice) || (pos.side === 'SELL' && currentPrice <= pos.tpPrice)) {
-          if (timeRemEl) timeRemEl.textContent = "Tempo al TP: 0s";
-          if (advAdvice) {
-            advAdvice.textContent = "3. 🎯 TP RAGGIUNTO! ESCI DA MERCATO";
-            advAdvice.className = "text-[#00FF66] text-xs block font-bold animate-pulse";
-          }
-          if (advAlert) advAlert.textContent = "Target Take Profit raggiunto con successo!";
-          if (pos.lastAdviceState !== "TP") {
-            pos.lastAdviceState = "TP";
-            playChime(true, `Target Take profit raggiunto su ${pos.symbol}! Esci subito da mercato con profitto.`);
-          }
+          playChime(true, `Target Take profit raggiunto su ${pos.symbol}! Esci da mercato.`);
           chiudiPosizioneMonitorata(pos.id);
         } else if ((pos.side === 'BUY' && currentPrice <= pos.slPrice) || (pos.side === 'SELL' && currentPrice >= pos.slPrice)) {
-          if (advAdvice) {
-            advAdvice.textContent = "3. 🛑 ESCI DI PROTEZIONE 😢";
-            advAdvice.className = "text-[#FF334B] text-xs block font-bold animate-pulse";
-          }
-          if (advAlert) advAlert.textContent = "Chiusura di salvaguardia attivata.";
-          if (pos.lastAdviceState !== "SL") {
-            pos.lastAdviceState = "SL";
-            playChime(true, `Stop loss protettivo toccato su ${pos.symbol}. Esci di protezione.`);
-          }
+          playChime(true, `Stop loss protettivo toccato su ${pos.symbol}. Esci di protezione.`);
           chiudiPosizioneMonitorata(pos.id);
-        } else if (isCritical) {
-          if (box) box.className = "terminal-card rounded-2xl p-4 sm:p-5 critical-box-mode shadow-2xl space-y-4";
-          const headerBox = document.getElementById(`headerBox_${pos.id}`);
-          if (headerBox) headerBox.className = "flex flex-wrap items-center justify-between pb-3 border-b border-[#FF334B]/40 gap-3";
-          const iconSign = document.getElementById(`iconSign_${pos.id}`);
-          if (iconSign) iconSign.className = "w-9 h-9 rounded-xl bg-[#FF334B] text-white flex items-center justify-center font-extrabold animate-ping";
-          
-          if (advAdvice) {
-            advAdvice.textContent = "⚠️ ATTENZIONE: SITUAZIONE CRITICA!";
-            advAdvice.className = "text-[#FF334B] text-xs block font-extrabold animate-pulse";
-          }
-          if (advAlert) advAlert.textContent = "Prezzo in zona di pericolo vicina allo Stop Loss.";
-
-          if (!pos.isCriticalState) {
-            pos.isCriticalState = true;
-            playChime(true, `Attenzione! Situazione critica su ${pos.symbol}. Il prezzo si avvicina allo stop loss.`);
-          }
-        } else {
-          if (box) box.className = "terminal-card rounded-2xl p-4 sm:p-5 border-2 border-[#00FF66] bg-gradient-to-r from-emerald-950/40 via-[#08080A] to-emerald-950/40 shadow-2xl space-y-4";
-          const headerBox = document.getElementById(`headerBox_${pos.id}`);
-          if (headerBox) headerBox.className = "flex flex-wrap items-center justify-between pb-3 border-b border-[#00FF66]/30 gap-3";
-          const iconSign = document.getElementById(`iconSign_${pos.id}`);
-          if (iconSign) iconSign.className = "w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse";
-
-          if (advAdvice) {
-            if (pnlPct >= 0) {
-              advAdvice.textContent = "2. 📊 RIMANI A MERCATO (IN PROFITTO)";
-              advAdvice.className = "text-[#00FF66] text-xs block font-bold";
-              if (advAlert) advAlert.textContent = `Avanzamento regolare verso il $ TP: $${formatPrice(pos.tpPrice)}`;
-            } else {
-              advAdvice.textContent = "2. ⏳ RIMANI A MERCATO (FASE DI RITRACCIAMENTO)";
-              advAdvice.className = "text-yellow-400 text-xs block font-bold";
-              if (advAlert) advAlert.textContent = `Il prezzo sta fluttuando prima della spinta verso il TP: $${formatPrice(pos.tpPrice)}`;
-            }
-          }
         }
       });
     }
@@ -1305,7 +1284,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     function setLeverage(lev) {
       state.selectedLeverage = lev;
       document.querySelectorAll('#leverageSectionWrapper button').forEach(b => {
-        b.className = "py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold";
+        b.className = "py-1.5 rounded-lg border border-white/20 bg-white/5 font-bold";
       });
       const activeBtn = document.getElementById(`levBtn${lev}`);
       if (activeBtn) activeBtn.className = "py-1.5 rounded-lg border border-[#00FF66] bg-[#00FF66]/20 text-[#00FF66] font-bold";
@@ -1342,14 +1321,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
     function updateMarketTypeUI() {
       const isSpot = state.marketType === 'SPOT';
-      document.getElementById('btnMarketFutures').className = state.marketType === 'FUTURES' ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-[#0066FF] text-white" : "px-2.5 py-1 rounded-lg text-xs font-bold text-white/50 hover:text-white";
-      document.getElementById('btnMarketStandard').className = state.marketType === 'STANDARD_FUTURES' ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500 text-black shadow-lg" : "px-2.5 py-1 rounded-lg text-xs font-bold text-white/50 hover:text-white";
-      document.getElementById('btnMarketSpot').className = isSpot ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-[#00FF66] text-black shadow-lg" : "px-2.5 py-1 rounded-lg text-xs font-bold text-white/50 hover:text-white";
+      document.getElementById('btnMarketFutures').className = state.marketType === 'FUTURES' ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-[#0066FF] text-white" : "px-2.5 py-1 rounded-lg text-xs font-bold opacity-60";
+      document.getElementById('btnMarketStandard').className = state.marketType === 'STANDARD_FUTURES' ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500 text-black shadow-lg" : "px-2.5 py-1 rounded-lg text-xs font-bold opacity-60";
+      document.getElementById('btnMarketSpot').className = isSpot ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-[#00FF66] text-black shadow-lg" : "px-2.5 py-1 rounded-lg text-xs font-bold opacity-60";
       
-      document.getElementById('kpiMarketBadge').textContent = isSpot ? "🛡️ SPOT ANTI-FALSI" : "🛡️ FUTURES ANTI-FALSI";
       document.getElementById('tableMarketLabel').textContent = state.marketType;
-      document.getElementById('headerSubMarketInfo').textContent = isSpot ? "Spot Anti-Falsi (Solo Long 🪙) • 1. Entra • 2. Rimani • 3. TP Esci" : "Futures Anti-Falsi (Long & Short ⚡) • 1. Entra • 2. Rimani • 3. TP Esci";
-      
       const levSec = document.getElementById('leverageSectionWrapper');
       if (levSec) levSec.style.display = isSpot ? 'none' : 'block';
     }
@@ -1397,8 +1373,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const items = sortedKeys.slice(0, 10).map(sym => {
         const item = state.marketData[sym];
         return `<div class="flex items-center gap-2 bg-white/5 px-3 py-1 rounded-lg border border-white/10 shrink-0">
-          <span class="font-bold text-white">${sym.replace('-USDT', '')}</span>
-          <span class="text-white/90">$${formatPrice(item.price)}</span>
+          <span class="font-bold">${sym.replace('-USDT', '')}</span>
+          <span class="opacity-90">$${formatPrice(item.price)}</span>
           <span class="${item.change24h >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'} font-bold">${item.change24h >= 0 ? '+' : ''}${item.change24h.toFixed(2)}%</span>
         </div>`;
       }).join('');
@@ -1415,14 +1391,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         if (idxA !== -1 && idxB !== -1) return idxA - idxB;
         if (idxA !== -1) return -1;
         if (idxB !== -1) return 1;
-        return (b.volume || 0) - (a.volume || 0);
+        return (b.volume || 0) - (state.marketData[a].volume || 0);
       });
-
-      let topMover = [...sorted].sort((a, b) => Math.abs(b.change24h) - Math.abs(a.change24h))[0];
-      if (topMover) {
-        document.getElementById('kpiTopMoverSymbol').textContent = topMover.symbol;
-        document.getElementById('kpiTopMoverChange').textContent = (topMover.change24h >= 0 ? '+' : '') + topMover.change24h.toFixed(2) + '%';
-      }
 
       const masterAsset = sorted[0];
       const lev = state.marketType === 'SPOT' ? 1 : state.selectedLeverage;
@@ -1433,11 +1403,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         document.getElementById('prioritySignalCardContent').innerHTML = `
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs font-mono">
             <div class="space-y-2">
-              <strong class="text-white text-sm">${masterAsset.symbol} - MASTER ANTI-FALSI ${state.marketType}</strong>
-              <div class="flex justify-between"><span class="text-white/70">Prezzo Live:</span><strong class="text-[#00FF66] text-sm">$${formatPrice(masterAsset.price)}</strong></div>
-              <div class="flex justify-between"><span class="text-white/70">Direzione Filtrata:</span><strong class="${local.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]'} font-bold">${local.side === 'BUY' ? 'LONG PROTETTO 🚀' : 'SHORT PROTETTO 📉'}</strong></div>
-              <div class="flex justify-between"><span class="text-white/70">$ TP Ottimizzato (+% ${state.marketType === 'SPOT' ? 'Spot' : 'Leva ' + lev + 'x'}):</span><strong class="text-yellow-400 font-extrabold">$${formatPrice(local.tp)} (+${local.tpPct}%)</strong></div>
-              <div class="flex justify-between"><span class="text-white/70">⏱️ Tempo al $ TP (Confluenza):</span><strong class="text-cyan-300 font-bold tabular-nums" data-countdown-sym="${masterAsset.symbol}" data-base-sec="${local.tempoSec}">${formatExactDuration(liveRemMaster)}</strong></div>
+              <strong class="text-sm">${masterAsset.symbol} - MASTER ANTI-FALSI ${state.marketType}</strong>
+              <div class="flex justify-between"><span class="opacity-70">Prezzo Live:</span><strong class="text-[#00FF66] text-sm">$${formatPrice(masterAsset.price)}</strong></div>
+              <div class="flex justify-between"><span class="opacity-70">Direzione:</span><strong class="${local.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]'} font-bold">${local.side === 'BUY' ? 'LONG PROTETTO 🚀' : 'SHORT PROTETTO 📉'}</strong></div>
+              <div class="flex justify-between"><span class="opacity-70">$ TP Ottimizzato:</span><strong class="text-yellow-400 font-extrabold">$${formatPrice(local.tp)} (+${local.tpPct}%)</strong></div>
+              <div class="flex justify-between"><span class="opacity-70">⏱️ Tempo al $ TP:</span><strong class="text-cyan-300 font-bold tabular-nums" data-countdown-sym="${masterAsset.symbol}" data-base-sec="${local.tempoSec}">${formatExactDuration(liveRemMaster)}</strong></div>
             </div>
             <div class="flex flex-col justify-end">
               <button onclick='openModal("${masterAsset.symbol}")' class="green-gradient-btn w-full py-2 rounded-xl text-xs shadow-lg">⚡ APRI SCANNER &amp; SCEGLI CAPITALE &#8599;</button>
@@ -1455,34 +1425,29 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         const liveRemCard = getLiveRemainingSeconds(c.symbol, local.tempoSec);
         const isLong = local.side === 'BUY';
         return `
-          <div onclick='openModal("${c.symbol}")' class="bg-[#000000] border border-white/25 hover:border-[#00FF66] rounded-xl p-3.5 cursor-pointer transition-all space-y-2.5">
+          <div onclick='openModal("${c.symbol}")' class="bg-black/40 border border-white/25 hover:border-[#00FF66] rounded-xl p-3.5 cursor-pointer transition-all space-y-2.5">
             <div class="flex items-center justify-between border-b border-white/10 pb-2">
               <div class="flex items-center gap-2">
-                <span class="font-extrabold text-white text-sm">${c.symbol.replace('-USDT', '')}</span>
-                <span class="px-2 py-0.5 rounded text-[10px] font-bold ${isLong ? 'bg-green-500/20 text-[#00FF66]' : 'bg-red-500/20 text-[#FF334B]'}">${isLong ? 'LONG PROTETTO 🚀' : 'SHORT PROTETTO 📉'}</span>
+                <span class="font-extrabold text-sm">${c.symbol.replace('-USDT', '')}</span>
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold ${isLong ? 'bg-green-500/20 text-[#00FF66]' : 'bg-red-500/20 text-[#FF334B]'}">${isLong ? 'LONG 🚀' : 'SHORT 📉'}</span>
               </div>
               <div class="text-right">
-                <span class="text-white text-xs font-bold tabular-nums">$${formatPrice(c.price)}</span>
+                <span class="text-xs font-bold tabular-nums">$${formatPrice(c.price)}</span>
                 <span class="block text-[10px] ${c.change24h >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'}">${c.change24h >= 0 ? '+' : ''}${c.change24h.toFixed(2)}%</span>
               </div>
             </div>
 
             <div class="grid grid-cols-2 gap-2 text-[11px] font-mono">
               <div class="bg-white/5 p-2 rounded-lg">
-                <span class="text-white/60 text-[10px] block">🎯 TARGET $ TP OTTIMIZZATO</span>
+                <span class="opacity-60 text-[10px] block">🎯 TARGET $ TP</span>
                 <strong class="text-[#00FF66]">$${formatPrice(local.tp)}</strong>
-                <span class="text-yellow-400 text-[10px] block">+${local.tpPct}% (${state.marketType === 'SPOT' ? 'Spot' : lev + 'x'})</span>
+                <span class="text-yellow-400 text-[10px] block">+${local.tpPct}%</span>
               </div>
               <div class="bg-white/5 p-2 rounded-lg">
-                <span class="text-white/60 text-[10px] block">⏱️ TEMPO AL $ TP (CANDLE)</span>
+                <span class="opacity-60 text-[10px] block">⏱️ TEMPO AL $ TP</span>
                 <strong class="text-cyan-300 tabular-nums" data-countdown-sym="${c.symbol}" data-base-sec="${local.tempoSec}">${formatExactDuration(liveRemCard)}</strong>
-                <span class="text-[#FF334B] text-[10px] block">SL 😢: $${formatPrice(local.sl)}</span>
+                <span class="text-[#FF334B] text-[10px] block">SL: $${formatPrice(local.sl)}</span>
               </div>
-            </div>
-
-            <div class="flex items-center justify-between pt-1">
-              <span class="text-[10px] text-[#00FF66] font-bold">Stato: ${local.confluenza}</span>
-              <span class="px-3 py-1 rounded-lg bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/40 text-xs font-bold">1. Entra Protetto ⚡</span>
             </div>
           </div>
         `;
@@ -1493,78 +1458,38 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('assetModal').classList.remove('hidden');
       document.getElementById('assetModal').classList.add('flex');
       document.getElementById('modalSymbol').textContent = symbol;
-      document.getElementById('modalOhlcvBadge').textContent = "FILTRAGGIO ANTI-FALSI...";
-      document.getElementById('tfPanel').innerHTML = '<div class="col-span-4 text-center text-xs text-white/60 py-4">Analisi multi-timeframe e filtri in corso...</div>';
-
-      const btn = document.getElementById('executeBingXBtn');
-      const fb = document.getElementById('executionFeedback');
-      btn.disabled = false;
-      fb.classList.add('hidden');
-      fb.textContent = '';
+      document.getElementById('modalOhlcvBadge').textContent = "FILTRAGGIO...";
+      document.getElementById('tfPanel').innerHTML = '<div class="col-span-4 text-center text-xs opacity-60 py-4">Analisi in corso...</div>';
 
       try {
         const res = await fetch(`/api/deep-scan?symbol=${encodeURIComponent(symbol)}&marketType=${state.marketType}`);
         const json = await res.json();
         if (json.code === 0 && json.data) {
           const d = json.data;
-          
-          const oldAnchor = state.timerAnchors[symbol];
-          if (!oldAnchor || oldAnchor.candleTime !== d.candleTime) {
-            state.timerAnchors[symbol] = {
-              baseSec: d.tempoSec,
-              candleTime: d.candleTime,
-              startedAt: Date.now()
-            };
-          }
-
           state.currentSelectedAsset = d;
           state.detailedAssets[symbol] = d;
 
           document.getElementById('modalOhlcvBadge').textContent = `PROBABILITÀ SCORE: ${d.precisionScore}/100`;
           document.getElementById('modalCategory').textContent = d.marketType;
-
-          const tfEl = document.getElementById('modalTF');
-          tfEl.textContent = `${d.exactTf.toUpperCase()} ANTI-FAKE ⚡`;
-          tfEl.className = "px-2.5 py-0.5 rounded bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66] font-extrabold animate-pulse";
-
           document.getElementById('modalSentiment').textContent = d.sentiment;
-          
-          const currentLiveRem = getLiveRemainingSeconds(symbol, d.tempoSec);
-          document.getElementById('modalExactTime').textContent = `${formatExactDuration(currentLiveRem)} 🎯`;
-
-          document.getElementById('modalEma').textContent = `EMA9: ${formatPrice(d.ema9)} | EMA21: ${formatPrice(d.ema21)}`;
-          document.getElementById('modalEmaSignal').textContent = "Trend Confermato 🛡️";
-          document.getElementById('modalEmaSignal').className = "text-[10px] block mt-0.5 text-[#00FF66]";
-
-          document.getElementById('modalRsi').textContent = `RSI: ${d.rsi14}`;
-          document.getElementById('modalRsiZone').textContent = "Zona Ottimale Filtrata 🎯";
-
           document.getElementById('modalLivePrice').textContent = `$${formatPrice(d.price)}`;
-
-          const sideEl = document.getElementById('modalSide');
-          sideEl.textContent = `${d.side} (${d.side === 'BUY' ? 'LONG PROTETTO 🚀' : 'SHORT PROTETTO 📉'})`;
-          sideEl.className = `text-[12px] font-bold ${d.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
-
+          document.getElementById('modalSide').textContent = d.side;
           document.getElementById('modalSL').textContent = `$${formatPrice(d.sl)}`;
           document.getElementById('modalTrendingTP').textContent = `$${formatPrice(d.tp)}`;
+          
           const lev = state.marketType === 'SPOT' ? 1 : state.selectedLeverage;
           const tpPct = (((Math.abs(d.tp - d.price) / d.price) * 100) * lev).toFixed(2);
-          document.getElementById('modalTpPct').textContent = `+${tpPct}% (${state.marketType === 'SPOT' ? 'Spot' : 'con leva ' + lev + 'x'})`;
+          document.getElementById('modalTpPct').textContent = `+${tpPct}%`;
 
           document.getElementById('tableParamEntry').textContent = formatPrice(d.price);
           document.getElementById('tableParamTp').textContent = formatPrice(d.tp);
           document.getElementById('tableParamSl').textContent = formatPrice(d.sl);
 
           aggiornaQuantitaDaCapitale();
-
           renderTfPanel(d.tfs, d.exactTf);
-          renderDashboard();
-        } else {
-          alert("Errore scansione quantistica: " + (json.msg || "Dati non disponibili"));
-          closeModal();
         }
       } catch (e) {
-        alert("Errore di connessione al server.");
+        alert("Errore di connessione.");
         closeModal();
       }
     }
@@ -1595,19 +1520,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         avviaAdvisorPosizione(asset.symbol, asset.side, asset.price, asset.tp, asset.sl, asset.tempoSec);
         closeModal();
       } else {
-        alert("Errore esecuzione: " + (data.msg || "Verifica le tue chiavi API"));
+        alert("Errore esecuzione: " + (data.msg || "Verifica chiavi API"));
       }
     }
 
     function logFeed(text) {
       const container = document.getElementById('alertsFeedContainer');
       const div = document.createElement('div');
-      div.className = "p-2 rounded bg-white/5 border border-white/10 text-white/90 mt-1";
+      div.className = "p-2 rounded bg-white/5 border border-white/10 opacity-90 mt-1";
       div.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
       container.prepend(div);
     }
 
     window.addEventListener('DOMContentLoaded', async () => {
+      const savedTheme = localStorage.getItem('apexscan_theme') || 'black';
+      setTheme(savedTheme);
       updateApiStatusUI();
       updateMarketTypeUI();
       await pollMarketData();
