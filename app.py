@@ -64,7 +64,7 @@ def verifica_finestra_temporale_sicura() -> tuple[bool, str, str, str, str]:
 
 
 # ==========================================
-# MOTORE QUANTISTICO DINAMICO & AUTO-ADATTIVO
+# MOTORE QUANTISTICO CON FILTRO RIGIDO MULTI-TF
 # ==========================================
 def _calcola_ema_serie(valori: list, periodo: int) -> float:
     if not valori:
@@ -181,56 +181,59 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type):
     if not tfs or any(v is None for v in tfs.values()):
         return None
 
-    exact_tf = "15m"
-    if tfs["15m"]["trend"] != "NEUTRO":
-        exact_tf = "15m"
-    elif tfs["5m"]["trend"] != "NEUTRO":
-        exact_tf = "5m"
-    elif tfs["1h"]["trend"] != "NEUTRO":
-        exact_tf = "1h"
+    # --- FILTRO RIGIDO MULTI-TF ALLINEATO ---
+    trend_5m = tfs["5m"]["trend"]
+    trend_15m = tfs["15m"]["trend"]
+    trend_1h = tfs["1h"]["trend"]
+    trend_4h = tfs["4h"]["trend"]
 
-    side = tfs[exact_tf]["trend"]
-    if fetch_type == "SPOT":
-        side = "BUY"
-    elif side == "NEUTRO":
-        side = tfs["1h"]["trend"] if tfs["1h"]["trend"] != "NEUTRO" else "BUY"
+    # Se 1h o 4h sono NEUTRI o in conflitto, scartiamo per evitare falsi segnali
+    if trend_1h == "NEUTRO" or trend_4h == "NEUTRO":
+        side = "NEUTRO"
+        momento_giusto = False
+        score_precisione = 50.0
+    elif trend_5m == trend_15m == trend_1h == trend_4h:
+        side = trend_15m
+        momento_giusto = True
+        score_precisione = 99.9
+    else:
+        side = "NEUTRO"
+        momento_giusto = False
+        score_precisione = 70.0
 
-    base = tfs[exact_tf]
+    base = tfs["15m"] if tfs["15m"]["trend"] != "NEUTRO" else tfs["5m"]
     price = tfs["5m"]["last"]["close"]
     atr_breve = tfs["15m"]["atr14"] if tfs["15m"]["atr14"] > 0 else base["atr14"]
     dec = 2 if price >= 1000 else 3 if price >= 10 else 4 if price >= 1 else 5 if price >= 0.01 else 7
-    k = 1 if side == "BUY" else -1
+    
+    k = 1 if side == "BUY" else (-1 if side == "SELL" else 0)
+    min_sl_dist = price * 0.008
+    max_sl_dist = price * 0.018
+    dist_sl = min(max(atr_breve * 1.1, min_sl_dist), max_sl_dist)
+    dist_tp = dist_sl * 2.5
 
-    min_sl_dist = price * 0.006
-    max_sl_dist = price * 0.014
-    dist_sl = min(max(atr_breve * 0.95, min_sl_dist), max_sl_dist)
-    dist_tp = dist_sl * 2.4
+    sl = round(price - k * dist_sl, dec) if k != 0 else round(price * 0.99, dec)
+    tp = round(price + k * dist_tp, dec) if k != 0 else round(price * 1.02, dec)
 
-    sl = round(price - k * dist_sl, dec)
-    tp = round(price + k * dist_tp, dec)
-
-    candle_sec = 900 if exact_tf != "5m" else 300
+    candle_sec = 900
     ultima_candela = base["last"]
     ampiezza_candela_corrente = abs(ultima_candela["high"] - ultima_candela["low"])
     velocita_candela = max(ampiezza_candela_corrente, atr_breve * 0.2) / candle_sec
+    velocita_reale = max(velocita_candela, price * 0.00002)
     
-    mom_multiplier = 1.0 + (abs(base["rsi14"] - 50.0) / 25.0)
-    velocita_reale = max(velocita_candela * mom_multiplier, price * 0.00002)
-    
-    tempo_esatto_sec = int(max(30, min(10800, round(dist_tp / velocita_reale))))
+    tempo_esatto_sec = int(max(60, min(10800, round(dist_tp / velocita_reale))))
     timestamp_ultima_candela = int(ultima_candela["time"])
 
     is_safe, time_msg, borsa_rif, start_t, end_t = verifica_finestra_temporale_sicura()
-    score_precisione = 99.8 if (base["trend"] != "NEUTRO" and is_safe) else (85.0 if is_safe else 60.0)
-    momento_giusto = is_safe and base["trend"] != "NEUTRO"
+    momento_giusto = is_safe and (side != "NEUTRO")
 
     return {
-        "symbol": simbolo, "marketType": market_type, "price": round(price, dec), "side": side,
-        "sentiment": f"Quantum {market_type} 🚀 (RSI Dinamico Long>={base.get('sogliaLong', 55)})" if side == "BUY" else f"Quantum {market_type} 📉 (RSI Dinamico Short<={base.get('sogliaShort', 45)})",
+        "symbol": simbolo, "marketType": market_type, "price": round(price, dec), "side": side if side != "NEUTRO" else "BUY",
+        "sentiment": f"Multi-TF Allineato 🚀 ({side})" if side != "NEUTRO" else "Mercato Misto / In Attesa di Trend",
         "confluenza": f"{time_msg} 🎯",
         "borsaRif": borsa_rif,
         "momentoGiusto": momento_giusto,
-        "exactTf": exact_tf, "precisionScore": score_precisione,
+        "exactTf": "15m", "precisionScore": score_precisione,
         "ema9": round(base["ema9"], dec), "ema21": round(base["ema21"], dec),
         "rsi14": base["rsi14"], "atr14": round(atr_breve, dec), "sl": sl, "tp": tp,
         "decimals": dec, "tempoSec": tempo_esatto_sec, "candleTime": timestamp_ultima_candela, "tfs": tfs,
@@ -571,7 +574,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <!-- MAIN -->
   <main class="flex-1 max-w-[1920px] w-full mx-auto px-3 sm:px-5 py-4 flex flex-col gap-4">
 
-    <!-- BANNER ORARIO E NOTIFICA ORARIO GIUSTO -->
+    <!-- BANNER ORARIO E NOTIFICA ORARIO SICURO -->
     <div id="timeSafetyBanner" class="terminal-card rounded-2xl p-4 border border-[#FFD700]/50 bg-amber-950/20 flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
       <div class="flex items-center gap-3">
         <span id="timeBannerDot" class="w-3 h-3 rounded-full bg-[#FFD700] animate-pulse"></span>
@@ -749,10 +752,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="w-9 h-9 rounded-xl bg-[#FFD700] text-black flex items-center justify-center font-extrabold animate-bounce">⚡</div>
           <div>
             <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">⚡ SEGNALE MASTER SUPERIORE IN ORO ($ TP &amp; SL 😢)</h2>
-            <p class="text-[11px] text-[#FFD700]" id="masterSubtitle">Cripto ed asset evidenziati in base agli orari sicuri di profitto</p>
+            <p class="text-[11px] text-[#FFD700]" id="masterSubtitle">Cripto ed asset filtrati con Trend Multi-TF Allineato</p>
           </div>
         </div>
-        <span id="masterPrecisionBadge" class="px-2.5 py-1 rounded-md text-xs font-mono font-extrabold bg-[#FFD700] text-black animate-pulse">CANDLE-SYNC ORO 🚀</span>
+        <span id="masterPrecisionBadge" class="px-2.5 py-1 rounded-md text-xs font-mono font-extrabold bg-[#FFD700] text-black animate-pulse">MULTI-TF SYNC 🚀</span>
       </div>
       <div id="prioritySignalCardContent"></div>
     </section>
@@ -784,7 +787,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <span class="w-8 h-8 rounded-full bg-[#FFD700]/20 border border-[#FFD700] flex items-center justify-center text-[#FFD700] text-base font-extrabold dollar-animated-logo">$</span>
             <span>📊 Lista Cripto &amp; Asset in Oro (<span id="tableMarketLabel" class="text-[#FFD700]">FUTURES</span> - Manuale & Auto)</span>
           </h2>
-          <span class="text-xs font-mono text-[#FFD700]">Le cripto ottimali brillano in ORO nei momenti ideali</span>
+          <span class="text-xs font-mono text-[#FFD700]">Filtro Multi-TF rigoroso attivo</span>
         </div>
         <div id="tablesContainer" class="space-y-3"></div>
       </section>
@@ -796,7 +799,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[800px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Advisor Orari Sicuri &amp; Notifiche attivo...</div>
+          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Advisor Orari Sicuri &amp; Multi-TF attivo...</div>
         </div>
       </aside>
     </div>
@@ -831,7 +834,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- MODALE GUIDA ORARIO & MERCATI IN ITALIA (POPUP AUTOMATICO ALL'APERTURA) -->
+  <!-- MODALE GUIDA ORARIO & MERCATI IN ITALIA -->
   <div id="finestraGuidaOrariaModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/90 backdrop-blur-md p-3 overflow-y-auto">
     <div class="bg-[#08080A] border-2 border-[#FFD700] rounded-2xl w-full max-w-[680px] shadow-2xl overflow-hidden my-auto p-5 space-y-4">
       <div class="flex items-center justify-between border-b border-[#FFD700]/30 pb-3">
@@ -879,9 +882,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div>
           <div class="flex items-center gap-2">
             <h2 id="modalSymbol" class="text-lg font-extrabold font-mono text-[#FFD700] bg-[#FFD700]/10 px-3 py-1 rounded-xl border border-[#FFD700]/50">BTC-USDT</h2>
-            <span id="modalOhlcvBadge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#FFD700]/20 text-[#FFD700] border border-[#FFD700]/40">SUPERIORE ORO</span>
+            <span id="modalOhlcvBadge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#FFD700]/20 text-[#FFD700] border border-[#FFD700]/40">MULTI-TF ORO</span>
           </div>
-          <p id="modalSubtitleType" class="text-xs text-white/70 mt-1">Advisor quantistico in Oro: 1. Ingresso • 2. Gestione PnL • 3. TP Raggiunto</p>
+          <p id="modalSubtitleType" class="text-xs text-white/70 mt-1">Advisor quantistico con Trend Multi-TF Allineato</p>
         </div>
         <button onclick="closeModal()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
       </div>
@@ -1292,7 +1295,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         const p = item.price;
         const distTp = Math.abs(cached.tp - p);
         const tpPct = (((distTp / p) * 100) * lev).toFixed(2);
-        return { symbol, price: p, side: cached.side, sl: cached.sl, tp: cached.tp, tpPct, confluenza: "RSI Dinamico & Candela-Sync 🎯", tempoSec: cached.tempoSec };
+        return { symbol, price: p, side: cached.side, sl: cached.sl, tp: cached.tp, tpPct, confluenza: "Multi-TF Allineato 🎯", tempoSec: cached.tempoSec };
       }
       const p = item.price;
       const dec = getPrecisionDecimals(p);
@@ -1304,7 +1307,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const tp = Number((side === 'BUY' ? p + distTp : p - distTp).toFixed(dec));
       const tpPct = (((distTp / p) * 100) * lev).toFixed(2);
       const tempoSec = Math.max(60, Math.round(900 / (0.1 + Math.abs(item.change24h) * 0.1)));
-      return { symbol, price: p, side, sl, tp, tpPct, confluenza: "RSI Dinamico & Candela-Sync 🎯", tempoSec };
+      return { symbol, price: p, side, sl, tp, tpPct, confluenza: "Multi-TF Allineato 🎯", tempoSec };
     }
 
     function renderTfPanel(tfs, exactTf) {
@@ -1331,7 +1334,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <b style="color:${col}">${t.trend}</b>
           </div>
           <svg viewBox="0 0 100 32" class="w-full h-8">${bars}</svg>
-          <div class="text-[9px] text-white/60">RSI ${t.rsi14} (Soglia din: ${t.sogliaLong || 55})</div>
+          <div class="text-[9px] text-white/60">RSI ${t.rsi14}</div>
           <div class="text-[9px] text-[#FFD700]">● ora: ${formatPrice(t.last.close)}</div>
         </div>`;
       }).join('');
@@ -1701,7 +1704,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <div class="space-y-2">
               <div class="flex items-center gap-2">
                 <span class="text-white text-base font-extrabold px-3 py-1 rounded-xl bg-[#FFD700]/20 border-2 border-[#FFD700] text-[#FFD700] animate-pulse">${masterAsset.symbol} 🟡</span>
-                <span class="text-xs text-[#FFD700] font-bold">✨ MASTER CRIPTO IN ORO (ORA ITALIANA)</span>
+                <span class="text-xs text-[#FFD700] font-bold">✨ MASTER CRIPTO IN ORO (MULT-TF ALLINEATO)</span>
               </div>
               <div class="flex justify-between"><span class="text-white/70">Prezzo Live:</span><strong class="text-[#FFD700] text-sm">$${formatPrice(masterAsset.price)}</strong></div>
               <div class="flex justify-between"><span class="text-white/70">Direzione Quantistica:</span><strong class="${local.side === 'BUY' ? 'text-[#FFD700]' : 'text-[#FF334B]'} font-bold">${local.side === 'BUY' ? 'LONG ORO 🚀' : 'SHORT CHIRURGICO 📉'}</strong></div>
@@ -1801,14 +1804,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           const bannerMomento = document.getElementById('modalMomentoGiustoBanner');
           if (d.momentoGiusto) {
             bannerMomento.className = "p-3 rounded-xl border border-[#FFD700] bg-amber-950/40 text-[#FFD700] font-extrabold text-xs animate-pulse";
-            bannerMomento.innerHTML = `🟡 MOMENTO PERFETTO IN ORO PER APRIRE POSIZIONI! (Borsa reale attiva e trend allineato)`;
+            bannerMomento.innerHTML = `🟡 MOMENTO PERFETTO IN ORO PER APRIRE POSIZIONI! (Multi-TF Allineato & Borsa Attiva)`;
           } else {
             bannerMomento.className = "p-3 rounded-xl border border-[#FF334B] bg-red-950/40 text-[#FF334B] font-extrabold text-xs";
-            bannerMomento.innerHTML = `⚠️ ATTENZIONE: Momento di mercato non ottimale. Prudenza consigliata.`;
+            bannerMomento.innerHTML = `⚠️ ATTENZIONE: Timeframe misti o neutri. Rischio falsi segnali elevato.`;
           }
 
           const tfEl = document.getElementById('modalTF');
-          tfEl.textContent = `${d.exactTf.toUpperCase()} CANDLE-SYNC ORO ⚡`;
+          tfEl.textContent = `${d.exactTf.toUpperCase()} MULTI-TF ALLINEATO ⚡`;
           tfEl.className = "px-2.5 py-0.5 rounded bg-[#FFD700]/20 text-[#FFD700] border border-[#FFD700] font-extrabold animate-pulse";
 
           document.getElementById('modalSentiment').textContent = d.sentiment;
@@ -1817,11 +1820,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           document.getElementById('modalExactTime').textContent = `${formatExactDuration(currentLiveRem)} 🎯`;
 
           document.getElementById('modalEma').textContent = `EMA9: ${formatPrice(d.ema9)} | EMA21: ${formatPrice(d.ema21)}`;
-          document.getElementById('modalEmaSignal').textContent = "Trend Calibrato Oro ⚡";
+          document.getElementById('modalEmaSignal').textContent = "Trend Multi-TF Allineato ⚡";
           document.getElementById('modalEmaSignal').className = "text-[10px] block mt-0.5 text-[#FFD700]";
 
           document.getElementById('modalRsi').textContent = `RSI: ${d.rsi14}`;
-          document.getElementById('modalRsiZone').textContent = "Ottimale Dinamico 🎯";
+          document.getElementById('modalRsiZone').textContent = "Concorde Dinamico 🎯";
 
           document.getElementById('modalLivePrice').textContent = `$${formatPrice(d.price)}`;
 
@@ -1902,7 +1905,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         updateAllVisibleCountdowns();
       }, 1000);
 
-      // Apertura automatica e notifica vocale dell'orario sicuro all'avvio dell'app/scanner
       setTimeout(() => {
         mostraFinestraGuidaOraria();
         leggiNotificaOrarioGiusto();
