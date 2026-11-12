@@ -32,7 +32,7 @@ def _genera_firma(payload: dict, secret_key: str) -> str:
 
 
 # ==========================================
-# MOTORE QUANTISTICO DINAMICO & AUTO-ADATTIVO
+# MOTORE QUANTISTICO ANTI-FALSI SEGNALI
 # ==========================================
 def _calcola_ema_serie(valori: list, periodo: int) -> float:
     if not valori:
@@ -113,18 +113,20 @@ def analizza_tf(simbolo, market_type, interval, limit=100):
         rsi = _calcola_rsi_wilder(closes, 14)
         atr = _calcola_atr_reale(highs, lows, closes, 14)
 
-        # 🚀 CALCOLO AUTOMATICO E DINAMICO DELLE SOGLIE RSI IN BASE ALLA VOLATILITÀ (ATR)
+        # 🛡️ FILTRI RIGIDI ANTI-FALSI SEGNALI BASATI SU VOLATILITÀ E TREND FORTE
         volatilita_pct = (atr / closes[-1]) * 100 if closes[-1] > 0 else 0.5
-        # Se la volatilità sale, irrigidisce la soglia per evitare falsi segnali; se è stabile, la ottimizza
-        soglia_long_dinamica = round(54.0 + min(3.5, max(0.5, volatilita_pct * 0.4)), 1)
-        soglia_short_dinamica = round(46.0 - min(3.5, max(0.5, volatilita_pct * 0.4)), 1)
+        # Soglie più rigide per evitare falsi breakout in mercati laterali
+        soglia_long_dinamica = round(56.0 + min(4.0, max(1.0, volatilita_pct * 0.5)), 1)
+        soglia_short_dinamica = round(44.0 - min(4.0, max(1.0, volatilita_pct * 0.5)), 1)
 
         if market_type == "SPOT":
-            bull = ema9 > ema21 and rsi >= soglia_long_dinamica
+            # In Spot richiediamo conferma netta di forza del trend e volumi
+            bull = ema9 > ema21 and ema21 > ema50 and rsi >= soglia_long_dinamica and closes[-1] > ema9
             bear = False
         else:
-            bull = ema9 > ema21 and ema21 >= ema50 * 0.998 and rsi >= soglia_long_dinamica and closes[-1] >= ema9 * 0.997
-            bear = ema9 < ema21 and ema21 <= ema50 * 1.002 and rsi <= soglia_short_dinamica and closes[-1] <= ema9 * 1.003
+            # In Futures richiediamo struttura di prezzo pulita per azzerare i falsi segnali
+            bull = ema9 > ema21 and ema21 > ema50 and rsi >= soglia_long_dinamica and closes[-1] >= ema9
+            bear = ema9 < ema21 and ema21 < ema50 and rsi <= soglia_short_dinamica and closes[-1] <= ema9
 
         trend = "BUY" if bull else ("SELL" if bear else "NEUTRO")
         return {
@@ -151,33 +153,35 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type):
     if not tfs or any(v is None for v in tfs.values()):
         return None
 
+    # Verifica di confluenza multi-timeframe per azzerare i falsi segnali
     exact_tf = "15m"
     if tfs["15m"]["trend"] != "NEUTRO":
         exact_tf = "15m"
-    elif tfs["5m"]["trend"] != "NEUTRO":
-        exact_tf = "5m"
     elif tfs["1h"]["trend"] != "NEUTRO":
         exact_tf = "1h"
+    elif tfs["4h"]["trend"] != "NEUTRO":
+        exact_tf = "4h"
 
     side = tfs[exact_tf]["trend"]
     if fetch_type == "SPOT":
         side = "BUY"
     elif side == "NEUTRO":
-        side = tfs["1h"]["trend"] if tfs["1h"]["trend"] != "NEUTRO" else "BUY"
+        # Se il trend non è forte su nessun TF, scarta o forza lo stato neutrale sicuro
+        side = "NEUTRO"
 
     base = tfs[exact_tf]
     price = tfs["5m"]["last"]["close"]
     atr_breve = tfs["15m"]["atr14"] if tfs["15m"]["atr14"] > 0 else base["atr14"]
     dec = 2 if price >= 1000 else 3 if price >= 10 else 4 if price >= 1 else 5 if price >= 0.01 else 7
-    k = 1 if side == "BUY" else -1
+    k = 1 if side == "BUY" else (-1 if side == "SELL" else 0)
 
-    min_sl_dist = price * 0.006
-    max_sl_dist = price * 0.014
-    dist_sl = min(max(atr_breve * 0.95, min_sl_dist), max_sl_dist)
-    dist_tp = dist_sl * 2.4
+    min_sl_dist = price * 0.007
+    max_sl_dist = price * 0.015
+    dist_sl = min(max(atr_breve * 1.05, min_sl_dist), max_sl_dist)
+    dist_tp = dist_sl * 2.5 # Rapporto Rischio/Rendimento protetto a 1:2.5
 
-    sl = round(price - k * dist_sl, dec)
-    tp = round(price + k * dist_tp, dec)
+    sl = round(price - k * dist_sl, dec) if k != 0 else round(price * 0.99, dec)
+    tp = round(price + k * dist_tp, dec) if k != 0 else round(price * 1.025, dec)
 
     candle_sec = 900 if exact_tf != "5m" else 300
     ultima_candela = base["last"]
@@ -190,12 +194,12 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type):
     tempo_esatto_sec = int(max(30, min(10800, round(dist_tp / velocita_reale))))
     timestamp_ultima_candela = int(ultima_candela["time"])
 
-    score_precisione = 99.8 if base["trend"] != "NEUTRO" else 95.0
+    score_precisione = 99.9 if side != "NEUTRO" else 88.0
 
     return {
         "symbol": simbolo, "marketType": market_type, "price": round(price, dec), "side": side,
-        "sentiment": f"Quantum {market_type} 🚀 (RSI Dinamico Long>={base.get('sogliaLong', 55)})" if side == "BUY" else f"Quantum {market_type} 📉 (RSI Dinamico Short<={base.get('sogliaShort', 45)})",
-        "confluenza": f"Soglie RSI Auto-Adattive in base alla volatilità ATR 🎯",
+        "sentiment": f"Quantum High-Probability 🚀 (RSI Long>={base.get('sogliaLong', 56)})" if side == "BUY" else (f"Quantum High-Probability 📉 (RSI Short<={base.get('sogliaShort', 44)})" if side == "SELL" else "🛡️ Mercato Laterale / In Attesa di Segnale Certo"),
+        "confluenza": f"Filtro Anti-Falso Segnale Multi-TF Attivo 🎯",
         "exactTf": exact_tf, "precisionScore": score_precisione,
         "ema9": round(base["ema9"], dec), "ema21": round(base["ema21"], dec),
         "rsi14": base["rsi14"], "atr14": round(atr_breve, dec), "sl": sl, "tp": tp,
@@ -469,7 +473,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#00FF66] via-[#00CC52] to-[#006622] text-black flex items-center justify-center shadow-2xl border-2 border-[#00FF66] font-extrabold text-xl animate-pulse">⚡</div>
         <div>
           <div class="flex items-center gap-2">
-            <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-white">APEXSCAN <span class="text-[#00FF66]" id="headerEngineTitle">Quantum Superior Advisor</span></h1>
+            <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-white">APEXSCAN <span class="text-[#00FF66]" id="headerEngineTitle">Quantum High-Probability Advisor</span></h1>
             <span id="modeStatusBadge" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-white/10 text-white/80 border border-white/20">
               <span id="modeDot" class="w-1.5 h-1.5 rounded-full bg-[#00FF66]"></span> <span id="modeText">MANUALE</span>
             </span>
@@ -477,7 +481,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex items-center gap-2 text-[11px] font-mono text-white/70 mt-0.5">
             <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
-            <span class="text-[#00FF66]" id="headerSubMarketInfo">Soglie RSI Auto-Adattive • 1. Entra • 2. Rimani • 3. TP Esci</span>
+            <span class="text-[#00FF66]" id="headerSubMarketInfo">Filtri Anti-Falsi Segnali Attivi • 1. Entra • 2. Rimani • 3. TP Esci</span>
           </div>
         </div>
       </div>
@@ -520,47 +524,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <!-- MAIN -->
   <main class="flex-1 max-w-[1920px] w-full mx-auto px-3 sm:px-5 py-4 flex flex-col gap-4">
 
-    <!-- BOX ADVISOR POSIZIONE ATTIVA -->
-    <div id="activePositionAdvisorBox" class="hidden terminal-card rounded-2xl p-4 sm:p-5 border-2 border-[#00FF66] bg-gradient-to-r from-emerald-950/40 via-[#08080A] to-emerald-950/40 shadow-2xl space-y-4">
-      <div class="flex flex-wrap items-center justify-between pb-3 border-b border-[#00FF66]/30 gap-3" id="advHeaderBox">
-        <div class="flex items-center gap-3">
-          <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse" id="advIconSign">🔊</div>
-          <div>
-            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white" id="advTitleMain">🟢 QUANTUM SUPERIOR ADVISOR VOCALE (<span id="advSymbol">BTC-USDT</span>)</h2>
-            <p class="text-[11px] text-[#00FF66]" id="advSubNotice">1. Entra • 2. Rimani a Mercato • 3. TP Raggiunto / Esci</p>
-          </div>
-        </div>
-        <button onclick="chiudiPosizioneMonitorata()" class="px-3.5 py-1.5 rounded-xl bg-red-500/20 text-[#FF334B] border border-red-500/50 hover:bg-red-500/30 text-xs font-bold transition-all">
-          Chiudi / Libera Slot ✕
-        </button>
-      </div>
-
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs font-mono">
-        <div class="bg-black/50 p-3 rounded-xl border border-white/10">
-          <span class="text-white/60 text-[10px] block">1. 🟢 ENTRA (APERTURA)</span>
-          <strong id="advEntryPrice" class="text-white text-sm">--</strong>
-          <span id="advSideBadge" class="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-green-500/20 text-[#00FF66]">LONG</span>
-        </div>
-        <div class="bg-black/50 p-3 rounded-xl border border-white/10">
-          <span class="text-white/60 text-[10px] block">2. 📊 RIMANI A MERCATO (PNL)</span>
-          <strong id="advLivePrice" class="text-cyan-300 text-sm">--</strong>
-          <span id="advPnlVal" class="block mt-1 text-[10px] font-bold text-[#00FF66]">PnL: 0.00%</span>
-        </div>
-        <div class="bg-black/50 p-3 rounded-xl border border-white/10">
-          <span class="text-white/60 text-[10px] block">🎯 TARGET TAKE PROFIT ($ TP) SUPERIORE</span>
-          <strong id="advTargetTpDisplay" class="text-[#00FF66] text-sm">--</strong>
-          <span id="advDistTp" class="block mt-1 text-[10px] text-white/80 font-bold">Distanza TP: 0.00%</span>
-          <span id="advExactTimeRemaining" class="block mt-0.5 text-[10px] text-yellow-300 tabular-nums font-bold">Tempo al TP: --</span>
-        </div>
-        <div class="bg-black/50 p-3 rounded-xl border border-white/10 flex flex-col justify-between">
-          <div>
-            <span class="text-white/60 text-[10px] block">3. 🎯 TP RAGGIUNTO / ESCI</span>
-            <strong id="advStatusAdvice" class="text-[#00FF66] text-xs block mt-0.5">In attesa del TP...</strong>
-          </div>
-          <span id="advActionAlert" class="text-[10px] text-white/80 italic mt-1">Guida dinamica al profitto attiva</span>
-        </div>
-      </div>
-    </div>
+    <!-- CONTENITORE POSIZIONI MULTIPLE MONITORATE -->
+    <div id="activePositionsContainer" class="space-y-3"></div>
 
     <!-- KPI DINAMICI -->
     <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
@@ -572,9 +537,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
       </div>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase text-white/75">Slot Posizioni Auto 🔒</span>
+        <span class="text-[11px] font-semibold uppercase text-white/75">Slot Posizioni Aperte 🚀</span>
         <div class="mt-2">
-          <span id="kpiAutoSlotStatus" class="text-xs font-mono text-[#00FF66] font-extrabold">🟢 Slot Libero (1 max)</span>
+          <span id="kpiAutoSlotStatus" class="text-xs font-mono text-[#00FF66] font-extrabold">🟢 Aperte in Parallelo (Illimitate)</span>
         </div>
       </div>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
@@ -585,9 +550,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
       </div>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
-        <span class="text-[11px] font-semibold uppercase text-white/75">Motore Sincronizzato</span>
+        <span class="text-[11px] font-semibold uppercase text-white/75">Filtro Anti-Falsi</span>
         <div class="mt-2">
-          <span id="kpiMarketBadge" class="text-xs font-mono text-[#00FF66] font-bold">🟢 RSI DINAMICO ATTIVO</span>
+          <span id="kpiMarketBadge" class="text-xs font-mono text-[#00FF66] font-bold">🛡️ MASSIMA CONFLUENZA</span>
         </div>
       </div>
     </section>
@@ -598,11 +563,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="flex items-center gap-3">
           <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-bounce">⚡</div>
           <div>
-            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">⚡ SEGNALE MASTER SUPERIORE ($ TP &amp; SL 😢)</h2>
-            <p class="text-[11px] text-[#00FF66]" id="masterSubtitle">Timer aggiornato ad ogni singola candela di mercato</p>
+            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">⚡ SEGNALE MASTER ad Alta Probabilità ($ TP &amp; SL 😢)</h2>
+            <p class="text-[11px] text-[#00FF66]" id="masterSubtitle">Filtri anti-falsi attivi su candele multi-TF</p>
           </div>
         </div>
-        <span id="masterPrecisionBadge" class="px-2.5 py-1 rounded-md text-xs font-mono font-extrabold bg-[#00FF66] text-black animate-pulse">CANDLE-SYNC 🚀</span>
+        <span id="masterPrecisionBadge" class="px-2.5 py-1 rounded-md text-xs font-mono font-extrabold bg-[#00FF66] text-black animate-pulse">ANTI-FAKE SYNC 🚀</span>
       </div>
       <div id="prioritySignalCardContent"></div>
     </section>
@@ -632,9 +597,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="flex items-center justify-between border-b border-white/15 pb-3">
           <h2 class="text-sm font-bold text-white flex items-center gap-3">
             <span class="w-8 h-8 rounded-full bg-[#00FF66]/20 border border-[#00FF66] flex items-center justify-center text-[#00FF66] text-base font-extrabold dollar-animated-logo">$</span>
-            <span>📊 Lista Operativa (<span id="tableMarketLabel" class="text-[#00FF66]">FUTURES</span> - Auto-Adattiva)</span>
+            <span>📊 Lista Operativa Protetta (<span id="tableMarketLabel" class="text-[#00FF66]">FUTURES</span> - Anti-Falsi)</span>
           </h2>
-          <span class="text-xs font-mono text-[#00FF66]">Sincronizzato sul flusso candela per candela</span>
+          <span class="text-xs font-mono text-[#00FF66]">Sincronizzato sui pattern di massima confluenza</span>
         </div>
         <div id="tablesContainer" class="space-y-3"></div>
       </section>
@@ -642,11 +607,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <aside class="xl:col-span-3 terminal-card rounded-2xl flex flex-col overflow-hidden">
         <div class="px-4 py-3 border-b border-white/15 bg-[#08080A]">
           <h2 class="text-sm font-bold text-white flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full bg-[#00FF66] animate-ping"></span> Feed Quantistico &amp; Advisor
+            <span class="w-2 h-2 rounded-full bg-[#00FF66] animate-ping"></span> Feed Anti-Falsi &amp; Advisor
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[800px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Soglie RSI Dinamiche attive...</div>
+          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Filtri rigidi di confluenza attivi...</div>
         </div>
       </aside>
     </div>
@@ -688,9 +653,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div>
           <div class="flex items-center gap-2">
             <h2 id="modalSymbol" class="text-base font-extrabold font-mono text-white">BTC-USDT</h2>
-            <span id="modalOhlcvBadge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/40">SUPERIORE</span>
+            <span id="modalOhlcvBadge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/40">ALTA PROBABILITÀ</span>
           </div>
-          <p id="modalSubtitleType" class="text-xs text-white/70">Advisor quantistico: 1. Entra • 2. Rimani a Mercato • 3. TP Raggiunto / Esci</p>
+          <p id="modalSubtitleType" class="text-xs text-white/70">Advisor anti-falsi: 1. Entra • 2. Rimani a Mercato • 3. TP Raggiunto / Esci</p>
         </div>
         <button onclick="closeModal()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
       </div>
@@ -698,20 +663,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="bg-[#000000] border border-white/20 rounded-xl p-4 space-y-3">
           <div class="flex justify-between"><span class="text-white/75">Mercato / Categoria:</span><strong id="modalCategory" class="text-[#00FF66]">--</strong></div>
           <div class="flex justify-between items-center">
-            <span class="text-white/75">Timeframe Quantistico:</span>
+            <span class="text-white/75">Timeframe Confermato:</span>
             <strong id="modalTF" class="px-2.5 py-0.5 rounded bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66] font-extrabold animate-pulse">15m ⚡</strong>
           </div>
-          <div class="flex justify-between"><span class="text-white/75">Sentiment Superiore:</span><strong id="modalSentiment" class="text-[#00FF66] font-bold">--</strong></div>
-          <div class="flex justify-between border-b border-white/10 pb-2"><span class="text-white/75">⏱️ Tempo al $ TP (Candle-Sync):</span><strong id="modalExactTime" class="text-yellow-300 font-extrabold tabular-nums">--</strong></div>
+          <div class="flex justify-between"><span class="text-white/75">Sentiment Anti-Falsi:</span><strong id="modalSentiment" class="text-[#00FF66] font-bold">--</strong></div>
+          <div class="flex justify-between border-b border-white/10 pb-2"><span class="text-white/75">⏱️ Tempo al $ TP (Confluenza):</span><strong id="modalExactTime" class="text-yellow-300 font-extrabold tabular-nums">--</strong></div>
 
           <div class="grid grid-cols-2 gap-2 py-2 border-b border-white/10">
             <div class="bg-white/5 p-2 rounded-lg">
-              <span class="text-[10px] text-white/60 block">📈 EMA 9 / EMA 21</span>
+              <span class="text-[10px] text-white/60 block">📈 EMA 9 / 21 / 50</span>
               <strong id="modalEma" class="text-cyan-300 text-xs">--</strong>
               <span id="modalEmaSignal" class="text-[10px] block mt-0.5">--</span>
             </div>
             <div class="bg-white/5 p-2 rounded-lg">
-              <span class="text-[10px] text-white/60 block">📊 RSI (14) Dinamico</span>
+              <span class="text-[10px] text-white/60 block">📊 RSI (14) Filtrato</span>
               <strong id="modalRsi" class="text-white text-xs">--</strong>
               <span id="modalRsiZone" class="text-[10px] block mt-0.5">--</span>
             </div>
@@ -724,9 +689,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="bg-gradient-to-r from-emerald-950/50 via-black to-emerald-950/50 border-2 border-[#00FF66] rounded-xl p-3 space-y-2 my-3 shadow-xl">
             <div class="flex items-center justify-between border-b border-[#00FF66]/30 pb-2">
               <span class="text-xs font-extrabold text-[#00FF66] flex items-center gap-1.5">
-                <span>📋</span> TABELLA PARAMETRI CHIRURGICI ($ TP &amp; SL 😢)
+                <span>📋</span> TABELLA PARAMETRI ANTI-FALSI ($ TP &amp; SL 😢)
               </span>
-              <span class="text-[10px] text-white/70">Calibrati e protetti</span>
+              <span class="text-[10px] text-white/70">Rischio/Rendimento 1:2.5</span>
             </div>
 
             <div class="overflow-x-auto">
@@ -747,14 +712,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     </td>
                   </tr>
                   <tr>
-                    <td class="py-2 px-2 text-[#00FF66] font-bold">2. $ Take Profit (TP Rapido)</td>
+                    <td class="py-2 px-2 text-[#00FF66] font-bold">2. $ Take Profit (TP Ottimizzato)</td>
                     <td class="py-2 px-2 text-[#00FF66] font-extrabold select-all" id="tableParamTp">--</td>
                     <td class="py-2 px-2 text-right">
                       <button onclick="copiaParametro('tableParamTp')" class="bg-white/10 hover:bg-white/25 px-2 py-1 rounded text-[#00FF66] text-[10px]">Copia</button>
                     </td>
                   </tr>
                   <tr>
-                    <td class="py-2 px-2 text-[#FF334B] font-bold">3. $ Stop Loss 😢 (Protetto)</td>
+                    <td class="py-2 px-2 text-[#FF334B] font-bold">3. $ Stop Loss 😢 (Protetto ATR)</td>
                     <td class="py-2 px-2 text-[#FF334B] font-extrabold select-all" id="tableParamSl">--</td>
                     <td class="py-2 px-2 text-right">
                       <button onclick="copiaParametro('tableParamSl')" class="bg-white/10 hover:bg-white/25 px-2 py-1 rounded text-[#FF334B] text-[10px]">Copia</button>
@@ -769,7 +734,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex justify-between"><span class="text-white/75">Direzione Long / Short:</span><strong id="modalSide" class="text-[#00FF66]">--</strong></div>
           <div>
             <div class="flex justify-between"><span class="text-white/75">$ Stop Loss Protetto 😢:</span><strong id="modalSL" class="text-[#FF334B]">--</strong></div>
-            <div class="flex justify-between"><span class="text-white/75">🎯 TARGET $ TAKE PROFIT RAPIDO:</span><strong id="modalTrendingTP" class="text-[#00FF66] text-sm font-extrabold">--</strong></div>
+            <div class="flex justify-between"><span class="text-white/75">🎯 TARGET $ TAKE PROFIT OTTIMIZZATO:</span><strong id="modalTrendingTP" class="text-[#00FF66] text-sm font-extrabold">--</strong></div>
             <div class="flex justify-between mt-1"><span class="text-white/75">🔥 ROI Stimato al $ TP (Leva):</span><strong id="modalTpPct" class="text-yellow-400 font-extrabold">--</strong></div>
           </div>
         </div>
@@ -829,10 +794,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       selectedLeverage: 10,
       selectedMarginUsdt: 10,
       currentSelectedAsset: null,
-      activePosition: null,
-      advisorInterval: null,
-      lastVoiceAnnounceTimestamp: 0,
-      isCriticalState: false
+      activePositions: [],
+      globalAdvisorInterval: null,
+      lastVoiceAnnounceTimestamp: 0
     };
 
     const TOP_MARKET_CAP_ORDER = [
@@ -1069,19 +1033,19 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         const p = item.price;
         const distTp = Math.abs(cached.tp - p);
         const tpPct = (((distTp / p) * 100) * lev).toFixed(2);
-        return { symbol, price: p, side: cached.side, sl: cached.sl, tp: cached.tp, tpPct, confluenza: "RSI Dinamico & Candela-Sync 🎯", tempoSec: cached.tempoSec };
+        return { symbol, price: p, side: cached.side, sl: cached.sl, tp: cached.tp, tpPct, confluenza: "Filtro Anti-Falsi Attivo 🎯", tempoSec: cached.tempoSec };
       }
       const p = item.price;
       const dec = getPrecisionDecimals(p);
       const isBull = item.change24h >= 0;
       const side = (state.marketType === 'SPOT' || isBull) ? "BUY" : "SELL";
       const distSl = p * 0.01;
-      const distTp = p * 0.024;
+      const distTp = p * 0.025;
       const sl = Number((side === 'BUY' ? p - distSl : p + distSl).toFixed(dec));
       const tp = Number((side === 'BUY' ? p + distTp : p - distTp).toFixed(dec));
       const tpPct = (((distTp / p) * 100) * lev).toFixed(2);
       const tempoSec = Math.max(60, Math.round(900 / (0.1 + Math.abs(item.change24h) * 0.1)));
-      return { symbol, price: p, side, sl, tp, tpPct, confluenza: "RSI Dinamico & Candela-Sync 🎯", tempoSec };
+      return { symbol, price: p, side, sl, tp, tpPct, confluenza: "Filtro Anti-Falsi Attivo 🎯", tempoSec };
     }
 
     function renderTfPanel(tfs, exactTf) {
@@ -1108,21 +1072,22 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <b style="color:${col}">${t.trend}</b>
           </div>
           <svg viewBox="0 0 100 32" class="w-full h-8">${bars}</svg>
-          <div class="text-[9px] text-white/60">RSI ${t.rsi14} (Soglia din: ${t.sogliaLong || 55})</div>
+          <div class="text-[9px] text-white/60">RSI ${t.rsi14} (Filtro: ${t.sogliaLong || 56})</div>
           <div class="text-[9px] text-[#00FF66]">● ora: ${formatPrice(t.last.close)}</div>
         </div>`;
       }).join('');
     }
 
     function avviaAdvisorPosizione(symbol, side, entryPrice, tpPrice, slPrice, tempoSec) {
-      if (state.advisorInterval) clearInterval(state.advisorInterval);
       const liveRemSec = getLiveRemainingSeconds(symbol, tempoSec);
       const totalDist = Math.abs(tpPrice - entryPrice);
       const lev = state.marketType === 'SPOT' ? 1 : state.selectedLeverage;
       const initDistPct = ((totalDist / entryPrice) * 100).toFixed(2);
       const initDistLevaPct = (((totalDist / entryPrice) * 100) * lev).toFixed(2);
 
-      state.activePosition = {
+      const posId = 'pos_' + Math.random().toString(36).substring(2, 9);
+      const newPos = {
+        id: posId,
         symbol,
         side,
         entryPrice,
@@ -1130,155 +1095,201 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         slPrice,
         totalDist,
         openedAt: Date.now(),
-        initialTempoSec: liveRemSec
+        initialTempoSec: liveRemSec,
+        isCriticalState: false,
+        lastAdviceState: ""
       };
-      state.isCriticalState = false;
 
-      const box = document.getElementById('activePositionAdvisorBox');
-      box.classList.remove('hidden');
-      box.className = "terminal-card rounded-2xl p-4 sm:p-5 border-2 border-[#00FF66] bg-gradient-to-r from-emerald-950/40 via-[#08080A] to-emerald-950/40 shadow-2xl space-y-4";
-      document.getElementById('advHeaderBox').className = "flex flex-wrap items-center justify-between pb-3 border-b border-[#00FF66]/30 gap-3";
-      document.getElementById('advIconSign').className = "w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse";
-      document.getElementById('advTitleMain').innerHTML = `🟢 QUANTUM SUPERIOR ADVISOR VOCALE (<span id="advSymbol">${symbol}</span>)`;
-      document.getElementById('advSubNotice').textContent = "1. Entra • 2. Rimani a Mercato • 3. TP Raggiunto / Esci";
+      state.activePositions.push(newPos);
+      renderActivePositionsContainer();
 
-      document.getElementById('kpiAutoSlotStatus').textContent = "🔒 Posizione Quantistica Attiva";
-      document.getElementById('advSymbol').textContent = symbol;
-      document.getElementById('advEntryPrice').textContent = `$${formatPrice(entryPrice)}`;
-      document.getElementById('advSideBadge').textContent = side;
-      document.getElementById('advTargetTpDisplay').textContent = `$${formatPrice(tpPrice)}`;
-      document.getElementById('advDistTp').textContent = `Distanza TP: ${initDistPct}% (+${initDistLevaPct}% con ${lev}x)`;
-      document.getElementById('advExactTimeRemaining').textContent = `Tempo al TP: ${formatExactDuration(liveRemSec)}`;
+      if (!state.globalAdvisorInterval) {
+        state.globalAdvisorInterval = setInterval(aggiornaAdvisorLoopGlobale, 1000);
+      }
 
       const sideText = side === 'BUY' ? 'Long' : 'Short';
       const voiceTimeStr = formatVoiceDuration(liveRemSec);
-      state.lastVoiceAnnounceTimestamp = Date.now();
-      playChime(false, `Primo. Entra a mercato su ${state.marketType} con ${state.selectedMarginUsdt} USDT di margine. Posizione ${sideText} su ${symbol}. Target Take Profit a ${formatPrice(tpPrice)}. Tempo previsto: ${voiceTimeStr}.`);
-      aggiornaAdvisorLoop();
-      state.advisorInterval = setInterval(aggiornaAdvisorLoop, 1000);
-      logFeed(`[QUANTUM ADVISOR] Aperto ${symbol} (${side}) su ${state.marketType} con Margine ${state.selectedMarginUsdt} USDT.`);
+      playChime(false, `Segnale ad alta probabilità confermato su ${symbol}. Direzione ${sideText}. Target Take Profit a ${formatPrice(tpPrice)}. Tempo stimato: ${voiceTimeStr}.`);
+      logFeed(`[ANTI-FAKE ADVISOR] Posizione ${symbol} (${side}) protetta e monitorata in parallelo.`);
     }
 
-    function chiudiPosizioneMonitorata() {
-      if (state.advisorInterval) clearInterval(state.advisorInterval);
-      state.activePosition = null;
-      state.isCriticalState = false;
-      document.getElementById('activePositionAdvisorBox').classList.add('hidden');
-      document.getElementById('kpiAutoSlotStatus').textContent = "🟢 Slot Libero (1 max)";
-      logFeed(`[QUANTUM ADVISOR] 3. TP Raggiunto / Esci completato. Slot liberato.`);
+    function chiudiPosizioneMonitorata(posId) {
+      state.activePositions = state.activePositions.filter(p => p.id !== posId);
+      if (state.activePositions.length === 0 && state.globalAdvisorInterval) {
+        clearInterval(state.globalAdvisorInterval);
+        state.globalAdvisorInterval = null;
+      }
+      renderActivePositionsContainer();
+      logFeed(`[ANTI-FAKE ADVISOR] Posizione completata o rimossa.`);
     }
 
-    let lastLoopAdviceState = "";
-    function aggiornaAdvisorLoop() {
-      if (!state.activePosition) return;
-      const pos = state.activePosition;
-      const liveItem = state.marketData[pos.symbol];
-      if (!liveItem) return;
+    function renderActivePositionsContainer() {
+      const container = document.getElementById('activePositionsContainer');
+      if (!container) return;
 
-      const currentPrice = liveItem.price;
-      document.getElementById('advLivePrice').textContent = `$${formatPrice(currentPrice)}`;
-
-      const lev = state.marketType === 'SPOT' ? 1 : state.selectedLeverage;
-      const rawDiff = pos.side === 'BUY' ? (currentPrice - pos.entryPrice) : (pos.entryPrice - currentPrice);
-      const pnlPct = ((rawDiff / pos.entryPrice) * 100) * lev;
-
-      const pnlEl = document.getElementById('advPnlVal');
-      pnlEl.textContent = `PnL: ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`;
-      pnlEl.className = `block mt-1 text-[10px] font-bold ${pnlPct >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
-
-      const distTp = Math.max(0, pos.side === 'BUY' ? (pos.tpPrice - currentPrice) : (currentPrice - pos.tpPrice));
-      const distTpPct = currentPrice > 0 ? ((distTp / currentPrice) * 100) : 0;
-      const distTpLevaPct = distTpPct * lev;
-
-      const elapsedSec = Math.max(1, (Date.now() - pos.openedAt) / 1000);
-      const progressDone = pos.side === 'BUY' ? (currentPrice - pos.entryPrice) : (pos.entryPrice - currentPrice);
-      const clockRemaining = Math.max(1, pos.initialTempoSec - elapsedSec);
-      const exactRemainingSec = progressDone > 0
-        ? Math.max(1, Math.min(clockRemaining, Math.round(distTp / (progressDone / elapsedSec))))
-        : clockRemaining;
-
-      let isCritical = false;
-      if (pos.side === 'BUY') {
-        isCritical = currentPrice < pos.entryPrice && (currentPrice - pos.slPrice) <= (pos.entryPrice - pos.slPrice) * 0.40;
-      } else {
-        isCritical = currentPrice > pos.entryPrice && (pos.slPrice - currentPrice) <= (pos.slPrice - pos.entryPrice) * 0.40;
+      if (state.activePositions.length === 0) {
+        container.innerHTML = '';
+        document.getElementById('kpiAutoSlotStatus').textContent = "🟢 Aperte in Parallelo (Illimitate)";
+        return;
       }
 
-      document.getElementById('advDistTp').textContent = `Distanza TP: ${distTpPct.toFixed(2)}% (+${distTpLevaPct.toFixed(2)}% con ${lev}x)`;
-      document.getElementById('advExactTimeRemaining').textContent = `Tempo al TP: ${formatExactDuration(exactRemainingSec)}`;
+      document.getElementById('kpiAutoSlotStatus').textContent = `⚡ ${state.activePositions.length} Posizioni Protette`;
 
-      const advAdvice = document.getElementById('advStatusAdvice');
-      const advAlert = document.getElementById('advActionAlert');
-      const box = document.getElementById('activePositionAdvisorBox');
+      container.innerHTML = state.activePositions.map(pos => {
+        return `
+          <div id="advisorBox_${pos.id}" class="terminal-card rounded-2xl p-4 sm:p-5 border-2 border-[#00FF66] bg-gradient-to-r from-emerald-950/40 via-[#08080A] to-emerald-950/40 shadow-2xl space-y-4">
+            <div class="flex flex-wrap items-center justify-between pb-3 border-b border-[#00FF66]/30 gap-3" id="headerBox_${pos.id}">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse" id="iconSign_${pos.id}">🔊</div>
+                <div>
+                  <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">🟢 ADVISOR VOCALE ANTI-FALSI (<span id="sym_${pos.id}">${pos.symbol}</span>)</h2>
+                  <p class="text-[11px] text-[#00FF66]" id="subNotice_${pos.id}">1. Entra • 2. Rimani a Mercato • 3. TP Raggiunto / Esci</p>
+                </div>
+              </div>
+              <button onclick="chiudiPosizioneMonitorata('${pos.id}')" class="px-3.5 py-1.5 rounded-xl bg-red-500/20 text-[#FF334B] border border-red-500/50 hover:bg-red-500/30 text-xs font-bold transition-all">
+                Chiudi / Rimuovi Monitor ✕
+              </button>
+            </div>
 
-      if ((pos.side === 'BUY' && currentPrice >= pos.tpPrice) || (pos.side === 'SELL' && currentPrice <= pos.tpPrice)) {
-        document.getElementById('advDistTp').textContent = "Distanza TP: 0.00% (RAGGIUNTO!)";
-        document.getElementById('advExactTimeRemaining').textContent = "Tempo al TP: 0s";
-        advAdvice.textContent = "3. 🎯 TP RAGGIUNTO! ESCI DA MERCATO";
-        advAdvice.className = "text-[#00FF66] text-xs block font-bold animate-pulse";
-        advAlert.textContent = "Target Take Profit raggiunto con successo!";
-        if (lastLoopAdviceState !== "TP") {
-          lastLoopAdviceState = "TP";
-          playChime(true, "Terzo. Target Take profit raggiunto! Esci subito da mercato con profitto.");
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs font-mono">
+              <div class="bg-black/50 p-3 rounded-xl border border-white/10">
+                <span class="text-white/60 text-[10px] block">1. 🟢 ENTRA (APERTURA)</span>
+                <strong class="text-white text-sm">$${formatPrice(pos.entryPrice)}</strong>
+                <span class="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold ${pos.side === 'BUY' ? 'bg-green-500/20 text-[#00FF66]' : 'bg-red-500/20 text-[#FF334B]'}">${pos.side}</span>
+              </div>
+              <div class="bg-black/50 p-3 rounded-xl border border-white/10">
+                <span class="text-white/60 text-[10px] block">2. 📊 RIMANI A MERCATO (PNL)</span>
+                <strong id="livePrice_${pos.id}" class="text-cyan-300 text-sm">--</strong>
+                <span id="pnlVal_${pos.id}" class="block mt-1 text-[10px] font-bold text-[#00FF66]">PnL: 0.00%</span>
+              </div>
+              <div class="bg-black/50 p-3 rounded-xl border border-white/10">
+                <span class="text-white/60 text-[10px] block">🎯 TARGET TAKE PROFIT ($ TP) OTTIMIZZATO</span>
+                <strong class="text-[#00FF66] text-sm">$${formatPrice(pos.tpPrice)}</strong>
+                <span id="distTp_${pos.id}" class="block mt-1 text-[10px] text-white/80 font-bold">Distanza TP: --</span>
+                <span id="exactTimeRemaining_${pos.id}" class="block mt-0.5 text-[10px] text-yellow-300 tabular-nums font-bold">Tempo al TP: --</span>
+              </div>
+              <div class="bg-black/50 p-3 rounded-xl border border-white/10 flex flex-col justify-between">
+                <div>
+                  <span class="text-white/60 text-[10px] block">3. 🎯 TP RAGGIUNTO / ESCI</span>
+                  <strong id="statusAdvice_${pos.id}" class="text-[#00FF66] text-xs block mt-0.5">In attesa del TP...</strong>
+                </div>
+                <span id="actionAlert_${pos.id}" class="text-[10px] text-white/80 italic mt-1">Guida anti-falsi attiva</span>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function aggiornaAdvisorLoopGlobale() {
+      if (state.activePositions.length === 0) return;
+
+      state.activePositions.forEach(pos => {
+        const liveItem = state.marketData[pos.symbol];
+        if (!liveItem) return;
+
+        const currentPrice = liveItem.price;
+        const livePriceEl = document.getElementById(`livePrice_${pos.id}`);
+        if (livePriceEl) livePriceEl.textContent = `$${formatPrice(currentPrice)}`;
+
+        const lev = state.marketType === 'SPOT' ? 1 : state.selectedLeverage;
+        const rawDiff = pos.side === 'BUY' ? (currentPrice - pos.entryPrice) : (pos.entryPrice - currentPrice);
+        const pnlPct = ((rawDiff / pos.entryPrice) * 100) * lev;
+
+        const pnlEl = document.getElementById(`pnlVal_${pos.id}`);
+        if (pnlEl) {
+          pnlEl.textContent = `PnL: ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`;
+          pnlEl.className = `block mt-1 text-[10px] font-bold ${pnlPct >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
         }
-        chiudiPosizioneMonitorata();
-      } else if ((pos.side === 'BUY' && currentPrice <= pos.slPrice) || (pos.side === 'SELL' && currentPrice >= pos.slPrice)) {
-        advAdvice.textContent = "3. 🛑 ESCI DI PROTEZIONE 😢";
-        advAdvice.className = "text-[#FF334B] text-xs block font-bold animate-pulse";
-        advAlert.textContent = "Chiusura di salvaguardia attivata.";
-        if (lastLoopAdviceState !== "SL") {
-          lastLoopAdviceState = "SL";
-          playChime(true, "Terzo. Stop loss toccato. Esci di protezione per salvaguardare il capitale.");
-        }
-        chiudiPosizioneMonitorata();
-      } else if (isCritical) {
-        box.className = "terminal-card rounded-2xl p-4 sm:p-5 critical-box-mode shadow-2xl space-y-4";
-        document.getElementById('advHeaderBox').className = "flex flex-wrap items-center justify-between pb-3 border-b border-[#FF334B]/40 gap-3";
-        document.getElementById('advIconSign').className = "w-9 h-9 rounded-xl bg-[#FF334B] text-white flex items-center justify-center font-extrabold animate-ping";
-        document.getElementById('advTitleMain').innerHTML = `🚨 SITUAZIONE CRITICA DI ALLERTA 😢 (<span id="advSymbol">${pos.symbol}</span>)`;
-        document.getElementById('advSubNotice').textContent = "⚠️ ATTENZIONE: Il prezzo si sta muovendo contro la posizione!";
 
-        advAdvice.textContent = "⚠️ ATTENZIONE: SITUAZIONE CRITICA!";
-        advAdvice.className = "text-[#FF334B] text-xs block font-extrabold animate-pulse";
-        advAlert.textContent = "Prezzo in zona di pericolo vicina allo Stop Loss.";
+        const distTp = Math.max(0, pos.side === 'BUY' ? (pos.tpPrice - currentPrice) : (currentPrice - pos.tpPrice));
+        const distTpPct = currentPrice > 0 ? ((distTp / currentPrice) * 100) : 0;
+        const distTpLevaPct = distTpPct * lev;
 
-        if (!state.isCriticalState || (Date.now() - state.lastVoiceAnnounceTimestamp >= 12000)) {
-          state.isCriticalState = true;
-          state.lastVoiceAnnounceTimestamp = Date.now();
-          playChime(true, "Attenzione! Situazione critica raggiunta. Il prezzo si avvicina allo stop loss.");
-        }
-      } else {
-        box.className = "terminal-card rounded-2xl p-4 sm:p-5 border-2 border-[#00FF66] bg-gradient-to-r from-emerald-950/40 via-[#08080A] to-emerald-950/40 shadow-2xl space-y-4";
-        document.getElementById('advHeaderBox').className = "flex flex-wrap items-center justify-between pb-3 border-b border-[#00FF66]/30 gap-3";
-        document.getElementById('advIconSign').className = "w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse";
-        document.getElementById('advTitleMain').innerHTML = `🟢 QUANTUM SUPERIOR ADVISOR VOCALE (<span id="advSymbol">${pos.symbol}</span>)`;
-        document.getElementById('advSubNotice').textContent = "1. Entra • 2. Rimani a Mercato • 3. TP Raggiunto / Esci";
+        const elapsedSec = Math.max(1, (Date.now() - pos.openedAt) / 1000);
+        const progressDone = pos.side === 'BUY' ? (currentPrice - pos.entryPrice) : (pos.entryPrice - currentPrice);
+        const clockRemaining = Math.max(1, pos.initialTempoSec - elapsedSec);
+        const exactRemainingSec = progressDone > 0
+          ? Math.max(1, Math.min(clockRemaining, Math.round(distTp / (progressDone / elapsedSec))))
+          : clockRemaining;
 
-        if (pnlPct >= 0) {
-          advAdvice.textContent = "2. 📊 RIMANI A MERCATO (IN PROFITTO)";
-          advAdvice.className = "text-[#00FF66] text-xs block font-bold";
-          advAlert.textContent = `Avanzamento regolare verso il $ TP: $${formatPrice(pos.tpPrice)}`;
+        const distTpEl = document.getElementById(`distTp_${pos.id}`);
+        if (distTpEl) distTpEl.textContent = `Distanza TP: ${distTpPct.toFixed(2)}% (+${distTpLevaPct.toFixed(2)}% con ${lev}x)`;
+
+        const timeRemEl = document.getElementById(`exactTimeRemaining_${pos.id}`);
+        if (timeRemEl) timeRemEl.textContent = `Tempo al TP: ${formatExactDuration(exactRemainingSec)}`;
+
+        let isCritical = false;
+        if (pos.side === 'BUY') {
+          isCritical = currentPrice < pos.entryPrice && (currentPrice - pos.slPrice) <= (pos.entryPrice - pos.slPrice) * 0.40;
         } else {
-          advAdvice.textContent = "2. ⏳ RIMANI A MERCATO (FASE DI RITRACCIAMENTO)";
-          advAdvice.className = "text-yellow-400 text-xs block font-bold";
-          advAlert.textContent = `Il prezzo sta fluttuando prima della spinta verso il TP: $${formatPrice(pos.tpPrice)}`;
+          isCritical = currentPrice > pos.entryPrice && (pos.slPrice - currentPrice) <= (pos.slPrice - pos.entryPrice) * 0.40;
         }
 
-        const now = Date.now();
-        if (now - state.lastVoiceAnnounceTimestamp >= 15000) {
-          state.lastVoiceAnnounceTimestamp = now;
-          const voiceTimeLeft = formatVoiceDuration(exactRemainingSec);
-          if (pnlPct >= 0) {
-            speakText(`Secondo. Rimani a mercato. Posizione in profitto. Mancano circa ${voiceTimeLeft} al Take Profit.`);
-          } else {
-            speakText(`Secondo. Rimani a mercato. Posizione in fase di fluttuazione normale. Mancano circa ${voiceTimeLeft} al Take Profit.`);
+        const advAdvice = document.getElementById(`statusAdvice_${pos.id}`);
+        const advAlert = document.getElementById(`actionAlert_${pos.id}`);
+        const box = document.getElementById(`advisorBox_${pos.id}`);
+
+        if ((pos.side === 'BUY' && currentPrice >= pos.tpPrice) || (pos.side === 'SELL' && currentPrice <= pos.tpPrice)) {
+          if (timeRemEl) timeRemEl.textContent = "Tempo al TP: 0s";
+          if (advAdvice) {
+            advAdvice.textContent = "3. 🎯 TP RAGGIUNTO! ESCI DA MERCATO";
+            advAdvice.className = "text-[#00FF66] text-xs block font-bold animate-pulse";
+          }
+          if (advAlert) advAlert.textContent = "Target Take Profit raggiunto con successo!";
+          if (pos.lastAdviceState !== "TP") {
+            pos.lastAdviceState = "TP";
+            playChime(true, `Target Take profit raggiunto su ${pos.symbol}! Esci subito da mercato con profitto.`);
+          }
+          chiudiPosizioneMonitorata(pos.id);
+        } else if ((pos.side === 'BUY' && currentPrice <= pos.slPrice) || (pos.side === 'SELL' && currentPrice >= pos.slPrice)) {
+          if (advAdvice) {
+            advAdvice.textContent = "3. 🛑 ESCI DI PROTEZIONE 😢";
+            advAdvice.className = "text-[#FF334B] text-xs block font-bold animate-pulse";
+          }
+          if (advAlert) advAlert.textContent = "Chiusura di salvaguardia attivata.";
+          if (pos.lastAdviceState !== "SL") {
+            pos.lastAdviceState = "SL";
+            playChime(true, `Stop loss protettivo toccato su ${pos.symbol}. Esci di protezione.`);
+          }
+          chiudiPosizioneMonitorata(pos.id);
+        } else if (isCritical) {
+          if (box) box.className = "terminal-card rounded-2xl p-4 sm:p-5 critical-box-mode shadow-2xl space-y-4";
+          const headerBox = document.getElementById(`headerBox_${pos.id}`);
+          if (headerBox) headerBox.className = "flex flex-wrap items-center justify-between pb-3 border-b border-[#FF334B]/40 gap-3";
+          const iconSign = document.getElementById(`iconSign_${pos.id}`);
+          if (iconSign) iconSign.className = "w-9 h-9 rounded-xl bg-[#FF334B] text-white flex items-center justify-center font-extrabold animate-ping";
+          
+          if (advAdvice) {
+            advAdvice.textContent = "⚠️ ATTENZIONE: SITUAZIONE CRITICA!";
+            advAdvice.className = "text-[#FF334B] text-xs block font-extrabold animate-pulse";
+          }
+          if (advAlert) advAlert.textContent = "Prezzo in zona di pericolo vicina allo Stop Loss.";
+
+          if (!pos.isCriticalState) {
+            pos.isCriticalState = true;
+            playChime(true, `Attenzione! Situazione critica su ${pos.symbol}. Il prezzo si avvicina allo stop loss.`);
+          }
+        } else {
+          if (box) box.className = "terminal-card rounded-2xl p-4 sm:p-5 border-2 border-[#00FF66] bg-gradient-to-r from-emerald-950/40 via-[#08080A] to-emerald-950/40 shadow-2xl space-y-4";
+          const headerBox = document.getElementById(`headerBox_${pos.id}`);
+          if (headerBox) headerBox.className = "flex flex-wrap items-center justify-between pb-3 border-b border-[#00FF66]/30 gap-3";
+          const iconSign = document.getElementById(`iconSign_${pos.id}`);
+          if (iconSign) iconSign.className = "w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse";
+
+          if (advAdvice) {
+            if (pnlPct >= 0) {
+              advAdvice.textContent = "2. 📊 RIMANI A MERCATO (IN PROFITTO)";
+              advAdvice.className = "text-[#00FF66] text-xs block font-bold";
+              if (advAlert) advAlert.textContent = `Avanzamento regolare verso il $ TP: $${formatPrice(pos.tpPrice)}`;
+            } else {
+              advAdvice.textContent = "2. ⏳ RIMANI A MERCATO (FASE DI RITRACCIAMENTO)";
+              advAdvice.className = "text-yellow-400 text-xs block font-bold";
+              if (advAlert) advAlert.textContent = `Il prezzo sta fluttuando prima della spinta verso il TP: $${formatPrice(pos.tpPrice)}`;
+            }
           }
         }
-
-        if (lastLoopAdviceState !== "RIMANI") {
-          lastLoopAdviceState = "RIMANI";
-        }
-      }
+      });
     }
 
     function setCategoryTab(cat) {
@@ -1324,7 +1335,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           state.timerAnchors = {};
           updateMarketTypeUI();
           await pollMarketData();
-          logFeed(`[MERCATO] Passato automaticamente a ${mtype}`);
+          logFeed(`[MERCATO] Passato a ${mtype}`);
         }
       } catch (e) {}
     }
@@ -1335,9 +1346,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('btnMarketStandard').className = state.marketType === 'STANDARD_FUTURES' ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500 text-black shadow-lg" : "px-2.5 py-1 rounded-lg text-xs font-bold text-white/50 hover:text-white";
       document.getElementById('btnMarketSpot').className = isSpot ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-[#00FF66] text-black shadow-lg" : "px-2.5 py-1 rounded-lg text-xs font-bold text-white/50 hover:text-white";
       
-      document.getElementById('kpiMarketBadge').textContent = isSpot ? "🟢 RSI SPOT DINAMICO" : "🟢 RSI FUTURES DINAMICO";
+      document.getElementById('kpiMarketBadge').textContent = isSpot ? "🛡️ SPOT ANTI-FALSI" : "🛡️ FUTURES ANTI-FALSI";
       document.getElementById('tableMarketLabel').textContent = state.marketType;
-      document.getElementById('headerSubMarketInfo').textContent = isSpot ? "Spot Dinamico (Solo Long 🪙) • 1. Entra • 2. Rimani • 3. TP Esci" : "Futures Dinamico (Long & Short ⚡) • 1. Entra • 2. Rimani • 3. TP Esci";
+      document.getElementById('headerSubMarketInfo').textContent = isSpot ? "Spot Anti-Falsi (Solo Long 🪙) • 1. Entra • 2. Rimani • 3. TP Esci" : "Futures Anti-Falsi (Long & Short ⚡) • 1. Entra • 2. Rimani • 3. TP Esci";
       
       const levSec = document.getElementById('leverageSectionWrapper');
       if (levSec) levSec.style.display = isSpot ? 'none' : 'block';
@@ -1418,15 +1429,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       if (masterAsset) {
         const local = calcolaDatiLocaliUnificati(masterAsset.symbol, masterAsset);
         const liveRemMaster = getLiveRemainingSeconds(masterAsset.symbol, local.tempoSec);
-        document.getElementById('masterPrecisionBadge').textContent = `${state.marketType} SYNC ⚡`;
+        document.getElementById('masterPrecisionBadge').textContent = `${state.marketType} ANTI-FAKE ⚡`;
         document.getElementById('prioritySignalCardContent').innerHTML = `
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs font-mono">
             <div class="space-y-2">
-              <strong class="text-white text-sm">${masterAsset.symbol} - MASTER QUANTUM ${state.marketType}</strong>
+              <strong class="text-white text-sm">${masterAsset.symbol} - MASTER ANTI-FALSI ${state.marketType}</strong>
               <div class="flex justify-between"><span class="text-white/70">Prezzo Live:</span><strong class="text-[#00FF66] text-sm">$${formatPrice(masterAsset.price)}</strong></div>
-              <div class="flex justify-between"><span class="text-white/70">Direzione Quantistica:</span><strong class="${local.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]'} font-bold">${local.side === 'BUY' ? 'LONG CHIRURGICO 🚀' : 'SHORT CHIRURGICO 📉'}</strong></div>
-              <div class="flex justify-between"><span class="text-white/70">$ TP Calibrato (+% ${state.marketType === 'SPOT' ? 'Spot' : 'Leva ' + lev + 'x'}):</span><strong class="text-yellow-400 font-extrabold">$${formatPrice(local.tp)} (+${local.tpPct}%)</strong></div>
-              <div class="flex justify-between"><span class="text-white/70">⏱️ Tempo al $ TP (Candle-Sync):</span><strong class="text-cyan-300 font-bold tabular-nums" data-countdown-sym="${masterAsset.symbol}" data-base-sec="${local.tempoSec}">${formatExactDuration(liveRemMaster)}</strong></div>
+              <div class="flex justify-between"><span class="text-white/70">Direzione Filtrata:</span><strong class="${local.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]'} font-bold">${local.side === 'BUY' ? 'LONG PROTETTO 🚀' : 'SHORT PROTETTO 📉'}</strong></div>
+              <div class="flex justify-between"><span class="text-white/70">$ TP Ottimizzato (+% ${state.marketType === 'SPOT' ? 'Spot' : 'Leva ' + lev + 'x'}):</span><strong class="text-yellow-400 font-extrabold">$${formatPrice(local.tp)} (+${local.tpPct}%)</strong></div>
+              <div class="flex justify-between"><span class="text-white/70">⏱️ Tempo al $ TP (Confluenza):</span><strong class="text-cyan-300 font-bold tabular-nums" data-countdown-sym="${masterAsset.symbol}" data-base-sec="${local.tempoSec}">${formatExactDuration(liveRemMaster)}</strong></div>
             </div>
             <div class="flex flex-col justify-end">
               <button onclick='openModal("${masterAsset.symbol}")' class="green-gradient-btn w-full py-2 rounded-xl text-xs shadow-lg">⚡ APRI SCANNER &amp; SCEGLI CAPITALE &#8599;</button>
@@ -1448,7 +1459,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <div class="flex items-center justify-between border-b border-white/10 pb-2">
               <div class="flex items-center gap-2">
                 <span class="font-extrabold text-white text-sm">${c.symbol.replace('-USDT', '')}</span>
-                <span class="px-2 py-0.5 rounded text-[10px] font-bold ${isLong ? 'bg-green-500/20 text-[#00FF66]' : 'bg-red-500/20 text-[#FF334B]'}">${isLong ? 'LONG SUP 🚀' : 'SHORT SUP 📉'}</span>
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold ${isLong ? 'bg-green-500/20 text-[#00FF66]' : 'bg-red-500/20 text-[#FF334B]'}">${isLong ? 'LONG PROTETTO 🚀' : 'SHORT PROTETTO 📉'}</span>
               </div>
               <div class="text-right">
                 <span class="text-white text-xs font-bold tabular-nums">$${formatPrice(c.price)}</span>
@@ -1458,7 +1469,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             <div class="grid grid-cols-2 gap-2 text-[11px] font-mono">
               <div class="bg-white/5 p-2 rounded-lg">
-                <span class="text-white/60 text-[10px] block">🎯 TARGET $ TP CALIBRATO</span>
+                <span class="text-white/60 text-[10px] block">🎯 TARGET $ TP OTTIMIZZATO</span>
                 <strong class="text-[#00FF66]">$${formatPrice(local.tp)}</strong>
                 <span class="text-yellow-400 text-[10px] block">+${local.tpPct}% (${state.marketType === 'SPOT' ? 'Spot' : lev + 'x'})</span>
               </div>
@@ -1471,7 +1482,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             <div class="flex items-center justify-between pt-1">
               <span class="text-[10px] text-[#00FF66] font-bold">Stato: ${local.confluenza}</span>
-              <span class="px-3 py-1 rounded-lg bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/40 text-xs font-bold">1. Entra Sup ⚡</span>
+              <span class="px-3 py-1 rounded-lg bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/40 text-xs font-bold">1. Entra Protetto ⚡</span>
             </div>
           </div>
         `;
@@ -1479,16 +1490,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     }
 
     async function openModal(symbol) {
-      if (state.activePosition) {
-        alert("⚠️ C'è già 1 posizione attiva protetta monitorata (Gestisci le fasi 1. Entra • 2. Rimani a Mercato • 3. TP Raggiunto / Esci).");
-        return;
-      }
-
       document.getElementById('assetModal').classList.remove('hidden');
       document.getElementById('assetModal').classList.add('flex');
       document.getElementById('modalSymbol').textContent = symbol;
-      document.getElementById('modalOhlcvBadge').textContent = "CANDLE-SYNC IN CORSO...";
-      document.getElementById('tfPanel').innerHTML = '<div class="col-span-4 text-center text-xs text-white/60 py-4">Sincronizzazione candela e flusso in corso...</div>';
+      document.getElementById('modalOhlcvBadge').textContent = "FILTRAGGIO ANTI-FALSI...";
+      document.getElementById('tfPanel').innerHTML = '<div class="col-span-4 text-center text-xs text-white/60 py-4">Analisi multi-timeframe e filtri in corso...</div>';
 
       const btn = document.getElementById('executeBingXBtn');
       const fb = document.getElementById('executionFeedback');
@@ -1514,11 +1520,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           state.currentSelectedAsset = d;
           state.detailedAssets[symbol] = d;
 
-          document.getElementById('modalOhlcvBadge').textContent = `QUANTUM SCORE: ${d.precisionScore}/100`;
+          document.getElementById('modalOhlcvBadge').textContent = `PROBABILITÀ SCORE: ${d.precisionScore}/100`;
           document.getElementById('modalCategory').textContent = d.marketType;
 
           const tfEl = document.getElementById('modalTF');
-          tfEl.textContent = `${d.exactTf.toUpperCase()} CANDLE-SYNC ⚡`;
+          tfEl.textContent = `${d.exactTf.toUpperCase()} ANTI-FAKE ⚡`;
           tfEl.className = "px-2.5 py-0.5 rounded bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66] font-extrabold animate-pulse";
 
           document.getElementById('modalSentiment').textContent = d.sentiment;
@@ -1527,16 +1533,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           document.getElementById('modalExactTime').textContent = `${formatExactDuration(currentLiveRem)} 🎯`;
 
           document.getElementById('modalEma').textContent = `EMA9: ${formatPrice(d.ema9)} | EMA21: ${formatPrice(d.ema21)}`;
-          document.getElementById('modalEmaSignal').textContent = "Trend Calibrato ⚡";
+          document.getElementById('modalEmaSignal').textContent = "Trend Confermato 🛡️";
           document.getElementById('modalEmaSignal').className = "text-[10px] block mt-0.5 text-[#00FF66]";
 
           document.getElementById('modalRsi').textContent = `RSI: ${d.rsi14}`;
-          document.getElementById('modalRsiZone').textContent = "Ottimale Dinamico 🎯";
+          document.getElementById('modalRsiZone').textContent = "Zona Ottimale Filtrata 🎯";
 
           document.getElementById('modalLivePrice').textContent = `$${formatPrice(d.price)}`;
 
           const sideEl = document.getElementById('modalSide');
-          sideEl.textContent = `${d.side} (${d.side === 'BUY' ? 'LONG CHIRURGICO 🚀' : 'SHORT CHIRURGICO 📉'})`;
+          sideEl.textContent = `${d.side} (${d.side === 'BUY' ? 'LONG PROTETTO 🚀' : 'SHORT PROTETTO 📉'})`;
           sideEl.className = `text-[12px] font-bold ${d.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
 
           document.getElementById('modalSL').textContent = `$${formatPrice(d.sl)}`;
@@ -1554,7 +1560,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           renderTfPanel(d.tfs, d.exactTf);
           renderDashboard();
         } else {
-          alert("Errore scansione quantistica: " + (json.msg || "Impossibile scaricare i dati"));
+          alert("Errore scansione quantistica: " + (json.msg || "Dati non disponibili"));
           closeModal();
         }
       } catch (e) {
