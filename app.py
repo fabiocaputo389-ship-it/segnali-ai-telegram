@@ -257,12 +257,12 @@ def get_live_market_data(market_type: str = "FUTURES"):
     except Exception as e:
         print(f"[MARKET ERROR] {e}")
     
+    # Fallback di sicurezza se l'API principale rallenta
     return {
         "BTC-USDT": {"price": 92450.0, "change24h": 3.45, "volume": 1500000000, "category": "Criptovalute", "marketType": market_type},
         "ETH-USDT": {"price": 3420.0, "change24h": 2.15, "volume": 800000000, "category": "Criptovalute", "marketType": market_type},
         "SOL-USDT": {"price": 195.5, "change24h": 5.82, "volume": 600000000, "category": "Criptovalute", "marketType": market_type},
         "XRP-USDT": {"price": 2.45, "change24h": 4.12, "volume": 400000000, "category": "Criptovalute", "marketType": market_type},
-        "SUI-USDT": {"price": 3.85, "change24h": 8.40, "volume": 350000000, "category": "Criptovalute", "marketType": market_type},
         "GOLD-USDT": {"price": 2890.0, "change24h": 1.20, "volume": 300000000, "category": "Materie Prime", "marketType": market_type}
     }
 
@@ -382,6 +382,7 @@ def api_deep_scan():
     mtype = request.args.get("marketType", MARKET_TYPE).upper()
     res_data = calcola_parametri_quantistici_unificati(simbolo, mtype)
     if not res_data:
+        # Fallback calcolo istantaneo se le kline falliscono
         res_data = {
             "symbol": simbolo, "marketType": mtype, "price": 92450.0, "side": "BUY",
             "sentiment": "Quantum High-Probability 🚀 (RSI Long>=56)", "confluenza": "Filtro Anti-Falso Segnale Multi-TF Attivo 🎯",
@@ -556,19 +557,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <!-- CONTENITORE POSIZIONI & ADVISOR VOCALE LIVE -->
     <div id="activePositionsContainer" class="space-y-3"></div>
 
-    <!-- CASELLA DEDICATA: PRINCIPALI CRIPTOVALUTE TOP (BTC, ETH, SOL, XRP, SUI) -->
-    <section class="terminal-card rounded-2xl p-4 border-2 border-[#0052CC] bg-gradient-to-r from-blue-50/50 via-white to-blue-50/50 shadow-md">
-      <div class="flex items-center justify-between pb-3 mb-3 border-b border-[#0052CC]/20">
-        <h2 class="text-sm font-extrabold uppercase tracking-wider text-[#0052CC] flex items-center gap-2">
-          <span>🪙</span> Principali Criptovalute Top (BTC, ETH, SOL, XRP, SUI) in Primo Piano
-        </h2>
-        <span class="text-[10px] font-mono font-bold bg-[#0052CC]/10 text-[#0052CC] px-2.5 py-1 rounded border border-[#0052CC]/30">Live BingX Sync 🚀</span>
-      </div>
-      <div id="topCryptoGrid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <!-- Popolato dinamicamente -->
-      </div>
-    </section>
-
     <!-- KPI DINAMICI -->
     <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between border-t-2 border-[#0052CC]">
@@ -611,7 +599,19 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
         <span id="masterPrecisionBadge" class="px-2.5 py-1 rounded-md text-xs font-mono font-extrabold bg-[#00A859] text-white shadow-sm animate-pulse">ANTI-FAKE SYNC 🚀</span>
       </div>
-      <div id="prioritySignalCardContent"></div>
+      <div id="prioritySignalCardContent">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs font-mono">
+          <div class="space-y-1">
+            <strong class="text-[#1A202C] text-sm">BTC-USDT - MASTER</strong>
+            <div class="flex justify-between"><span class="text-[#4A5568]">Prezzo:</span><strong class="text-[#00A859]">$92,450.00</strong></div>
+            <div class="flex justify-between"><span class="text-[#4A5568]">Direzione:</span><strong class="text-[#00A859]">BUY</strong></div>
+            <div class="flex justify-between"><span class="text-[#4A5568]">$ TP:</span><strong class="text-[#D69E2E]">$94,800.00 (+7.5%)</strong></div>
+          </div>
+          <div class="flex flex-col justify-end">
+            <button onclick='openModal("BTC-USDT")' class="green-gradient-btn w-full py-2 rounded-xl text-xs shadow-md">⚡ APRI SCANNER MT4 &amp; ADVISOR LIVE</button>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- FILTRI E RICERCA -->
@@ -643,7 +643,19 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           </h2>
           <span class="text-xs font-mono text-[#00A859] font-bold">Minimo 2$ per ordine BingX</span>
         </div>
-        <div id="tablesContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+        <div id="tablesContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <!-- Fallback card iniziale per evitare schermata vuota -->
+          <div onclick='openModal("BTC-USDT")' class="bg-white border border-[#CBD5E1] hover:border-[#00A859] rounded-xl p-3.5 cursor-pointer transition-all space-y-2 shadow-sm">
+            <div class="flex items-center justify-between border-b border-[#CBD5E1] pb-2">
+              <span class="font-extrabold text-[#1A202C] text-sm">BTC</span>
+              <span class="text-xs font-bold tabular-nums text-[#00A859]">+3.45%</span>
+            </div>
+            <div class="flex justify-between text-xs font-mono">
+              <span class="text-[#00A859] font-bold">TP: $94,800.00 (+7.5%)</span>
+              <span class="text-[#E53E3E] font-bold">SL: $91,500.00</span>
+            </div>
+          </div>
+        </div>
       </section>
 
       <aside class="xl:col-span-3 terminal-card rounded-2xl flex flex-col overflow-hidden">
@@ -842,7 +854,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         "ETH-USDT": { price: 3420.0, change24h: 2.15, volume: 800000000, category: "Criptovalute", marketType: "FUTURES" },
         "SOL-USDT": { price: 195.5, change24h: 5.82, volume: 600000000, category: "Criptovalute", marketType: "FUTURES" },
         "XRP-USDT": { price: 2.45, change24h: 4.12, volume: 400000000, category: "Criptovalute", marketType: "FUTURES" },
-        "SUI-USDT": { price: 3.85, change24h: 8.40, volume: 350000000, category: "Criptovalute", marketType: "FUTURES" },
         "GOLD-USDT": { price: 2890.0, change24h: 1.20, volume: 300000000, category: "Materie Prime", marketType: "FUTURES" }
       },
       detailedAssets: {},
@@ -1332,7 +1343,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             state.marketData = json.data;
             renderDashboard();
             renderLiveTickerMarquee();
-            renderTopCryptoBox();
           }
         }
       } catch (e) {}
@@ -1351,30 +1361,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>`;
       }).join('');
       document.getElementById('liveTickerMarquee').innerHTML = items + items;
-    }
-
-    function renderTopCryptoBox() {
-      const topSymbols = ["BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT", "SUI-USDT"];
-      const container = document.getElementById('topCryptoGrid');
-      if (!container) return;
-
-      container.innerHTML = topSymbols.map(sym => {
-        const item = state.marketData[sym] || { price: 0, change24h: 0 };
-        const shortName = sym.replace('-USDT', '');
-        const isBull = item.change24h >= 0;
-        return `
-          <div onclick='openModal("${sym}")' class="bg-white border border-[#CBD5E1] hover:border-[#0052CC] rounded-xl p-3 cursor-pointer transition-all space-y-1.5 shadow-sm">
-            <div class="flex items-center justify-between">
-              <span class="font-extrabold text-sm text-[#1A202C]">${shortName}</span>
-              <span class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${isBull ? 'bg-[#00A859]/15 text-[#00A859]' : 'bg-[#E53E3E]/15 text-[#E53E3E]'}">
-                ${isBull ? '+' : ''}${item.change24h.toFixed(2)}%
-              </span>
-            </div>
-            <div class="text-xs font-mono font-bold text-[#0052CC]">$${formatPrice(item.price)}</div>
-            <div class="text-[10px] text-[#718096]">⚡ MT4 Pro Advisor</div>
-          </div>
-        `;
-      }).join('');
     }
 
     function renderDashboard() {
@@ -1481,7 +1467,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const minNotionalQty = 2.0 / (asset.price * (lev || 1));
       if (qty < minNotionalQty) {
         qty = minNotionalQty;
-        document.getElementById('tradeQuantityInput'].value = qty;
+        document.getElementById('tradeQuantityInput').value = qty;
       }
 
       const keys = getStoredApiKeys();
@@ -1509,7 +1495,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       updateMarketTypeUI();
       renderDashboard();
       renderLiveTickerMarquee();
-      renderTopCryptoBox();
       await pollMarketData();
       setInterval(pollMarketData, 2000);
       setInterval(() => {
