@@ -34,42 +34,33 @@ def _genera_firma(payload: dict, secret_key: str) -> str:
 
 
 # ==========================================
-# GESTIONE ORARIA & FINESTRE DI TRADING REALI
+# GESTIONE ORARIA & BORSE MONDIALI IN TEMPO REALE
 # ==========================================
-def verifica_finestra_temporale_sicura() -> tuple[bool, str, str, str]:
+def verifica_finestra_temporale_sicura() -> tuple[bool, str, str, str, str]:
     """
-    Ritorna: (is_safe, messaggio_stato, orario_inizio, orario_fine)
-    Fasce protette e borse mondiali (CET/Roma):
-    - 01:00 – 09:00: Sessione Asiatica (Accumulazione / Laterale)
-    - 08:45 – 09:30: Apertura Borse Europee (Caccia agli stop)
-    - 09:30 – 14:15: Mattinata Europea (Top Liquidità / Trend puliti)
-    - 14:15 – 15:20: Transizione Pre-Wall Street
-    - 15:20 – 16:00: Apertura Wall Street (Strappi violenti / False rotture)
-    - 16:00 – 21:30: Pomeriggio / Sera USA (Finestra Altamente Redditizia)
-    - 21:30 – 01:15: Chiusura USA / Calo liquidità notturna
+    Ritorna: (is_safe, messaggio_stato, borsa_riferimento, orario_inizio, orario_fine)
     """
     try:
         tz_roma = pytz.timezone("Europe/Rome")
         adesso = datetime.now(tz_roma)
         ora_minuto = adesso.strftime("%H:%M")
         
+        if "01:00" <= ora_minuto < "09:00":
+            return True, "🟢 Sessione Asiatica (Accumulazione / Laterale)", "Borsa di Tokyo / Sydney", "01:00", "09:00"
         if "08:45" <= ora_minuto <= "09:30":
-            return False, "⚠️ Apertura Borse Europee (Caccia agli stop / Volatilità iniziale)", "09:30", "14:15"
-        if "15:20" <= ora_minuto <= "16:00":
-            return False, "⚠️ Apertura Wall Street (Strappi violenti / False rotture)", "16:00", "21:30"
-        if ora_minuto >= "21:30" or ora_minuto <= "01:15":
-            return False, "⚠️ Chiusura USA / Calo liquidità serale e notturna", "09:30 (Domani)", "14:15"
-            
+            return False, "⚠️ Apertura Borse Europee (Caccia agli stop in corso)", "Borse Europee (Londra/Francoforte)", "09:30", "14:15"
         if "09:30" <= ora_minuto < "14:15":
-            return True, "🟢 Finestra Mattutina Ottimale (Londra / Europa - Top Volumi)", "09:30", "14:15"
-        elif "14:15" <= ora_minuto < "15:20":
-            return True, "🟢 Finestra di Transizione Pre-Wall Street", "14:15", "15:20"
-        elif "16:00" <= ora_minuto < "21:30":
-            return True, "🟢 Finestra Pomeridiana / Sera USA (Altamente Redditizia)", "16:00", "21:30"
-        else:
-            return True, "🟢 Sessione Asiatica / Accumulpativa (Bassa volatilità)", "01:00", "09:00"
+            return True, "🟢 Mattinata Europea: Momento Ottimale per Aprire Posizioni", "Borsa di Londra (Top Liquidità)", "09:30", "14:15"
+        if "14:15" <= ora_minuto < "15:20":
+            return True, "🟢 Transizione Pre-Wall Street (Studio livelli)", "Mercato Globale / USA Pre-Market", "14:15", "15:20"
+        if "15:20" <= ora_minuto <= "16:00":
+            return False, "⚠️ Apertura Wall Street (Strappi violenti / False rotture)", "Borsa di New York (Wall Street)", "16:00", "21:30"
+        if "16:00" <= ora_minuto < "21:30":
+            return True, "🟢 Pomeriggio / Sera USA: Finestra Altamente Redditizia", "Borsa di New York (Wall Street)", "16:00", "21:30"
+        
+        return False, "⚠️ Chiusura USA / Calo liquidità notturna", "Mercati Chiusi / Notturni", "09:30 (Domani)", "14:15"
     except Exception:
-        return True, "🟢 Finestra operativa standard", "09:30", "21:30"
+        return True, "🟢 Finestra operativa standard", "Mercato Globale 24/7", "09:30", "21:30"
 
 
 # ==========================================
@@ -229,13 +220,16 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type):
     tempo_esatto_sec = int(max(30, min(10800, round(dist_tp / velocita_reale))))
     timestamp_ultima_candela = int(ultima_candela["time"])
 
-    is_safe, time_msg, start_t, end_t = verifica_finestra_temporale_sicura()
+    is_safe, time_msg, borsa_rif, start_t, end_t = verifica_finestra_temporale_sicura()
     score_precisione = 99.8 if (base["trend"] != "NEUTRO" and is_safe) else (85.0 if is_safe else 60.0)
+    momento_giusto = is_safe and base["trend"] != "NEUTRO"
 
     return {
         "symbol": simbolo, "marketType": market_type, "price": round(price, dec), "side": side,
         "sentiment": f"Quantum {market_type} 🚀 (RSI Dinamico Long>={base.get('sogliaLong', 55)})" if side == "BUY" else f"Quantum {market_type} 📉 (RSI Dinamico Short<={base.get('sogliaShort', 45)})",
         "confluenza": f"{time_msg} 🎯",
+        "borsaRif": borsa_rif,
+        "momentoGiusto": momento_giusto,
         "exactTf": exact_tf, "precisionScore": score_precisione,
         "ema9": round(base["ema9"], dec), "ema21": round(base["ema21"], dec),
         "rsi14": base["rsi14"], "atr14": round(atr_breve, dec), "sl": sl, "tp": tp,
@@ -439,13 +433,14 @@ def set_trading_mode():
 
 @app.route('/api/get-mode', methods=['GET'])
 def get_trading_mode():
-    is_safe, time_msg, start_t, end_t = verifica_finestra_temporale_sicura()
+    is_safe, time_msg, borsa_rif, start_t, end_t = verifica_finestra_temporale_sicura()
     return jsonify({
         "code": 0,
         "mode": TRADING_MODE,
         "marketType": MARKET_TYPE,
         "isSafeTime": is_safe,
         "timeMsg": time_msg,
+        "borsaRif": borsa_rif,
         "sessionStart": start_t,
         "sessionEnd": end_t
     })
@@ -483,7 +478,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           colors: {
             obsidian: { 950: '#000000', 900: '#08080A', 850: '#0E0E11', 800: '#141418', 700: '#1E1E24' },
             emeraldNeon: '#00FF66',
-            rubyNeon: '#FF334B'
+            rubyNeon: '#FF334B',
+            goldNeon: '#FFD700'
           }
         }
       }
@@ -494,13 +490,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: #000000; }
     ::-webkit-scrollbar-thumb { background: rgba(0, 255, 102, 0.35); border-radius: 9999px; }
-    @keyframes neonGlowPulse { 0%, 100% { box-shadow: 0 0 20px rgba(0, 255, 102, 0.4), inset 0 0 12px rgba(0, 255, 102, 0.15); border-color: rgba(0, 255, 102, 0.8); } 50% { box-shadow: 0 0 35px rgba(0, 255, 102, 0.7), inset 0 0 20px rgba(0, 255, 102, 0.35); border-color: #00FF66; } }
+    @keyframes neonGlowPulse { 0%, 100% { box-shadow: 0 0 25px rgba(0, 255, 102, 0.5), inset 0 0 15px rgba(0, 255, 102, 0.2); border-color: rgba(0, 255, 102, 0.9); } 50% { box-shadow: 0 0 45px rgba(0, 255, 102, 0.9), inset 0 0 25px rgba(0, 255, 102, 0.4); border-color: #00FF66; } }
+    @keyframes goldGlowPulse { 0%, 100% { box-shadow: 0 0 30px rgba(255, 215, 0, 0.7), inset 0 0 15px rgba(255, 215, 0, 0.3); border-color: #FFD700; background: rgba(50, 45, 10, 0.95); } 50% { box-shadow: 0 0 50px rgba(255, 215, 0, 1); border-color: #FFD700; background: rgba(80, 70, 15, 0.98); } }
     @keyframes criticalPulse { 0%, 100% { box-shadow: 0 0 25px rgba(255, 51, 75, 0.8), inset 0 0 15px rgba(255, 51, 75, 0.3); border-color: #FF334B; background: rgba(50, 10, 15, 0.95); } 50% { box-shadow: 0 0 45px rgba(255, 51, 75, 1); border-color: #FF334B; background: rgba(80, 15, 20, 0.98); } }
     @keyframes dollarRotateGlow { 0% { transform: scale(1) rotate(0deg); filter: drop-shadow(0 0 8px #00FF66); } 50% { transform: scale(1.15) rotate(10deg); filter: drop-shadow(0 0 20px #00FF66); } 100% { transform: scale(1) rotate(0deg); filter: drop-shadow(0 0 8px #00FF66); } }
     .dollar-animated-logo { display: inline-block; animation: dollarRotateGlow 2.5s infinite ease-in-out; }
     .priority-signal-box { background: linear-gradient(180deg, rgba(8, 24, 15, 0.98) 0%, rgba(4, 12, 8, 0.99) 100%); border: 2px solid #00FF66; animation: neonGlowPulse 3s infinite ease-in-out; }
-    .critical-box-mode { animation: criticalPulse 1.2s infinite ease-in-out !important; border: 2px solid #FF334B !important; }
-    .tf-illuminated { box-shadow: 0 0 20px rgba(0, 255, 102, 0.85), inset 0 0 14px rgba(0, 255, 102, 0.3); border: 2px solid #00FF66 !important; background: rgba(0, 255, 102, 0.15) !important; }
+    .gold-highlight-card { border: 2px solid #FFD700 !important; animation: goldGlowPulse 2s infinite ease-in-out !important; }
     .terminal-card { background: linear-gradient(180deg, rgba(14, 14, 17, 0.98) 0%, rgba(8, 8, 10, 0.99) 100%); border: 1px solid rgba(255, 255, 255, 0.16); box-shadow: 0 8px 32px -6px rgba(0, 0, 0, 0.95); }
     .green-gradient-btn { background: linear-gradient(135deg, #00FF66 0%, #00CC52 100%); color: #000000; font-weight: 800; }
     .bingx-btn { background: linear-gradient(135deg, #0066FF 0%, #0044BB 100%); color: #FFFFFF; font-weight: 800; }
@@ -570,36 +566,36 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <!-- MAIN -->
   <main class="flex-1 max-w-[1920px] w-full mx-auto px-3 sm:px-5 py-4 flex flex-col gap-4">
 
-    <!-- BANNER ORARIO E SESSIONI DI TRADING (BORSE MONDIALI) -->
+    <!-- BANNER ORARIO E BORSE MONDIALI CON AVVISO APERTURA POSIZIONI -->
     <div id="timeSafetyBanner" class="terminal-card rounded-2xl p-4 border border-[#00FF66]/50 bg-emerald-950/20 flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
       <div class="flex items-center gap-3">
         <span id="timeBannerDot" class="w-3 h-3 rounded-full bg-[#00FF66] animate-pulse"></span>
         <div>
-          <strong id="timeBannerTitle" class="text-white text-sm block">SESSIONE DI TRADING &amp; ORARI BORSE MONDIALI: OTTIMALE 🚀</strong>
+          <strong id="timeBannerTitle" class="text-white text-sm block">SESSIONE DI TRADING &amp; BORSA: OTTIMALE 🚀</strong>
           <span id="timeBannerText" class="text-[#00FF66]">Finestra sicura attiva. Pronto per operare.</span>
         </div>
       </div>
       <div class="flex items-center gap-4 bg-black/60 px-4 py-2 rounded-xl border border-white/10">
         <div>
-          <span class="text-[10px] text-white/60 block">⏰ INIZIO SESSIONE</span>
-          <strong id="sessionStartLabel" class="text-cyan-300 font-bold">09:30 CET</strong>
+          <span class="text-[10px] text-white/60 block">🏛️ BORSA ATTIVA</span>
+          <strong id="bannerBorsaLabel" class="text-[#00FF66] font-bold">Borsa di Londra</strong>
         </div>
         <span class="text-white/40">|</span>
         <div>
-          <span class="text-[10px] text-white/60 block">🏁 FINE SESSIONE</span>
-          <strong id="sessionEndLabel" class="text-yellow-400 font-bold">21:30 CET</strong>
+          <span class="text-[10px] text-white/60 block">🎯 MOMENTO APERTURA POSIZIONI</span>
+          <strong id="bannerMomentoLabel" class="text-[#FFD700] font-bold animate-pulse">FAVOREVOLE 🟡</strong>
         </div>
-        <button onclick="testVoiceAlarm()" class="ml-2 px-3 py-1.5 rounded-lg bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/40 hover:bg-[#00FF66]/30 text-xs font-bold transition-all">
-          🔊 Test Orari &amp; Vocale
+        <button onclick="mostraFinestraGuidaOraria()" class="ml-2 px-3 py-1.5 rounded-lg bg-[#FFD700]/20 text-[#FFD700] border border-[#FFD700]/40 hover:bg-[#FFD700]/30 text-xs font-bold transition-all">
+          📢 Apri Finestra Advisor Orario
         </button>
       </div>
     </div>
 
-    <!-- TABELLA ORARI E MOMENTI MIGLIORI PER IL GUADAGNO -->
+    <!-- TABELLA ORARI E MOMENTI OTTIMALI PER TRADARE -->
     <section class="terminal-card rounded-2xl p-4 space-y-3">
       <div class="flex items-center justify-between border-b border-white/15 pb-2">
-        <h2 class="text-xs font-extrabold text-[#00FF66] uppercase tracking-wider flex items-center gap-2">
-          <span>📋 Guida Oraria Ufficiale: Borse Mondiali e Momenti Migliori per il Guadagno (CET)</span>
+        <h2 class="text-xs font-extrabold text-[#FFD700] uppercase tracking-wider flex items-center gap-2">
+          <span>📋 Tabella Ufficiale: Momenti Ottimali in Oro per Aprire Posizioni (Borse Mondiali CET)</span>
         </h2>
         <span class="text-[10px] text-white/60 font-mono">Guida Vocale &amp; Visiva Integrata</span>
       </div>
@@ -607,46 +603,46 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <table class="w-full text-left text-xs font-mono">
           <thead>
             <tr class="border-b border-white/15 text-white/60 text-[10px]">
-              <th class="py-2 px-2">SESSIONE / BORSA</th>
+              <th class="py-2 px-2">SESSIONE / BORSA DI RIFERIMENTO</th>
               <th class="py-2 px-2">ORARIO (CET)</th>
-              <th class="py-2 px-2">CARATTERISTICHE &amp; MOMENTI MIGLIORI</th>
+              <th class="py-2 px-2">MOMENTO PER APRIRE POSIZIONI &amp; STRATEGIA</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-white/10 text-white/90">
             <tr>
               <td class="py-2 px-2 text-white font-bold">Sessione Asiatica (Tokyo / Sydney)</td>
               <td class="py-2 px-2 text-cyan-300">01:00 – 09:00</td>
-              <td class="py-2 px-2 text-white/80">Fase laterale o di accumulazione. Ottimo per posizionamenti tranquilli.</td>
+              <td class="py-2 px-2 text-white/80">Fase laterale o di accumulazione. Utile per studio livelli, volatilità bassa.</td>
             </tr>
-            <tr class="bg-red-950/20">
+            <tr class="bg-red-950/25">
               <td class="py-2 px-2 text-[#FF334B] font-bold">⚠️ Apertura Borse Europee</td>
               <td class="py-2 px-2 text-[#FF334B]">08:45 – 09:30</td>
-              <td class="py-2 px-2 text-[#FF334B]">Caccia agli stop e alta volatilità iniziale. Consigliato attendere le 09:30.</td>
+              <td class="py-2 px-2 text-[#FF334B]"><strong>Sconsigliato:</strong> Caccia agli stop iniziale. Attendere le 09:30.</td>
             </tr>
-            <tr class="bg-emerald-950/30">
-              <td class="py-2 px-2 text-[#00FF66] font-bold">🟢 Mattinata Europea (Top Liquidità)</td>
-              <td class="py-2 px-2 text-[#00FF66]">09:30 – 14:15</td>
-              <td class="py-2 px-2 text-[#00FF66]">Finestra ottimale: trend puliti, massimi volumi istituzionali e alta precisione.</td>
+            <tr class="bg-amber-950/40 border-l-4 border-[#FFD700]">
+              <td class="py-2 px-2 text-[#FFD700] font-bold">🟡 Mattinata Europea (Top Liquidità)</td>
+              <td class="py-2 px-2 text-[#FFD700]">09:30 – 14:15</td>
+              <td class="py-2 px-2 text-[#FFD700]"><strong>Momento Ottimale in ORO:</strong> Trend puliti e volumi istituzionali stabili su Borsa di Londra.</td>
             </tr>
             <tr>
               <td class="py-2 px-2 text-white font-bold">Transizione Pre-Wall Street</td>
               <td class="py-2 px-2 text-cyan-300">14:15 – 15:20</td>
-              <td class="py-2 px-2 text-white/80">Fase di attesa e posizionamento in vista dell'apertura americana.</td>
+              <td class="py-2 px-2 text-white/80">Fase di preparazione e posizionamento in attesa dell'apertura di New York.</td>
             </tr>
-            <tr class="bg-red-950/20">
+            <tr class="bg-red-950/25">
               <td class="py-2 px-2 text-[#FF334B] font-bold">⚠️ Apertura Wall Street (USA)</td>
               <td class="py-2 px-2 text-[#FF334B]">15:20 – 16:00</td>
-              <td class="py-2 px-2 text-[#FF334B]">Strappi violenti e false rotture. Prudenza massima.</td>
+              <td class="py-2 px-2 text-[#FF334B]"><strong>Sconsigliato:</strong> Strappi violenti e false rotture sui mercati globali.</td>
             </tr>
-            <tr class="bg-emerald-950/30">
-              <td class="py-2 px-2 text-[#00FF66] font-bold">🟢 Pomeriggio / Sera USA (Altamente Redditizia)</td>
-              <td class="py-2 px-2 text-[#00FF66]">16:00 – 21:30</td>
-              <td class="py-2 px-2 text-[#00FF66]">Finestra d'oro per profitti rapidi: consolidamento dei trend di fondo.</td>
+            <tr class="bg-amber-950/40 border-l-4 border-[#FFD700]">
+              <td class="py-2 px-2 text-[#FFD700] font-bold">🟡 Pomeriggio / Sera USA (Altamente Redditizia)</td>
+              <td class="py-2 px-2 text-[#FFD700]">16:00 – 21:30</td>
+              <td class="py-2 px-2 text-[#FFD700]"><strong>Momento Ottimale in ORO:</strong> Consolidamento trend su Wall Street per profitti rapidi al TP.</td>
             </tr>
-            <tr class="bg-red-950/20">
+            <tr class="bg-red-950/25">
               <td class="py-2 px-2 text-[#FF334B] font-bold">⚠️ Chiusura USA / Notturna</td>
               <td class="py-2 px-2 text-[#FF334B]">21:30 – 01:15</td>
-              <td class="py-2 px-2 text-[#FF334B]">Calo di liquidità e spread ampi. Da evitare per nuovi ingressi.</td>
+              <td class="py-2 px-2 text-[#FF334B]"><strong>Sconsigliato:</strong> Calo di liquidità e spread ampi. Evitare nuovi ingressi.</td>
             </tr>
           </tbody>
         </table>
@@ -654,13 +650,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </section>
 
     <!-- BOX ADVISOR POSIZIONE ATTIVA -->
-    <div id="activePositionAdvisorBox" class="hidden terminal-card rounded-2xl p-4 sm:p-5 border-2 border-[#00FF66] bg-gradient-to-r from-emerald-950/40 via-[#08080A] to-emerald-950/40 shadow-2xl space-y-4">
-      <div class="flex flex-wrap items-center justify-between pb-3 border-b border-[#00FF66]/30 gap-3" id="advHeaderBox">
+    <div id="activePositionAdvisorBox" class="hidden terminal-card rounded-2xl p-4 sm:p-5 border-2 border-[#FFD700] bg-gradient-to-r from-amber-950/40 via-[#08080A] to-amber-950/40 shadow-2xl space-y-4">
+      <div class="flex flex-wrap items-center justify-between pb-3 border-b border-[#FFD700]/30 gap-3" id="advHeaderBox">
         <div class="flex items-center gap-3">
-          <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse" id="advIconSign">🔊</div>
+          <div class="w-9 h-9 rounded-xl bg-[#FFD700] text-black flex items-center justify-center font-extrabold animate-pulse" id="advIconSign">🔊</div>
           <div>
-            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white" id="advTitleMain">🟢 QUANTUM ADVISOR ATTIVO (<span id="advSymbol">BTC-USDT</span>)</h2>
-            <p class="text-[11px] text-[#00FF66]" id="advSubNotice">1. Ingresso • 2. Gestione in PnL • 3. TP Raggiunto / Esci</p>
+            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white" id="advTitleMain">🟡 QUANTUM ADVISOR ATTIVO (<span id="advSymbol">BTC-USDT</span>)</h2>
+            <p class="text-[11px] text-[#FFD700]" id="advSubNotice">1. Ingresso • 2. Gestione in PnL • 3. TP Raggiunto / Esci</p>
           </div>
         </div>
         <button onclick="chiudiPosizioneMonitorata()" class="px-3.5 py-1.5 rounded-xl bg-red-500/20 text-[#FF334B] border border-red-500/50 hover:bg-red-500/30 text-xs font-bold transition-all">
@@ -670,25 +666,25 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs font-mono">
         <div class="bg-black/50 p-3 rounded-xl border border-white/10">
-          <span class="text-white/60 text-[10px] block">1. 🟢 INGRESSO</span>
+          <span class="text-white/60 text-[10px] block">1. 🟡 INGRESSO ORO</span>
           <strong id="advEntryPrice" class="text-white text-sm">--</strong>
-          <span id="advSideBadge" class="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-green-500/20 text-[#00FF66]">LONG</span>
+          <span id="advSideBadge" class="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-[#FFD700]">LONG</span>
         </div>
         <div class="bg-black/50 p-3 rounded-xl border border-white/10">
           <span class="text-white/60 text-[10px] block">2. 📊 STATO MERCATO (PNL)</span>
           <strong id="advLivePrice" class="text-cyan-300 text-sm">--</strong>
-          <span id="advPnlVal" class="block mt-1 text-[10px] font-bold text-[#00FF66]">PnL: 0.00%</span>
+          <span id="advPnlVal" class="block mt-1 text-[10px] font-bold text-[#FFD700]">PnL: 0.00%</span>
         </div>
         <div class="bg-black/50 p-3 rounded-xl border border-white/10">
           <span class="text-white/60 text-[10px] block">🎯 TARGET TAKE PROFIT ($ TP)</span>
-          <strong id="advTargetTpDisplay" class="text-[#00FF66] text-sm">--</strong>
+          <strong id="advTargetTpDisplay" class="text-[#FFD700] text-sm">--</strong>
           <span id="advDistTp" class="block mt-1 text-[10px] text-white/80 font-bold">Distanza TP: 0.00%</span>
           <span id="advExactTimeRemaining" class="block mt-0.5 text-[10px] text-yellow-300 tabular-nums font-bold">Tempo al TP: --</span>
         </div>
         <div class="bg-black/50 p-3 rounded-xl border border-white/10 flex flex-col justify-between">
           <div>
             <span class="text-white/60 text-[10px] block">3. 🎯 USCITA / TP RAGGIUNTO</span>
-            <strong id="advStatusAdvice" class="text-[#00FF66] text-xs block mt-0.5">In attesa del TP...</strong>
+            <strong id="advStatusAdvice" class="text-[#FFD700] text-xs block mt-0.5">In attesa del TP...</strong>
           </div>
           <span id="advActionAlert" class="text-[10px] text-white/80 italic mt-1">Guida attiva per manuale e auto</span>
         </div>
@@ -707,20 +703,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
         <span class="text-[11px] font-semibold uppercase text-white/75">Modalità Operativa</span>
         <div class="mt-2">
-          <span id="kpiAutoSlotStatus" class="text-xs font-mono text-[#00FF66] font-extrabold">🟢 Pronto (Manuale / Auto)</span>
+          <span id="kpiAutoSlotStatus" class="text-xs font-mono text-[#FFD700] font-extrabold">🟡 Pronto (Manuale / Auto)</span>
         </div>
       </div>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
         <span class="text-[11px] font-semibold uppercase text-white/75">Top Mover in Tempo Reale 🔥</span>
         <div class="mt-2 flex items-baseline justify-between">
           <span id="kpiTopMoverSymbol" class="text-sm font-extrabold font-mono text-white">--</span>
-          <span id="kpiTopMoverChange" class="text-sm font-extrabold font-mono text-[#00FF66]">--%</span>
+          <span id="kpiTopMoverChange" class="text-sm font-extrabold font-mono text-[#FFD700]">--%</span>
         </div>
       </div>
       <div class="terminal-card rounded-2xl p-3.5 flex flex-col justify-between">
         <span class="text-[11px] font-semibold uppercase text-white/75">Motore Sincronizzato</span>
         <div class="mt-2">
-          <span id="kpiMarketBadge" class="text-xs font-mono text-[#00FF66] font-bold">🟢 RSI DINAMICO ATTIVO</span>
+          <span id="kpiMarketBadge" class="text-xs font-mono text-[#FFD700] font-bold">🟡 RSI DINAMICO ATTIVO</span>
         </div>
       </div>
     </section>
@@ -729,13 +725,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <section class="priority-signal-box rounded-2xl p-4 sm:p-5">
       <div class="flex items-center justify-between pb-3 mb-3 border-b border-[#00FF66]/30">
         <div class="flex items-center gap-3">
-          <div class="w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-bounce">⚡</div>
+          <div class="w-9 h-9 rounded-xl bg-[#FFD700] text-black flex items-center justify-center font-extrabold animate-bounce">⚡</div>
           <div>
-            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">⚡ SEGNALE MASTER SUPERIORE ($ TP &amp; SL 😢)</h2>
-            <p class="text-[11px] text-[#00FF66]" id="masterSubtitle">Funziona sia in inserimento manuale che automatico</p>
+            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">⚡ SEGNALE MASTER SUPERIORE IN ORO ($ TP &amp; SL 😢)</h2>
+            <p class="text-[11px] text-[#FFD700]" id="masterSubtitle">Cripto ed asset evidenziati nel momento ottimale</p>
           </div>
         </div>
-        <span id="masterPrecisionBadge" class="px-2.5 py-1 rounded-md text-xs font-mono font-extrabold bg-[#00FF66] text-black animate-pulse">CANDLE-SYNC 🚀</span>
+        <span id="masterPrecisionBadge" class="px-2.5 py-1 rounded-md text-xs font-mono font-extrabold bg-[#FFD700] text-black animate-pulse">CANDLE-SYNC ORO 🚀</span>
       </div>
       <div id="prioritySignalCardContent"></div>
     </section>
@@ -747,7 +743,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <span class="text-xs font-bold text-white/80">Filtra per Categoria di Mercato:</span>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-          <button onclick="setCategoryTab('ALL')" id="catTabALL" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#00FF66] text-black transition-all">⭐ Tutti i Mercati</button>
+          <button onclick="setCategoryTab('ALL')" id="catTabALL" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#FFD700] text-black transition-all">⭐ Tutti i Mercati</button>
           <button onclick="setCategoryTab('Criptovalute')" id="catTabCriptovalute" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-white/80 hover:text-white transition-all">🪙 Criptovalute</button>
           <button onclick="setCategoryTab('Materie Prime')" id="catTabMaterie Prime" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-white/80 hover:text-white transition-all">🛢️ Materie Prime</button>
           <button onclick="setCategoryTab('Forex / Valute')" id="catTabForex / Valute" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-white/80 hover:text-white transition-all">💱 Forex &amp; Valute</button>
@@ -755,7 +751,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
       </div>
       <div class="relative">
-        <input type="text" id="coinSearchInput" oninput="filterCoinSearch(this.value)" placeholder="🔍 Cerca Asset (es. BTC, ETH, SOL, XRP, SUI, GOLD)..." class="w-full bg-[#000000] border border-white/25 rounded-xl px-4 py-2.5 text-xs font-mono text-white outline-none focus:border-[#00FF66]" />
+        <input type="text" id="coinSearchInput" oninput="filterCoinSearch(this.value)" placeholder="🔍 Cerca Cripto o Asset (es. BTC, ETH, SOL, XRP, RENDER)..." class="w-full bg-[#000000] border border-white/25 rounded-xl px-4 py-2.5 text-xs font-mono text-white outline-none focus:border-[#FFD700]" />
       </div>
     </section>
 
@@ -764,10 +760,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <section class="xl:col-span-9 terminal-card rounded-2xl overflow-hidden flex flex-col p-4 space-y-4">
         <div class="flex items-center justify-between border-b border-white/15 pb-3">
           <h2 class="text-sm font-bold text-white flex items-center gap-3">
-            <span class="w-8 h-8 rounded-full bg-[#00FF66]/20 border border-[#00FF66] flex items-center justify-center text-[#00FF66] text-base font-extrabold dollar-animated-logo">$</span>
-            <span>📊 Lista Operativa (<span id="tableMarketLabel" class="text-[#00FF66]">FUTURES</span> - Manuale & Auto)</span>
+            <span class="w-8 h-8 rounded-full bg-[#FFD700]/20 border border-[#FFD700] flex items-center justify-center text-[#FFD700] text-base font-extrabold dollar-animated-logo">$</span>
+            <span>📊 Lista Operativa Cripto &amp; Asset (<span id="tableMarketLabel" class="text-[#FFD700]">FUTURES</span> - Manuale & Auto)</span>
           </h2>
-          <span class="text-xs font-mono text-[#00FF66]">Sincronizzato sul flusso candela per candela</span>
+          <span class="text-xs font-mono text-[#FFD700]">Le cripto ottimali brillano in ORO nel momento giusto</span>
         </div>
         <div id="tablesContainer" class="space-y-3"></div>
       </section>
@@ -775,11 +771,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <aside class="xl:col-span-3 terminal-card rounded-2xl flex flex-col overflow-hidden">
         <div class="px-4 py-3 border-b border-white/15 bg-[#08080A]">
           <h2 class="text-sm font-bold text-white flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full bg-[#00FF66] animate-ping"></span> Feed Quantistico &amp; Advisor
+            <span class="w-2 h-2 rounded-full bg-[#FFD700] animate-ping"></span> Feed Quantistico &amp; Advisor Oro
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[800px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Advisor Vocale attivo (Manuale & Auto)...</div>
+          <div class="p-2 rounded bg-white/5 text-white/70">[Quantum Engine] Advisor Oro attivo (Manuale & Auto)...</div>
         </div>
       </aside>
     </div>
@@ -787,10 +783,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
   <!-- MODALE API -->
   <div id="apiModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/90 backdrop-blur-sm p-3 overflow-y-auto">
-    <div class="bg-[#08080A] border border-[#00FF66]/40 rounded-2xl w-full max-w-[500px] shadow-2xl overflow-hidden my-auto">
+    <div class="bg-[#08080A] border border-[#FFD700]/40 rounded-2xl w-full max-w-[500px] shadow-2xl overflow-hidden my-auto">
       <div class="px-5 py-3.5 border-b border-white/15 flex items-center justify-between bg-[#000000]">
         <div>
-          <h2 class="text-base font-extrabold font-mono text-[#00FF66]">🔑 Configurazione API Key Personale</h2>
+          <h2 class="text-base font-extrabold font-mono text-[#FFD700]">🔑 Configurazione API Key Personale</h2>
           <p class="text-xs text-white/70">Collega il tuo account BingX</p>
         </div>
         <button onclick="toggleApiModal()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
@@ -798,13 +794,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <div class="p-5 space-y-4 text-xs font-mono">
         <div class="space-y-1.5">
           <label class="block text-white/80 font-bold">BingX API Key:</label>
-          <input type="text" id="userApiKeyInput" placeholder="Inserisci la tua API Key..." class="w-full bg-[#000000] border border-white/30 rounded-lg px-3 py-2 text-white font-mono text-xs focus:border-[#00FF66] outline-none" />
+          <input type="text" id="userApiKeyInput" placeholder="Inserisci la tua API Key..." class="w-full bg-[#000000] border border-white/30 rounded-lg px-3 py-2 text-white font-mono text-xs focus:border-[#FFD700] outline-none" />
         </div>
         <div class="space-y-1.5">
           <label class="block text-white/80 font-bold">BingX Secret Key:</label>
-          <input type="password" id="userSecretKeyInput" placeholder="Inserisci la tua Secret Key..." class="w-full bg-[#000000] border border-white/30 rounded-lg px-3 py-2 text-white font-mono text-xs focus:border-[#00FF66] outline-none" />
+          <input type="password" id="userSecretKeyInput" placeholder="Inserisci la tua Secret Key..." class="w-full bg-[#000000] border border-white/30 rounded-lg px-3 py-2 text-white font-mono text-xs focus:border-[#FFD700] outline-none" />
         </div>
-        <button onclick="saveUserApiKeys()" class="w-full py-2.5 rounded-xl text-xs font-bold bg-[#00FF66] text-black shadow-lg hover:bg-emerald-400 transition-all">
+        <button onclick="saveUserApiKeys()" class="w-full py-2.5 rounded-xl text-xs font-bold bg-[#FFD700] text-black shadow-lg hover:bg-amber-400 transition-all">
           Salva Credenziali API
         </button>
         <button onclick="clearUserApiKeys()" class="w-full py-1.5 rounded-xl text-xs font-bold bg-red-500/20 text-[#FF334B] border border-red-500/40 hover:bg-red-500/30 transition-all">
@@ -814,27 +810,69 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- MODALE ESECUZIONE -->
+  <!-- MODALE GUIDA ORARIO & BORSE (POPUP AUTOMATICO) -->
+  <div id="finestraGuidaOrariaModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/90 backdrop-blur-md p-3 overflow-y-auto">
+    <div class="bg-[#08080A] border-2 border-[#FFD700] rounded-2xl w-full max-w-[650px] shadow-2xl overflow-hidden my-auto p-5 space-y-4">
+      <div class="flex items-center justify-between border-b border-[#FFD700]/30 pb-3">
+        <div class="flex items-center gap-3">
+          <span class="w-9 h-9 rounded-xl bg-[#FFD700] text-black flex items-center justify-center font-extrabold animate-pulse">⏰</span>
+          <div>
+            <h2 class="text-base font-extrabold font-mono text-[#FFD700]">GUIDA ORARIA &amp; MOMENTO GIUSTO PER TRADARE</h2>
+            <p class="text-xs text-white/70">Borse Mondiali e Finestre di Ingresso Ufficiali</p>
+          </div>
+        </div>
+        <button onclick="chiudiFinestraGuidaOraria()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
+      </div>
+
+      <div class="space-y-3 text-xs font-mono">
+        <div class="bg-black/60 p-3.5 rounded-xl border border-white/15 space-y-2">
+          <div class="flex justify-between items-center"><span class="text-white/70">Stato Attuale Orario:</span><strong id="modalPopupStatoOrario" class="text-[#FFD700]">Verifica in corso...</strong></div>
+          <div class="flex justify-between items-center"><span class="text-white/70">Borsa di Riferimento:</span><strong id="modalPopupBorsa" class="text-cyan-300">--</strong></div>
+          <div class="flex justify-between items-center"><span class="text-white/70">Momento Apertura Posizioni:</span><strong id="modalPopupMomento" class="text-[#FFD700] font-extrabold">--</strong></div>
+        </div>
+
+        <div class="p-3 bg-amber-950/30 border border-[#FFD700]/40 rounded-xl space-y-1.5 text-white/90">
+          <strong class="text-[#FFD700] block">💡 Regole d'Oro per il Guadagno:</strong>
+          <p>• <strong>Mattina (09:30 - 14:15):</strong> Borsa di Londra attiva. Cripto evidenziate in <strong>ORO</strong> per aprire posizioni con trend puliti.</p>
+          <p>• <strong>Pomeriggio (16:00 - 21:30):</strong> Wall Street attiva. Alta liquidità e profitti rapidi sui target TP.</p>
+          <p>• <strong>Evitare:</strong> Aperture secche (08:45 e 15:20) per via della caccia agli stop e degli strappi violenti.</p>
+        </div>
+      </div>
+
+      <button onclick="chiudiFinestraGuidaOraria()" class="w-full py-2.5 rounded-xl text-xs shadow-lg bg-[#FFD700] text-black font-bold">
+        Ho capito, procedi al trading in Oro ⚡
+      </button>
+    </div>
+  </div>
+
+  <!-- MODALE ESECUZIONE (CON EVIDENZIAZIONE ORO PER CRIPTO & MOMENTO GIUSTO) -->
   <div id="assetModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/90 backdrop-blur-sm p-3 overflow-y-auto">
     <div class="bg-[#08080A] border border-white/30 rounded-2xl w-full max-w-[750px] shadow-2xl overflow-hidden my-auto">
       <div class="px-5 py-3.5 border-b border-white/15 flex items-center justify-between bg-[#000000]">
         <div>
           <div class="flex items-center gap-2">
-            <h2 id="modalSymbol" class="text-base font-extrabold font-mono text-white">BTC-USDT</h2>
-            <span id="modalOhlcvBadge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/40">SUPERIORE</span>
+            <!-- EVIDENZIAZIONE CRIPTO / ASSET IN ORO -->
+            <h2 id="modalSymbol" class="text-lg font-extrabold font-mono text-[#FFD700] bg-[#FFD700]/10 px-3 py-1 rounded-xl border border-[#FFD700]/50">BTC-USDT</h2>
+            <span id="modalOhlcvBadge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#FFD700]/20 text-[#FFD700] border border-[#FFD700]/40">SUPERIORE</span>
           </div>
-          <p id="modalSubtitleType" class="text-xs text-white/70">Advisor quantistico: 1. Ingresso • 2. Gestione PnL • 3. TP Raggiunto</p>
+          <p id="modalSubtitleType" class="text-xs text-white/70 mt-1">Advisor quantistico: 1. Ingresso • 2. Gestione PnL • 3. TP Raggiunto</p>
         </div>
         <button onclick="closeModal()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
       </div>
       <div class="p-5 space-y-4 text-xs font-mono">
+        <!-- BANNER EVIDENZA MOMENTO GIUSTO PER APRIRE POSIZIONI IN ORO -->
+        <div id="modalMomentoGiustoBanner" class="p-3 rounded-xl border text-center font-bold text-xs">
+          Verifica momento di mercato...
+        </div>
+
         <div class="bg-[#000000] border border-white/20 rounded-xl p-4 space-y-3">
-          <div class="flex justify-between"><span class="text-white/75">Mercato / Categoria:</span><strong id="modalCategory" class="text-[#00FF66]">--</strong></div>
+          <div class="flex justify-between"><span class="text-white/75">Mercato / Categoria:</span><strong id="modalCategory" class="text-[#FFD700]">--</strong></div>
+          <div class="flex justify-between"><span class="text-white/75">🏛️ Borsa Attiva Riferimento:</span><strong id="modalBorsaRif" class="text-cyan-300">--</strong></div>
           <div class="flex justify-between items-center">
             <span class="text-white/75">Timeframe Quantistico:</span>
-            <strong id="modalTF" class="px-2.5 py-0.5 rounded bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66] font-extrabold animate-pulse">15m ⚡</strong>
+            <strong id="modalTF" class="px-2.5 py-0.5 rounded bg-[#FFD700]/20 text-[#FFD700] border border-[#FFD700] font-extrabold animate-pulse">15m ⚡</strong>
           </div>
-          <div class="flex justify-between"><span class="text-white/75">Sentiment Superiore:</span><strong id="modalSentiment" class="text-[#00FF66] font-bold">--</strong></div>
+          <div class="flex justify-between"><span class="text-white/75">Sentiment Superiore:</span><strong id="modalSentiment" class="text-[#FFD700] font-bold">--</strong></div>
           <div class="flex justify-between border-b border-white/10 pb-2"><span class="text-white/75">⏱️ Tempo al $ TP (Candle-Sync):</span><strong id="modalExactTime" class="text-yellow-300 font-extrabold tabular-nums">--</strong></div>
 
           <div class="grid grid-cols-2 gap-2 py-2 border-b border-white/10">
@@ -854,10 +892,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div id="tfPanel" class="grid grid-cols-2 sm:grid-cols-4 gap-2 my-2"></div>
 
           <!-- TABELLA PARAMETRI MILLIMETRICI PRECISI -->
-          <div class="bg-gradient-to-r from-emerald-950/50 via-black to-emerald-950/50 border-2 border-[#00FF66] rounded-xl p-3 space-y-2 my-3 shadow-xl">
-            <div class="flex items-center justify-between border-b border-[#00FF66]/30 pb-2">
-              <span class="text-xs font-extrabold text-[#00FF66] flex items-center gap-1.5">
-                <span>📋</span> TABELLA PARAMETRI CHIRURGICI ($ TP &amp; SL 😢)
+          <div class="bg-gradient-to-r from-amber-950/50 via-black to-amber-950/50 border-2 border-[#FFD700] rounded-xl p-3 space-y-2 my-3 shadow-xl">
+            <div class="flex items-center justify-between border-b border-[#FFD700]/30 pb-2">
+              <span class="text-xs font-extrabold text-[#FFD700] flex items-center gap-1.5">
+                <span>📋</span> TABELLA PARAMETRI CHIRURGICI IN ORO ($ TP &amp; SL 😢)
               </span>
               <span class="text-[10px] text-white/70">Validi per Manuale e Auto</span>
             </div>
@@ -880,10 +918,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     </td>
                   </tr>
                   <tr>
-                    <td class="py-2 px-2 text-[#00FF66] font-bold">2. $ Take Profit (TP Rapido)</td>
-                    <td class="py-2 px-2 text-[#00FF66] font-extrabold select-all" id="tableParamTp">--</td>
+                    <td class="py-2 px-2 text-[#FFD700] font-bold">2. $ Take Profit (TP Rapido)</td>
+                    <td class="py-2 px-2 text-[#FFD700] font-extrabold select-all" id="tableParamTp">--</td>
                     <td class="py-2 px-2 text-right">
-                      <button onclick="copiaParametro('tableParamTp')" class="bg-white/10 hover:bg-white/25 px-2 py-1 rounded text-[#00FF66] text-[10px]">Copia</button>
+                      <button onclick="copiaParametro('tableParamTp')" class="bg-white/10 hover:bg-white/25 px-2 py-1 rounded text-[#FFD700] text-[10px]">Copia</button>
                     </td>
                   </tr>
                   <tr>
@@ -899,29 +937,29 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           </div>
 
           <div class="flex justify-between pt-1"><span class="text-white/75">Prezzo Live Reale:</span><strong id="modalLivePrice" class="text-white">--</strong></div>
-          <div class="flex justify-between"><span class="text-white/75">Direzione Long / Short:</span><strong id="modalSide" class="text-[#00FF66]">--</strong></div>
+          <div class="flex justify-between"><span class="text-white/75">Direzione Long / Short:</span><strong id="modalSide" class="text-[#FFD700]">--</strong></div>
           <div>
             <div class="flex justify-between"><span class="text-white/75">$ Stop Loss Protetto 😢:</span><strong id="modalSL" class="text-[#FF334B]">--</strong></div>
-            <div class="flex justify-between"><span class="text-white/75">🎯 TARGET $ TAKE PROFIT RAPIDO:</span><strong id="modalTrendingTP" class="text-[#00FF66] text-sm font-extrabold">--</strong></div>
+            <div class="flex justify-between"><span class="text-white/75">🎯 TARGET $ TAKE PROFIT RAPIDO:</span><strong id="modalTrendingTP" class="text-[#FFD700] text-sm font-extrabold">--</strong></div>
             <div class="flex justify-between mt-1"><span class="text-white/75">🔥 ROI Stimato al $ TP (Leva):</span><strong id="modalTpPct" class="text-yellow-400 font-extrabold">--</strong></div>
           </div>
         </div>
 
         <!-- SELETTORE CAPITALE / MARGINE LIBERO -->
-        <div class="bg-[#000000] border border-[#00FF66]/40 rounded-xl p-4 space-y-3">
+        <div class="bg-[#000000] border border-[#FFD700]/40 rounded-xl p-4 space-y-3">
           <div class="flex justify-between items-center">
             <label class="block text-xs font-bold text-white uppercase tracking-wider">💰 CAPITALE / MARGINE DA INVESTIRE (USDT):</label>
-            <span id="marginUsdtLabel" class="text-xs font-bold text-[#00FF66]">10 USDT</span>
+            <span id="marginUsdtLabel" class="text-xs font-bold text-[#FFD700]">10 USDT</span>
           </div>
           <div class="grid grid-cols-6 gap-1.5">
             <button type="button" onclick="setMarginUsdt(2)" id="marBtn2" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold text-xs">2 $</button>
             <button type="button" onclick="setMarginUsdt(5)" id="marBtn5" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold text-xs">5 $</button>
-            <button type="button" onclick="setMarginUsdt(10)" id="marBtn10" class="py-1.5 rounded-lg border border-[#00FF66] bg-[#00FF66]/20 text-[#00FF66] font-bold text-xs">10 $</button>
+            <button type="button" onclick="setMarginUsdt(10)" id="marBtn10" class="py-1.5 rounded-lg border border-[#FFD700] bg-[#FFD700]/20 text-[#FFD700] font-bold text-xs">10 $</button>
             <button type="button" onclick="setMarginUsdt(25)" id="marBtn25" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold text-xs">25 $</button>
             <button type="button" onclick="setMarginUsdt(50)" id="marBtn50" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold text-xs">50 $</button>
             <button type="button" onclick="setMarginUsdt(100)" id="marBtn100" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold text-xs">100 $</button>
           </div>
-          <input type="number" id="customMarginInput" oninput="onCustomMarginChange(this.value)" placeholder="Oppure inserisci USDT liberi..." class="w-full bg-[#08080A] border border-white/30 rounded-lg px-3 py-1.5 text-white font-mono text-xs focus:border-[#00FF66] outline-none" />
+          <input type="number" id="customMarginInput" oninput="onCustomMarginChange(this.value)" placeholder="Oppure inserisci USDT liberi..." class="w-full bg-[#08080A] border border-white/30 rounded-lg px-3 py-1.5 text-white font-mono text-xs focus:border-[#FFD700] outline-none" />
         </div>
 
         <div id="leverageSectionWrapper" class="bg-[#000000] border border-white/20 rounded-xl p-4 space-y-3">
@@ -930,7 +968,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <button type="button" onclick="setLeverage(1)" id="levBtn1" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">1x</button>
             <button type="button" onclick="setLeverage(3)" id="levBtn3" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">3x</button>
             <button type="button" onclick="setLeverage(5)" id="levBtn5" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">5x</button>
-            <button type="button" onclick="setLeverage(10)" id="levBtn10" class="py-1.5 rounded-lg border border-[#00FF66] bg-[#00FF66]/20 text-[#00FF66] font-bold">10x</button>
+            <button type="button" onclick="setLeverage(10)" id="levBtn10" class="py-1.5 rounded-lg border border-[#FFD700] bg-[#FFD700]/20 text-[#FFD700] font-bold">10x</button>
           </div>
         </div>
 
@@ -942,7 +980,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
 
         <button id="executeBingXBtn" onclick="eseguiOrdineSuBingX()" class="bingx-btn w-full py-2.5 rounded-xl text-xs shadow-lg flex items-center justify-center gap-2">
-          <span>⚡ Esegui Ordine (Manuale o Auto) &amp; Avvia Advisor</span>
+          <span>⚡ Esegui Ordine (Manuale o Auto) &amp; Avvia Advisor in Oro</span>
         </button>
         <div id="executionFeedback" class="mt-2 text-xs text-center hidden"></div>
       </div>
@@ -1040,7 +1078,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const textBtn = document.getElementById('apiStatusText');
       if (keys.apiKey && keys.secretKey) {
         statusEl.textContent = "🟢 API Personali Attive";
-        statusEl.className = "text-xs font-mono text-[#00FF66] block font-bold";
+        statusEl.className = "text-xs font-mono text-[#FFD700] block font-bold";
         textBtn.textContent = "API Connesse 🟢";
       } else {
         statusEl.textContent = "⚠️ API Personali non inserite";
@@ -1056,6 +1094,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('userSecretKeyInput').value = keys.secretKey;
       modal.classList.toggle('hidden');
       modal.classList.toggle('flex');
+    }
+
+    function mostraFinestraGuidaOraria() {
+      const modal = document.getElementById('finestraGuidaOrariaModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function chiudiFinestraGuidaOraria() {
+      const modal = document.getElementById('finestraGuidaOrariaModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
     }
 
     function saveUserApiKeys() {
@@ -1125,11 +1175,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       }
     }
 
-    function testVoiceAlarm() {
-      playChime(false, "Attenzione! Il sistema ApexScan è attivo con le borse mondiali sincronizzate. Le finestre migliori per il guadagno sono la mattinata europea dalle 09:30 alle 14:15 e il pomeriggio americano dalle 16:00 alle 21:30.");
-      logFeed("[TEST VOCALE & ORARI] Guida vocale riprodotta con successo.");
-    }
-
     function getPrecisionDecimals(val) {
       if (val >= 1000) return 2;
       if (val >= 10) return 3;
@@ -1175,7 +1220,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         b.className = "py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold text-xs";
       });
       const activeBtn = document.getElementById(`marBtn${usdt}`);
-      if (activeBtn) activeBtn.className = "py-1.5 rounded-lg border border-[#00FF66] bg-[#00FF66]/20 text-[#00FF66] font-bold text-xs";
+      if (activeBtn) activeBtn.className = "py-1.5 rounded-lg border border-[#FFD700] bg-[#FFD700]/20 text-[#FFD700] font-bold text-xs";
       aggiornaQuantitaDaCapitale();
     }
 
@@ -1230,25 +1275,25 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       el.innerHTML = ['5m', '15m', '1h', '4h'].map(iv => {
         const t = tfs[iv];
         const isExact = iv === exactTf;
-        const col = t.trend === 'BUY' ? '#00FF66' : t.trend === 'SELL' ? '#FF334B' : '#FFCC00';
+        const col = t.trend === 'BUY' ? '#FFD700' : t.trend === 'SELL' ? '#FF334B' : '#FFCC00';
         const cs = t.candles;
         const hi = Math.max(...cs.map(c => c.high)), lo = Math.min(...cs.map(c => c.low));
         const y = v => 30 - ((v - lo) / ((hi - lo) || 1)) * 28;
         const bars = cs.map((c, i) => {
           const up = c.close >= c.open, last = i === cs.length - 1;
           const x = 3 + i * 7;
-          return `<line x1="${x+2}" x2="${x+2}" y1="${y(c.high)}" y2="${y(c.low)}" stroke="${up ? '#00FF66' : '#FF334B'}"/>
+          return `<line x1="${x+2}" x2="${x+2}" y1="${y(c.high)}" y2="${y(c.low)}" stroke="${up ? '#FFD700' : '#FF334B'}"/>
             <rect x="${x}" width="4" y="${Math.min(y(c.open), y(c.close))}" height="${Math.max(1, Math.abs(y(c.open) - y(c.close)))}"
-              fill="${up ? '#00FF66' : '#FF334B'}" ${last ? 'stroke="#00FF66" stroke-width="1.5"' : ''}/>`;
+              fill="${up ? '#FFD700' : '#FF334B'}" ${last ? 'stroke="#FFD700" stroke-width="1.5"' : ''}/>`;
         }).join('');
-        return `<div class="bg-white/5 rounded-lg p-2 border transition-all ${isExact ? 'tf-illuminated' : ''}" style="border-color:${isExact ? '#00FF66' : col + '66'}">
+        return `<div class="bg-white/5 rounded-lg p-2 border transition-all ${isExact ? 'tf-illuminated' : ''}" style="border-color:${isExact ? '#FFD700' : col + '66'}">
           <div class="flex justify-between items-center text-[10px]">
-            <b class="${isExact ? 'text-[#00FF66]' : 'text-white'}">${iv} ${isExact ? '⚡' : ''}</b>
+            <b class="${isExact ? 'text-[#FFD700]' : 'text-white'}">${iv} ${isExact ? '⚡' : ''}</b>
             <b style="color:${col}">${t.trend}</b>
           </div>
           <svg viewBox="0 0 100 32" class="w-full h-8">${bars}</svg>
           <div class="text-[9px] text-white/60">RSI ${t.rsi14} (Soglia din: ${t.sogliaLong || 55})</div>
-          <div class="text-[9px] text-[#00FF66]">● ora: ${formatPrice(t.last.close)}</div>
+          <div class="text-[9px] text-[#FFD700]">● ora: ${formatPrice(t.last.close)}</div>
         </div>`;
       }).join('');
     }
@@ -1275,13 +1320,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
       const box = document.getElementById('activePositionAdvisorBox');
       box.classList.remove('hidden');
-      box.className = "terminal-card rounded-2xl p-4 sm:p-5 border-2 border-[#00FF66] bg-gradient-to-r from-emerald-950/40 via-[#08080A] to-emerald-950/40 shadow-2xl space-y-4";
-      document.getElementById('advHeaderBox').className = "flex flex-wrap items-center justify-between pb-3 border-b border-[#00FF66]/30 gap-3";
-      document.getElementById('advIconSign').className = "w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse";
-      document.getElementById('advTitleMain').innerHTML = `🟢 QUANTUM ADVISOR ATTIVO (<span id="advSymbol">${symbol}</span>)`;
+      box.className = "terminal-card rounded-2xl p-4 sm:p-5 border-2 border-[#FFD700] bg-gradient-to-r from-amber-950/40 via-[#08080A] to-amber-950/40 shadow-2xl space-y-4";
+      document.getElementById('advHeaderBox').className = "flex flex-wrap items-center justify-between pb-3 border-b border-[#FFD700]/30 gap-3";
+      document.getElementById('advIconSign').className = "w-9 h-9 rounded-xl bg-[#FFD700] text-black flex items-center justify-center font-extrabold animate-pulse";
+      document.getElementById('advTitleMain').innerHTML = `🟡 QUANTUM ADVISOR ATTIVO ORO (<span id="advSymbol">${symbol}</span>)`;
       document.getElementById('advSubNotice').textContent = "1. Ingresso • 2. Gestione in PnL • 3. TP Raggiunto";
 
-      document.getElementById('kpiAutoSlotStatus').textContent = "🔒 Monitoraggio Attivo";
+      document.getElementById('kpiAutoSlotStatus').textContent = "🔒 Monitoraggio Attivo Oro";
       document.getElementById('advSymbol').textContent = symbol;
       document.getElementById('advEntryPrice').textContent = `$${formatPrice(entryPrice)}`;
       document.getElementById('advSideBadge').textContent = side;
@@ -1292,10 +1337,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const sideText = side === 'BUY' ? 'Long' : 'Short';
       const voiceTimeStr = formatVoiceDuration(liveRemSec);
       state.lastVoiceAnnounceTimestamp = Date.now();
-      playChime(false, `Primo. Ingresso registrato su ${state.marketType} con ${state.selectedMarginUsdt} USDT di margine. Posizione ${sideText} su ${symbol}. Target Take Profit a ${formatPrice(tpPrice)}. Tempo previsto: ${voiceTimeStr}.`);
+      playChime(false, `Primo. Ingresso registrato su ${symbol}. Posizione ${sideText} con ${state.selectedMarginUsdt} USDT di margine. Target Take Profit a ${formatPrice(tpPrice)}. Tempo previsto: ${voiceTimeStr}.`);
       aggiornaAdvisorLoop();
       state.advisorInterval = setInterval(aggiornaAdvisorLoop, 1000);
-      logFeed(`[QUANTUM ADVISOR] Monitoraggio avviato su ${symbol} (${side}) in modalità ${state.tradingMode}.`);
+      logFeed(`[QUANTUM ADVISOR ORO] Monitoraggio avviato su ${symbol} (${side}) in modalità ${state.tradingMode}.`);
     }
 
     function chiudiPosizioneMonitorata() {
@@ -1303,8 +1348,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       state.activePosition = null;
       state.isCriticalState = false;
       document.getElementById('activePositionAdvisorBox').classList.add('hidden');
-      document.getElementById('kpiAutoSlotStatus').textContent = "🟢 Pronto (Manuale / Auto)";
-      logFeed(`[QUANTUM ADVISOR] Monitoraggio chiuso.`);
+      document.getElementById('kpiAutoSlotStatus').textContent = "🟡 Pronto (Manuale / Auto)";
+      logFeed(`[QUANTUM ADVISOR ORO] Monitoraggio chiuso.`);
     }
 
     let lastLoopAdviceState = "";
@@ -1323,7 +1368,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
       const pnlEl = document.getElementById('advPnlVal');
       pnlEl.textContent = `PnL: ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`;
-      pnlEl.className = `block mt-1 text-[10px] font-bold ${pnlPct >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
+      pnlEl.className = `block mt-1 text-[10px] font-bold ${pnlPct >= 0 ? 'text-[#FFD700]' : 'text-[#FF334B]'}`;
 
       const distTp = Math.max(0, pos.side === 'BUY' ? (pos.tpPrice - currentPrice) : (currentPrice - pos.tpPrice));
       const distTpPct = currentPrice > 0 ? ((distTp / currentPrice) * 100) : 0;
@@ -1354,7 +1399,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         document.getElementById('advDistTp').textContent = "Distanza TP: 0.00% (RAGGIUNTO!)";
         document.getElementById('advExactTimeRemaining').textContent = "Tempo al TP: 0s";
         advAdvice.textContent = "3. 🎯 TP RAGGIUNTO! USCITA ESEGUITA";
-        advAdvice.className = "text-[#00FF66] text-xs block font-bold animate-pulse";
+        advAdvice.className = "text-[#FFD700] text-xs block font-bold animate-pulse";
         advAlert.textContent = "Target Take Profit raggiunto con successo!";
         if (lastLoopAdviceState !== "TP") {
           lastLoopAdviceState = "TP";
@@ -1387,15 +1432,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           playChime(true, "Attenzione! Situazione critica raggiunta. Il prezzo si avvicina allo stop loss.");
         }
       } else {
-        box.className = "terminal-card rounded-2xl p-4 sm:p-5 border-2 border-[#00FF66] bg-gradient-to-r from-emerald-950/40 via-[#08080A] to-emerald-950/40 shadow-2xl space-y-4";
-        document.getElementById('advHeaderBox').className = "flex flex-wrap items-center justify-between pb-3 border-b border-[#00FF66]/30 gap-3";
-        document.getElementById('advIconSign').className = "w-9 h-9 rounded-xl bg-[#00FF66] text-black flex items-center justify-center font-extrabold animate-pulse";
-        document.getElementById('advTitleMain').innerHTML = `🟢 QUANTUM ADVISOR ATTIVO (<span id="advSymbol">${pos.symbol}</span>)`;
+        box.className = "terminal-card rounded-2xl p-4 sm:p-5 border-2 border-[#FFD700] bg-gradient-to-r from-amber-950/40 via-[#08080A] to-amber-950/40 shadow-2xl space-y-4";
+        document.getElementById('advHeaderBox').className = "flex flex-wrap items-center justify-between pb-3 border-b border-[#FFD700]/30 gap-3";
+        document.getElementById('advIconSign').className = "w-9 h-9 rounded-xl bg-[#FFD700] text-black flex items-center justify-center font-extrabold animate-pulse";
+        document.getElementById('advTitleMain').innerHTML = `🟡 QUANTUM ADVISOR ATTIVO ORO (<span id="advSymbol">${pos.symbol}</span>)`;
         document.getElementById('advSubNotice').textContent = "1. Ingresso • 2. Gestione in PnL • 3. TP Raggiunto";
 
         if (pnlPct >= 0) {
           advAdvice.textContent = "2. 📊 GESTIONE PNL (IN PROFITTO)";
-          advAdvice.className = "text-[#00FF66] text-xs block font-bold";
+          advAdvice.className = "text-[#FFD700] text-xs block font-bold";
           advAlert.textContent = `Avanzamento regolare verso il $ TP: $${formatPrice(pos.tpPrice)}`;
         } else {
           advAdvice.textContent = "2. ⏳ GESTIONE PNL (FASI DI RITRACCIAMENTO)";
@@ -1436,7 +1481,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         b.className = "py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold";
       });
       const activeBtn = document.getElementById(`levBtn${lev}`);
-      if (activeBtn) activeBtn.className = "py-1.5 rounded-lg border border-[#00FF66] bg-[#00FF66]/20 text-[#00FF66] font-bold";
+      if (activeBtn) activeBtn.className = "py-1.5 rounded-lg border border-[#FFD700] bg-[#FFD700]/20 text-[#FFD700] font-bold";
 
       if (state.currentSelectedAsset) {
         const d = state.currentSelectedAsset;
@@ -1472,9 +1517,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const isSpot = state.marketType === 'SPOT';
       document.getElementById('btnMarketFutures').className = state.marketType === 'FUTURES' ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-[#0066FF] text-white" : "px-2.5 py-1 rounded-lg text-xs font-bold text-white/50 hover:text-white";
       document.getElementById('btnMarketStandard').className = state.marketType === 'STANDARD_FUTURES' ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500 text-black shadow-lg" : "px-2.5 py-1 rounded-lg text-xs font-bold text-white/50 hover:text-white";
-      document.getElementById('btnMarketSpot').className = isSpot ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-[#00FF66] text-black shadow-lg" : "px-2.5 py-1 rounded-lg text-xs font-bold text-white/50 hover:text-white";
+      document.getElementById('btnMarketSpot').className = isSpot ? "px-2.5 py-1 rounded-lg text-xs font-bold bg-[#FFD700] text-black shadow-lg" : "px-2.5 py-1 rounded-lg text-xs font-bold text-white/50 hover:text-white";
       
-      document.getElementById('kpiMarketBadge').textContent = isSpot ? "🟢 RSI SPOT DINAMICO" : "🟢 RSI FUTURES DINAMICO";
+      document.getElementById('kpiMarketBadge').textContent = isSpot ? "🟡 RSI SPOT ORO" : "🟡 RSI FUTURES ORO";
       document.getElementById('tableMarketLabel').textContent = state.marketType;
       document.getElementById('headerSubMarketInfo').textContent = isSpot ? "Spot (Manuale & Auto) • 1. Entra • 2. Rimani • 3. TP Esci" : "Futures (Manuale & Auto) • 1. Entra • 2. Rimani • 3. TP Esci";
       
@@ -1494,7 +1539,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           state.tradingMode = data.mode;
           document.getElementById('modeText').textContent = data.mode;
           document.getElementById('btnModeManual').className = mode === 'MANUAL' ? "px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-white/20 text-white" : "px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
-          document.getElementById('btnModeAuto').className = mode === 'AUTO' ? "px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-[#00FF66] text-black shadow-lg" : "px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
+          document.getElementById('btnModeAuto').className = mode === 'AUTO' ? "px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-[#FFD700] text-black shadow-lg" : "px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-white/50 hover:text-white";
           logFeed(`[MODALITÀ] Impostata su ${mode}`);
         }
       } catch (e) {}
@@ -1517,34 +1562,45 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           const bannerText = document.getElementById('timeBannerText');
           const bannerDot = document.getElementById('timeBannerDot');
           const bannerTitle = document.getElementById('timeBannerTitle');
-          const startLbl = document.getElementById('sessionStartLabel');
-          const endLbl = document.getElementById('sessionEndLabel');
+          const borsaLbl = document.getElementById('bannerBorsaLabel');
+          const momentoLbl = document.getElementById('bannerMomentoLabel');
 
-          startLbl.textContent = `${modeJson.sessionStart} CET`;
-          endLbl.textContent = `${modeJson.sessionEnd} CET`;
+          borsaLbl.textContent = modeJson.borsaRif;
 
           if (modeJson.isSafeTime) {
-            banner.className = "terminal-card rounded-2xl p-4 border border-[#00FF66]/50 bg-emerald-950/20 flex flex-wrap items-center justify-between gap-3 text-xs font-mono";
-            bannerDot.className = "w-3 h-3 rounded-full bg-[#00FF66] animate-pulse";
-            bannerTitle.textContent = "SESSIONE DI TRADING & ORARI BORSE: OTTIMALE 🚀";
-            bannerText.className = "text-[#00FF66]";
+            banner.className = "terminal-card rounded-2xl p-4 border border-[#FFD700]/50 bg-amber-950/20 flex flex-wrap items-center justify-between gap-3 text-xs font-mono";
+            bannerDot.className = "w-3 h-3 rounded-full bg-[#FFD700] animate-pulse";
+            bannerTitle.textContent = "SESSIONE DI TRADING & BORSA: OTTIMALE IN ORO 🚀";
+            bannerText.className = "text-[#FFD700]";
             bannerText.textContent = modeJson.timeMsg;
+            momentoLbl.textContent = "FAVOREVOLE 🟡 (Momento Giusto)";
+            momentoLbl.className = "text-[#FFD700] font-bold animate-pulse";
+
+            document.getElementById('modalPopupStatoOrario').textContent = modeJson.timeMsg;
+            document.getElementById('modalPopupBorsa').textContent = modeJson.borsaRif;
+            document.getElementById('modalPopupMomento').textContent = "🟡 FAVOREVOLE PER APRIRE POSIZIONI";
 
             if (state.lastSessionSafeState === false || state.lastSessionSafeState === null) {
               state.lastSessionSafeState = true;
-              playChime(false, "Attenzione. Finestra temporale di trading ottimale aperta. Le borse mondiali garantiscono alta liquidità per operare sia in manuale che in automatico.");
+              playChime(false, `Attenzione. Finestra temporale ottimale aperta presso la ${modeJson.borsaRif}. Il momento per aprire posizioni è favorevole.`);
               logFeed("[ADVISOR ORARIO] Finestra sicura aperta. Avviso vocale eseguito.");
             }
           } else {
             banner.className = "terminal-card rounded-2xl p-4 border border-[#FF334B]/60 bg-red-950/30 flex flex-wrap items-center justify-between gap-3 text-xs font-mono";
             bannerDot.className = "w-3 h-3 rounded-full bg-[#FF334B] animate-ping";
-            bannerTitle.textContent = "⚠️ ORARIO CRITICO / BORSE A RISCHIO 🛑";
+            bannerTitle.textContent = "⚠️ ORARIO CRITICO / PRUDENZA MASSIMA 🛑";
             bannerText.className = "text-[#FF334B] font-bold";
-            bannerText.textContent = `${modeJson.timeMsg} (Prudenza massima)`;
+            bannerText.textContent = `${modeJson.timeMsg} (Sconsigliato aprire nuovi trade)`;
+            momentoLbl.textContent = "ATTESA / RISCHIO ⚠️";
+            momentoLbl.className = "text-[#FF334B] font-bold";
+
+            document.getElementById('modalPopupStatoOrario').textContent = modeJson.timeMsg;
+            document.getElementById('modalPopupBorsa').textContent = modeJson.borsaRif;
+            document.getElementById('modalPopupMomento').textContent = "⚠️ PRUDENZA / ATTENDERE FINESTRA";
 
             if (state.lastSessionSafeState === true || state.lastSessionSafeState === null) {
               state.lastSessionSafeState = false;
-              playChime(true, "Attenzione. Raggiunto orario critico o di apertura violenta delle borse. Si consiglia prudenza massima.");
+              playChime(true, "Attenzione. Raggiunto orario critico o di caccia agli stop. Sconsigliato aprire nuove posizioni.");
               logFeed("[ADVISOR ORARIO] Orario critico rilevato. Avviso vocale eseguito.");
             }
           }
@@ -1570,7 +1626,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         return `<div class="flex items-center gap-2 bg-white/5 px-3 py-1 rounded-lg border border-white/10 shrink-0">
           <span class="font-bold text-white">${sym.replace('-USDT', '')}</span>
           <span class="text-white/90">$${formatPrice(item.price)}</span>
-          <span class="${item.change24h >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'} font-bold">${item.change24h >= 0 ? '+' : ''}${item.change24h.toFixed(2)}%</span>
+          <span class="${item.change24h >= 0 ? 'text-[#FFD700]' : 'text-[#FF334B]'} font-bold">${item.change24h >= 0 ? '+' : ''}${item.change24h.toFixed(2)}%</span>
         </div>`;
       }).join('');
       document.getElementById('liveTickerMarquee').innerHTML = items + items;
@@ -1600,18 +1656,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       if (masterAsset) {
         const local = calcolaDatiLocaliUnificati(masterAsset.symbol, masterAsset);
         const liveRemMaster = getLiveRemainingSeconds(masterAsset.symbol, local.tempoSec);
-        document.getElementById('masterPrecisionBadge').textContent = `${state.marketType} SYNC ⚡`;
+        document.getElementById('masterPrecisionBadge').textContent = `${state.marketType} SYNC ORO ⚡`;
         document.getElementById('prioritySignalCardContent').innerHTML = `
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs font-mono">
             <div class="space-y-2">
-              <strong class="text-white text-sm">${masterAsset.symbol} - MASTER QUANTUM ${state.marketType}</strong>
-              <div class="flex justify-between"><span class="text-white/70">Prezzo Live:</span><strong class="text-[#00FF66] text-sm">$${formatPrice(masterAsset.price)}</strong></div>
-              <div class="flex justify-between"><span class="text-white/70">Direzione Quantistica:</span><strong class="${local.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]'} font-bold">${local.side === 'BUY' ? 'LONG CHIRURGICO 🚀' : 'SHORT CHIRURGICO 📉'}</strong></div>
-              <div class="flex justify-between"><span class="text-white/70">$ TP Calibrato (+% ${state.marketType === 'SPOT' ? 'Spot' : 'Leva ' + lev + 'x'}):</span><strong class="text-yellow-400 font-extrabold">$${formatPrice(local.tp)} (+${local.tpPct}%)</strong></div>
+              <div class="flex items-center gap-2">
+                <span class="text-white text-base font-extrabold px-3 py-1 rounded-xl bg-[#FFD700]/20 border-2 border-[#FFD700] text-[#FFD700] animate-pulse">${masterAsset.symbol} 🟡</span>
+                <span class="text-xs text-[#FFD700] font-bold">✨ MASTER CRIPTO IN EVIDENZA ORO</span>
+              </div>
+              <div class="flex justify-between"><span class="text-white/70">Prezzo Live:</span><strong class="text-[#FFD700] text-sm">$${formatPrice(masterAsset.price)}</strong></div>
+              <div class="flex justify-between"><span class="text-white/70">Direzione Quantistica:</span><strong class="${local.side === 'BUY' ? 'text-[#FFD700]' : 'text-[#FF334B]'} font-bold">${local.side === 'BUY' ? 'LONG ORO 🚀' : 'SHORT CHIRURGICO 📉'}</strong></div>
+              <div class="flex justify-between"><span class="text-white/70">$ TP Calibrato (+% ${state.marketType === 'SPOT' ? 'Spot' : 'Leva ' + lev + 'x'}):</span><strong class="text-yellow-300 font-extrabold">$${formatPrice(local.tp)} (+${local.tpPct}%)</strong></div>
               <div class="flex justify-between"><span class="text-white/70">⏱️ Tempo al $ TP (Candle-Sync):</span><strong class="text-cyan-300 font-bold tabular-nums" data-countdown-sym="${masterAsset.symbol}" data-base-sec="${local.tempoSec}">${formatExactDuration(liveRemMaster)}</strong></div>
             </div>
             <div class="flex flex-col justify-end">
-              <button onclick='openModal("${masterAsset.symbol}")' class="green-gradient-btn w-full py-2 rounded-xl text-xs shadow-lg">⚡ APRI SCANNER &amp; SCEGLI CAPITALE &#8599;</button>
+              <button onclick='openModal("${masterAsset.symbol}")' class="w-full py-2.5 rounded-xl text-xs shadow-lg bg-[#FFD700] text-black font-extrabold hover:bg-amber-400 transition-all">⚡ APRI SCANNER ORO &amp; SCEGLI CAPITALE &#8599;</button>
             </div>
           </div>`;
       }
@@ -1625,24 +1684,31 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         const local = calcolaDatiLocaliUnificati(c.symbol, c);
         const liveRemCard = getLiveRemainingSeconds(c.symbol, local.tempoSec);
         const isLong = local.side === 'BUY';
+        
+        // Verifica se la cripto è nel momento ottimale per brillare in oro
+        const isGoldHighlight = isLong && c.change24h >= 0;
+        const cardClass = isGoldHighlight ? "gold-highlight-card rounded-xl p-3.5 cursor-pointer transition-all space-y-2.5 relative" : "bg-[#000000] border border-white/25 hover:border-[#FFD700] rounded-xl p-3.5 cursor-pointer transition-all space-y-2.5";
+
         return `
-          <div onclick='openModal("${c.symbol}")' class="bg-[#000000] border border-white/25 hover:border-[#00FF66] rounded-xl p-3.5 cursor-pointer transition-all space-y-2.5">
+          <div onclick='openModal("${c.symbol}")' class="${cardClass}">
+            ${isGoldHighlight ? '<div class="absolute top-2 right-2 px-2 py-0.5 rounded text-[9px] font-extrabold bg-[#FFD700] text-black animate-pulse">🟡 MOMENTO ORO</div>' : ''}
             <div class="flex items-center justify-between border-b border-white/10 pb-2">
               <div class="flex items-center gap-2">
-                <span class="font-extrabold text-white text-sm">${c.symbol.replace('-USDT', '')}</span>
-                <span class="px-2 py-0.5 rounded text-[10px] font-bold ${isLong ? 'bg-green-500/20 text-[#00FF66]' : 'bg-red-500/20 text-[#FF334B]'}">${isLong ? 'LONG SUP 🚀' : 'SHORT SUP 📉'}</span>
+                <!-- EVIDENZIAZIONE CRIPTO IN ORO -->
+                <span class="font-extrabold text-sm px-2.5 py-1 rounded-xl border ${isGoldHighlight ? 'bg-[#FFD700]/20 border-[#FFD700] text-[#FFD700]' : 'bg-white/10 border-white/20 text-white'}">${c.symbol}</span>
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold ${isLong ? 'bg-amber-500/20 text-[#FFD700]' : 'bg-red-500/20 text-[#FF334B]'}">${isLong ? 'LONG ORO 🚀' : 'SHORT 📉'}</span>
               </div>
               <div class="text-right">
                 <span class="text-white text-xs font-bold tabular-nums">$${formatPrice(c.price)}</span>
-                <span class="block text-[10px] ${c.change24h >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'}">${c.change24h >= 0 ? '+' : ''}${c.change24h.toFixed(2)}%</span>
+                <span class="block text-[10px] ${c.change24h >= 0 ? 'text-[#FFD700]' : 'text-[#FF334B]'}">${c.change24h >= 0 ? '+' : ''}${c.change24h.toFixed(2)}%</span>
               </div>
             </div>
 
             <div class="grid grid-cols-2 gap-2 text-[11px] font-mono">
               <div class="bg-white/5 p-2 rounded-lg">
                 <span class="text-white/60 text-[10px] block">🎯 TARGET $ TP CALIBRATO</span>
-                <strong class="text-[#00FF66]">$${formatPrice(local.tp)}</strong>
-                <span class="text-yellow-400 text-[10px] block">+${local.tpPct}% (${state.marketType === 'SPOT' ? 'Spot' : lev + 'x'})</span>
+                <strong class="text-[#FFD700]">$${formatPrice(local.tp)}</strong>
+                <span class="text-yellow-300 text-[10px] block">+${local.tpPct}% (${state.marketType === 'SPOT' ? 'Spot' : lev + 'x'})</span>
               </div>
               <div class="bg-white/5 p-2 rounded-lg">
                 <span class="text-white/60 text-[10px] block">⏱️ TEMPO AL $ TP (CANDLE)</span>
@@ -1652,8 +1718,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             </div>
 
             <div class="flex items-center justify-between pt-1">
-              <span class="text-[10px] text-[#00FF66] font-bold">Stato: ${local.confluenza}</span>
-              <span class="px-3 py-1 rounded-lg bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66]/40 text-xs font-bold">1. Esegui ⚡</span>
+              <span class="text-[10px] text-[#FFD700] font-bold">Stato: ${local.confluenza}</span>
+              <span class="px-3 py-1 rounded-lg bg-[#FFD700]/20 text-[#FFD700] border border-[#FFD700]/40 text-xs font-bold">1. Esegui in Oro ⚡</span>
             </div>
           </div>
         `;
@@ -1664,8 +1730,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('assetModal').classList.remove('hidden');
       document.getElementById('assetModal').classList.add('flex');
       document.getElementById('modalSymbol').textContent = symbol;
-      document.getElementById('modalOhlcvBadge').textContent = "CANDLE-SYNC IN CORSO...";
-      document.getElementById('tfPanel').innerHTML = '<div class="col-span-4 text-center text-xs text-white/60 py-4">Sincronizzazione candela e flusso in corso...</div>';
+      document.getElementById('modalOhlcvBadge').textContent = "CANDLE-SYNC ORO IN CORSO...";
+      document.getElementById('tfPanel').innerHTML = '<div class="col-span-4 text-center text-xs text-white/60 py-4">Sincronizzazione candela in corso...</div>';
 
       const btn = document.getElementById('executeBingXBtn');
       const fb = document.getElementById('executionFeedback');
@@ -1693,10 +1759,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
           document.getElementById('modalOhlcvBadge').textContent = `QUANTUM SCORE: ${d.precisionScore}/100`;
           document.getElementById('modalCategory').textContent = d.marketType;
+          document.getElementById('modalBorsaRif').textContent = d.confluenza;
+
+          const bannerMomento = document.getElementById('modalMomentoGiustoBanner');
+          if (d.momentoGiusto) {
+            bannerMomento.className = "p-3 rounded-xl border border-[#FFD700] bg-amber-950/40 text-[#FFD700] font-extrabold text-xs animate-pulse";
+            bannerMomento.innerHTML = `🟡 MOMENTO PERFETTO IN ORO PER APRIRE POSIZIONI! (Borsa attiva e trend allineato)`;
+          } else {
+            bannerMomento.className = "p-3 rounded-xl border border-[#FF334B] bg-red-950/40 text-[#FF334B] font-extrabold text-xs";
+            bannerMomento.innerHTML = `⚠️ ATTENZIONE: Momento di mercato non ottimale. Prudenza consigliata.`;
+          }
 
           const tfEl = document.getElementById('modalTF');
-          tfEl.textContent = `${d.exactTf.toUpperCase()} CANDLE-SYNC ⚡`;
-          tfEl.className = "px-2.5 py-0.5 rounded bg-[#00FF66]/20 text-[#00FF66] border border-[#00FF66] font-extrabold animate-pulse";
+          tfEl.textContent = `${d.exactTf.toUpperCase()} CANDLE-SYNC ORO ⚡`;
+          tfEl.className = "px-2.5 py-0.5 rounded bg-[#FFD700]/20 text-[#FFD700] border border-[#FFD700] font-extrabold animate-pulse";
 
           document.getElementById('modalSentiment').textContent = d.sentiment;
           
@@ -1704,8 +1780,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           document.getElementById('modalExactTime').textContent = `${formatExactDuration(currentLiveRem)} 🎯`;
 
           document.getElementById('modalEma').textContent = `EMA9: ${formatPrice(d.ema9)} | EMA21: ${formatPrice(d.ema21)}`;
-          document.getElementById('modalEmaSignal').textContent = "Trend Calibrato ⚡";
-          document.getElementById('modalEmaSignal').className = "text-[10px] block mt-0.5 text-[#00FF66]";
+          document.getElementById('modalEmaSignal').textContent = "Trend Calibrato Oro ⚡";
+          document.getElementById('modalEmaSignal').className = "text-[10px] block mt-0.5 text-[#FFD700]";
 
           document.getElementById('modalRsi').textContent = `RSI: ${d.rsi14}`;
           document.getElementById('modalRsiZone').textContent = "Ottimale Dinamico 🎯";
@@ -1713,8 +1789,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           document.getElementById('modalLivePrice').textContent = `$${formatPrice(d.price)}`;
 
           const sideEl = document.getElementById('modalSide');
-          sideEl.textContent = `${d.side} (${d.side === 'BUY' ? 'LONG CHIRURGICO 🚀' : 'SHORT CHIRURGICO 📉'})`;
-          sideEl.className = `text-[12px] font-bold ${d.side === 'BUY' ? 'text-[#00FF66]' : 'text-[#FF334B]'}`;
+          sideEl.textContent = `${d.side} (${d.side === 'BUY' ? 'LONG ORO 🚀' : 'SHORT CHIRURGICO 📉'})`;
+          sideEl.className = `text-[12px] font-bold ${d.side === 'BUY' ? 'text-[#FFD700]' : 'text-[#FF334B]'}`;
 
           document.getElementById('modalSL').textContent = `$${formatPrice(d.sl)}`;
           document.getElementById('modalTrendingTP').textContent = `$${formatPrice(d.tp)}`;
@@ -1788,6 +1864,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         document.getElementById('liveCetClock').textContent = new Date().toTimeString().slice(0, 8) + ' CET';
         updateAllVisibleCountdowns();
       }, 1000);
+
+      setTimeout(mostraFinestraGuidaOraria, 800);
     });
   </script>
 </body>
