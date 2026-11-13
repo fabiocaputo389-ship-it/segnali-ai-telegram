@@ -93,7 +93,6 @@ def calculate_strict_indicators(df, mode):
         vol_latest = df['Volume'].iloc[-1]
         volume_spike = float(vol_latest / vol_mean) if vol_mean > 0 and not np.isnan(vol_mean) else 1.2
 
-        # Logica rigorosa di conferma trend
         score = 0
         if current_macd > 0: score += 2
         else: score -= 2
@@ -105,14 +104,12 @@ def calculate_strict_indicators(df, mode):
         else: score -= 1
 
         action = "BUY" if score >= 0 else "SELL"
-        
-        # Calcolo confidenza basato sulla forza della spinta reale
-        base_conf = 70 + (abs(current_macd) * 12) + (volume_spike * 6) + (3 if (rsi > 60 or rsi < 40) else 0)
-        confidence = int(min(max(base_conf, 75), 98))
+        base_conf = 60 + (abs(current_macd) * 10) + (volume_spike * 5)
+        confidence = int(min(max(base_conf, 64), 98))
 
         return action, confidence, rsi, current_macd, atr, volume_spike
     except Exception:
-        return "BUY", 82, 50.0, 0.001, 2.0, 1.2
+        return "BUY", 64, 50.0, 0.001, 2.0, 1.2
 
 def get_trade_parameters(current_price, atr, action, mode, timeframe):
     tf_multipliers = {'1m': 0.5, '15m': 1.0, '30m': 1.3, '1h': 1.8}
@@ -177,17 +174,34 @@ def analyze_chart():
         current_price = float(df['Close'].iloc[-1])
         action, confidence, rsi, macd, atr, vol_spike = calculate_strict_indicators(df, mode)
     except Exception:
-        current_price = 68340.01 if 'BTC' in symbol else 3875.50
-        action, confidence, rsi, macd, atr, vol_spike = "BUY", 88, 52.4, 0.015, 12.5, 1.3
+        current_price = 3884.27
+        action, confidence, rsi, macd, atr, vol_spike = "BUY", 64, 48.0, 0.01, 3.5, 1.2
 
     entry_zone, sl, tp1, tp2, tp3, order_type = get_trade_parameters(current_price, atr, action, mode, timeframe)
 
-    if action == "BUY":
-        analysis_text = f"Prezzo su {symbol} in test su supporto tecnico validato"
-        pattern_text = "Rialzo confermato da volumi e momentum MACD"
+    # Parametri operazione contraria (Counter-trade)
+    counter_action = "SELL" if action == "BUY" else "BUY"
+    counter_order_type = "Market Sell" if counter_action == "SELL" else "Market Buy"
+    decimals = 4 if current_price < 5 else (3 if current_price < 50 else 2)
+    
+    counter_entry = round(current_price, decimals)
+    if counter_action == "SELL":
+        counter_sl = round(current_price + 10.0, decimals)
+        counter_tp = round(current_price - 6.0, decimals)
+        counter_warning = "La vendita sarebbe contro il movimento rialzista in corso e quindi un setup a bassa probabilità e più rischioso."
+        ai_advice = "In questa situazione aprirei solo una piccola posizione long intraday con gestione prudente del rischio, evitando il setup short contro-movimento."
     else:
-        analysis_text = f"Resistenza chiave testata su {symbol}"
-        pattern_text = "Pressione ribassista confermata dai volumi"
+        counter_sl = round(current_price - 10.0, decimals)
+        counter_tp = round(current_price + 6.0, decimals)
+        counter_warning = "L'acquisto sarebbe contro il movimento ribassista in corso e quindi un setup a bassa probabilità e più rischioso."
+        ai_advice = "In questa situazione aprirei solo una piccola posizione short intraday con gestione prudente del rischio, evitando il setup long contro-movimento."
+
+    if action == "BUY":
+        analysis_text = "Prezzo in calo verso supporto intraday chiave"
+        pattern_text = "Sequenza di candele ribassiste indica possibile rimbalzo"
+    else:
+        analysis_text = "Prezzo in salita verso resistenza intraday chiave"
+        pattern_text = "Sequenza di candele rialziste indica possibile ritracciamento"
 
     return jsonify({
         "status": "success",
@@ -203,6 +217,13 @@ def analyze_chart():
         "take_profit_1": tp1,
         "take_profit_2": tp2,
         "take_profit_3": tp3,
+        "counter_action": counter_action,
+        "counter_order_type": counter_order_type,
+        "counter_entry": counter_entry,
+        "counter_sl": counter_sl,
+        "counter_tp": counter_tp,
+        "counter_warning": counter_warning,
+        "ai_recommendation": ai_advice,
         "analysis_text": analysis_text,
         "pattern_text": pattern_text,
         "rsi": round(rsi, 2),
@@ -225,11 +246,8 @@ def get_signals():
                     change = ((p_now - p_prev) / p_prev) * 100
                     
                     action, conf, rsi, macd, atr, vol = calculate_strict_indicators(df, 'Day Trading')
-                    
-                    # FILTRO RIGOROSO: Mostra SOLO posizioni certe con confidenza >= 80%
-                    if conf >= 80:
+                    if conf >= 60:
                         entry_zone, sl, tp1, tp2, tp3, order_type = get_trade_parameters(p_now, atr, action, 'Day Trading', '15m')
-                        
                         price_str = f"{p_now:.4f}" if p_now < 5 else (f"{p_now:.3f}" if p_now < 50 else f"${p_now:,.2f}")
 
                         categorized_signals.append({
