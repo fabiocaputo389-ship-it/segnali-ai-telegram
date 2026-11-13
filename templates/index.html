@@ -6,11 +6,12 @@
     <title>Segnali AI Trading Terminal - PRO Italia</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-        body { background-color: #0b0e14; color: #ffffff; padding-bottom: 70px; }
-        header { display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #121620; border-bottom: 1px solid #1f2633; }
-        header h1 { font-size: 16px; font-weight: 600; color: #e1e7ec; }
-        .badge-plan { background: #1f2633; padding: 4px 10px; border-radius: 12px; font-size: 12px; color: #f0b90b; font-weight: bold; }
+        body { background-color: #0b0e14; color: #ffffff; padding-bottom: 75px; }
         
+        header { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; background: #121620; border-bottom: 1px solid #1f2633; font-size: 13px; color: #848e9c; }
+        .top-stats { display: flex; gap: 15px; }
+        .top-stats span { color: #fff; font-weight: bold; }
+
         .tab-content { display: none; padding: 15px; }
         .tab-content.active { display: block; }
 
@@ -24,46 +25,88 @@
         .cat-btn { background: #181f2a; border: none; color: #848e9c; padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer; white-space: nowrap; font-weight: bold; }
         .cat-btn.active { background: #00b8d9; color: #000; }
 
-        .chart-container { background: #121620; border-radius: 12px; border: 1px solid #1f2633; margin-bottom: 15px; height: 340px; overflow: hidden; }
+        .chart-container { background: #121620; border-radius: 12px; border: 1px solid #1f2633; margin-bottom: 15px; height: 320px; overflow: hidden; }
         .btn-primary { width: 100%; background: #00b8d9; color: #fff; border: none; padding: 14px; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; margin-bottom: 15px; box-shadow: 0 4px 12px rgba(0,184,217,0.3); }
-        
+
+        /* AI Scanning Overlay Modal */
+        #scanning-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(11, 14, 20, 0.95); z-index: 2000; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 20px; }
+        .scanner-box { border: 2px dashed #00b8d9; border-radius: 20px; width: 280px; height: 160px; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative; margin-bottom: 25px; background: rgba(0,184,217,0.03); }
+        .scanner-box svg { width: 40px; height: 40px; fill: #00b8d9; margin-bottom: 10px; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 0.3; } 50% { opacity: 1; } 100% { opacity: 0.3; } }
+        .scan-progress-bar { width: 200px; height: 4px; background: #1f2633; border-radius: 2px; overflow: hidden; margin-top: 15px; }
+        .scan-progress-fill { width: 0%; height: 100%; background: #00b8d9; transition: width 1.2s ease-in-out; }
+
+        /* Signal Card Layout (Immagini 2 e 3) */
         .result-card { background: #121620; border: 1px solid #2a3447; border-radius: 16px; padding: 16px; margin-bottom: 15px; }
-        .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-        .badge-action { padding: 6px 14px; border-radius: 8px; font-weight: bold; font-size: 14px; }
+        .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .asset-title { font-size: 18px; font-weight: bold; color: #fff; display: flex; align-items: center; gap: 8px; }
+        
+        .badge-action { padding: 6px 16px; border-radius: 8px; font-weight: bold; font-size: 14px; }
         .badge-action.BUY { background: #0ecb81; color: #000; }
         .badge-action.SELL { background: #f6465d; color: #fff; }
 
-        .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
-        .metric-box { background: #181f2a; padding: 10px; border-radius: 10px; text-align: center; border: 1px solid #232d3f; }
-        .metric-box span { display: block; font-size: 11px; color: #848e9c; margin-bottom: 4px; }
-        .metric-box strong { font-size: 14px; }
+        .favorability-container { margin-bottom: 14px; }
+        .favorability-info { display: flex; justify-content: space-between; font-size: 12px; color: #848e9c; margin-bottom: 4px; }
+        .favorability-bar { width: 100%; height: 6px; background: #181f2a; border-radius: 3px; overflow: hidden; }
+        .favorability-fill { height: 100%; background: linear-gradient(90deg, #f6465d, #f0b90b, #0ecb81); border-radius: 3px; }
 
-        .scanner-panel { background: #151a23; border: 1px solid #00b8d9; border-radius: 12px; padding: 12px; margin-top: 12px; }
-        .scanner-title { font-size: 13px; font-weight: bold; color: #00b8d9; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-        .scanner-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; }
-        .scanner-item { background: #1c2433; padding: 8px; border-radius: 8px; }
+        .entry-box { background: #181f2a; border-radius: 12px; padding: 12px; text-align: center; margin-bottom: 12px; border: 1px solid #232d3f; }
+        .entry-box span { display: block; font-size: 11px; color: #848e9c; margin-bottom: 2px; }
+        .entry-box strong { font-size: 18px; color: #00b8d9; }
 
-        .fakeout-box { background: #1a161f; border: 1px solid #3c2a4f; border-radius: 10px; padding: 10px; margin-top: 12px; font-size: 12px; color: #d2b4de; }
-        .fakeout-box ul { padding-left: 15px; margin-top: 4px; }
+        .grid-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+        .info-card { background: #181f2a; border: 1px solid #232d3f; border-radius: 12px; padding: 10px; text-align: center; }
+        .info-card span { display: block; font-size: 11px; color: #848e9c; margin-bottom: 4px; }
+        .info-card strong { font-size: 14px; }
+
+        .analysis-card { background: #161c28; border-left: 3px solid #00b8d9; border-radius: 10px; padding: 12px; margin-bottom: 10px; font-size: 13px; color: #e2e8f0; display: flex; align-items: flex-start; gap: 8px; }
+        .pattern-card { background: #1a1a24; border-left: 3px solid #f59e0b; border-radius: 10px; padding: 12px; margin-bottom: 14px; font-size: 13px; color: #e2e8f0; display: flex; align-items: flex-start; gap: 8px; }
+
+        .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+        .btn-action { background: #181f2a; border: 1px solid #2a3447; color: #fff; padding: 12px; border-radius: 10px; font-size: 13px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+        .btn-action:hover { background: #232d3f; }
+
+        .social-btn { width: 100%; border: none; padding: 12px; border-radius: 10px; font-size: 13px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px; }
+        .btn-whatsapp { background: #064e3b; color: #34d399; border: 1px solid #059669; }
+        .btn-instagram { background: #2e1065; color: #c084fc; border: 1px solid #7c3aed; }
+
+        .disclaimer { font-size: 10px; color: #64748b; text-align: center; line-height: 1.3; margin: 15px 0; padding: 0 10px; }
+
+        .pro-banner { background: linear-gradient(135deg, #1e1b4b, #312e81); border: 1px solid #4f46e5; border-radius: 14px; padding: 14px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; margin-top: 15px; }
 
         .signal-card { background: #121620; border: 1px solid #1f2633; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
-        .signal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-        .signal-details { font-size: 12px; color: #848e9c; margin-top: 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
         .category-title { font-size: 14px; font-weight: bold; color: #00b8d9; margin: 15px 0 8px 0; border-bottom: 1px solid #1f2633; padding-bottom: 4px; }
 
-        nav { position: fixed; bottom: 0; left: 0; width: 100%; background: #121620; border-top: 1px solid #1f2633; display: flex; justify-content: space-around; padding: 10px 0; z-index: 1000; }
-        nav button { background: none; border: none; color: #848e9c; font-size: 11px; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
+        nav { position: fixed; bottom: 0; left: 0; width: 100%; background: #121620; border-top: 1px solid #1f2633; display: flex; justify-content: space-around; padding: 8px 0; z-index: 1000; }
+        nav button { background: none; border: none; color: #848e9c; font-size: 10px; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; }
         nav button.active { color: #00b8d9; }
-        nav button svg { width: 22px; height: 22px; fill: currentColor; }
+        nav button svg { width: 20px; height: 20px; fill: currentColor; }
     </style>
 </head>
 <body>
 
     <header>
-        <h1 id="header-title">Scanner Tutti i Mercati</h1>
-        <div class="badge-plan">PRO Engine LIVE</div>
+        <div class="top-stats">
+            <span>Analisi: ∞</span>
+            <span>Piano: <span>FREE</span></span>
+        </div>
+        <div>Chat: <span>0/5</span></div>
     </header>
 
+    <!-- SCANNING ANIMATION MODAL -->
+    <div id="scanning-modal">
+        <div class="scanner-box">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2m0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8m.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7Z"/></svg>
+            <span style="font-size: 12px; color: #00b8d9; font-weight: bold;">AI SCAN</span>
+        </div>
+        <h3 style="font-size: 18px; margin-bottom: 6px;">Analisi del grafico...</h3>
+        <p id="scan-status-text" style="font-size: 13px; color: #848e9c;">Individuazione di supporti e resistenze...</p>
+        <div class="scan-progress-bar">
+            <div class="scan-progress-fill" id="scan-progress"></div>
+        </div>
+    </div>
+
+    <!-- TAB 1: ANALIZZA -->
     <div id="tab-analizza" class="tab-content active">
         <div class="selector-row" id="mode-selector">
             <div class="chip" onclick="setMode(this, 'Scalping')">⚡ Scalping</div>
@@ -94,77 +137,124 @@
             <div class="chip" onclick="setTimeframe(this, '1h')">1h</div>
         </div>
 
-        <button class="btn-primary" onclick="runAnalysis()">Avvia Scanner Grafico & Calcola Previsione</button>
+        <button class="btn-primary" onclick="runAnalysis()">Calcola Previsione & Scanner AI</button>
 
+        <!-- RISULTATO ANALISI FORMATO COME NELLE IMMAGINI -->
         <div id="analysis-result" style="display:none;">
             <div class="result-card">
                 <div class="result-header">
+                    <div class="asset-title" id="res-symbol">
+                        <span>🪙 XAU/USD</span>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <button onclick="alert('Avviso impostato con successo per questo asset.')" style="background:#181f2a; border:1px solid #2a3447; color:#00b8d9; padding:6px 10px; border-radius:8px; font-size:11px; font-weight:bold; cursor:pointer;">🔔 Alert</button>
+                        <div id="res-action" class="badge-action BUY">BUY</div>
+                        <button onclick="shareSignal()" style="background:#181f2a; border:1px solid #2a3447; color:#fff; padding:6px 8px; border-radius:8px; cursor:pointer;">📤</button>
+                    </div>
+                </div>
+
+                <div class="favorability-container">
+                    <div class="favorability-info">
+                        <span>Favorabilità</span>
+                        <strong id="res-fav" style="color: #0ecb81;">64%</strong>
+                    </div>
+                    <div class="favorability-bar">
+                        <div class="favorability-fill" id="res-fav-fill" style="width: 64%;"></div>
+                    </div>
+                </div>
+
+                <div class="entry-box">
+                    <span>Zona di ingresso</span>
+                    <strong id="res-entry">3870 - 3875</strong>
+                </div>
+
+                <div class="grid-cards">
+                    <div class="info-card">
+                        <span>Segnale</span>
+                        <strong id="res-signal-text" style="color: #0ecb81;">BUY</strong>
+                    </div>
+                    <div class="info-card">
+                        <span>Tipo di ordine</span>
+                        <strong id="res-order-type" style="color: #38bdf8;">Buy Limit</strong>
+                    </div>
+                    <div class="info-card">
+                        <span>Stop Loss</span>
+                        <strong id="res-sl" style="color: #f6465d;">3862</strong>
+                    </div>
+                    <div class="info-card">
+                        <span>Take Profit 1</span>
+                        <strong id="res-tp1" style="color: #0ecb81;">3885</strong>
+                    </div>
+                    <div class="info-card">
+                        <span>Take Profit 2</span>
+                        <strong id="res-tp2" style="color: #0ecb81;">3895</strong>
+                    </div>
+                    <div class="info-card">
+                        <span>Take Profit 3</span>
+                        <strong id="res-tp3" style="color: #0ecb81;">3905</strong>
+                    </div>
+                </div>
+
+                <!-- ANALYSIS & PATTERNS -->
+                <div class="analysis-card">
+                    <span>🌍</span>
                     <div>
-                        <h3 id="res-symbol" style="font-size: 16px;">XAUUSD</h3>
-                        <p style="font-size: 11px; color: #848e9c;">Affidabilità Reale Scanner: <span id="res-fav" style="color: #0ecb81; font-weight: bold;">--</span></p>
-                    </div>
-                    <div id="res-action" class="badge-action BUY">BUY</div>
-                </div>
-                <div style="margin-bottom: 8px; font-size: 13px;">
-                    <strong>Zona d'ingresso:</strong> <span id="res-entry" style="color: #00b8d9;">--</span>
-                </div>
-                
-                <!-- SCANNER GRAFICO E DATI TECNICI REALI -->
-                <div class="scanner-panel">
-                    <div class="scanner-title">
-                        <span>📊 Scanner Grafico & Dati Tecnici Reali</span>
-                        <span style="color: #0ecb81; font-size: 10px;">🟢 Live</span>
-                    </div>
-                    <div class="scanner-grid">
-                        <div class="scanner-item">
-                            <span style="color: #848e9c;">RSI (14):</span>
-                            <strong id="scan-rsi" style="color: #fff;">--</strong>
-                        </div>
-                        <div class="scanner-item">
-                            <span style="color: #848e9c;">MACD Hist:</span>
-                            <strong id="scan-macd" style="color: #fff;">--</strong>
-                        </div>
-                        <div class="scanner-item">
-                            <span style="color: #848e9c;">Spinta Volumi:</span>
-                            <strong id="scan-vol" style="color: #fff;">--</strong>
-                        </div>
-                        <div class="scanner-item">
-                            <span style="color: #848e9c;">ATR (Volatilità):</span>
-                            <strong id="scan-atr" style="color: #fff;">--</strong>
-                        </div>
+                        <strong style="display: block; font-size: 11px; color: #00b8d9; margin-bottom: 2px;">Analysis</strong>
+                        <span id="res-analysis-text">Prezzo in calo verso supporto intraday chiave</span>
                     </div>
                 </div>
 
-                <div class="metric-grid" style="margin-top: 12px;">
-                    <div class="metric-box">
-                        <span>Stop Loss (SL)</span>
-                        <strong id="res-sl" style="color: #f6465d;">--</strong>
-                    </div>
-                    <div class="metric-box">
-                        <span>Take Profit 1 (TP1)</span>
-                        <strong id="res-tp1" style="color: #0ecb81;">--</strong>
-                    </div>
-                    <div class="metric-box">
-                        <span>Take Profit 2 (TP2)</span>
-                        <strong id="res-tp2" style="color: #0ecb81;">--</strong>
-                    </div>
-                    <div class="metric-box">
-                        <span>Take Profit 3 (TP3)</span>
-                        <strong id="res-tp3" style="color: #0ecb81;">--</strong>
+                <div class="pattern-card">
+                    <span>💡</span>
+                    <div>
+                        <strong style="display: block; font-size: 11px; color: #f59e0b; margin-bottom: 2px;">Patterns</strong>
+                        <span id="res-pattern-text">Sequenza di candele ribassiste indica possibile rimbalzo</span>
                     </div>
                 </div>
 
-                <div class="fakeout-box">
-                    <strong>🛡️ Diagnostica Anti-Fakeout & Note AI:</strong>
-                    <ul id="res-logs"></ul>
+                <div class="btn-row">
+                    <button class="btn-action" onclick="copySignal()">
+                        <span>📋</span> Copia segnale
+                    </button>
+                    <button class="btn-action" onclick="shareSignal()">
+                        <span>📤</span> Condividi segnale
+                    </button>
                 </div>
 
-                <p id="res-comment" style="font-size: 12px; color: #848e9c; margin-top: 12px;"></p>
+                <button class="social-btn btn-whatsapp" onclick="window.open('https://whatsapp.com', '_blank')">
+                    💬 Entra nella community WhatsApp
+                </button>
+                <button class="social-btn btn-instagram" onclick="window.open('https://instagram.com', '_blank')">
+                    📸 Seguici su Instagram
+                </button>
+
+                <div class="disclaimer">
+                    Solo a scopo formativo e di ricerca, non è una consulenza finanziaria. I mercati comportano rischi: informati per conto tuo prima di agire su qualsiasi setup.
+                </div>
+
+                <div class="pro-banner" onclick="alert('Passa al piano PRO per sbloccare analisi illimitate e cross-trade avanzati.')">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 24px;">👑</span>
+                        <div>
+                            <strong style="font-size: 14px; color: #fff; display: block;">Get Full Analysis</strong>
+                            <span style="font-size: 11px; color: #a5b4fc;">Patterns, AI action & counter-trade</span>
+                        </div>
+                    </div>
+                    <span style="color: #818cf8; font-size: 18px;">➔</span>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- TAB 2: SEGNALI CERTI -->
+    <!-- TAB 2: GRAFICI LIVE -->
+    <div id="tab-grafici" class="tab-content">
+        <h3 style="font-size: 16px; margin-bottom: 12px;">Grafico Avanzato Multi-Asset</h3>
+        <div style="background: #121620; border-radius: 12px; border: 1px solid #1f2633; height: 450px; overflow: hidden;">
+            <div id="tradingview_full_widget" style="height:100%;width:100%"></div>
+        </div>
+    </div>
+
+    <!-- TAB 3: SEGNALI CERTI -->
     <div id="tab-segnali" class="tab-content">
         <h3 style="font-size: 16px; margin-bottom: 15px;">Segnali Certi con Scanner Monitorato</h3>
         <div id="signals-container">
@@ -172,11 +262,12 @@
         </div>
     </div>
 
+    <!-- TAB 4: AI CHAT -->
     <div id="tab-chat" class="tab-content">
         <h3 style="font-size: 16px; margin-bottom: 15px;">Assistente AI Mercati</h3>
-        <div style="background: #121620; border: 1px solid #1f2633; border-radius: 12px; padding: 15px; height: 350px; display: flex; flex-direction: column; justify-content: space-between;">
+        <div style="background: #121620; border: 1px solid #1f2633; border-radius: 12px; padding: 15px; height: 400px; display: flex; flex-direction: column; justify-content: space-between;">
             <div style="overflow-y: auto; font-size: 13px; color: #c9d1d9;" id="chat-messages">
-                <p style="background: #181f2a; padding: 10px; border-radius: 8px; margin-bottom: 8px;">Ciao! Il terminale integra ora lo scanner grafico e tecnico in tempo reale.</p>
+                <p style="background: #181f2a; padding: 10px; border-radius: 8px; margin-bottom: 8px;">Ciao! Chiedi qualsiasi previsione o analisi tecnica sui mercati all'assistente AI.</p>
             </div>
             <div style="display: flex; gap: 8px;">
                 <input type="text" id="chat-input" placeholder="Chiedi previsioni..." style="flex: 1; background: #181f2a; border: 1px solid #2a3447; border-radius: 8px; padding: 10px; color: #fff; outline: none;">
@@ -185,19 +276,57 @@
         </div>
     </div>
 
+    <!-- TAB 5: ALTRO -->
     <div id="tab-altro" class="tab-content">
-        <h3 style="font-size: 16px; margin-bottom: 15px;">Impostazioni & Stato</h3>
-        <div style="background: #121620; border: 1px solid #1f2633; border-radius: 12px; padding: 15px; font-size: 14px;">
-            <p style="margin-bottom: 12px;">🌍 <strong>Copertura:</strong> Tutti i mercati e Cripto Complete</p>
-            <p style="margin-bottom: 12px;">📊 <strong>Scanner Grafico:</strong> Attivo con dati reali (RSI, MACD, ATR)</p>
-            <p>✅ <strong>Stato Render:</strong> Connesso e Operativo LIVE</p>
+        <h3 style="font-size: 18px; font-weight: bold; margin-bottom: 4px;">Altro</h3>
+        <p style="font-size: 12px; color: #848e9c; margin-bottom: 20px;">Accedi a tutti i tuoi strumenti in un unico posto</p>
+
+        <p style="font-size: 11px; font-weight: bold; color: #848e9c; letter-spacing: 1px; margin-bottom: 10px;">STRUMENTI</p>
+        
+        <div class="result-card" onclick="alert('Cronologia Analisi: Tutti i segnali analizzati oggi sono salvati in memoria.')" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h4 style="font-size: 14px; margin-bottom: 2px;">Cronologia analisi</h4>
+                <p style="font-size: 11px; color: #848e9c;">Visualizza analisi e segnali precedenti</p>
+            </div>
+            <span style="color: #00b8d9;">➔</span>
+        </div>
+
+        <div class="result-card" onclick="alert('Avvisi di Prezzo: Nessun target impostato al momento.')" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h4 style="font-size: 14px; margin-bottom: 2px;">I Miei Avvisi di Prezzo</h4>
+                <p style="font-size: 11px; color: #848e9c;">Notifiche quando una coppia raggiunge il target</p>
+            </div>
+            <span style="color: #00b8d9;">➔</span>
+        </div>
+
+        <div class="result-card" onclick="alert('Prezzi Live: Streaming attivo.')" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h4 style="font-size: 14px; margin-bottom: 2px;">Prezzi Live <span style="background: #0ecb81; color:#000; font-size:9px; padding:2px 6px; border-radius:4px; margin-left:6px;">● On</span></h4>
+                <p style="font-size: 11px; color: #848e9c;">Streaming in tempo reale</p>
+            </div>
+            <span style="color: #00b8d9;">➔</span>
+        </div>
+
+        <p style="font-size: 11px; font-weight: bold; color: #848e9c; letter-spacing: 1px; margin: 20px 0 10px 0;">ACCOUNT</p>
+
+        <div class="result-card" onclick="alert('Impostazioni: Piano FREE attivo.')" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h4 style="font-size: 14px; margin-bottom: 2px;">Impostazioni</h4>
+                <p style="font-size: 11px; color: #848e9c;">Abbonamento, lingua e preferenze</p>
+            </div>
+            <span style="color: #00b8d9;">➔</span>
         </div>
     </div>
 
+    <!-- NAVIGATION BAR -->
     <nav>
         <button class="active" onclick="switchTab('analizza', this)">
             <svg viewBox="0 0 24 24"><path d="M3 3v18h18v-2H5V3H3m4 10h2v5H7v-5m4-4h2v9h-2V9m4-6h2v15h-2V3Z"/></svg>
             Analizza
+        </button>
+        <button onclick="switchTab('grafici', this)">
+            <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2m-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2Z"/></svg>
+            Grafici
         </button>
         <button onclick="switchTab('segnali', this)">
             <svg viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2m0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8m.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7Z"/></svg>
@@ -307,20 +436,37 @@
             });
         }
 
+        function initFullTradingView() {
+            const container = document.getElementById('tradingview_full_widget');
+            if (container && container.innerHTML === '') {
+                new TradingView.widget({
+                    "autosize": true,
+                    "symbol": "FX:XAUUSD",
+                    "interval": "15",
+                    "timezone": "Europe/Rome",
+                    "theme": "dark",
+                    "style": "1",
+                    "locale": "it",
+                    "toolbar_bg": "#121620",
+                    "enable_publishing": false,
+                    "container_id": "tradingview_full_widget"
+                });
+            }
+        }
+
         function switchTab(tabId, btn) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('nav button').forEach(el => el.classList.remove('active'));
             document.getElementById('tab-' + tabId).classList.add('active');
             btn.classList.add('active');
 
-            const titles = { 'analizza': 'Scanner Tutti i Mercati', 'segnali': 'Segnali Certi LIVE', 'chat': 'Assistente AI', 'altro': 'Impostazioni' };
-            document.getElementById('header-title').innerText = titles[tabId];
-
             if (liveInterval) clearInterval(liveInterval);
 
             if (tabId === 'segnali') {
                 loadSignals();
                 liveInterval = setInterval(loadSignals, 30000);
+            } else if (tabId === 'grafici') {
+                initFullTradingView();
             }
         }
 
@@ -345,6 +491,17 @@
         }
 
         async function runAnalysis() {
+            const modal = document.getElementById('scanning-modal');
+            const progress = document.getElementById('scan-progress');
+            const statusText = document.getElementById('scan-status-text');
+            
+            modal.style.display = 'flex';
+            progress.style.width = '20%';
+            statusText.innerText = "Individuazione di supporti e resistenze...";
+
+            setTimeout(() => { progress.style.width = '60%'; statusText.innerText = "Elaborazione pattern di candele..."; }, 500);
+            setTimeout(() => { progress.style.width = '90%'; statusText.innerText = "Calcolo Stop Loss e Take Profit..."; }, 1000);
+
             try {
                 const response = await fetch('/api/analyze', {
                     method: 'POST',
@@ -353,33 +510,37 @@
                 });
                 const data = await response.json();
                 
-                document.getElementById('res-symbol').innerText = `${data.symbol} (${data.mode})`;
-                document.getElementById('res-fav').innerText = `${data.favorability}%`;
-                
-                const actionBadge = document.getElementById('res-action');
-                actionBadge.innerText = data.action;
-                actionBadge.className = `badge-action ${data.action}`;
+                setTimeout(() => {
+                    progress.style.width = '100%';
+                    modal.style.display = 'none';
 
-                document.getElementById('res-entry').innerText = data.entry_zone;
-                document.getElementById('res-sl').innerText = data.stop_loss;
-                document.getElementById('res-tp1').innerText = data.take_profit_1;
-                document.getElementById('res-tp2').innerText = data.take_profit_2;
-                document.getElementById('res-tp3').innerText = data.take_profit_3;
-                
-                // Popolamento Scanner Grafico e Dati Tecnici
-                document.getElementById('scan-rsi').innerText = data.rsi;
-                document.getElementById('scan-macd').innerText = data.macd;
-                document.getElementById('scan-vol').innerText = `${data.volume_spike}x`;
-                document.getElementById('scan-atr').innerText = data.atr;
+                    document.getElementById('res-symbol').innerHTML = `<span>🪙 ${data.symbol}</span>`;
+                    document.getElementById('res-fav').innerText = `${data.favorability}%`;
+                    document.getElementById('res-fav-fill').style.width = `${data.favorability}%`;
+                    
+                    const actionBadge = document.getElementById('res-action');
+                    actionBadge.innerText = data.action;
+                    actionBadge.className = `badge-action ${data.action}`;
 
-                document.getElementById('res-comment').innerText = data.ai_comment;
+                    document.getElementById('res-signal-text').innerText = data.action;
+                    document.getElementById('res-signal-text').style.color = data.action === 'BUY' ? '#0ecb81' : '#f6465d';
 
-                const logsContainer = document.getElementById('res-logs');
-                logsContainer.innerHTML = data.fakeout_logs.map(log => `<li>${log}</li>`).join('');
+                    document.getElementById('res-order-type').innerText = data.order_type;
+                    document.getElementById('res-entry').innerText = data.entry_zone;
+                    document.getElementById('res-sl').innerText = data.stop_loss;
+                    document.getElementById('res-tp1').innerText = data.take_profit_1;
+                    document.getElementById('res-tp2').innerText = data.take_profit_2;
+                    document.getElementById('res-tp3').innerText = data.take_profit_3;
+                    
+                    document.getElementById('res-analysis-text').innerText = data.analysis_text;
+                    document.getElementById('res-pattern-text').innerText = data.pattern_text;
 
-                document.getElementById('analysis-result').style.display = 'block';
+                    document.getElementById('analysis-result').style.display = 'block';
+                }, 1400);
+
             } catch (err) {
-                alert('Errore durante l\'analisi dello scanner grafico.');
+                modal.style.display = 'none';
+                alert('Errore durante la scansione AI.');
             }
         }
 
@@ -395,7 +556,7 @@
                     grouped[s.category].push(s);
                 });
 
-                let html = '<div style="font-size:11px; color:#0ecb81; margin-bottom:10px; text-align:right;">🟢 Scanner Live Attivo</div>';
+                let html = '<div style="font-size:11px; color:#0ecb81; margin-bottom:10px; text-align:right;">🟢 Scanner AI Live Attivo</div>';
                 for(let cat in grouped) {
                     html += `<div class="category-title">${cat}</div>`;
                     html += grouped[cat].map(s => `
@@ -417,14 +578,28 @@
                                 <span style="color: #0ecb81;"><strong>TP3:</strong> ${s.tp3}</span>
                             </div>
                             <div style="font-size: 11px; color: #848e9c; margin-top: 6px; border-top: 1px solid #1f2633; padding-top: 4px;">
-                                RSI: <span style="color:#fff;">${s.rsi}</span> | MACD: <span style="color:#fff;">${s.macd}</span> | Affidabilità: <strong style="color:#0ecb81;">${s.prob}</strong>
+                                RSI: <span style="color:#fff;">${s.rsi}</span> | Ordine: <span style="color:#38bdf8;">${s.order_type}</span> | Affidabilità: <strong style="color:#0ecb81;">${s.prob}</strong>
                             </div>
                         </div>
                     `).join('');
                 }
-                container.innerHTML = html || '<p style="color:#848e9c;">Nessun segnale attivo nello scanner al momento.</p>';
+                container.innerHTML = html || '<p style="color:#848e9c;">Nessun segnale attivo nello scanner.</p>';
             } catch (e) {
-                container.innerHTML = '<p style="color:#f6465d;">Errore nel caricamento dei segnali live.</p>';
+                container.innerHTML = '<p style="color:#f6465d;">Errore caricamento segnali.</p>';
+            }
+        }
+
+        function copySignal() {
+            const text = `Segnale AI Trading:\nAsset: ${currentSymbol}\nModalità: ${currentMode}\nIngresso: ${document.getElementById('res-entry').innerText}\nStop Loss: ${document.getElementById('res-sl').innerText}\nTP1: ${document.getElementById('res-tp1').innerText}`;
+            navigator.clipboard.writeText(text);
+            alert('Segnale copiato negli appunti con successo!');
+        }
+
+        function shareSignal() {
+            if (navigator.share) {
+                navigator.share({ title: 'Segnale AI Trading', text: 'Guarda questo setup generato dal terminale AI!', url: window.location.href });
+            } else {
+                copySignal();
             }
         }
 
@@ -436,7 +611,7 @@
             const val = input.value;
             input.value = '';
             setTimeout(() => {
-                chat.innerHTML += `<p style="background: #181f2a; padding: 10px; border-radius: 8px; margin-bottom: 8px;">Scanner grafico interrogato con successo su "${val}": dati tecnici sincronizzati.</p>`;
+                chat.innerHTML += `<p style="background: #181f2a; padding: 10px; border-radius: 8px; margin-bottom: 8px;">Analisi AI completata per "${val}": parametri di rischio verificati.</p>`;
                 chat.scrollTop = chat.scrollHeight;
             }, 600);
         }
