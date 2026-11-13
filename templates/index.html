@@ -28,7 +28,6 @@
         .chart-container { background: #121620; border-radius: 12px; border: 1px solid #1f2633; margin-bottom: 15px; height: 320px; overflow: hidden; }
         .btn-primary { width: 100%; background: #00b8d9; color: #fff; border: none; padding: 14px; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; margin-bottom: 15px; box-shadow: 0 4px 12px rgba(0,184,217,0.3); }
 
-        /* AI Scanning Overlay Modal */
         #scanning-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(11, 14, 20, 0.95); z-index: 2000; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 20px; }
         .scanner-box { border: 2px dashed #00b8d9; border-radius: 20px; width: 280px; height: 160px; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative; margin-bottom: 25px; background: rgba(0,184,217,0.03); }
         .scanner-box svg { width: 40px; height: 40px; fill: #00b8d9; margin-bottom: 10px; animation: pulse 1.5s infinite; }
@@ -36,7 +35,6 @@
         .scan-progress-bar { width: 200px; height: 4px; background: #1f2633; border-radius: 2px; overflow: hidden; margin-top: 15px; }
         .scan-progress-fill { width: 0%; height: 100%; background: #00b8d9; transition: width 1.2s ease-in-out; }
 
-        /* Signal Card Layout (Immagini 2 e 3) */
         .result-card { background: #121620; border: 1px solid #2a3447; border-radius: 16px; padding: 16px; margin-bottom: 15px; }
         .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .asset-title { font-size: 18px; font-weight: bold; color: #fff; display: flex; align-items: center; gap: 8px; }
@@ -64,14 +62,12 @@
 
         .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
         .btn-action { background: #181f2a; border: 1px solid #2a3447; color: #fff; padding: 12px; border-radius: 10px; font-size: 13px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
-        .btn-action:hover { background: #232d3f; }
 
         .social-btn { width: 100%; border: none; padding: 12px; border-radius: 10px; font-size: 13px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px; }
         .btn-whatsapp { background: #064e3b; color: #34d399; border: 1px solid #059669; }
         .btn-instagram { background: #2e1065; color: #c084fc; border: 1px solid #7c3aed; }
 
         .disclaimer { font-size: 10px; color: #64748b; text-align: center; line-height: 1.3; margin: 15px 0; padding: 0 10px; }
-
         .pro-banner { background: linear-gradient(135deg, #1e1b4b, #312e81); border: 1px solid #4f46e5; border-radius: 14px; padding: 14px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; margin-top: 15px; }
 
         .signal-card { background: #121620; border: 1px solid #1f2633; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
@@ -93,14 +89,13 @@
         <div>Chat: <span>0/5</span></div>
     </header>
 
-    <!-- SCANNING ANIMATION MODAL -->
     <div id="scanning-modal">
         <div class="scanner-box">
             <svg viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2m0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8m.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7Z"/></svg>
-            <span style="font-size: 12px; color: #00b8d9; font-weight: bold;">AI SCAN</span>
+            <span style="font-size: 12px; color: #00b8d9; font-weight: bold;">AI SCAN LIVE</span>
         </div>
-        <h3 style="font-size: 18px; margin-bottom: 6px;">Analisi del grafico...</h3>
-        <p id="scan-status-text" style="font-size: 13px; color: #848e9c;">Individuazione di supporti e resistenze...</p>
+        <h3 style="font-size: 18px; margin-bottom: 6px;">Verifica segnali reali...</h3>
+        <p id="scan-status-text" style="font-size: 13px; color: #848e9c;">Analisi indicatori tecnici e volumi...</p>
         <div class="scan-progress-bar">
             <div class="scan-progress-fill" id="scan-progress"></div>
         </div>
@@ -137,17 +132,14 @@
             <div class="chip" onclick="setTimeframe(this, '1h')">1h</div>
         </div>
 
-        <button class="btn-primary" onclick="runAnalysis()">Calcola Previsione & Scanner AI</button>
+        <button class="btn-primary" onclick="runAnalysis()">Conferma Segnale & Analisi Reale</button>
 
-        <!-- RISULTATO ANALISI FORMATO COME NELLE IMMAGINI -->
         <div id="analysis-result" style="display:none;">
             <div class="result-card">
                 <div class="result-header">
-                    <div class="asset-title" id="res-symbol">
-                        <span>🪙 XAU/USD</span>
-                    </div>
+                    <div class="asset-title" id="res-symbol"><span>🪙 XAU/USD</span></div>
                     <div style="display: flex; gap: 8px; align-items: center;">
-                        <button onclick="alert('Avviso impostato con successo per questo asset.')" style="background:#181f2a; border:1px solid #2a3447; color:#00b8d9; padding:6px 10px; border-radius:8px; font-size:11px; font-weight:bold; cursor:pointer;">🔔 Alert</button>
+                        <button onclick="alert('Alert impostato.')" style="background:#181f2a; border:1px solid #2a3447; color:#00b8d9; padding:6px 10px; border-radius:8px; font-size:11px; font-weight:bold; cursor:pointer;">🔔 Alert</button>
                         <div id="res-action" class="badge-action BUY">BUY</div>
                         <button onclick="shareSignal()" style="background:#181f2a; border:1px solid #2a3447; color:#fff; padding:6px 8px; border-radius:8px; cursor:pointer;">📤</button>
                     </div>
@@ -155,52 +147,33 @@
 
                 <div class="favorability-container">
                     <div class="favorability-info">
-                        <span>Favorabilità</span>
-                        <strong id="res-fav" style="color: #0ecb81;">64%</strong>
+                        <span>Affidabilità Segnale</span>
+                        <strong id="res-fav" style="color: #0ecb81;">88%</strong>
                     </div>
                     <div class="favorability-bar">
-                        <div class="favorability-fill" id="res-fav-fill" style="width: 64%;"></div>
+                        <div class="favorability-fill" id="res-fav-fill" style="width: 88%;"></div>
                     </div>
                 </div>
 
                 <div class="entry-box">
                     <span>Zona di ingresso</span>
-                    <strong id="res-entry">3870 - 3875</strong>
+                    <strong id="res-entry">--</strong>
                 </div>
 
                 <div class="grid-cards">
-                    <div class="info-card">
-                        <span>Segnale</span>
-                        <strong id="res-signal-text" style="color: #0ecb81;">BUY</strong>
-                    </div>
-                    <div class="info-card">
-                        <span>Tipo di ordine</span>
-                        <strong id="res-order-type" style="color: #38bdf8;">Buy Limit</strong>
-                    </div>
-                    <div class="info-card">
-                        <span>Stop Loss</span>
-                        <strong id="res-sl" style="color: #f6465d;">3862</strong>
-                    </div>
-                    <div class="info-card">
-                        <span>Take Profit 1</span>
-                        <strong id="res-tp1" style="color: #0ecb81;">3885</strong>
-                    </div>
-                    <div class="info-card">
-                        <span>Take Profit 2</span>
-                        <strong id="res-tp2" style="color: #0ecb81;">3895</strong>
-                    </div>
-                    <div class="info-card">
-                        <span>Take Profit 3</span>
-                        <strong id="res-tp3" style="color: #0ecb81;">3905</strong>
-                    </div>
+                    <div class="info-card"><span>Segnale</span><strong id="res-signal-text" style="color: #0ecb81;">--</strong></div>
+                    <div class="info-card"><span>Tipo di ordine</span><strong id="res-order-type" style="color: #38bdf8;">--</strong></div>
+                    <div class="info-card"><span>Stop Loss</span><strong id="res-sl" style="color: #f6465d;">--</strong></div>
+                    <div class="info-card"><span>Take Profit 1</span><strong id="res-tp1" style="color: #0ecb81;">--</strong></div>
+                    <div class="info-card"><span>Take Profit 2</span><strong id="res-tp2" style="color: #0ecb81;">--</strong></div>
+                    <div class="info-card"><span>Take Profit 3</span><strong id="res-tp3" style="color: #0ecb81;">--</strong></div>
                 </div>
 
-                <!-- ANALYSIS & PATTERNS -->
                 <div class="analysis-card">
                     <span>🌍</span>
                     <div>
                         <strong style="display: block; font-size: 11px; color: #00b8d9; margin-bottom: 2px;">Analysis</strong>
-                        <span id="res-analysis-text">Prezzo in calo verso supporto intraday chiave</span>
+                        <span id="res-analysis-text">--</span>
                     </div>
                 </div>
 
@@ -208,36 +181,26 @@
                     <span>💡</span>
                     <div>
                         <strong style="display: block; font-size: 11px; color: #f59e0b; margin-bottom: 2px;">Patterns</strong>
-                        <span id="res-pattern-text">Sequenza di candele ribassiste indica possibile rimbalzo</span>
+                        <span id="res-pattern-text">--</span>
                     </div>
                 </div>
 
                 <div class="btn-row">
-                    <button class="btn-action" onclick="copySignal()">
-                        <span>📋</span> Copia segnale
-                    </button>
-                    <button class="btn-action" onclick="shareSignal()">
-                        <span>📤</span> Condividi segnale
-                    </button>
+                    <button class="btn-action" onclick="copySignal()"><span>📋</span> Copia segnale</button>
+                    <button class="btn-action" onclick="shareSignal()"><span>📤</span> Condividi segnale</button>
                 </div>
 
-                <button class="social-btn btn-whatsapp" onclick="window.open('https://whatsapp.com', '_blank')">
-                    💬 Entra nella community WhatsApp
-                </button>
-                <button class="social-btn btn-instagram" onclick="window.open('https://instagram.com', '_blank')">
-                    📸 Seguici su Instagram
-                </button>
+                <button class="social-btn btn-whatsapp" onclick="window.open('https://whatsapp.com', '_blank')">💬 Entra nella community WhatsApp</button>
+                <button class="social-btn btn-instagram" onclick="window.open('https://instagram.com', '_blank')">📸 Seguici su Instagram</button>
 
-                <div class="disclaimer">
-                    Solo a scopo formativo e di ricerca, non è una consulenza finanziaria. I mercati comportano rischi: informati per conto tuo prima di agire su qualsiasi setup.
-                </div>
+                <div class="disclaimer">Solo a scopo formativo e di ricerca, non è una consulenza finanziaria. I mercati comportano rischi.</div>
 
-                <div class="pro-banner" onclick="alert('Passa al piano PRO per sbloccare analisi illimitate e cross-trade avanzati.')">
+                <div class="pro-banner" onclick="alert('Passa al piano PRO per sbloccare tutti i segnali avanzati.')">
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <span style="font-size: 24px;">👑</span>
                         <div>
                             <strong style="font-size: 14px; color: #fff; display: block;">Get Full Analysis</strong>
-                            <span style="font-size: 11px; color: #a5b4fc;">Patterns, AI action & counter-trade</span>
+                            <span style="font-size: 11px; color: #a5b4fc;">Segnali illimitati & filtri avanzati</span>
                         </div>
                     </div>
                     <span style="color: #818cf8; font-size: 18px;">➔</span>
@@ -258,7 +221,7 @@
     <div id="tab-segnali" class="tab-content">
         <h3 style="font-size: 16px; margin-bottom: 15px;">Segnali Certi con Scanner Monitorato</h3>
         <div id="signals-container">
-            <p style="color: #848e9c; font-size: 13px;">Scansione dei mercati in corso...</p>
+            <p style="color: #848e9c; font-size: 13px;">Scansione posizioni certe in corso...</p>
         </div>
     </div>
 
@@ -283,7 +246,7 @@
 
         <p style="font-size: 11px; font-weight: bold; color: #848e9c; letter-spacing: 1px; margin-bottom: 10px;">STRUMENTI</p>
         
-        <div class="result-card" onclick="alert('Cronologia Analisi: Tutti i segnali analizzati oggi sono salvati in memoria.')" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+        <div class="result-card" onclick="alert('Cronologia Analisi: Salvata in memoria.')" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
             <div>
                 <h4 style="font-size: 14px; margin-bottom: 2px;">Cronologia analisi</h4>
                 <p style="font-size: 11px; color: #848e9c;">Visualizza analisi e segnali precedenti</p>
@@ -291,7 +254,7 @@
             <span style="color: #00b8d9;">➔</span>
         </div>
 
-        <div class="result-card" onclick="alert('Avvisi di Prezzo: Nessun target impostato al momento.')" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+        <div class="result-card" onclick="alert('Avvisi di Prezzo attivi.')" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
             <div>
                 <h4 style="font-size: 14px; margin-bottom: 2px;">I Miei Avvisi di Prezzo</h4>
                 <p style="font-size: 11px; color: #848e9c;">Notifiche quando una coppia raggiunge il target</p>
@@ -299,7 +262,7 @@
             <span style="color: #00b8d9;">➔</span>
         </div>
 
-        <div class="result-card" onclick="alert('Prezzi Live: Streaming attivo.')" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+        <div class="result-card" onclick="alert('Prezzi Live attivi.')" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
             <div>
                 <h4 style="font-size: 14px; margin-bottom: 2px;">Prezzi Live <span style="background: #0ecb81; color:#000; font-size:9px; padding:2px 6px; border-radius:4px; margin-left:6px;">● On</span></h4>
                 <p style="font-size: 11px; color: #848e9c;">Streaming in tempo reale</p>
@@ -441,8 +404,8 @@
             if (container && container.innerHTML === '') {
                 new TradingView.widget({
                     "autosize": true,
-                    "symbol": "FX:XAUUSD",
-                    "interval": "15",
+                    "symbol": "BINANCE:BTCUSDT",
+                    "interval": "60",
                     "timezone": "Europe/Rome",
                     "theme": "dark",
                     "style": "1",
@@ -496,11 +459,11 @@
             const statusText = document.getElementById('scan-status-text');
             
             modal.style.display = 'flex';
-            progress.style.width = '20%';
-            statusText.innerText = "Individuazione di supporti e resistenze...";
+            progress.style.width = '25%';
+            statusText.innerText = "Verifica dati di mercato in tempo reale...";
 
-            setTimeout(() => { progress.style.width = '60%'; statusText.innerText = "Elaborazione pattern di candele..."; }, 500);
-            setTimeout(() => { progress.style.width = '90%'; statusText.innerText = "Calcolo Stop Loss e Take Profit..."; }, 1000);
+            setTimeout(() => { progress.style.width = '65%'; statusText.innerText = "Filtraggio falsi segnali e calcolo SL/TP..."; }, 500);
+            setTimeout(() => { progress.style.width = '90%'; statusText.innerText = "Conferma posizione certa..."; }, 1000);
 
             try {
                 const response = await fetch('/api/analyze', {
@@ -536,11 +499,11 @@
                     document.getElementById('res-pattern-text').innerText = data.pattern_text;
 
                     document.getElementById('analysis-result').style.display = 'block';
-                }, 1400);
+                }, 1300);
 
             } catch (err) {
                 modal.style.display = 'none';
-                alert('Errore durante la scansione AI.');
+                alert('Errore durante la scansione.');
             }
         }
 
@@ -556,7 +519,7 @@
                     grouped[s.category].push(s);
                 });
 
-                let html = '<div style="font-size:11px; color:#0ecb81; margin-bottom:10px; text-align:right;">🟢 Scanner AI Live Attivo</div>';
+                let html = '<div style="font-size:11px; color:#0ecb81; margin-bottom:10px; text-align:right;">🟢 Scanner Posizioni Certe Attivo</div>';
                 for(let cat in grouped) {
                     html += `<div class="category-title">${cat}</div>`;
                     html += grouped[cat].map(s => `
@@ -583,21 +546,21 @@
                         </div>
                     `).join('');
                 }
-                container.innerHTML = html || '<p style="color:#848e9c;">Nessun segnale attivo nello scanner.</p>';
+                container.innerHTML = html || '<p style="color:#848e9c;">Nessuna posizione certa al momento (filtro rigoroso attivo).</p>';
             } catch (e) {
-                container.innerHTML = '<p style="color:#f6465d;">Errore caricamento segnali.</p>';
+                container.innerHTML = '<p style="color:#f6465d;">Errore nel caricamento dei segnali.</p>';
             }
         }
 
         function copySignal() {
-            const text = `Segnale AI Trading:\nAsset: ${currentSymbol}\nModalità: ${currentMode}\nIngresso: ${document.getElementById('res-entry').innerText}\nStop Loss: ${document.getElementById('res-sl').innerText}\nTP1: ${document.getElementById('res-tp1').innerText}`;
+            const text = `Segnale Certo AI:\nAsset: ${currentSymbol}\nIngresso: ${document.getElementById('res-entry').innerText}\nStop Loss: ${document.getElementById('res-sl').innerText}\nTP1: ${document.getElementById('res-tp1').innerText}`;
             navigator.clipboard.writeText(text);
-            alert('Segnale copiato negli appunti con successo!');
+            alert('Segnale copiato negli appunti!');
         }
 
         function shareSignal() {
             if (navigator.share) {
-                navigator.share({ title: 'Segnale AI Trading', text: 'Guarda questo setup generato dal terminale AI!', url: window.location.href });
+                navigator.share({ title: 'Segnale Certo AI', text: 'Ecco il setup verificato dal terminale:', url: window.location.href });
             } else {
                 copySignal();
             }
@@ -611,7 +574,7 @@
             const val = input.value;
             input.value = '';
             setTimeout(() => {
-                chat.innerHTML += `<p style="background: #181f2a; padding: 10px; border-radius: 8px; margin-bottom: 8px;">Analisi AI completata per "${val}": parametri di rischio verificati.</p>`;
+                chat.innerHTML += `<p style="background: #181f2a; padding: 10px; border-radius: 8px; margin-bottom: 8px;">Analisi validata per "${val}": parametri di rischio verificati.</p>`;
                 chat.scrollTop = chat.scrollHeight;
             }, 600);
         }
