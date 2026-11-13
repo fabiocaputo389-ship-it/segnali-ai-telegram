@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, jsonify, request
 import requests
 import pytz
 from datetime import datetime
@@ -12,7 +12,7 @@ def home():
 
 def evaluate_anti_fakeout(symbol, price, volume_spike, atr_value, rsi):
     """
-    Motore Anti-Falsi Segnali e False Rotture
+    Motore Anti-Falsi Segnali e False Rotture (Volume + ATR + RSI)
     """
     reasons = []
     is_valid = True
@@ -55,7 +55,6 @@ def analyze_chart():
     }
     current_price = base_prices.get(symbol, 3000.00)
     
-    # Valori simulati realistici per i test di mercato
     sim_volume_spike = round(random.uniform(0.9, 2.4), 2)
     sim_atr = round(random.uniform(0.002, 0.015), 4)
     sim_rsi = random.randint(35, 75)
@@ -100,6 +99,16 @@ def analyze_chart():
         "take_profit_3": tp3,
         "ai_comment": f"Analisi {mode} ({timeframe}): Motore Anti-Fakeout completato. Rilevato spike di volume ({sim_volume_spike}x) e filtro ATR validato."
     })
+
+@app.route('/api/signals', methods=['GET'])
+def get_signals():
+    signals = [
+        {"symbol": "XAUUSD", "type": "Scalping", "action": "SELL", "time": "35 min fa", "prob": "Low"},
+        {"symbol": "BTCUSDT", "type": "Scalping", "action": "SELL", "time": "53 min fa", "prob": "Pro"},
+        {"symbol": "EURUSD", "type": "Day Trading", "action": "BUY", "time": "1 ora fa", "prob": "Pro"},
+        {"symbol": "ETHUSDT", "type": "Swing", "action": "BUY", "time": "2 ore fa", "prob": "Free"}
+    ]
+    return jsonify(signals)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
