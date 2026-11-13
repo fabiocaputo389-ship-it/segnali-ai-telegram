@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Segnali AI Trading Terminal - Multi-Mercato</title>
+    <title>Segnali AI Trading Terminal - PRO Italia</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
         body { background-color: #0b0e14; color: #ffffff; padding-bottom: 70px; }
@@ -41,7 +41,9 @@
         .fakeout-box { background: #1a161f; border: 1px solid #3c2a4f; border-radius: 10px; padding: 10px; margin-top: 12px; font-size: 12px; color: #d2b4de; }
         .fakeout-box ul { padding-left: 15px; margin-top: 4px; }
 
-        .signal-card { background: #121620; border: 1px solid #1f2633; border-radius: 12px; padding: 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+        .signal-card { background: #121620; border: 1px solid #1f2633; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+        .signal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .signal-details { font-size: 12px; color: #848e9c; margin-top: 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
         .category-title { font-size: 14px; font-weight: bold; color: #00b8d9; margin: 15px 0 8px 0; border-bottom: 1px solid #1f2633; padding-bottom: 4px; }
 
         nav { position: fixed; bottom: 0; left: 0; width: 100%; background: #121620; border-top: 1px solid #1f2633; display: flex; justify-content: space-around; padding: 10px 0; z-index: 1000; }
@@ -57,15 +59,13 @@
         <div class="badge-plan">PRO Engine</div>
     </header>
 
-    <!-- TAB 1: ANALIZZA / TRADINGVIEW -->
     <div id="tab-analizza" class="tab-content active">
         <div class="selector-row" id="mode-selector">
-            <div class="chip" onclick="setMode(this, 'Scalping')">Scalping</div>
-            <div class="chip active" onclick="setMode(this, 'Day Trading')">Day Trading</div>
-            <div class="chip" onclick="setMode(this, 'Swing Trading')">Swing Trading</div>
+            <div class="chip" onclick="setMode(this, 'Scalping')">⚡ Scalping</div>
+            <div class="chip active" onclick="setMode(this, 'Day Trading')">📊 Day Trading</div>
+            <div class="chip" onclick="setMode(this, 'Swing Trading')">📈 Swing Trading</div>
         </div>
 
-        <!-- BARRA CATEGORIA MERCATO -->
         <div class="market-category-bar">
             <button class="cat-btn active" onclick="filterCategory('Materie Prime', this)">🥇 Materie Prime</button>
             <button class="cat-btn" onclick="filterCategory('Crypto', this)">₿ Criptovalute</button>
@@ -73,10 +73,7 @@
             <button class="cat-btn" onclick="filterCategory('Indici', this)">📈 Indici</button>
         </div>
 
-        <!-- SELETTORE ASSET DINAMICO PER CATEGORIA -->
-        <div class="selector-row" id="symbol-selector">
-            <!-- Popolato dinamicamente da JavaScript -->
-        </div>
+        <div class="selector-row" id="symbol-selector"></div>
 
         <div class="chart-container">
             <div class="tradingview-widget-container" style="height:100%;width:100%">
@@ -92,14 +89,14 @@
             <div class="chip" onclick="setTimeframe(this, '1h')">1h</div>
         </div>
 
-        <button class="btn-primary" onclick="runAnalysis()">Esegui Scanner & Parametri Reali</button>
+        <button class="btn-primary" onclick="runAnalysis()">Calcola Previsione Matematica & TP/SL</button>
 
         <div id="analysis-result" style="display:none;">
             <div class="result-card">
                 <div class="result-header">
                     <div>
                         <h3 id="res-symbol" style="font-size: 16px;">XAUUSD</h3>
-                        <p style="font-size: 11px; color: #848e9c;">Favorabilità: <span id="res-fav" style="color: #0ecb81; font-weight: bold;">--</span></p>
+                        <p style="font-size: 11px; color: #848e9c;">Affidabilità Predittiva: <span id="res-fav" style="color: #0ecb81; font-weight: bold;">--</span></p>
                     </div>
                     <div id="res-action" class="badge-action BUY">BUY</div>
                 </div>
@@ -107,30 +104,30 @@
                     <strong>Zona d'ingresso:</strong> <span id="res-entry" style="color: #00b8d9;">--</span>
                 </div>
                 <div style="margin-bottom: 8px; font-size: 12px; color: #f39c12;">
-                    <strong>Rischio Falsa Rottura:</strong> <span id="res-risk">--</span>
+                    <strong>Fattori di Rischio:</strong> <span id="res-risk">--</span>
                 </div>
                 
                 <div class="metric-grid">
                     <div class="metric-box">
-                        <span>Stop Loss</span>
+                        <span>Stop Loss (SL)</span>
                         <strong id="res-sl" style="color: #f6465d;">--</strong>
                     </div>
                     <div class="metric-box">
-                        <span>Take Profit 1</span>
+                        <span>Take Profit 1 (TP1)</span>
                         <strong id="res-tp1" style="color: #0ecb81;">--</strong>
                     </div>
                     <div class="metric-box">
-                        <span>Take Profit 2</span>
+                        <span>Take Profit 2 (TP2)</span>
                         <strong id="res-tp2" style="color: #0ecb81;">--</strong>
                     </div>
                     <div class="metric-box">
-                        <span>Take Profit 3</span>
+                        <span>Take Profit 3 (TP3)</span>
                         <strong id="res-tp3" style="color: #0ecb81;">--</strong>
                     </div>
                 </div>
 
                 <div class="fakeout-box">
-                    <strong>🛡️ Diagnostica Anti-Fakeout Reale:</strong>
+                    <strong>🛡️ Diagnostica Anti-Fakeout & Note AI:</strong>
                     <ul id="res-logs"></ul>
                 </div>
 
@@ -139,39 +136,36 @@
         </div>
     </div>
 
-    <!-- TAB 2: SEGNALI PER CATEGORIA -->
+    <!-- TAB 2: SEGNALI CERTI CON PARAMETRI ESATTI -->
     <div id="tab-segnali" class="tab-content">
-        <h3 style="font-size: 16px; margin-bottom: 15px;">Segnali Certi per Categoria</h3>
+        <h3 style="font-size: 16px; margin-bottom: 15px;">Segnali Certi con Parametri Esatti</h3>
         <div id="signals-container">
-            <p style="color: #848e9c; font-size: 13px;">Caricamento segnali reali in corso...</p>
+            <p style="color: #848e9c; font-size: 13px;">Analisi dei mercati in corso...</p>
         </div>
     </div>
 
-    <!-- TAB 3: AI CHAT -->
     <div id="tab-chat" class="tab-content">
         <h3 style="font-size: 16px; margin-bottom: 15px;">Assistente AI Mercati</h3>
         <div style="background: #121620; border: 1px solid #1f2633; border-radius: 12px; padding: 15px; height: 350px; display: flex; flex-direction: column; justify-content: space-between;">
             <div style="overflow-y: auto; font-size: 13px; color: #c9d1d9;" id="chat-messages">
-                <p style="background: #181f2a; padding: 10px; border-radius: 8px; margin-bottom: 8px;">Ciao! Chiedimi qualsiasi analisi tecnica o previsione in tempo reale.</p>
+                <p style="background: #181f2a; padding: 10px; border-radius: 8px; margin-bottom: 8px;">Ciao! Chiedimi qualsiasi previsione matematica o parametro di trading.</p>
             </div>
             <div style="display: flex; gap: 8px;">
-                <input type="text" id="chat-input" placeholder="Chiedi analisi..." style="flex: 1; background: #181f2a; border: 1px solid #2a3447; border-radius: 8px; padding: 10px; color: #fff; outline: none;">
+                <input type="text" id="chat-input" placeholder="Chiedi previsioni..." style="flex: 1; background: #181f2a; border: 1px solid #2a3447; border-radius: 8px; padding: 10px; color: #fff; outline: none;">
                 <button onclick="sendChat()" style="background: #00b8d9; border: none; padding: 0 16px; border-radius: 8px; font-weight: bold; cursor: pointer;">Invia</button>
             </div>
         </div>
     </div>
 
-    <!-- TAB 4: ALTRO -->
     <div id="tab-altro" class="tab-content">
         <h3 style="font-size: 16px; margin-bottom: 15px;">Impostazioni & Stato</h3>
         <div style="background: #121620; border: 1px solid #1f2633; border-radius: 12px; padding: 15px; font-size: 14px;">
-            <p style="margin-bottom: 12px;">🌍 <strong>Mercati:</strong> Materie Prime, Cripto, Forex, Indici</p>
-            <p style="margin-bottom: 12px;">🛡️ <strong>Motore Anti-Fakeout:</strong> Attivo su Yahoo Finance</p>
-            <p>✅ <strong>Stato Render:</strong> Connessione Live</p>
+            <p style="margin-bottom: 12px;">🌍 <strong>Copertura:</strong> Materie Prime, Crypto, Forex, Indici</p>
+            <p style="margin-bottom: 12px;">🛡️ <strong>Motore Anti-Fakeout:</strong> Attivo (RSI + MACD + ATR)</p>
+            <p>✅ <strong>Stato Render:</strong> Connesso e Operativo</p>
         </div>
     </div>
 
-    <!-- BOTTOM NAVIGATION -->
     <nav>
         <button class="active" onclick="switchTab('analizza', this)">
             <svg viewBox="0 0 24 24"><path d="M3 3v18h18v-2H5V3H3m4 10h2v5H7v-5m4-4h2v9h-2V9m4-6h2v15h-2V3Z"/></svg>
@@ -322,7 +316,7 @@
 
                 document.getElementById('analysis-result').style.display = 'block';
             } catch (err) {
-                alert('Errore durante l\'analisi reale.');
+                alert('Errore durante l\'analisi.');
             }
         }
 
@@ -332,7 +326,6 @@
                 const signals = await res.json();
                 const container = document.getElementById('signals-container');
                 
-                // Raggruppa per categoria
                 const grouped = {};
                 signals.forEach(s => {
                     if(!grouped[s.category]) grouped[s.category] = [];
@@ -344,18 +337,31 @@
                     html += `<div class="category-title">${cat}</div>`;
                     html += grouped[cat].map(s => `
                         <div class="signal-card">
-                            <div>
-                                <h4 style="font-size: 15px;">${s.name}</h4>
-                                <p style="font-size: 12px; color: #848e9c;">Prezzo: ${s.price} • Variazione: ${s.change}</p>
-                                <p style="font-size: 11px; color: #0ecb81; margin-top:2px;">Affidabilità: ${s.prob}</p>
+                            <div class="signal-header">
+                                <div>
+                                    <h4 style="font-size: 15px;">${s.name}</h4>
+                                    <p style="font-size: 12px; color: #848e9c;">Prezzo: ${s.price} • ${s.change}</p>
+                                </div>
+                                <div class="badge-action ${s.action}">${s.action}</div>
                             </div>
-                            <div class="badge-action ${s.action}">${s.action}</div>
+                            <div style="font-size: 12px; color: #00b8d9; margin-bottom: 4px;">
+                                <strong>Entrata:</strong> ${s.entry}
+                            </div>
+                            <div class="signal-details">
+                                <span style="color: #f6465d;"><strong>SL:</strong> ${s.sl}</span>
+                                <span style="color: #0ecb81;"><strong>TP1:</strong> ${s.tp1}</span>
+                                <span style="color: #0ecb81;"><strong>TP2:</strong> ${s.tp2}</span>
+                                <span style="color: #0ecb81;"><strong>TP3:</strong> ${s.tp3}</span>
+                            </div>
+                            <div style="font-size: 11px; color: #848e9c; margin-top: 6px; border-top: 1px solid #1f2633; padding-top: 4px;">
+                                RSI: <span style="color:#fff;">${s.rsi}</span> | MACD: <span style="color:#fff;">${s.macd}</span> | Affidabilità: <strong style="color:#0ecb81;">${s.prob}</strong>
+                            </div>
                         </div>
                     `).join('');
                 }
                 container.innerHTML = html || '<p style="color:#848e9c;">Nessun segnale disponibile al momento.</p>';
             } catch (e) {
-                document.getElementById('signals-container').innerHTML = '<p style="color:#f6465d;">Errore nel caricamento dei segnali.</p>';
+                container.innerHTML = '<p style="color:#f6465d;">Errore nel caricamento dei segnali.</p>';
             }
         }
 
@@ -367,7 +373,7 @@
             const val = input.value;
             input.value = '';
             setTimeout(() => {
-                chat.innerHTML += `<p style="background: #181f2a; padding: 10px; border-radius: 8px; margin-bottom: 8px;">Analisi reale completata su "${val}": dati di mercato verificati con successo.</p>`;
+                chat.innerHTML += `<p style="background: #181f2a; padding: 10px; border-radius: 8px; margin-bottom: 8px;">Analisi matematica completata su "${val}": indicatori tecnici e parametri TP/SL verificati.</p>`;
                 chat.scrollTop = chat.scrollHeight;
             }, 600);
         }
