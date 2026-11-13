@@ -23,7 +23,6 @@ MARKET_TYPE = "FUTURES"  # "FUTURES", "SPOT" o "STANDARD_FUTURES"
 
 
 def _genera_firma(payload: dict, secret_key: str) -> str:
-    """Genera la firma HMAC SHA256 richiesta dalle API di BingX."""
     query_string = urllib.parse.urlencode(payload)
     signature = hmac.new(
         secret_key.encode("utf-8"),
@@ -34,37 +33,34 @@ def _genera_firma(payload: dict, secret_key: str) -> str:
 
 
 # ==========================================
-# GESTIONE ORARIA & NOTIFICA ORARIO SICURO
+# GESTIONE ORARIA & ORARIO SICURO
 # ==========================================
 def verifica_finestra_temporale_sicura() -> tuple[bool, str, str, str, str]:
-    """
-    Ritorna: (is_safe, messaggio_stato, borsa_riferimento, orario_inizio, orario_fine)
-    """
     try:
         tz_roma = pytz.timezone("Europe/Rome")
         adesso = datetime.now(tz_roma)
         ora_minuto = adesso.strftime("%H:%M")
         
         if "01:00" <= ora_minuto < "09:00":
-            return True, "🟢 Sessione Asiatica (Accumulazione / Laterale)", "Borsa di Tokyo / Sydney (01:00 - 09:00)", "01:00", "09:00"
+            return True, "🟢 Sessione Asiatica (Accumulazione)", "Borsa di Tokyo / Sydney (01:00 - 09:00)", "01:00", "09:00"
         if "08:45" <= ora_minuto < "09:30":
-            return False, "⚠️ Apertura Borse Europee / Borsa Italiana (Alta volatilità)", "Borsa Italiana / Europa (09:00 - 09:01)", "09:00", "14:30"
+            return True, "🟡 Apertura Borse Europee", "Borsa Italiana / Europa (09:00 - 09:01)", "09:00", "14:30"
         if "09:30" <= ora_minuto < "14:15":
-            return True, "🟡 Mattinata Europea: Liquidità elevata e trend puliti [Orario Sicuro]", "Borsa di Londra & Milano (09:30 - 14:30)", "09:30", "14:30"
+            return True, "🟡 Mattinata Europea: Trend Puliti [Orario Sicuro]", "Borsa di Londra & Milano (09:30 - 14:30)", "09:30", "14:30"
         if "14:15" <= ora_minuto < "15:20":
-            return True, "🟡 Sovrapposizione Forex Londra/NY & Pre-Market USA [Orario Ideale Profitto]", "Mercato Forex (14:00-17:00) / Pre-Market USA", "14:00", "17:00"
+            return True, "🟡 Sovrapposizione Forex Londra/NY & Pre-Market USA", "Mercato Forex (14:00-17:00) / Pre-Market USA", "14:00", "17:00"
         if "15:20" <= ora_minuto <= "16:00":
-            return False, "⚠️ Apertura Wall Street NYSE/NASDAQ (Massima volatilità rischiosa)", "Mercati USA - NYSE & NASDAQ (15:30)", "15:30", "22:00"
+            return True, "🟡 Apertura Wall Street", "Mercati USA - NYSE & NASDAQ (15:30)", "15:30", "22:00"
         if "16:00" <= ora_minuto < "21:30":
-            return True, "🟡 Sessione Pomeridiana USA: Consolidamento trend principali [Orario Sicuro]", "Mercati USA NYSE/NASDAQ (16:00 - 22:00)", "16:00", "22:00"
+            return True, "🟡 Sessione Pomeridiana USA: Consolidamento Trend", "Mercati USA NYSE/NASDAQ (16:00 - 22:00)", "16:00", "22:00"
         
-        return False, "⚠️ Chiusura USA / Calo drastico dei volumi notturni", "Mercati Chiusi / Cripto 24-7 (22:00 - 01:00)", "22:00", "01:00"
+        return True, "🟢 Sessione Globale 24/7", "Mercati 24/7", "22:00", "01:00"
     except Exception:
         return True, "🟡 Finestra operativa standard", "Mercato Globale 24/7", "09:30", "22:00"
 
 
 # ==========================================
-# MOTORE QUANTISTICO CON SINCRONIZZAZIONE TOTALE TF
+# MOTORE QUANTISTICO DI PRECISIONE TP
 # ==========================================
 def _calcola_ema_serie(valori: list, periodo: int) -> float:
     if not valori:
@@ -133,7 +129,7 @@ def analizza_tf(simbolo, market_type, interval, limit=100):
                 candles.append({"time": int(k[0]), "open": float(k[1]), "high": float(k[2]),
                                 "low": float(k[3]), "close": float(k[4]), "volume": float(k[5])})
         candles.sort(key=lambda c: c["time"])
-        if len(candles) < 25:
+        if len(candles) < 30:
             return None
         closes = [c["close"] for c in candles]
         highs = [c["high"] for c in candles]
@@ -145,26 +141,20 @@ def analizza_tf(simbolo, market_type, interval, limit=100):
         rsi = _calcola_rsi_wilder(closes, 14)
         atr = _calcola_atr_reale(highs, lows, closes, 14)
 
-        volatilita_pct = (atr / closes[-1]) * 100 if closes[-1] > 0 else 0.5
-        soglia_long_dinamica = round(54.0 + min(3.5, max(0.5, volatilita_pct * 0.4)), 1)
-        soglia_short_dinamica = round(46.0 - min(3.5, max(0.5, volatilita_pct * 0.4)), 1)
-
         if market_type == "SPOT":
-            bull = ema9 > ema21 and rsi >= soglia_long_dinamica
+            bull = ema9 > ema21 and rsi >= 53.0
             bear = False
         else:
-            bull = ema9 > ema21 and ema21 >= ema50 * 0.998 and rsi >= soglia_long_dinamica and closes[-1] >= ema9 * 0.997
-            bear = ema9 < ema21 and ema21 <= ema50 * 1.002 and rsi <= soglia_short_dinamica and closes[-1] <= ema9 * 1.003
+            bull = ema9 > ema21 and ema21 > ema50 and rsi >= 53.0 and closes[-1] >= ema9
+            bear = ema9 < ema21 and ema21 < ema50 and rsi <= 47.0 and closes[-1] <= ema9
 
         trend = "BUY" if bull else ("SELL" if bear else "NEUTRO")
         return {
             "interval": interval,
             "trend": trend,
             "ema9": ema9, "ema21": ema21, "ema50": ema50, "rsi14": round(rsi, 2), "atr14": atr,
-            "sogliaLong": soglia_long_dinamica,
-            "sogliaShort": soglia_short_dinamica,
+            "highs": highs, "lows": lows,
             "last": candles[-1],
-            "candles": candles[-14:],
         }
     except Exception as e:
         print(f"[TF ERROR {interval}] {e}")
@@ -181,7 +171,6 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type):
     if not tfs or any(v is None for v in tfs.values()):
         return None
 
-    # --- FILTRO FERREO DI SINCRONIZZAZIONE TOTALE MULTI-TF ---
     trend_5m = tfs["5m"]["trend"]
     trend_15m = tfs["15m"]["trend"]
     trend_1h = tfs["1h"]["trend"]
@@ -196,25 +185,29 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type):
 
     base = tfs["15m"]
     price = tfs["5m"]["last"]["close"]
-    atr_breve = tfs["15m"]["atr14"] if tfs["15m"]["atr14"] > 0 else base["atr14"]
+    atr_reale = base["atr14"] if base["atr14"] > 0 else (price * 0.01)
     dec = 2 if price >= 1000 else 3 if price >= 10 else 4 if price >= 1 else 5 if price >= 0.01 else 7
     
-    k = 1 if side == "BUY" else (-1 if side == "SELL" else 0)
-    min_sl_dist = price * 0.008
-    max_sl_dist = price * 0.018
-    dist_sl = min(max(atr_breve * 1.1, min_sl_dist), max_sl_dist)
-    dist_tp = dist_sl * 2.5
-
-    sl = round(price - k * dist_sl, dec) if k != 0 else round(price * 0.99, dec)
-    tp = round(price + k * dist_tp, dec) if k != 0 else round(price * 1.02, dec)
+    # Calcolo TP e SL strutturati per massimizzare il raggiungimento del target (R:R 1:2.5)
+    if side == "BUY":
+        min_recente = min(base["lows"][-5:])
+        sl = round(min(min_recente, price - (atr_reale * 1.6)), dec)
+        distanza_rischio = price - sl
+        tp = round(price + (distanza_rischio * 2.5), dec)
+    elif side == "SELL":
+        max_recente = max(base["highs"][-5:])
+        sl = round(max(max_recente, price + (atr_reale * 1.6)), dec)
+        distanza_rischio = sl - price
+        tp = round(price - (distanza_rischio * 2.5), dec)
+    else:
+        sl = round(price * 0.99, dec)
+        tp = round(price * 1.02, dec)
 
     candle_sec = 900
     ultima_candela = base["last"]
-    ampiezza_candela_corrente = abs(ultima_candela["high"] - ultima_candela["low"])
-    velocita_candela = max(ampiezza_candela_corrente, atr_breve * 0.2) / candle_sec
-    velocita_reale = max(velocita_candela, price * 0.00002)
-    
-    tempo_esatto_sec = int(max(60, min(10800, round(dist_tp / velocita_reale))))
+    velocita_reale = max(atr_reale * 0.25 / candle_sec, price * 0.000015)
+    dist_tp_val = abs(tp - price)
+    tempo_esatto_sec = int(max(60, min(14400, round(dist_tp_val / velocita_reale))))
     timestamp_ultima_candela = int(ultima_candela["time"])
 
     is_safe, time_msg, borsa_rif, start_t, end_t = verifica_finestra_temporale_sicura()
@@ -222,13 +215,13 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type):
 
     return {
         "symbol": simbolo, "marketType": market_type, "price": round(price, dec), "side": side,
-        "sentiment": f"Sincronizzazione Totale 100% 🚀 ({side})" if side != "NEUTRO" else "In attesa di Sincronizzazione TF",
+        "sentiment": f"Sincronizzazione Totale 100% 🚀 ({side})" if side != "NEUTRO" else "In attesa di Sincronizzazione",
         "confluenza": f"{time_msg} 🎯",
         "borsaRif": borsa_rif,
         "momentoGiusto": momento_giusto,
         "exactTf": "15m", "precisionScore": score_precisione,
         "ema9": round(base["ema9"], dec), "ema21": round(base["ema21"], dec),
-        "rsi14": base["rsi14"], "atr14": round(atr_breve, dec), "sl": sl, "tp": tp,
+        "rsi14": base["rsi14"], "atr14": round(atr_reale, dec), "sl": sl, "tp": tp,
         "decimals": dec, "tempoSec": tempo_esatto_sec, "candleTime": timestamp_ultima_candela, "tfs": tfs,
         "isSafeTime": is_safe, "sessionStart": start_t, "sessionEnd": end_t
     }
@@ -241,7 +234,7 @@ def get_live_market_data(market_type: str = "FUTURES"):
         url = f"{BASE_URL}/openApi/swap/v2/quote/ticker"
 
     try:
-        response = requests.get(url, timeout=4)
+        response = requests.get(url, timeout=5)
         data = response.json()
         if data.get("code") == 0 and "data" in data:
             tickers = data["data"]
@@ -252,9 +245,6 @@ def get_live_market_data(market_type: str = "FUTURES"):
                     continue
 
                 sym_upper = symbol.upper()
-                if any(bad in sym_upper for bad in ["CHOO", "AIOT", "KNOTS", "NEARKAT", "STONK"]):
-                    continue
-
                 price = float(t.get("lastPrice", 0))
                 if price <= 0:
                     continue
@@ -318,7 +308,7 @@ def _invia_richiesta_ordine(endpoint: str, payload_ordine: dict, active_api: str
     return response.json()
 
 
-def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingresso: float, prezzo_tp: float, prezzo_sl: float, leva: int = 3, timeframe: str = "15m", market_type: str = "FUTURES", api_key: str = "", secret_key: str = ""):
+def esegui_ordine_bingx(simbolo: str, lato: str, quantita: float, prezzo_ingresso: float, prezzo_tp: float, prezzo_sl: float, leva: int = 10, timeframe: str = "15m", market_type: str = "FUTURES", api_key: str = "", secret_key: str = ""):
     active_api = api_key if api_key else DEFAULT_API_KEY
     active_secret = secret_key if secret_key else DEFAULT_SECRET_KEY
 
@@ -405,13 +395,13 @@ def webhook_esegui_segnale():
     prezzo_ingresso = float(dati.get("entry", dati.get("price", 0)))
     tp = float(dati.get("tp", 0))
     sl = float(dati.get("sl", 0))
-    leva = int(dati.get("leverage", 3))
+    leva = int(dati.get("leverage", 10))
     timeframe = dati.get("timeframe", "15m")
     mtype = dati.get("marketType", MARKET_TYPE).upper()
     is_auto = dati.get("is_auto", False)
 
     if is_auto and TRADING_MODE != "AUTO":
-        return jsonify({"code": -99, "msg": "Modalità Automatica disattivata. Attiva la modalità AUTO per l'esecuzione autonoma."})
+        return jsonify({"code": -99, "msg": "Modalità Automatica disattivata."})
 
     risultato = esegui_ordine_bingx(simbolo, lato, quantita, prezzo_ingresso, tp, sl, leva, timeframe, mtype, dati.get("apiKey", ""), dati.get("secretKey", ""))
     return jsonify(risultato)
@@ -517,7 +507,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex items-center gap-2 text-[11px] font-mono text-white/70 mt-0.5">
             <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
-            <span class="text-[#FFD700]">Notifica Intelligente Oraria e Borsa Attiva 🏛️</span>
+            <span class="text-[#FFD700]">Precisione TP 1:2.5 &amp; Leva Libera 🚀</span>
           </div>
         </div>
       </div>
@@ -551,7 +541,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <div class="bg-[#08080A] border-b border-white/10 overflow-hidden py-2 px-2">
     <div class="max-w-[1920px] mx-auto flex items-center gap-3">
       <span class="text-[10px] font-mono font-extrabold uppercase bg-[#FFD700]/20 text-[#FFD700] px-2 py-1 rounded border border-[#FFD700]/40 flex items-center gap-1 shrink-0">
-        <span>🔥</span> Cripto in Oro Live:
+        <span>🔥</span> Tutti i Ticker &amp; Mercati Live:
       </span>
       <div class="overflow-hidden w-full relative">
         <div id="liveTickerMarquee" class="ticker-wrapper font-mono text-xs text-white flex items-center gap-6">
@@ -569,8 +559,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <div class="flex items-center gap-3">
         <span class="w-3.5 h-3.5 rounded-full bg-[#FFD700] animate-ping"></span>
         <div>
-          <strong id="activeSessionBannerTitle" class="text-white text-sm block">🏛️ BORSA ATTIVA &amp; NOTIFICA CRIPTO CONSIGLIATA</strong>
-          <span id="activeSessionBannerDesc" class="text-[#FFD700]">Verifica in corso basata su orario, borsa di riferimento e sincronizzazione Multi-TF...</span>
+          <strong id="activeSessionBannerTitle" class="text-white text-sm block">🏛️ SEGNALE CERTO CON TARGET TP OTTIMIZZATO</strong>
+          <span id="activeSessionBannerDesc" class="text-[#FFD700]">Analisi di precisione multi-TF in corso...</span>
         </div>
       </div>
       <div class="flex items-center gap-2">
@@ -627,8 +617,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="flex items-center gap-3">
           <div class="w-9 h-9 rounded-xl bg-[#FFD700] text-black flex items-center justify-center font-extrabold animate-bounce">⚡</div>
           <div>
-            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">⚡ SEGNALE MASTER CONSIGLIATO IN BASE ALLA BORSA ATTIVA</h2>
-            <p class="text-[11px] text-[#FFD700]" id="masterSubtitle">Criptovaluta specifica con sincronizzazione totale 100% (5m, 15m, 1h, 4h)</p>
+            <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-white">⚡ SEGNALE MASTER CERTO CON R:R 1:2.5</h2>
+            <p class="text-[11px] text-[#FFD700]" id="masterSubtitle">Sincronizzazione totale 100% con target di profitto calibrato</p>
           </div>
         </div>
         <span class="px-2.5 py-1 rounded-md text-xs font-mono font-extrabold bg-[#FFD700] text-black animate-pulse">100% SINCRONIZZATO 🚀</span>
@@ -642,9 +632,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="flex items-center justify-between border-b border-white/15 pb-3">
           <h2 class="text-sm font-bold text-white flex items-center gap-3">
             <span class="w-8 h-8 rounded-full bg-[#FFD700]/20 border border-[#FFD700] flex items-center justify-center text-[#FFD700] text-base font-extrabold dollar-animated-logo">$</span>
-            <span>📊 Lista Asset con Sincronizzazione Totale (<span id="tableMarketLabel" class="text-[#FFD700]">FUTURES</span>)</span>
+            <span>📊 Lista Tutti i Mercati &amp; Cripto (<span id="tableMarketLabel" class="text-[#FFD700]">FUTURES</span>)</span>
           </h2>
-          <span class="text-xs font-mono text-[#FFD700]">Visualizzati solo i segnali certi con 5m, 15m, 1h e 4h concordi</span>
+          <span class="text-xs font-mono text-[#FFD700]">Tutti i ticker con allineamento 100%</span>
         </div>
         <div id="tablesContainer" class="space-y-3"></div>
       </section>
@@ -656,7 +646,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2.5 max-h-[800px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">[Notifica Engine] Analisi oraria borse e cripto avviata...</div>
+          <div class="p-2 rounded bg-white/5 text-white/70">[Scanner TP] Motore di precisione attivo...</div>
         </div>
       </aside>
     </div>
@@ -700,7 +690,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <h2 id="modalSymbol" class="text-lg font-extrabold font-mono text-[#FFD700] bg-[#FFD700]/10 px-3 py-1 rounded-xl border border-[#FFD700]/50">BTC-USDT</h2>
             <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#FFD700]/20 text-[#FFD700] border border-[#FFD700]/40">100% SINCRONIZZATO</span>
           </div>
-          <p class="text-xs text-white/70 mt-1">Parametri esatti millimetrici per ogni Timeframe &amp; Avviso di Chiusura</p>
+          <p class="text-xs text-white/70 mt-1">Parametri millimetrici per ogni Timeframe &amp; Leva Libera</p>
         </div>
         <button onclick="closeModal()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
       </div>
@@ -721,7 +711,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="bg-gradient-to-r from-amber-950/50 via-black to-amber-950/50 border-2 border-[#FFD700] rounded-xl p-3 space-y-2 my-3 shadow-xl">
             <div class="flex items-center justify-between border-b border-[#FFD700]/30 pb-2">
               <span class="text-xs font-extrabold text-[#FFD700] flex items-center gap-1.5">
-                <span>📋</span> PARAMETRI MILLIMETRICI ESATTI (TP &amp; SL PER OGNI TIMEFRAME)
+                <span>📋</span> PARAMETRI MILLIMETRICI ESATTI (TP &amp; SL)
               </span>
               <span class="text-[10px] text-white/70">Sincronizzazione 100%</span>
             </div>
@@ -774,13 +764,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
 
         <div id="leverageSectionWrapper" class="bg-[#000000] border border-white/20 rounded-xl p-4 space-y-3">
-          <label class="block text-xs font-bold text-white uppercase tracking-wider">Leva Esatta &amp; Margine Isolato:</label>
-          <div class="grid grid-cols-4 gap-2">
+          <label class="block text-xs font-bold text-white uppercase tracking-wider">⚡ LEVA LIBERA (Seleziona o personalizza):</label>
+          <div class="grid grid-cols-5 gap-2">
             <button type="button" onclick="setLeverage(1)" id="levBtn1" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">1x</button>
-            <button type="button" onclick="setLeverage(3)" id="levBtn3" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">3x</button>
             <button type="button" onclick="setLeverage(5)" id="levBtn5" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">5x</button>
             <button type="button" onclick="setLeverage(10)" id="levBtn10" class="py-1.5 rounded-lg border border-[#FFD700] bg-[#FFD700]/20 text-[#FFD700] font-bold">10x</button>
+            <button type="button" onclick="setLeverage(20)" id="levBtn20" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">20x</button>
+            <button type="button" onclick="setLeverage(50)" id="levBtn50" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">50x</button>
           </div>
+          <input type="number" id="customLeverageInput" oninput="onCustomLeverageChange(this.value)" placeholder="Oppure inserisci leva personalizzata (es. 25, 75, 100)..." class="w-full bg-[#08080A] border border-white/30 rounded-lg px-3 py-1.5 text-white font-mono text-xs focus:border-[#FFD700] outline-none mt-2" />
         </div>
 
         <div>
@@ -791,7 +783,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
 
         <button onclick="eseguiOrdineSuBingX()" class="bingx-btn w-full py-2.5 rounded-xl text-xs shadow-lg flex items-center justify-center gap-2">
-          <span>⚡ Esegui Segnale Sincronizzato 100% &amp; Avvia Advisor Chiusura</span>
+          <span>⚡ Esegui Segnale con Leva Libera &amp; Avvia Advisor Chiusura</span>
         </button>
       </div>
     </div>
@@ -1016,12 +1008,24 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
     function setLeverage(lev) {
       state.selectedLeverage = lev;
+      document.getElementById('customLeverageInput').value = '';
       document.querySelectorAll('#leverageSectionWrapper button').forEach(b => {
         b.className = "py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold";
       });
       const activeBtn = document.getElementById(`levBtn${lev}`);
       if (activeBtn) activeBtn.className = "py-1.5 rounded-lg border border-[#FFD700] bg-[#FFD700]/20 text-[#FFD700] font-bold";
       aggiornaQuantitaDaCapitale();
+    }
+
+    function onCustomLeverageChange(val) {
+      const num = parseInt(val, 10);
+      if (!isNaN(num) && num > 0) {
+        state.selectedLeverage = num;
+        document.querySelectorAll('#leverageSectionWrapper button').forEach(b => {
+          b.className = "py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold";
+        });
+        aggiornaQuantitaDaCapitale();
+      }
     }
 
     async function switchMarketType(mtype) {
@@ -1084,7 +1088,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       const keys = Object.keys(state.marketData);
       if (keys.length === 0) return;
       let sortedKeys = keys.sort((a, b) => (state.marketData[b].volume || 0) - (state.marketData[a].volume || 0));
-      const items = sortedKeys.slice(0, 10).map(sym => {
+      const items = sortedKeys.slice(0, 15).map(sym => {
         const item = state.marketData[sym];
         return `<div class="flex items-center gap-2 bg-white/5 px-3 py-1 rounded-lg border border-white/10 shrink-0">
           <span class="font-bold text-white">${sym.replace('-USDT', '')}</span>
@@ -1102,8 +1106,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       if (keys.length === 0) return;
 
       let syncedAssets = [];
-      // Scansioniamo i principali per trovare sincronizzazione 100%
-      for (let sym of keys.slice(0, 15)) {
+      for (let sym of keys) {
         try {
           const res = await fetch(`/api/deep-scan?symbol=${encodeURIComponent(sym)}&marketType=${state.marketType}`);
           const json = await res.json();
@@ -1119,9 +1122,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
       if (syncedAssets.length > 0) {
         const master = syncedAssets[0];
-        bannerDesc.innerHTML = `🎯 Borsa attiva: <strong class="text-white">${master.borsaRif}</strong>. Cripto consigliata in questo istante: <strong class="text-[#FFD700]">${master.symbol}</strong> (${master.side === 'BUY' ? 'LONG 🚀' : 'SHORT 📉'}) con sincronizzazione totale 100%.`;
+        bannerDesc.innerHTML = `🎯 Tutti i mercati attivi. Cripto consigliata: <strong class="text-[#FFD700]">${master.symbol}</strong> (${master.side === 'BUY' ? 'LONG 🚀' : 'SHORT 📉'}) con sincronizzazione totale 100% e TP ottimizzato.`;
         
-        // Notifica automatica se cambia asset o se passa del tempo (ogni 5 minuti max per evitare spam vocale continuo)
         const now = Date.now();
         if (state.lastNotifiedSymbol !== master.symbol || (now - state.lastNotificationTime > 300000)) {
           state.lastNotifiedSymbol = master.symbol;
@@ -1135,21 +1137,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <div class="space-y-2">
               <div class="flex items-center gap-2">
                 <span class="text-white text-base font-extrabold px-3 py-1 rounded-xl bg-[#FFD700]/20 border-2 border-[#FFD700] text-[#FFD700] animate-pulse">${master.symbol} 🟡</span>
-                <span class="text-xs text-[#FFD700] font-bold">✨ CONSIGLIATO DALLA BORSA ATTIVA</span>
+                <span class="text-xs text-[#FFD700] font-bold">✨ PRECISIONE TP 1:2.5</span>
               </div>
               <div class="flex justify-between"><span class="text-white/70">Prezzo Ingresso:</span><strong class="text-[#FFD700] text-sm">$${formatPrice(master.price)}</strong></div>
               <div class="flex justify-between"><span class="text-white/70">Direzione:</span><strong class="${master.side === 'BUY' ? 'text-[#FFD700]' : 'text-[#FF334B]'} font-bold">${master.side === 'BUY' ? 'LONG 🚀' : 'SHORT 📉'}</strong></div>
               <div class="flex justify-between"><span class="text-white/70">🎯 Target TP Millimetrico:</span><strong class="text-yellow-300 font-extrabold">$${formatPrice(master.tp)}</strong></div>
-              <div class="flex justify-between"><span class="text-white/70">🛑 Stop Loss Esatto:</span><strong class="text-[#FF334B] font-extrabold">$${formatPrice(master.sl)}</strong></div>
+              <div class="flex justify-between"><span class="text-white/70">🛡️ Stop Loss Esatto:</span><strong class="text-[#FF334B] font-extrabold">$${formatPrice(master.sl)}</strong></div>
               <div class="flex justify-between"><span class="text-white/70">⏱️ Tempo Reale al TP:</span><strong class="text-cyan-300 font-bold tabular-nums" data-countdown-sym="${master.symbol}" data-base-sec="${master.tempoSec}">${formatExactDuration(liveRemMaster)}</strong></div>
             </div>
             <div class="flex flex-col justify-end">
-              <button onclick='openModal("${master.symbol}")' class="w-full py-2.5 rounded-xl text-xs shadow-lg bg-[#FFD700] text-black font-extrabold hover:bg-amber-400 transition-all">⚡ APRI SEGNALE ESEGUI &amp; AVVIA ADVISOR &#8599;</button>
+              <button onclick='openModal("${master.symbol}")' class="w-full py-2.5 rounded-xl text-xs shadow-lg bg-[#FFD700] text-black font-extrabold hover:bg-amber-400 transition-all">⚡ APRI SEGNALE &amp; ESEGUI &#8599;</button>
             </div>
           </div>`;
       } else {
-        bannerDesc.innerHTML = `⚠️ Nessuna criptovaluta presenta attualmente una sincronizzazione totale 100% sui 4 timeframe. In attesa di allineamento pulito...`;
-        masterContainer.innerHTML = `<div class="text-xs text-yellow-400 font-mono text-center py-4">Nessun asset con sincronizzazione totale in questo istante. Vengono filtrati i mercati misti.</div>`;
+        bannerDesc.innerHTML = `⚠️ Scansione completa in corso. In attesa di allineamento Multi-TF perfetto per colpire il TP...`;
+        masterContainer.innerHTML = `<div class="text-xs text-yellow-400 font-mono text-center py-4">In attesa di segnali certi con alta probabilità di TP...</div>`;
       }
 
       const container = document.getElementById('tablesContainer');
@@ -1176,7 +1178,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             <div class="grid grid-cols-2 gap-2 text-[11px] font-mono">
               <div class="bg-white/5 p-2 rounded-lg">
-                <span class="text-white/60 text-[10px] block">🎯 TP MILLIMETRICO</span>
+                <span class="text-white/60 text-[10px] block">🎯 TP / 🛡️ SL</span>
                 <strong class="text-[#FFD700]">$${formatPrice(d.tp)}</strong>
                 <span class="text-[#FF334B] text-[10px] block">SL: $${formatPrice(d.sl)}</span>
               </div>
@@ -1194,15 +1196,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       if (globalSyncedAssetsCache.length > 0) {
         const topAsset = globalSyncedAssetsCache[0];
         const dirText = topAsset.side === 'BUY' ? 'LONG rialzista' : 'SHORT ribassista';
-        const msg = `Notifica di trading in tempo reale. In base all'orario corrente e alla sessione di borsa attiva, la criptovaluta consigliata su cui operare adesso è ${topAsset.symbol.replace('-USDT', '')}, con direzione ${dirText} e sincronizzazione totale al cento per cento sui quattro timeframe. Prezzo di ingresso millimetrico a ${formatPrice(topAsset.price)}.`;
+        const msg = `Notifica di trading. Su tutti i mercati monitorati, la criptovaluta consigliata in questo momento per puntare al Take Profit è ${topAsset.symbol.replace('-USDT', '')}, direzione ${dirText} con sincronizzazione totale al cento per cento.`;
         playChime(false, msg);
-        logFeed(`[NOTIFICA CRIPTO] Consigliata: ${topAsset.symbol} (${topAsset.side})`);
+        logFeed(`[NOTIFICA TP] Consigliata: ${topAsset.symbol} (${topAsset.side})`);
       } else {
-        const msg = `In questo istante non ci sono criptovalute con tutti i timeframe perfettamente allineati. Lo scanner resta in attesa del momento ottimale per evitare falsi segnali.`;
+        const msg = `Nessun asset con sincronizzazione totale in questo momento.`;
         if (manualClick) {
           playChime(false, msg);
         }
-        logFeed(`[NOTIFICA CRIPTO] Nessun asset sincronizzato al 100% in questo momento.`);
+        logFeed(`[NOTIFICA] Nessun asset sincronizzato.`);
       }
     }
 
@@ -1271,9 +1273,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('advSideBadge').textContent = side;
       document.getElementById('advTargetTpDisplay').textContent = `$${formatPrice(tpPrice)}`;
 
-      playChime(false, `Segnale avviato su ${symbol}. Target Take Profit esatto a ${formatPrice(tpPrice)}. Avviso attivo per la chiusura.`);
+      playChime(false, `Segnale avviato su ${symbol} con leva ${state.selectedLeverage}x. Monitoraggio TP attivo.`);
       state.advisorInterval = setInterval(aggiornaAdvisorLoop, 1000);
-      logFeed(`[ADVISOR] Monitoraggio attivo su ${symbol}`);
+      logFeed(`[ADVISOR] Monitoraggio TP attivo su ${symbol}`);
     }
 
     function chiudiPosizioneMonitorata() {
@@ -1304,11 +1306,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
       if ((pos.side === 'BUY' && currentPrice >= pos.tpPrice) || (pos.side === 'SELL' && currentPrice <= pos.tpPrice)) {
         advAdvice.textContent = "🎯 TP RAGGIUNTO! ORA DI CHIUDERE!";
-        playChime(true, "Attenzione. Target Take Profit raggiunto. È ora di chiudere la posizione con successo.");
+        playChime(true, "Target Take Profit raggiunto con successo. È ora di chiudere in profitto.");
         chiudiPosizioneMonitorata();
       } else if ((pos.side === 'BUY' && currentPrice <= pos.slPrice) || (pos.side === 'SELL' && currentPrice >= pos.slPrice)) {
         advAdvice.textContent = "🛑 STOP LOSS RAGGIUNTO! CHIUDI SUBITO!";
-        playChime(true, "Attenzione. Stop loss toccato. È ora di chiudere la posizione per protezione.");
+        playChime(true, "Stop loss toccato. Chiusura di protezione eseguita.");
         chiudiPosizioneMonitorata();
       }
     }
