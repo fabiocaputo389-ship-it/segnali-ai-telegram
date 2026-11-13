@@ -17,21 +17,18 @@ def evaluate_anti_fakeout(symbol, price, volume_spike, atr_value, rsi):
     reasons = []
     is_valid = True
     
-    # 1. Controllo Volume
     if volume_spike < 1.3:
         reasons.append("⚠️ Volume insufficiente: alto rischio di finta rottura (Fakeout).")
         is_valid = False
     else:
         reasons.append("✅ Volume istituzionale confermato (> 1.3x media).")
 
-    # 2. Controllo ATR / Volatilità
     if atr_value < 0.001:
         reasons.append("⚠️ Volatilità ATR bassa: movimento laterale rumoroso.")
         is_valid = False
     else:
         reasons.append("✅ Soglia ATR superata: rottura direzionale reale.")
 
-    # 3. Controllo RSI (Evita trappole in iperestensione)
     if rsi > 78 or rsi < 22:
         reasons.append("⚠️ RSI in iper-estensione: prudenza sui ritracciamenti.")
     else:
@@ -47,13 +44,19 @@ def analyze_chart():
     timeframe = data.get('timeframe', '15m')
     mode = data.get('mode', 'Day Trading')
     
+    # Prezzi base realistici per tutti i mercati
     base_prices = {
-        'XAUUSD': 3884.27,
-        'BTCUSDT': 91450.00,
-        'EURUSD': 1.0785,
-        'ETHUSDT': 3420.50
+        'XAUUSD': 3884.27,  # Oro
+        'XAGUSD': 31.50,    # Argento
+        'USOIL': 72.40,     # Petrolio WTI
+        'BTCUSDT': 91450.00,# Bitcoin
+        'ETHUSDT': 3420.50, # Ethereum
+        'EURUSD': 1.0785,   # Forex
+        'GBPUSD': 1.2850,   # Forex
+        'US500': 5850.00,   # S&P 500
+        'NAS100': 20400.00  # Nasdaq 100
     }
-    current_price = base_prices.get(symbol, 3000.00)
+    current_price = base_prices.get(symbol, 1000.00)
     
     sim_volume_spike = round(random.uniform(0.9, 2.4), 2)
     sim_atr = round(random.uniform(0.002, 0.015), 4)
@@ -97,16 +100,17 @@ def analyze_chart():
         "take_profit_1": tp1,
         "take_profit_2": tp2,
         "take_profit_3": tp3,
-        "ai_comment": f"Analisi {mode} ({timeframe}): Motore Anti-Fakeout completato. Rilevato spike di volume ({sim_volume_spike}x) e filtro ATR validato."
+        "ai_comment": f"Analisi {symbol} ({timeframe}): Motore Anti-Fakeout completato. Rilevato spike di volume ({sim_volume_spike}x) e filtro ATR validato."
     })
 
 @app.route('/api/signals', methods=['GET'])
 def get_signals():
     signals = [
-        {"symbol": "XAUUSD", "type": "Scalping", "action": "SELL", "time": "35 min fa", "prob": "Low"},
-        {"symbol": "BTCUSDT", "type": "Scalping", "action": "SELL", "time": "53 min fa", "prob": "Pro"},
-        {"symbol": "EURUSD", "type": "Day Trading", "action": "BUY", "time": "1 ora fa", "prob": "Pro"},
-        {"symbol": "ETHUSDT", "type": "Swing", "action": "BUY", "time": "2 ore fa", "prob": "Free"}
+        {"symbol": "XAUUSD", "type": "Materie Prime", "action": "SELL", "time": "15 min fa", "prob": "Pro"},
+        {"symbol": "USOIL", "type": "Energia", "action": "BUY", "time": "30 min fa", "prob": "Pro"},
+        {"symbol": "BTCUSDT", "type": "Cripto", "action": "SELL", "time": "53 min fa", "prob": "Pro"},
+        {"symbol": "US500", "type": "Indici", "action": "BUY", "time": "1 ora fa", "prob": "Free"},
+        {"symbol": "EURUSD", "type": "Forex", "action": "BUY", "time": "2 ore fa", "prob": "Free"}
     ]
     return jsonify(signals)
 
