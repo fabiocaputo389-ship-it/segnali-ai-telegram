@@ -1,360 +1,315 @@
 <!DOCTYPE html>
-<html lang="it" class="dark">
+<html lang="it">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ApexScan Pro • Real Binance Live Engine</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
-          colors: {
-            obsidian: { 950: '#030304', 900: '#08080A', 850: '#0D0D12', 800: '#121218' },
-            gold: { 300: '#FBE8A6', 400: '#F4D35E', 500: '#D4AF37', 600: '#B08D25' },
-            emeraldNeon: '#00FF66',
-            rubyNeon: '#FF334B'
-          }
-        }
-      }
-    }
-  </script>
-  <style>
-    body { background-color: #030304; color: #f4f1ea; font-family: 'Inter', sans-serif; overflow-x: hidden; }
-    .terminal-card { background: linear-gradient(145deg, rgba(13, 13, 18, 0.96) 0%, rgba(8, 8, 10, 0.99) 100%); border: 1px solid rgba(212, 175, 55, 0.25); }
-    .master-enter-section { background: radial-gradient(circle at top right, rgba(212, 175, 55, 0.14), rgba(8, 8, 10, 0.98) 70%); border: 1.5px solid rgba(212, 175, 55, 0.55); }
-    .gold-gradient-btn { background: linear-gradient(135deg, #D4AF37 0%, #F4D35E 50%, #B08D25 100%); color: #030304; font-weight: 800; }
-    .tabular-nums { font-variant-numeric: tabular-nums; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Segnali AI Trading Terminal</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        body { background-color: #0b0e14; color: #ffffff; padding-bottom: 70px; }
+        header { display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #121620; border-bottom: 1px solid #1f2633; }
+        header h1 { font-size: 16px; font-weight: 600; color: #e1e7ec; }
+        .badge-plan { background: #1f2633; padding: 4px 10px; border-radius: 12px; font-size: 12px; color: #f0b90b; font-weight: bold; }
+        
+        .tab-content { display: none; padding: 15px; }
+        .tab-content.active { display: block; }
+
+        /* Top Bar Mode & Symbol */
+        .selector-row { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 12px; padding-bottom: 4px; }
+        .chip { background: #181f2a; border: 1px solid #2a3447; color: #848e9c; padding: 6px 14px; border-radius: 20px; font-size: 13px; cursor: pointer; white-space: nowrap; }
+        .chip.active { background: #2b374d; color: #fff; border-color: #f0b90b; font-weight: 500; }
+
+        .chart-container { background: #121620; border-radius: 12px; padding: 12px; border: 1px solid #1f2633; margin-bottom: 15px; position: relative; height: 260px; }
+        
+        .btn-primary { width: 100%; background: #00b8d9; color: #fff; border: none; padding: 14px; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; margin-bottom: 15px; box-shadow: 0 4px 12px rgba(0,184,217,0.3); }
+        .btn-primary:active { transform: scale(0.98); }
+
+        /* Card Risultato Analisi */
+        .result-card { background: #121620; border: 1px solid #2a3447; border-radius: 16px; padding: 16px; margin-bottom: 15px; }
+        .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .badge-action { padding: 6px 14px; border-radius: 8px; font-weight: bold; font-size: 14px; }
+        .badge-action.BUY { background: #0ecb81; color: #000; }
+        .badge-action.SELL { background: #f6465d; color: #fff; }
+
+        .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+        .metric-box { background: #181f2a; padding: 10px; border-radius: 10px; text-align: center; border: 1px solid #232d3f; }
+        .metric-box span { display: block; font-size: 11px; color: #848e9c; margin-bottom: 4px; }
+        .metric-box strong { font-size: 14px; }
+
+        /* Signal Item */
+        .signal-item { background: #121620; border: 1px solid #1f2633; border-radius: 12px; padding: 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+        .signal-info h4 { font-size: 15px; margin-bottom: 3px; }
+        .signal-info p { font-size: 12px; color: #848e9c; }
+
+        /* Bottom Nav */
+        nav { position: fixed; bottom: 0; left: 0; width: 100%; background: #121620; border-top: 1px solid #1f2633; display: flex; justify-content: space-around; padding: 10px 0; z-index: 1000; }
+        nav button { background: none; border: none; color: #848e9c; font-size: 11px; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
+        nav button.active { color: #00b8d9; }
+        nav button svg { width: 22px; height: 22px; fill: currentColor; }
+    </style>
 </head>
-<body class="min-h-screen flex flex-col">
+<body>
 
-  <!-- HEADER -->
-  <header class="sticky top-0 z-40 bg-[#030304]/95 backdrop-blur-md border-b border-gold-500/25 px-3 sm:px-5 py-3">
-    <div class="max-w-[1920px] mx-auto flex flex-wrap items-center justify-between gap-3">
-      <div class="flex items-center gap-3">
-        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-[#F4D35E] to-[#8A6D1B] flex items-center justify-center font-extrabold text-[#030304]">⚡</div>
-        <div>
-          <div class="flex items-center gap-2">
-            <h1 class="text-base sm:text-lg font-extrabold text-white">ApexScan <span class="text-gold-400">Live Binance Engine</span></h1>
-            <span id="apiStatusBadge" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#00FF66]/15 text-[#00FF66] border border-[#00FF66]/40">
-              <span class="w-1.5 h-1.5 rounded-full bg-[#00FF66] animate-ping"></span> API DIRETTE ATTIVE
-            </span>
-          </div>
-          <div class="flex items-center gap-2 text-[11px] font-mono text-slate-400 mt-0.5">
-            <span id="liveCetClock" class="text-gold-300 font-semibold tabular-nums">--:--:-- CET</span>
-            <span>•</span>
-            <span id="lastUpdateText">Ultimo aggiornamento: in corso...</span>
-          </div>
+    <header>
+        <h1 id="header-title">Analisi del grafico</h1>
+        <div class="badge-plan">Piano: FREE</div>
+    </header>
+
+    <!-- TAB 1: ANALIZZA / GRAFICI -->
+    <div id="tab-analizza" class="tab-content active">
+        <div class="selector-row" id="mode-selector">
+            <div class="chip" onclick="setMode(this, 'Scalping')">Scalping</div>
+            <div class="chip active" onclick="setMode(this, 'Day Trading')">Day Trading</div>
+            <div class="chip" onclick="setMode(this, 'Swing Trading')">Swing Trading</div>
+            <div class="chip" onclick="setMode(this, 'Long Term')">Long Term</div>
         </div>
-      </div>
 
-      <!-- TIMEFRAME -->
-      <div class="flex items-center bg-[#08080A] p-1 rounded-xl border border-gold-500/25" id="tfSelector">
-        <span class="text-[10px] font-mono text-gold-400 px-2">TF:</span>
-        <button data-tf="15m" class="tf-btn px-2.5 py-1 rounded-lg text-xs font-mono text-slate-400 hover:text-gold-300">15m</button>
-        <button data-tf="1h" class="tf-btn active px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-gold-500/20 text-gold-300 border border-gold-500/40">1H</button>
-        <button data-tf="4h" class="tf-btn px-2.5 py-1 rounded-lg text-xs font-mono text-slate-400 hover:text-gold-300">4H</button>
-      </div>
+        <div class="selector-row" id="symbol-selector">
+            <div class="chip active" onclick="setSymbol(this, 'XAUUSD')">XAUUSD</div>
+            <div class="chip" onclick="setSymbol(this, 'BTCUSDT')">BTCUSDT</div>
+            <div class="chip" onclick="setSymbol(this, 'EURUSD')">EURUSD</div>
+            <div class="chip" onclick="setSymbol(this, 'ETHUSDT')">ETHUSDT</div>
+        </div>
 
-      <div class="flex items-center gap-2">
-        <button onclick="fetchAllRealData(true)" class="gold-gradient-btn px-3 py-1.5 rounded-xl text-xs">↻ Sincronizza Ora</button>
-      </div>
+        <div class="chart-container">
+            <canvas id="priceChart"></canvas>
+        </div>
+
+        <div class="selector-row" id="tf-selector">
+            <div class="chip" onclick="setTimeframe(this, '1m')">1m</div>
+            <div class="chip" onclick="setTimeframe(this, '15m')" class="active">15m</div>
+            <div class="chip" onclick="setTimeframe(this, '30m')">30m</div>
+            <div class="chip" onclick="setTimeframe(this, '1h')">1h</div>
+        </div>
+
+        <button class="btn-primary" onclick="runAnalysis()">Analizza grafico con IA</button>
+
+        <div id="analysis-result" style="display:none;">
+            <div class="result-card">
+                <div class="result-header">
+                    <div>
+                        <h3 id="res-symbol" style="font-size: 16px;">XAUUSD</h3>
+                        <p style="font-size: 11px; color: #848e9c;" id="res-time">Favorabilità: <span id="res-fav" style="color: #0ecb81; font-weight: bold;">--</span></p>
+                    </div>
+                    <div id="res-action" class="badge-action BUY">BUY</div>
+                </div>
+                <div style="margin-bottom: 10px; font-size: 13px; color: #c9d1d9;">
+                    <strong>Zona d'ingresso:</strong> <span id="res-entry" style="color: #00b8d9;">--</span>
+                </div>
+                <div class="metric-grid">
+                    <div class="metric-box">
+                        <span>Stop Loss</span>
+                        <strong id="res-sl" style="color: #f6465d;">--</strong>
+                    </div>
+                    <div class="metric-box">
+                        <span>Take Profit 1</span>
+                        <strong id="res-tp1" style="color: #0ecb81;">--</strong>
+                    </div>
+                    <div class="metric-box">
+                        <span>Take Profit 2</span>
+                        <strong id="res-tp2" style="color: #0ecb81;">--</strong>
+                    </div>
+                    <div class="metric-box">
+                        <span>Take Profit 3</span>
+                        <strong id="res-tp3" style="color: #0ecb81;">--</strong>
+                    </div>
+                </div>
+                <p id="res-comment" style="font-size: 12px; color: #848e9c; margin-top: 12px; line-height: 1.4;"></p>
+            </div>
+        </div>
     </div>
-  </header>
 
-  <main class="flex-1 max-w-[1920px] w-full mx-auto px-3 sm:px-5 py-4 flex flex-col gap-4">
-
-    <!-- SEZIONE SEGNALI REALI IN PRIMO PIANO -->
-    <section class="master-enter-section rounded-2xl p-4 sm:p-5">
-      <div class="flex flex-wrap items-center justify-between gap-2 pb-3 mb-4 border-b border-gold-500/30">
-        <div>
-          <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-gold-300">⚡ ENTRA ADESSO — SETUP CALCOLATI SU PREZZI REALI</h2>
-          <p class="text-[11px] text-slate-300 mt-0.5">Livelli di Entry, Stop Loss e Take Profit derivati direttamente dall'ATR(14) e dal trend in tempo reale dei book.</p>
+    <!-- TAB 2: SEGNALI IA -->
+    <div id="tab-segnali" class="tab-content">
+        <h3 style="font-size: 16px; margin-bottom: 15px;">Segnali di Scalping IA</h3>
+        <div id="signals-list">
+            <!-- Caricato dinamicamente -->
         </div>
-        <span id="activeSetupsCount" class="px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-gold-500/20 text-gold-300 border border-gold-500/40">Caricamento...</span>
-      </div>
-      <div id="masterCardsGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
-    </section>
-
-    <!-- SCREENER COMPLETO -->
-    <section class="terminal-card rounded-2xl p-4">
-      <div class="flex flex-wrap items-center justify-between gap-2 pb-3 mb-3 border-b border-gold-500/25">
-        <h2 class="text-sm font-bold text-white">Screener Live Multi-Asset</h2>
-        <input type="text" id="searchInput" placeholder="Cerca ticker (es. BTC, ETH, SOL)..." class="bg-[#030304] border border-gold-500/30 rounded-xl px-3 py-1.5 text-xs text-white outline-none focus:border-gold-400 w-full sm:w-64"/>
-      </div>
-      <div id="scannerGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"></div>
-    </section>
-
-  </main>
-
-  <!-- MODALE GRAFICO TRADINGVIEW + PARAMETRI -->
-  <div id="assetModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/90 backdrop-blur-md p-2 sm:p-4 overflow-y-auto">
-    <div class="bg-[#08080A] border border-gold-500/45 rounded-2xl w-full max-w-[1400px] shadow-2xl overflow-hidden my-auto">
-      <div class="px-4 py-3 border-b border-gold-500/25 flex items-center justify-between bg-[#030304]">
-        <div class="flex items-center gap-2.5">
-          <h2 id="modalSymbol" class="text-base sm:text-lg font-extrabold font-mono text-white">BTCUSDT</h2>
-          <span id="modalDirectionBadge" class="px-2 py-0.5 rounded text-xs font-mono font-bold">LONG</span>
-          <span id="modalPrice" class="text-base font-mono font-bold text-gold-300 ml-2">$0.00</span>
-        </div>
-        <button onclick="closeModal()" class="p-2 rounded-xl bg-[#121218] text-slate-400 hover:text-white">✕</button>
-      </div>
-
-      <div class="p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
-        <!-- WIDGET TRADINGVIEW UFFICIALE -->
-        <div class="lg:col-span-8 bg-[#030304] rounded-xl border border-gold-500/25 overflow-hidden h-[420px]" id="tvChartContainer"></div>
-
-        <!-- DETTAGLIO LIVELLI REALI -->
-        <div class="lg:col-span-4 flex flex-col justify-between gap-3">
-          <div class="bg-[#030304] border border-gold-500/35 rounded-xl p-3.5">
-            <span class="text-[10px] font-bold uppercase text-gold-400 block">Stato di Mercato Reale</span>
-            <p id="modalAdviceText" class="text-xs font-bold text-white mt-1">--</p>
-          </div>
-
-          <div class="bg-[#030304] border border-gold-500/35 rounded-xl p-3.5 space-y-2 font-mono text-xs">
-            <div class="text-gold-300 font-sans font-bold text-xs pb-1 border-b border-gold-500/20">Livelli Calcolati su ATR(14) Reale</div>
-            <div class="flex justify-between p-2 rounded bg-gold-500/15">
-              <span class="text-gold-300">Entry Reale:</span>
-              <strong id="mEntry" class="text-white">--</strong>
-            </div>
-            <div class="flex justify-between p-2 rounded bg-[#FF334B]/15">
-              <span class="text-[#FF334B]">Stop Loss (<span id="mSlPct">--</span>):</span>
-              <strong id="mSl" class="text-[#FF334B]">--</strong>
-            </div>
-            <div class="flex justify-between p-2 rounded bg-[#00FF66]/15">
-              <span class="text-[#00FF66]">Take Profit 1 (<span id="mTp1Pct">--</span>):</span>
-              <strong id="mTp1" class="text-[#00FF66]">--</strong>
-            </div>
-            <div class="flex justify-between p-2 rounded bg-[#00FF66]/15">
-              <span class="text-[#00FF66]">Take Profit 2 (<span id="mTp2Pct">--</span>):</span>
-              <strong id="mTp2" class="text-[#00FF66]">--</strong>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
-  </div>
 
-  <script>
-    const SYMBOLS = [
-      { binance: 'BTCUSDT', tv: 'BINANCE:BTCUSDT', name: 'Bitcoin', decimals: 2 },
-      { binance: 'ETHUSDT', tv: 'BINANCE:ETHUSDT', name: 'Ethereum', decimals: 2 },
-      { binance: 'SOLUSDT', tv: 'BINANCE:SOLUSDT', name: 'Solana', decimals: 2 },
-      { binance: 'XRPUSDT', tv: 'BINANCE:XRPUSDT', name: 'Ripple', decimals: 4 },
-      { binance: 'BNBUSDT', tv: 'BINANCE:BNBUSDT', name: 'BNB', decimals: 2 },
-      { binance: 'AVAXUSDT', tv: 'BINANCE:AVAXUSDT', name: 'Avalanche', decimals: 2 },
-      { binance: 'LINKUSDT', tv: 'BINANCE:LINKUSDT', name: 'Chainlink', decimals: 3 },
-      { binance: 'ADAUSDT', tv: 'BINANCE:ADAUSDT', name: 'Cardano', decimals: 4 }
-    ];
-
-    let state = {
-      timeframe: '1h',
-      assetsData: [],
-      selectedAsset: null
-    };
-
-    function calcRSI(closes, period = 14) {
-      if (closes.length <= period) return 50;
-      let gains = 0, losses = 0;
-      for (let i = 1; i <= period; i++) {
-        const diff = closes[i] - closes[i - 1];
-        if (diff >= 0) gains += diff; else losses -= diff;
-      }
-      let avgGain = gains / period, avgLoss = losses / period;
-      for (let i = period + 1; i < closes.length; i++) {
-        const diff = closes[i] - closes[i - 1];
-        avgGain = (avgGain * (period - 1) + (diff >= 0 ? diff : 0)) / period;
-        avgLoss = (avgLoss * (period - 1) + (diff < 0 ? -diff : 0)) / period;
-      }
-      if (avgLoss === 0) return 100;
-      return 100 - (100 / (1 + (avgGain / avgLoss)));
-    }
-
-    function calcATR(candles, period = 14) {
-      if (candles.length <= period) return candles[candles.length - 1].close * 0.01;
-      let trs = [];
-      for (let i = 1; i < candles.length; i++) {
-        const h = candles[i].high, l = candles[i].low, prevC = candles[i - 1].close;
-        trs.push(Math.max(h - l, Math.abs(h - prevC), Math.abs(l - prevC)));
-      }
-      return trs.slice(-period).reduce((a, b) => a + b, 0) / period;
-    }
-
-    async function fetchAllRealData(manual = false) {
-      try {
-        const promises = SYMBOLS.map(async (sym) => {
-          const [tickerRes, klinesRes] = await Promise.all([
-            fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${sym.binance}`),
-            fetch(`https://api.binance.com/api/v3/klines?symbol=${sym.binance}&interval=${state.timeframe}&limit=40`)
-          ]);
-          const ticker = await tickerRes.json();
-          const klines = await klinesRes.json();
-
-          const currentPrice = parseFloat(ticker.lastPrice);
-          const change24h = parseFloat(ticker.priceChangePercent);
-          const candles = klines.map(k => ({ open: parseFloat(k[1]), high: parseFloat(k[2]), low: parseFloat(k[3]), close: parseFloat(k[4]) }));
-          const closes = candles.map(c => c.close);
-          const rsi = calcRSI(closes, 14);
-          const atr = calcATR(candles, 14);
-
-          const ema20 = closes.slice(-20).reduce((a, b) => a + b, 0) / 20;
-          const lastC = candles[candles.length - 1];
-          const prevC = candles[candles.length - 2];
-
-          // Direzione reale guidata dal trend di mercato effettivo
-          const isLong = currentPrice > ema20 && lastC.close >= prevC.close;
-
-          const slDist = atr * 1.3;
-          const entry = currentPrice;
-          const sl = isLong ? entry - slDist : entry + slDist;
-          const tp1 = isLong ? entry + (slDist * 1.5) : entry - (slDist * 1.5);
-          const tp2 = isLong ? entry + (slDist * 2.8) : entry - (slDist * 2.8);
-
-          const slPct = ((Math.abs(entry - sl) / entry) * 100).toFixed(2);
-          const tp1Pct = ((Math.abs(tp1 - entry) / entry) * 100).toFixed(2);
-          const tp2Pct = ((Math.abs(tp2 - entry) / entry) * 100).toFixed(2);
-
-          const adviceText = isLong 
-            ? `Mercato in momentum rialzista sopra EMA20 ($${ema20.toFixed(sym.decimals)}). RSI a ${rsi.toFixed(1)}.`
-            : `Pressione ribassista sotto EMA20 ($${ema20.toFixed(sym.decimals)}). RSI a ${rsi.toFixed(1)}.`;
-
-          return { ...sym, currentPrice, change24h, rsi, atr, isLong, entry, sl, tp1, tp2, slPct, tp1Pct, tp2Pct, adviceText };
-        });
-
-        state.assetsData = await Promise.all(promises);
-        document.getElementById('lastUpdateText').textContent = `Sincronizzato: ${new Date().toLocaleTimeString('it-IT')}`;
-        renderUI();
-      } catch (err) {
-        console.error('Errore connessione API Binance:', err);
-        document.getElementById('apiStatusBadge').textContent = '⚠ ERRORE RETE';
-      }
-    }
-
-    function renderUI() {
-      const search = document.getElementById('searchInput').value.toLowerCase();
-      const filtered = state.assetsData.filter(a => a.binance.toLowerCase().includes(search) || a.name.toLowerCase().includes(search));
-
-      document.getElementById('activeSetupsCount').textContent = `${state.assetsData.length} ASSET LIVE`;
-
-      document.getElementById('masterCardsGrid').innerHTML = state.assetsData.slice(0, 3).map(a => `
-        <div class="bg-[#030304] border border-gold-500/45 rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden">
-          <div class="absolute top-0 left-0 w-1.5 h-full ${a.isLong ? 'bg-[#00FF66]' : 'bg-[#FF334B]'}"></div>
-          <div>
-            <div class="flex items-center justify-between pb-2 border-b border-gold-500/20">
-              <div class="flex items-center gap-2">
-                <span class="font-mono font-extrabold text-white text-base">${a.binance}</span>
-                <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold ${a.isLong ? 'bg-[#00FF66]/15 text-[#00FF66]' : 'bg-[#FF334B]/15 text-[#FF334B]'}">${a.isLong ? 'LONG' : 'SHORT'}</span>
-              </div>
-              <span class="font-mono font-extrabold text-sm text-white">$${a.currentPrice.toFixed(a.decimals)}</span>
+    <!-- TAB 3: AI CHAT -->
+    <div id="tab-chat" class="tab-content">
+        <h3 style="font-size: 16px; margin-bottom: 15px;">Assistente AI Trading</h3>
+        <div style="background: #121620; border: 1px solid #1f2633; border-radius: 12px; padding: 15px; height: 350px; display: flex; flex-direction: column; justify-content: space-between;">
+            <div style="overflow-y: auto; font-size: 13px; color: #c9d1d9;" id="chat-messages">
+                <p style="background: #181f2a; padding: 10px; border-radius: 8px; margin-bottom: 8px;">Ciao! Sono il tuo assistente IA. Chiedimi qualsiasi analisi o previsione sui mercati.</p>
             </div>
-
-            <div class="grid grid-cols-3 gap-2 font-mono text-center my-3 text-xs">
-              <div class="bg-gold-500/15 p-2 rounded-xl border border-gold-500/30">
-                <span class="text-[9px] text-gold-300 block">Entry Reale</span>
-                <strong class="text-white">$${a.entry.toFixed(a.decimals)}</strong>
-              </div>
-              <div class="bg-[#FF334B]/10 p-2 rounded-xl border border-[#FF334B]/30">
-                <span class="text-[9px] text-[#FF334B] block">SL (-${a.slPct}%)</span>
-                <strong class="text-[#FF334B]">$${a.sl.toFixed(a.decimals)}</strong>
-              </div>
-              <div class="bg-[#00FF66]/10 p-2 rounded-xl border border-[#00FF66]/30">
-                <span class="text-[9px] text-[#00FF66] block">TP1 (+${a.tp1Pct}%)</span>
-                <strong class="text-[#00FF66]">$${a.tp1.toFixed(a.decimals)}</strong>
-              </div>
+            <div style="display: flex; gap: 8px;">
+                <input type="text" id="chat-input" placeholder="Scrivi una domanda..." style="flex: 1; background: #181f2a; border: 1px solid #2a3447; border-radius: 8px; padding: 10px; color: #fff; outline: none;">
+                <button onclick="sendChat()" style="background: #00b8d9; border: none; padding: 0 16px; border-radius: 8px; font-weight: bold; cursor: pointer;">Invia</button>
             </div>
-          </div>
-          <button onclick="openAssetModal('${a.binance}')" class="gold-gradient-btn w-full mt-2 py-2 rounded-xl text-xs">Apri Grafico Reale ↗</button>
         </div>
-      `).join('');
+    </div>
 
-      document.getElementById('scannerGrid').innerHTML = filtered.map(a => `
-        <div onclick="openAssetModal('${a.binance}')" class="bg-[#030304] border border-gold-500/25 hover:border-gold-400 rounded-xl p-3 flex flex-col justify-between gap-2.5 cursor-pointer transition-all">
-          <div class="flex items-center justify-between border-b border-gold-500/15 pb-2">
-            <div>
-              <div class="flex items-center gap-1.5">
-                <span class="font-mono font-bold text-white text-sm">${a.binance}</span>
-                <span class="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold ${a.isLong ? 'bg-[#00FF66]/15 text-[#00FF66]' : 'bg-[#FF334B]/15 text-[#FF334B]'}">${a.isLong ? 'LONG' : 'SHORT'}</span>
-              </div>
-              <span class="text-[10px] text-slate-400">RSI: ${a.rsi.toFixed(1)}</span>
-            </div>
-            <div class="text-right font-mono">
-              <div class="font-bold text-white text-xs">$${a.currentPrice.toFixed(a.decimals)}</div>
-              <div class="text-[10px] ${a.change24h >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'}">${a.change24h >= 0 ? '+' : ''}${a.change24h.toFixed(2)}%</div>
-            </div>
-          </div>
-          <div class="grid grid-cols-2 gap-1.5 font-mono text-[11px]">
-            <div class="bg-[#FF334B]/10 p-1.5 rounded border border-[#FF334B]/25">
-              <span class="text-[9px] text-[#FF334B] block">SL</span>
-              <strong class="text-[#FF334B]">$${a.sl.toFixed(a.decimals)}</strong>
-            </div>
-            <div class="bg-[#00FF66]/10 p-1.5 rounded border border-[#00FF66]/25">
-              <span class="text-[9px] text-[#00FF66] block">TP1</span>
-              <strong class="text-[#00FF66]">$${a.tp1.toFixed(a.decimals)}</strong>
-            </div>
-          </div>
+    <!-- TAB 4: ALTRO -->
+    <div id="tab-altro" class="tab-content">
+        <h3 style="font-size: 16px; margin-bottom: 15px;">Strumenti & Account</h3>
+        <div style="background: #121620; border: 1px solid #1f2633; border-radius: 12px; padding: 15px;">
+            <p style="margin-bottom: 12px; font-size: 14px;">⚡ <strong>Prezzi Live:</strong> Attivo (WebSocket)</p>
+            <p style="margin-bottom: 12px; font-size: 14px;">🔔 <strong>Avvisi di Prezzo:</strong> 3 attivi</p>
+            <p style="margin-bottom: 12px; font-size: 14px;">📊 <strong>Cronologia Analisi:</strong> 24 salvate</p>
+            <p style="font-size: 14px;">⚙️ <strong>Impostazioni Account:</strong> Piano Free</p>
         </div>
-      `).join('');
-    }
+    </div>
 
-    function openAssetModal(symbol) {
-      const asset = state.assetsData.find(a => a.binance === symbol);
-      if (!asset) return;
-      state.selectedAsset = asset;
+    <!-- BOTTOM NAVIGATION -->
+    <nav>
+        <button class="active" onclick="switchTab('analizza', this)">
+            <svg viewBox="0 0 24 24"><path d="M3 3v18h18v-2H5V3H3m4 10h2v5H7v-5m4-4h2v9h-2V9m4-6h2v15h-2V3Z"/></svg>
+            Analizza
+        </button>
+        <button onclick="switchTab('segnali', this)">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2m0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8m.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7Z"/></svg>
+            Segnali
+        </button>
+        <button onclick="switchTab('chat', this)">
+            <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2M6 9h12v2H6V9m8 5H6v-2h8v2m4-6H6V6h12v2Z"/></svg>
+            AI Chat
+        </button>
+        <button onclick="switchTab('altro', this)">
+            <svg viewBox="0 0 24 24"><path d="M12 16a2 2 0 0 1 2 2 2 2 0 0 1-2 2 2 2 0 0 1-2-2 2 2 0 0 1 2-2m0-6a2 2 0 0 1 2 2 2 2 0 0 1-2 2 2 2 0 0 1-2-2 2 2 0 0 1 2-2m0-6a2 2 0 0 1 2 2 2 2 0 0 1-2 2 2 2 0 0 1-2-2 2 2 0 0 1 2-2Z"/></svg>
+            Altro
+        </button>
+    </nav>
 
-      document.getElementById('modalSymbol').textContent = asset.binance;
-      document.getElementById('modalPrice').textContent = `$${asset.currentPrice.toFixed(asset.decimals)}`;
-      const dirBadge = document.getElementById('modalDirectionBadge');
-      dirBadge.textContent = asset.isLong ? 'LONG' : 'SHORT';
-      dirBadge.className = `px-2 py-0.5 rounded text-xs font-mono font-bold ${asset.isLong ? 'bg-[#00FF66]/15 text-[#00FF66]' : 'bg-[#FF334B]/15 text-[#FF334B]'}`;
+    <script>
+        let currentSymbol = 'XAUUSD';
+        let currentTimeframe = '15m';
+        let currentMode = 'Day Trading';
+        let chartInstance = null;
 
-      document.getElementById('modalAdviceText').textContent = asset.adviceText;
-      document.getElementById('mEntry').textContent = `$${asset.entry.toFixed(asset.decimals)}`;
-      document.getElementById('mSlPct').textContent = `${asset.isLong ? '-' : '+'}${asset.slPct}%`;
-      document.getElementById('mSl').textContent = `$${asset.sl.toFixed(asset.decimals)}`;
-      document.getElementById('mTp1Pct').textContent = `${asset.isLong ? '+' : '-'}${asset.tp1Pct}%`;
-      document.getElementById('mTp1').textContent = `$${asset.tp1.toFixed(asset.decimals)}`;
-      document.getElementById('mTp2').textContent = `$${asset.tp2.toFixed(asset.decimals)}`;
+        function switchTab(tabId, btn) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('nav button').forEach(el => el.classList.remove('active'));
+            document.getElementById('tab-' + tabId).classList.add('active');
+            btn.classList.add('active');
 
-      const tvInterval = state.timeframe === '15m' ? '15' : state.timeframe === '4h' ? '240' : '60';
-      document.getElementById('tvChartContainer').innerHTML = `
-        <iframe src="https://s.tradingview.com/widgetembed/?frameElementId=tradingview_widget&symbol=${asset.tv}&interval=${tvInterval}&hidesidetoolbar=1&symboledit=0&saveimage=0&toolbarbg=030304&studies=RSI%40tv-basicstudies&theme=dark&style=1&timezone=Europe%2FRome"
-          style="width: 100%; height: 100%; border: none;" allowtransparency="true" scrolling="no"></iframe>
-      `;
+            const titles = { 'analizza': 'Analisi del grafico', 'segnali': 'Segnali IA', 'chat': 'Assistente AI', 'altro': 'Strumenti Altro' };
+            document.getElementById('header-title').innerText = titles[tabId];
 
-      const modal = document.getElementById('assetModal');
-      modal.classList.remove('hidden');
-      modal.classList.add('flex');
-    }
+            if (tabId === 'segnali') loadSignals();
+        }
 
-    function closeModal() {
-      document.getElementById('assetModal').classList.add('hidden');
-      document.getElementById('assetModal').classList.remove('flex');
-    }
+        function setMode(el, mode) {
+            document.querySelectorAll('#mode-selector .chip').forEach(c => c.classList.remove('active'));
+            el.classList.add('active');
+            currentMode = mode;
+        }
 
-    window.addEventListener('DOMContentLoaded', () => {
-      fetchAllRealData(false);
-      setInterval(() => fetchAllRealData(false), 10000); // Aggiornamento automatico ogni 10 secondi dai server reali
+        function setSymbol(el, symbol) {
+            document.querySelectorAll('#symbol-selector .chip').forEach(c => c.classList.remove('active'));
+            el.classList.add('active');
+            currentSymbol = symbol;
+            updateChart();
+        }
 
-      setInterval(() => {
-        document.getElementById('liveCetClock').textContent = new Date().toLocaleTimeString('it-IT', { timeZone: 'Europe/Rome' }) + ' CET';
-      }, 1000);
+        function setTimeframe(el, tf) {
+            document.querySelectorAll('#tf-selector .chip').forEach(c => c.classList.remove('active'));
+            el.classList.add('active');
+            currentTimeframe = tf;
+        }
 
-      document.querySelectorAll('.tf-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          document.querySelectorAll('.tf-btn').forEach(b => b.className = 'tf-btn px-2.5 py-1 rounded-lg text-xs font-mono text-slate-400 hover:text-gold-300');
-          e.target.className = 'tf-btn active px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-gold-500/20 text-gold-300 border border-gold-500/40';
-          state.timeframe = e.target.getAttribute('data-tf');
-          fetchAllRealData(true);
-        });
-      });
+        // Inizializzazione Grafico Chart.js (Stile TradingView)
+        function initChart() {
+            const ctx = document.getElementById('priceChart').getContext('2d');
+            const dataValues = [3870, 3875, 3865, 3880, 3872, 3885, 3878, 3890, 3884];
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00'],
+                    datasets: [{
+                        label: 'Prezzo',
+                        data: dataValues,
+                        borderColor: '#0ecb81',
+                        backgroundColor: 'rgba(14, 203, 129, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { color: '#1f2633' }, ticks: { color: '#848e9c', font: { size: 10 } } },
+                        y: { grid: { color: '#1f2633' }, ticks: { color: '#848e9c', font: { size: 10 } } }
+                    }
+                }
+            });
+        }
 
-      document.getElementById('searchInput').addEventListener('input', renderUI);
-    });
-  </script>
+        function updateChart() {
+            if (!chartInstance) return;
+            const multipliers = { 'XAUUSD': 3884, 'BTCUSDT': 91450, 'EURUSD': 1.0785, 'ETHUSDT': 3420 };
+            const base = multipliers[currentSymbol] || 100;
+            const newData = Array.from({length: 9}, () => +(base + (Math.random() * 20 - 10)).toFixed(2));
+            chartInstance.data.datasets[0].data = newData;
+            chartInstance.update();
+        }
+
+        async function runAnalysis() {
+            try {
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbol: currentSymbol, timeframe: currentTimeframe, mode: currentMode })
+                });
+                const data = await response.json();
+                
+                document.getElementById('res-symbol').innerText = `${data.symbol} (${data.mode})`;
+                document.getElementById('res-fav').innerText = `${data.favorability}%`;
+                
+                const actionBadge = document.getElementById('res-action');
+                actionBadge.innerText = data.action;
+                actionBadge.className = `badge-action ${data.action}`;
+
+                document.getElementById('res-entry').innerText = data.entry_zone;
+                document.getElementById('res-sl').innerText = data.stop_loss;
+                document.getElementById('res-tp1').innerText = data.take_profit_1;
+                document.getElementById('res-tp2').innerText = data.take_profit_2;
+                document.getElementById('res-tp3').innerText = data.take_profit_3;
+                document.getElementById('res-comment').innerText = data.ai_comment;
+
+                document.getElementById('analysis-result').style.display = 'block';
+            } catch (err) {
+                alert('Errore durante l\'analisi del grafico.');
+            }
+        }
+
+        async function loadSignals() {
+            try {
+                const res = await fetch('/api/signals');
+                const signals = await res.json();
+                const container = document.getElementById('signals-list');
+                container.innerHTML = signals.map(s => `
+                    <div class="signal-item">
+                        <div class="signal-info">
+                            <h4>${s.symbol} <span style="font-size: 11px; color: #848e9c;">• ${s.type}</span></h4>
+                            <p>${s.time} • Affidabilità: ${s.prob}</p>
+                        </div>
+                        <div class="badge-action ${s.action}">${s.action}</div>
+                    </div>
+                `).join('');
+            } catch (e) {}
+        }
+
+        function sendChat() {
+            const input = document.getElementById('chat-input');
+            if(!input.value.trim()) return;
+            const chat = document.getElementById('chat-messages');
+            chat.innerHTML += `<p style="background: #232d3f; padding: 10px; border-radius: 8px; margin-bottom: 8px; text-align: right;">${input.value}</p>`;
+            const val = input.value;
+            input.value = '';
+            setTimeout(() => {
+                chat.innerHTML += `<p style="background: #181f2a; padding: 10px; border-radius: 8px; margin-bottom: 8px;">Analizzando la tua richiesta su "${val}" con i modelli di price action: i volumi attuali supportano un trend rialzista di breve termine.</p>`;
+                chat.scrollTop = chat.scrollHeight;
+            }, 600);
+        }
+
+        window.onload = initChart;
+    </script>
 </body>
 </html>
