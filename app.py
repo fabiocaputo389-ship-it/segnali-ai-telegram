@@ -11,23 +11,40 @@ app = Flask(__name__, static_folder='static', template_folder='static')
 def home():
     return app.send_static_file('index.html')
 
+# Database completo ed esteso di tutto il mercato globale
 MARKET_CATEGORIES = {
     "Materie Prime": {
         'XAUUSD': {'name': '🥇 Oro (XAUUSD)', 'ticker': 'GC=F'},
         'XAGUSD': {'name': '🥈 Argento (XAGUSD)', 'ticker': 'SI=F'},
-        'USOIL': {'name': '🛢️ Petrolio WTI', 'ticker': 'CL=F'}
+        'USOIL': {'name': '🛢️ Petrolio WTI', 'ticker': 'CL=F'},
+        'COPPER': {'name': '🥉 Rame', 'ticker': 'HG=F'},
+        'NATGAS': {'name': '⚡ Gas Naturale', 'ticker': 'NG=F'}
     },
     "Crypto": {
         'BTCUSDT': {'name': '₿ Bitcoin', 'ticker': 'BTC-USD'},
-        'ETHUSDT': {'name': 'Ξ Ethereum', 'ticker': 'ETH-USD'}
+        'ETHUSDT': {'name': 'Ξ Ethereum', 'ticker': 'ETH-USD'},
+        'SOLUSDT': {'name': '🟣 Solana', 'ticker': 'SOL-USD'},
+        'XRPUSDT': {'name': '✕ Ripple (XRP)', 'ticker': 'XRP-USD'},
+        'ADAUSDT': {'name': '₳ Cardano', 'ticker': 'ADA-USD'},
+        'BNBUSDT': {'name': '🟡 Binance Coin', 'ticker': 'BNB-USD'},
+        'DOGEUSDT': {'name': '🐕 Dogecoin', 'ticker': 'DOGE-USD'},
+        'AVAXUSDT': {'name': '🔺 Avalanche', 'ticker': 'AVAX-USD'},
+        'LINKUSDT': {'name': '🔗 Chainlink', 'ticker': 'LINK-USD'}
     },
     "Forex": {
         'EURUSD': {'name': '💶 EUR/USD', 'ticker': 'EURUSD=X'},
-        'GBPUSD': {'name': '💷 GBP/USD', 'ticker': 'GBPUSD=X'}
+        'GBPUSD': {'name': '💷 GBP/USD', 'ticker': 'GBPUSD=X'},
+        'USDJPY': {'name': '💴 USD/JPY', 'ticker': 'USDJPY=X'},
+        'AUDUSD': {'name': '🇦🇺 AUD/USD', 'ticker': 'AUDUSD=X'},
+        'USDCAD': {'name': '🇨🇦 USD/CAD', 'ticker': 'USDCAD=X'},
+        'EURGBP': {'name': '🇪🇺 EUR/GBP', 'ticker': 'EURGBP=X'}
     },
     "Indici": {
         'US500': {'name': '🇺🇸 S&P 500', 'ticker': '^GSPC'},
-        'NAS100': {'name': '📈 Nasdaq', 'ticker': '^IXIC'}
+        'NAS100': {'name': '📈 Nasdaq 100', 'ticker': '^IXIC'},
+        'US30': {'name': '🏛️ Dow Jones', 'ticker': '^DJI'},
+        'DAX40': {'name': '🇩🇪 DAX 40', 'ticker': '^GDAXI'},
+        'FTSE100': {'name': '🇬🇧 FTSE 100', 'ticker': '^FTSE'}
     }
 }
 
@@ -40,15 +57,14 @@ def get_all_tickers_flat():
 
 YAHOO_TICKERS = get_all_tickers_flat()
 
-def calculate_mathematical_direction(df, mode):
+def calculate_advanced_indicators(df, mode):
     """
-    Modello matematico predittivo basato su EMA, RSI, ATR e Volume Spike con Anti-Fakeout.
+    Calcolo matematico avanzato: RSI, MACD, ATR, Spinta Volumi e Direzione.
     """
     try:
         close = df['Close']
-        ema_fast = close.ewm(span=9, adjust=False).mean().iloc[-1]
-        ema_slow = close.ewm(span=21, adjust=False).mean().iloc[-1]
         
+        # 1. RSI (14)
         delta = close.diff()
         gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
@@ -56,6 +72,16 @@ def calculate_mathematical_direction(df, mode):
         rsi = float((100 - (100 / (1 + rs))).iloc[-1])
         if np.isnan(rsi): rsi = 50.0
 
+        # 2. MACD (12, 26, 9)
+        exp1 = close.ewm(span=12, adjust=False).mean()
+        exp2 = close.ewm(span=26, adjust=False).mean()
+        macd_line = exp1 - exp2
+        signal_line = macd_line.ewm(span=9, adjust=False).mean()
+        macd_hist = macd_line - signal_line
+        current_macd = float(macd_hist.iloc[-1])
+        if np.isnan(current_macd): current_macd = 0.0
+
+        # 3. ATR (14)
         high_low = df['High'] - df['Low']
         high_close = np.abs(df['High'] - close.shift())
         low_close = np.abs(df['Low'] - close.shift())
@@ -64,36 +90,67 @@ def calculate_mathematical_direction(df, mode):
         atr = float(true_range.rolling(14).mean().iloc[-1])
         if np.isnan(atr): atr = close.iloc[-1] * 0.01
 
+        # 4. Spinta Volumi
         vol_mean = df['Volume'].rolling(20).mean().iloc[-1]
         vol_latest = df['Volume'].iloc[-1]
         volume_spike = float(vol_latest / vol_mean) if vol_mean > 0 and not np.isnan(vol_mean) else 1.2
 
         score = 0
-        if ema_fast > ema_slow: score += 2
+        if current_macd > 0: score += 2
         else: score -= 2
 
         if 40 <= rsi <= 60: score += 1
         elif rsi > 70 or rsi < 30: score -= 1
 
-        if volume_spike >= 1.2: score += 2
-        else: score -= 1 # Rischio finta rottura (fakeout)
+        if volume_spike >= 1.15: score += 2
+        else: score -= 1
 
         action = "BUY" if score >= 1 else "SELL"
         
         risks = []
         if volume_spike < 1.1:
-            risks.append("⚠️ Attenzione: Volumi bassi, alto rischio di finta rottura (Fakeout).")
+            risks.append("⚠️ Volumi scarsi: Rischio finta rottura (Fakeout).")
         if rsi > 75:
-            risks.append("⚠️ Rischio di storno: RSI in forte ipercomprato.")
+            risks.append("⚠️ RSI in ipercomprato estremo.")
         elif rsi < 25:
-            risks.append("⚠️ Rischio di rimbalzo: RSI in forte ipervenduto.")
+            risks.append("⚠️ RSI in ipervenduto estremo.")
+        if current_macd * (1 if action == "BUY" else -1) < 0:
+            risks.append("⚠️ Divergenza MACD contraria al trend.")
         if not risks:
-            risks.append("✅ Condizioni di mercato pulite: Struttura tecnica confermata.")
+            risks.append("✅ Indicatori allineati per operazione ad alta probabilità.")
 
-        confidence = int(min(max(50 + (score * 10) + (volume_spike * 5), 45), 96))
-        return action, confidence, rsi, atr, volume_spike, risks
+        confidence = int(min(max(50 + (score * 12) + (volume_spike * 5), 45), 96))
+        return action, confidence, rsi, current_macd, atr, volume_spike, risks
     except Exception:
-        return "BUY", 65, 50.0, 1.0, 1.2, ["⚠️ Dati limitati, operare con prudenza."]
+        return "BUY", 65, 50.0, 0.0, 1.0, 1.2, ["⚠️ Dati di mercato in aggiornamento."]
+
+def get_trade_parameters(current_price, atr, action, mode):
+    if mode == 'Scalping':
+        sl_m, tp_m = 0.6, 1.0
+    elif mode == 'Swing Trading':
+        sl_m, tp_m = 3.0, 5.0
+    else: # Day Trading
+        sl_m, tp_m = 1.5, 2.5
+
+    sl_dist = atr * sl_m
+    tp_dist = atr * tp_m
+
+    if action == "BUY":
+        entry_low = round(current_price - (atr * 0.15), 2)
+        entry_high = round(current_price + (atr * 0.25), 2)
+        sl = round(entry_low - sl_dist, 2)
+        tp1 = round(current_price + tp_dist, 2)
+        tp2 = round(current_price + (tp_dist * 1.6), 2)
+        tp3 = round(current_price + (tp_dist * 2.2), 2)
+    else:
+        entry_low = round(current_price - (atr * 0.25), 2)
+        entry_high = round(current_price + (atr * 0.15), 2)
+        sl = round(entry_high + sl_dist, 2)
+        tp1 = round(current_price - tp_dist, 2)
+        tp2 = round(current_price - (tp_dist * 1.6), 2)
+        tp3 = round(current_price - (tp_dist * 2.2), 2)
+
+    return f"{entry_low} - {entry_high}", sl, tp1, tp2, tp3
 
 @app.route('/api/analyze', methods=['POST'])
 def analyze_chart():
@@ -111,37 +168,13 @@ def analyze_chart():
         df = ticker.history(period="5d", interval=yf_interval)
         if df.empty: raise ValueError()
         current_price = float(df['Close'].iloc[-1])
-        action, confidence, rsi, atr, vol_spike, risks = calculate_mathematical_direction(df, mode)
+        action, confidence, rsi, macd, atr, vol_spike, risks = calculate_advanced_indicators(df, mode)
     except Exception:
         current_price = 3884.27
-        action, confidence, rsi, atr, vol_spike, risks = "BUY", 60, 50.0, 5.0, 1.1, ["⚠️ Modalità offline di emergenza."]
+        action, confidence, rsi, macd, atr, vol_spike, risks = "BUY", 60, 50.0, 0.0, 5.0, 1.1, ["⚠️ Modalità offline."]
 
-    if mode == 'Scalping':
-        sl_m, tp_m = 0.6, 1.0
-    elif mode == 'Swing Trading':
-        sl_m, tp_m = 3.0, 5.0
-    else:
-        sl_m, tp_m = 1.5, 2.5
-
-    sl_dist = atr * sl_m
-    tp_dist = atr * tp_m
-
-    if action == "BUY":
-        entry_low = round(current_price - (atr * 0.2), 2)
-        entry_high = round(current_price + (atr * 0.3), 2)
-        sl = round(entry_low - sl_dist, 2)
-        tp1 = round(current_price + tp_dist, 2)
-        tp2 = round(current_price + (tp_dist * 1.6), 2)
-        tp3 = round(current_price + (tp_dist * 2.2), 2)
-    else:
-        entry_low = round(current_price - (atr * 0.3), 2)
-        entry_high = round(current_price + (atr * 0.2), 2)
-        sl = round(entry_high + sl_dist, 2)
-        tp1 = round(current_price - tp_dist, 2)
-        tp2 = round(current_price - (tp_dist * 1.6), 2)
-        tp3 = round(current_price - (tp_dist * 2.2), 2)
-
-    risk_status = "Basso (Trend Matematico Pulito)" if confidence > 70 else "Alto (Rischio Falsa Rottura / Fakeout)"
+    entry_zone, sl, tp1, tp2, tp3 = get_trade_parameters(current_price, atr, action, mode)
+    risk_status = "Basso (Trend Pulito)" if confidence > 70 else "Alto (Rischio Falsa Rottura)"
 
     return jsonify({
         "status": "success",
@@ -153,12 +186,12 @@ def analyze_chart():
         "favorability": confidence,
         "risk_level": risk_status,
         "fakeout_logs": risks,
-        "entry_zone": f"{entry_low} - {entry_high}",
+        "entry_zone": entry_zone,
         "stop_loss": sl,
         "take_profit_1": tp1,
         "take_profit_2": tp2,
         "take_profit_3": tp3,
-        "ai_comment": f"Previsione matematica ({mode}) su {symbol}: RSI a {rsi:.1f}, spinta volumi a {vol_spike:.2f}x. TP e SL calcolati via ATR."
+        "ai_comment": f"Analisi {mode} ({symbol}): RSI={rsi:.1f}, MACD={macd:.4f}, Volumi={vol_spike:.2f}x. Parametri calcolati matematicamente."
     })
 
 @app.route('/api/signals', methods=['GET'])
@@ -174,7 +207,8 @@ def get_signals():
                     p_prev = float(df['Close'].iloc[0])
                     change = ((p_now - p_prev) / p_prev) * 100
                     
-                    action, conf, rsi, atr, vol, risks = calculate_mathematical_direction(df, 'Day Trading')
+                    action, conf, rsi, macd, atr, vol, risks = calculate_advanced_indicators(df, 'Day Trading')
+                    entry_zone, sl, tp1, tp2, tp3 = get_trade_parameters(p_now, atr, action, 'Day Trading')
                     
                     categorized_signals.append({
                         "category": category,
@@ -183,7 +217,14 @@ def get_signals():
                         "action": action,
                         "change": f"Var: {change:+.2f}%",
                         "price": f"${p_now:,.2f}" if p_now > 10 else f"{p_now:.4f}",
-                        "prob": f"{conf}% • {risks[0]}"
+                        "prob": f"{conf}%",
+                        "rsi": f"{rsi:.1f}",
+                        "macd": f"{macd:.4f}",
+                        "entry": entry_zone,
+                        "sl": sl,
+                        "tp1": tp1,
+                        "tp2": tp2,
+                        "tp3": tp3
                     })
             except Exception:
                 pass
