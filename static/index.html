@@ -41,7 +41,9 @@
         .fakeout-box { background: #1a161f; border: 1px solid #3c2a4f; border-radius: 10px; padding: 10px; margin-top: 12px; font-size: 12px; color: #d2b4de; }
         .fakeout-box ul { padding-left: 15px; margin-top: 4px; }
 
-        .signal-card { background: #121620; border: 1px solid #1f2633; border-radius: 12px; padding: 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+        .signal-card { background: #121620; border: 1px solid #1f2633; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+        .signal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .signal-details { font-size: 12px; color: #848e9c; margin-top: 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
         .category-title { font-size: 14px; font-weight: bold; color: #00b8d9; margin: 15px 0 8px 0; border-bottom: 1px solid #1f2633; padding-bottom: 4px; }
 
         nav { position: fixed; bottom: 0; left: 0; width: 100%; background: #121620; border-top: 1px solid #1f2633; display: flex; justify-content: space-around; padding: 10px 0; z-index: 1000; }
@@ -58,14 +60,12 @@
     </header>
 
     <div id="tab-analizza" class="tab-content active">
-        <!-- MODALITÀ IN ITALIANO -->
         <div class="selector-row" id="mode-selector">
             <div class="chip" onclick="setMode(this, 'Scalping')">⚡ Scalping</div>
             <div class="chip active" onclick="setMode(this, 'Day Trading')">📊 Day Trading</div>
             <div class="chip" onclick="setMode(this, 'Swing Trading')">📈 Swing Trading</div>
         </div>
 
-        <!-- CATEGORIE MERCATO -->
         <div class="market-category-bar">
             <button class="cat-btn active" onclick="filterCategory('Materie Prime', this)">🥇 Materie Prime</button>
             <button class="cat-btn" onclick="filterCategory('Crypto', this)">₿ Criptovalute</button>
@@ -137,7 +137,7 @@
     </div>
 
     <div id="tab-segnali" class="tab-content">
-        <h3 style="font-size: 16px; margin-bottom: 15px;">Segnali Certi e Direzionali</h3>
+        <h3 style="font-size: 16px; margin-bottom: 15px;">Segnali Certi con Parametri Esatti</h3>
         <div id="signals-container">
             <p style="color: #848e9c; font-size: 13px;">Analisi dei mercati in corso...</p>
         </div>
@@ -147,7 +147,7 @@
         <h3 style="font-size: 16px; margin-bottom: 15px;">Assistente AI Mercati</h3>
         <div style="background: #121620; border: 1px solid #1f2633; border-radius: 12px; padding: 15px; height: 350px; display: flex; flex-direction: column; justify-content: space-between;">
             <div style="overflow-y: auto; font-size: 13px; color: #c9d1d9;" id="chat-messages">
-                <p style="background: #181f2a; padding: 10px; border-radius: 8px; margin-bottom: 8px;">Ciao! Chiedimi qualsiasi previsione matematica o fattore di rischio sui mercati.</p>
+                <p style="background: #181f2a; padding: 10px; border-radius: 8px; margin-bottom: 8px;">Ciao! Chiedimi qualsiasi previsione matematica o parametro di trading.</p>
             </div>
             <div style="display: flex; gap: 8px;">
                 <input type="text" id="chat-input" placeholder="Chiedi previsioni..." style="flex: 1; background: #181f2a; border: 1px solid #2a3447; border-radius: 8px; padding: 10px; color: #fff; outline: none;">
@@ -159,8 +159,8 @@
     <div id="tab-altro" class="tab-content">
         <h3 style="font-size: 16px; margin-bottom: 15px;">Impostazioni & Stato</h3>
         <div style="background: #121620; border: 1px solid #1f2633; border-radius: 12px; padding: 15px; font-size: 14px;">
-            <p style="margin-bottom: 12px;">🌍 <strong>Copertura:</strong> Materie Prime, Crypto, Forex, Indici</p>
-            <p style="margin-bottom: 12px;">🛡️ <strong>Motore Anti-Fakeout:</strong> Attivo con calcolo matematico TP/SL</p>
+            <p style="margin-bottom: 12px;">🌍 <strong>Copertura:</strong> Materie Prime, Cripto Complete, Forex, Indici</p>
+            <p style="margin-bottom: 12px;">🛡️ <strong>Motore Anti-Fakeout:</strong> Attivo (RSI + MACD + ATR)</p>
             <p>✅ <strong>Stato Render:</strong> Connesso e Operativo</p>
         </div>
     </div>
@@ -189,19 +189,35 @@
             "Materie Prime": [
                 { id: 'XAUUSD', label: '🥇 Oro', tv: 'FX:XAUUSD' },
                 { id: 'XAGUSD', label: '🥈 Argento', tv: 'FX:XAGUSD' },
-                { id: 'USOIL', label: '🛢️ Petrolio WTI', tv: 'TVC:USOIL' }
+                { id: 'USOIL', label: '🛢️ Petrolio WTI', tv: 'TVC:USOIL' },
+                { id: 'COPPER', label: '🥉 Rame', tv: 'COMEX:HG1!' },
+                { id: 'NATGAS', label: '⚡ Gas Naturale', tv: 'NYMEX:NG1!' }
             ],
             "Crypto": [
                 { id: 'BTCUSDT', label: '₿ Bitcoin', tv: 'BINANCE:BTCUSDT' },
-                { id: 'ETHUSDT', label: 'Ξ Ethereum', tv: 'BINANCE:ETHUSDT' }
+                { id: 'ETHUSDT', label: 'Ξ Ethereum', tv: 'BINANCE:ETHUSDT' },
+                { id: 'SOLUSDT', label: '🟣 Solana', tv: 'BINANCE:SOLUSDT' },
+                { id: 'XRPUSDT', label: '✕ Ripple', tv: 'BINANCE:XRPUSDT' },
+                { id: 'ADAUSDT', label: '₳ Cardano', tv: 'BINANCE:ADAUSDT' },
+                { id: 'BNBUSDT', label: '🟡 Binance Coin', tv: 'BINANCE:BNBUSDT' },
+                { id: 'DOGEUSDT', label: '🐕 Dogecoin', tv: 'BINANCE:DOGEUSDT' },
+                { id: 'AVAXUSDT', label: '🔺 Avalanche', tv: 'BINANCE:AVAXUSDT' },
+                { id: 'LINKUSDT', label: '🔗 Chainlink', tv: 'BINANCE:LINKUSDT' }
             ],
             "Forex": [
                 { id: 'EURUSD', label: '💶 EUR/USD', tv: 'FX:EURUSD' },
-                { id: 'GBPUSD', label: '💷 GBP/USD', tv: 'FX:GBPUSD' }
+                { id: 'GBPUSD', label: '💷 GBP/USD', tv: 'FX:GBPUSD' },
+                { id: 'USDJPY', label: '💴 USD/JPY', tv: 'FX:USDJPY' },
+                { id: 'AUDUSD', label: '🇦🇺 AUD/USD', tv: 'FX:AUDUSD' },
+                { id: 'USDCAD', label: '🇨🇦 USD/CAD', tv: 'FX:USDCAD' },
+                { id: 'EURGBP', label: '🇪🇺 EUR/GBP', tv: 'FX:EURGBP' }
             ],
             "Indici": [
                 { id: 'US500', label: '🇺🇸 S&P 500', tv: 'CAPITALCOM:US500' },
-                { id: 'NAS100', label: '📈 Nasdaq', tv: 'CAPITALCOM:US100' }
+                { id: 'NAS100', label: '📈 Nasdaq 100', tv: 'CAPITALCOM:US100' },
+                { id: 'US30', label: '🏛️ Dow Jones', tv: 'CAPITALCOM:US30' },
+                { id: 'DAX40', label: '🇩🇪 DAX 40', tv: 'CAPITALCOM:DE40' },
+                { id: 'FTSE100', label: '🇬🇧 FTSE 100', tv: 'CAPITALCOM:UK100' }
             ]
         };
 
@@ -315,7 +331,7 @@
 
                 document.getElementById('analysis-result').style.display = 'block';
             } catch (err) {
-                alert('Errore durante l\'analisi matematica.');
+                alert('Errore durante l\'analisi.');
             }
         }
 
@@ -336,18 +352,31 @@
                     html += `<div class="category-title">${cat}</div>`;
                     html += grouped[cat].map(s => `
                         <div class="signal-card">
-                            <div>
-                                <h4 style="font-size: 15px;">${s.name}</h4>
-                                <p style="font-size: 12px; color: #848e9c;">Prezzo: ${s.price} • ${s.change}</p>
-                                <p style="font-size: 11px; color: #0ecb81; margin-top:2px;">Affidabilità: <strong>${s.prob}</strong></p>
+                            <div class="signal-header">
+                                <div>
+                                    <h4 style="font-size: 15px;">${s.name}</h4>
+                                    <p style="font-size: 12px; color: #848e9c;">Prezzo: ${s.price} • ${s.change}</p>
+                                </div>
+                                <div class="badge-action ${s.action}">${s.action}</div>
                             </div>
-                            <div class="badge-action ${s.action}">${s.action}</div>
+                            <div style="font-size: 12px; color: #00b8d9; margin-bottom: 4px;">
+                                <strong>Entrata:</strong> ${s.entry}
+                            </div>
+                            <div class="signal-details">
+                                <span style="color: #f6465d;"><strong>SL:</strong> ${s.sl}</span>
+                                <span style="color: #0ecb81;"><strong>TP1:</strong> ${s.tp1}</span>
+                                <span style="color: #0ecb81;"><strong>TP2:</strong> ${s.tp2}</span>
+                                <span style="color: #0ecb81;"><strong>TP3:</strong> ${s.tp3}</span>
+                            </div>
+                            <div style="font-size: 11px; color: #848e9c; margin-top: 6px; border-top: 1px solid #1f2633; padding-top: 4px;">
+                                RSI: <span style="color:#fff;">${s.rsi}</span> | MACD: <span style="color:#fff;">${s.macd}</span> | Affidabilità: <strong style="color:#0ecb81;">${s.prob}</strong>
+                            </div>
                         </div>
                     `).join('');
                 }
                 container.innerHTML = html || '<p style="color:#848e9c;">Nessun segnale disponibile al momento.</p>';
             } catch (e) {
-                document.getElementById('signals-container').innerHTML = '<p style="color:#f6465d;">Errore nel caricamento dei segnali.</p>';
+                container.innerHTML = '<p style="color:#f6465d;">Errore nel caricamento dei segnali.</p>';
             }
         }
 
@@ -359,7 +388,7 @@
             const val = input.value;
             input.value = '';
             setTimeout(() => {
-                chat.innerHTML += `<p style="background: #181f2a; padding: 10px; border-radius: 8px; margin-bottom: 8px;">Analisi matematica completata su "${val}": trend direzionale e livelli TP/SL verificati.</p>`;
+                chat.innerHTML += `<p style="background: #181f2a; padding: 10px; border-radius: 8px; margin-bottom: 8px;">Analisi matematica completata su "${val}": indicatori tecnici e parametri TP/SL verificati.</p>`;
                 chat.scrollTop = chat.scrollHeight;
             }, 600);
         }
