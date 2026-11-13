@@ -11,7 +11,7 @@ app = Flask(__name__, static_folder='static', template_folder='static')
 def home():
     return app.send_static_file('index.html')
 
-# Database completo ed esteso di tutto il mercato globale
+# Database completo di tutto il mercato globale e cripto
 MARKET_CATEGORIES = {
     "Materie Prime": {
         'XAUUSD': {'name': '🥇 Oro (XAUUSD)', 'ticker': 'GC=F'},
@@ -24,12 +24,19 @@ MARKET_CATEGORIES = {
         'BTCUSDT': {'name': '₿ Bitcoin', 'ticker': 'BTC-USD'},
         'ETHUSDT': {'name': 'Ξ Ethereum', 'ticker': 'ETH-USD'},
         'SOLUSDT': {'name': '🟣 Solana', 'ticker': 'SOL-USD'},
-        'XRPUSDT': {'name': '✕ Ripple (XRP)', 'ticker': 'XRP-USD'},
-        'ADAUSDT': {'name': '₳ Cardano', 'ticker': 'ADA-USD'},
         'BNBUSDT': {'name': '🟡 Binance Coin', 'ticker': 'BNB-USD'},
-        'DOGEUSDT': {'name': '🐕 Dogecoin', 'ticker': 'DOGE-USD'},
+        'ADAUSDT': {'name': '₳ Cardano', 'ticker': 'ADA-USD'},
         'AVAXUSDT': {'name': '🔺 Avalanche', 'ticker': 'AVAX-USD'},
-        'LINKUSDT': {'name': '🔗 Chainlink', 'ticker': 'LINK-USD'}
+        'SUIUSDT': {'name': '💧 Sui', 'ticker': 'SUI-USD'},
+        'NEARUSDT': {'name': '🌐 Near Protocol', 'ticker': 'NEAR-USD'},
+        'XRPUSDT': {'name': '✕ Ripple', 'ticker': 'XRP-USD'},
+        'DOGEUSDT': {'name': '🐕 Dogecoin (Meme)', 'ticker': 'DOGE-USD'},
+        'SHIBUSDT': {'name': '🐶 Shiba Inu (Meme)', 'ticker': 'SHIB-USD'},
+        'PEPEUSDT': {'name': '🐸 Pepe (Meme)', 'ticker': 'PEPE-USD'},
+        'BONKUSDT': {'name': '🦴 Bonk (Meme)', 'ticker': 'BONK-USD'},
+        'WIFUSDT': {'name': '🐕‍🦺 Dogwifhat (Meme)', 'ticker': 'WIF-USD'},
+        'LINKUSDT': {'name': '🔗 Chainlink', 'ticker': 'LINK-USD'},
+        'UNIUSDT': {'name': '🦄 Uniswap', 'ticker': 'UNI-USD'}
     },
     "Forex": {
         'EURUSD': {'name': '💶 EUR/USD', 'ticker': 'EURUSD=X'},
@@ -58,13 +65,8 @@ def get_all_tickers_flat():
 YAHOO_TICKERS = get_all_tickers_flat()
 
 def calculate_advanced_indicators(df, mode):
-    """
-    Calcolo matematico avanzato: RSI, MACD, ATR, Spinta Volumi e Direzione.
-    """
     try:
         close = df['Close']
-        
-        # 1. RSI (14)
         delta = close.diff()
         gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
@@ -72,7 +74,6 @@ def calculate_advanced_indicators(df, mode):
         rsi = float((100 - (100 / (1 + rs))).iloc[-1])
         if np.isnan(rsi): rsi = 50.0
 
-        # 2. MACD (12, 26, 9)
         exp1 = close.ewm(span=12, adjust=False).mean()
         exp2 = close.ewm(span=26, adjust=False).mean()
         macd_line = exp1 - exp2
@@ -81,16 +82,14 @@ def calculate_advanced_indicators(df, mode):
         current_macd = float(macd_hist.iloc[-1])
         if np.isnan(current_macd): current_macd = 0.0
 
-        # 3. ATR (14)
         high_low = df['High'] - df['Low']
         high_close = np.abs(df['High'] - close.shift())
         low_close = np.abs(df['Low'] - close.shift())
         ranges = pd.concat([high_low, high_close, low_close], axis=1)
         true_range = np.max(ranges, axis=1)
         atr = float(true_range.rolling(14).mean().iloc[-1])
-        if np.isnan(atr): atr = close.iloc[-1] * 0.01
+        if np.isnan(atr) or atr <= 0: atr = close.iloc[-1] * 0.01
 
-        # 4. Spinta Volumi
         vol_mean = df['Volume'].rolling(20).mean().iloc[-1]
         vol_latest = df['Volume'].iloc[-1]
         volume_spike = float(vol_latest / vol_mean) if vol_mean > 0 and not np.isnan(vol_mean) else 1.2
@@ -129,7 +128,7 @@ def get_trade_parameters(current_price, atr, action, mode):
         sl_m, tp_m = 0.6, 1.0
     elif mode == 'Swing Trading':
         sl_m, tp_m = 3.0, 5.0
-    else: # Day Trading
+    else:
         sl_m, tp_m = 1.5, 2.5
 
     sl_dist = atr * sl_m
