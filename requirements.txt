@@ -2,3 +2,6 @@ flask
 gunicorn
 requests
 pytz
+yfinance
+pandas
+numpy
