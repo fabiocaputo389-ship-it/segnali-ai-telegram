@@ -122,30 +122,40 @@ def calculate_advanced_indicators(df, mode):
     except Exception:
         return "BUY", 92, 50.0, 0.0, 1.0, 1.2, ["⚠️ Scanner in sincronizzazione."]
 
-def get_trade_parameters(current_price, atr, action, mode):
+def get_trade_parameters(current_price, atr, action, mode, timeframe):
+    # Fattore moltiplicativo basato sul Timeframe selezionato
+    tf_multipliers = {
+        '1m': 0.6,
+        '15m': 1.0,
+        '30m': 1.4,
+        '1h': 2.0
+    }
+    tf_factor = tf_multipliers.get(timeframe, 1.0)
+
     if mode == 'Scalping':
-        sl_m, tp_m = 0.6, 1.0
+        sl_m, tp_m = 0.5, 0.9
     elif mode == 'Swing Trading':
-        sl_m, tp_m = 3.0, 5.0
-    else:
-        sl_m, tp_m = 1.5, 2.5
+        sl_m, tp_m = 2.5, 4.5
+    else: # Day Trading
+        sl_m, tp_m = 1.2, 2.0
 
     if atr == 0 or np.isnan(atr) or atr < (current_price * 0.0001):
         atr = current_price * 0.002
 
-    sl_dist = atr * sl_m
-    tp_dist = atr * tp_m
+    # Applicazione combinata di Modalità + Timeframe sull'ATR
+    sl_dist = atr * sl_m * tf_factor
+    tp_dist = atr * tp_m * tf_factor
 
     if action == "BUY":
-        entry_low = current_price - (atr * 0.15)
-        entry_high = current_price + (atr * 0.25)
+        entry_low = current_price - (atr * 0.15 * tf_factor)
+        entry_high = current_price + (atr * 0.25 * tf_factor)
         sl = entry_low - sl_dist
         tp1 = current_price + tp_dist
         tp2 = current_price + (tp_dist * 1.6)
         tp3 = current_price + (tp_dist * 2.2)
     else:
-        entry_low = current_price - (atr * 0.25)
-        entry_high = current_price + (atr * 0.15)
+        entry_low = current_price - (atr * 0.25 * tf_factor)
+        entry_high = current_price + (atr * 0.15 * tf_factor)
         sl = entry_high + sl_dist
         tp1 = current_price - tp_dist
         tp2 = current_price - (tp_dist * 1.6)
@@ -182,8 +192,8 @@ def analyze_chart():
         current_price = 1.1000 if 'USD' in symbol and len(symbol) == 6 else 3884.27
         action, confidence, rsi, macd, atr, vol_spike, risks = "BUY", 92, 50.0, 0.0, 0.0020, 1.1, ["⚠️ Modalità offline."]
 
-    entry_zone, sl, tp1, tp2, tp3 = get_trade_parameters(current_price, atr, action, mode)
-    risk_status = f"Scanner Reale Attivo ({confidence}%)"
+    entry_zone, sl, tp1, tp2, tp3 = get_trade_parameters(current_price, atr, action, mode, timeframe)
+    risk_status = f"Scanner Reale ({timeframe} - {confidence}%)"
 
     return jsonify({
         "status": "success",
@@ -204,7 +214,7 @@ def analyze_chart():
         "macd": round(macd, 4),
         "atr": round(atr, 4),
         "volume_spike": round(vol_spike, 2),
-        "ai_comment": f"Scanner Grafico ({symbol} - {timeframe}): RSI a {rsi:.1f}, MACD a {macd:.4f}, Spinta Volumi a {vol_spike:.2f}x."
+        "ai_comment": f"Analisi su TF {timeframe} ({symbol}): RSI a {rsi:.1f}, MACD a {macd:.4f}. Parametri di rischio ricalcolati sul timeframe."
     })
 
 @app.route('/api/signals', methods=['GET'])
@@ -223,7 +233,7 @@ def get_signals():
                     action, conf, rsi, macd, atr, vol, risks = calculate_advanced_indicators(df, 'Day Trading')
                     
                     if conf >= 85:
-                        entry_zone, sl, tp1, tp2, tp3 = get_trade_parameters(p_now, atr, action, 'Day Trading')
+                        entry_zone, sl, tp1, tp2, tp3 = get_trade_parameters(p_now, atr, action, 'Day Trading', '15m')
                         
                         if p_now < 5:
                             price_str = f"{p_now:.4f}"
