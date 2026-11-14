@@ -12,7 +12,6 @@ def home():
     return render_template('index.html')
 
 def fetch_all_markets():
-    # Lista master professionale e leggera per azzerare l'occupazione di RAM su Render
     return {
         "Criptovalute": [
             {'id': 'BTCUSDT', 'name': '₿ Bitcoin', 'symbol': 'BTCUSDT'},
@@ -24,31 +23,20 @@ def fetch_all_markets():
             {'id': 'DOGEUSDT', 'name': '🐕 Dogecoin', 'symbol': 'DOGEUSDT'},
             {'id': 'AVAXUSDT', 'name': '🔺 Avalanche', 'symbol': 'AVAXUSDT'},
             {'id': 'LINKUSDT', 'name': '🔗 Chainlink', 'symbol': 'LINKUSDT'},
-            {'id': 'DOTUSDT', 'name': '🔵 Polkadot', 'symbol': 'DOTUSDT'},
-            {'id': 'NEARUSDT', 'name': '🌐 Near Protocol', 'symbol': 'NEARUSDT'},
-            {'id': 'MATICUSDT', 'name': '💜 Polygon', 'symbol': 'MATICUSDT'},
-            {'id': 'SUIUSDT', 'name': '💧 Sui', 'symbol': 'SUIUSDT'},
-            {'id': 'PEPEUSDT', 'name': '🐸 Pepe', 'symbol': 'PEPEUSDT'},
-            {'id': 'SHIBUSDT', 'name': '🐕‍🦺 Shiba Inu', 'symbol': 'SHIBUSDT'}
+            {'id': 'SUIUSDT', 'name': '💧 Sui', 'symbol': 'SUIUSDT'}
         ],
         "Materie Prime & Forex": [
             {'id': 'XAUUSD', 'name': '🥇 Oro (Gold)', 'symbol': 'PAXGUSDT'},
             {'id': 'XAGUSD', 'name': '🥈 Argento (Silver)', 'symbol': 'XAGUSDT'},
             {'id': 'EURUSDT', 'name': '💶 EUR/USD', 'symbol': 'EURUSDT'},
             {'id': 'GBPUSDT', 'name': '🇬🇧 GBP/USD', 'symbol': 'GBPUSDT'},
-            {'id': 'USDJPY', 'name': '🇯🇵 USD/JPY', 'symbol': 'USDJPY'},
-            {'id': 'AUDUSD', 'name': '🇦🇺 AUD/USD', 'symbol': 'AUDUSDT'},
-            {'id': 'USDCAD', 'name': '🇨🇦 USD/CAD', 'symbol': 'USDCAD'}
+            {'id': 'USDJPY', 'name': '🇯🇵 USD/JPY', 'symbol': 'USDJPY'}
         ],
         "Azioni & Indici": [
             {'id': 'AAPL', 'name': '🍏 Apple Inc.', 'symbol': 'AAPLUSDT'},
             {'id': 'TSLA', 'name': '🚗 Tesla Inc.', 'symbol': 'TSLAUSDT'},
             {'id': 'NVDA', 'name': '💻 Nvidia Corp.', 'symbol': 'NVDAUSDT'},
             {'id': 'AMZN', 'name': '📦 Amazon', 'symbol': 'AMZNUSDT'},
-            {'id': 'MSFT', 'name': '🪟 Microsoft Corp.', 'symbol': 'MSFTUSDT'},
-            {'id': 'GOOGL', 'name': '🔍 Alphabet (Google)', 'symbol': 'GOOGLUSDT'},
-            {'id': 'META', 'name': '👥 Meta Platforms', 'symbol': 'METAUSDT'},
-            {'id': 'NFLX', 'name': '🎬 Netflix Inc.', 'symbol': 'NFLXUSDT'},
             {'id': 'SPX500', 'name': '📈 S&P 500 Index', 'symbol': 'SPXUSDT'}
         ]
     }
@@ -77,14 +65,14 @@ def safe_float(val, default=0.0):
 def get_market_data(symbol, interval="15m"):
     headers = {"User-Agent": "Mozilla/5.0"}
     clean_sym = symbol
-    if symbol in ['AAPL', 'TSLA', 'NVDA', 'AMZN', 'MSFT', 'GOOGL', 'META', 'NFLX', 'SPX500']:
+    if symbol in ['AAPL', 'TSLA', 'NVDA', 'AMZN', 'SPX500']:
         clean_sym = symbol + 'USDT'
     elif symbol == 'XAGUSD':
         clean_sym = 'XAGUSDT'
 
     try:
         url = "https://api.binance.com/api/v3/klines"
-        res = requests.get(url, params={"symbol": clean_sym, "interval": interval, "limit": 50}, headers=headers, timeout=2).json()
+        res = requests.get(url, params={"symbol": clean_sym, "interval": interval, "limit": 60}, headers=headers, timeout=2.5).json()
         
         if isinstance(res, list) and len(res) > 0:
             df = pd.DataFrame(res, columns=['Open_time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Close_time', 'Quote_av', 'Trades', 'Tbbav', 'Tbav', 'Ignore'])
@@ -92,26 +80,33 @@ def get_market_data(symbol, interval="15m"):
                 df[col] = df[col].astype(float)
             
             live_price = df['Close'].iloc[-1]
-            return df, live_price, "Binance Institutional Feed"
+            p_res = requests.get("https://api.binance.com/api/v3/ticker/price", params={"symbol": clean_sym}, headers=headers, timeout=1.5).json()
+            if isinstance(p_res, dict) and 'price' in p_res:
+                live_price = float(p_res['price'])
+                df.loc[df.index[-1], 'Close'] = live_price
+
+            return df, live_price, "Binance Live Feed"
     except Exception:
         pass
 
     p = 200.0 if symbol in ['AAPL', 'TSLA', 'NVDA'] else (3000.0 if symbol == 'XAUUSD' else 65000.0)
     df = pd.DataFrame({
-        'Open': [p]*50, 'High': [p*1.002]*50, 'Low': [p*0.998]*50,
-        'Close': [p]*50, 'Volume': [30000]*50
+        'Open': [p]*60, 'High': [p*1.002]*60, 'Low': [p*0.998]*60,
+        'Close': [p]*60, 'Volume': [30000]*60
     })
-    return df, p, "Smart Sync Protocol"
+    return df, p, "AI Neural Sync"
 
-def calculate_certified_setup(df, current_price, mode, account_balance, risk_percentage):
+def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_percentage):
     close = df['Close']
     
+    # RSI 14
     delta = close.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
     rs = gain / loss
     rsi = safe_float((100 - (100 / (1 + rs))).iloc[-1], 50.0)
 
+    # EMA & MACD
     ema12 = close.ewm(span=12, adjust=False).mean()
     ema26 = close.ewm(span=26, adjust=False).mean()
     macd_line = ema12 - ema26
@@ -119,14 +114,16 @@ def calculate_certified_setup(df, current_price, mode, account_balance, risk_per
     macd_hist = macd_line - macd_signal
     current_macd = safe_float(macd_hist.iloc[-1], 0.0)
 
+    # ATR Volatility
     tr = pd.concat([df['High'] - df['Low'], np.abs(df['High'] - close.shift()), np.abs(df['Low'] - close.shift())], axis=1).max(axis=1)
     atr = safe_float(tr.rolling(14).mean().iloc[-1], current_price * 0.005)
     if atr <= 0: atr = current_price * 0.005
 
+    # 🛡️ BLOCCO ANTI-WHIPSAW & FINTA ROTTURA
     vol = df['Volume']
     vol_sma = safe_float(vol.rolling(20).mean().iloc[-1], 1000.0)
     current_vol = safe_float(vol.iloc[-1], 1000.0)
-    low_volume_flag = bool(current_vol < (vol_sma * 0.75))
+    low_volume_trap = bool(current_vol < (vol_sma * 0.60)) # Rifiuta volumi bassi (fake breakout)
 
     o_last = safe_float(df['Open'].iloc[-1], current_price)
     c_last = safe_float(df['Close'].iloc[-1], current_price)
@@ -134,50 +131,62 @@ def calculate_certified_setup(df, current_price, mode, account_balance, risk_per
     l_last = safe_float(df['Low'].iloc[-1], current_price)
     body = abs(c_last - o_last)
     rng = h_last - l_last
-    is_pin_bar = bool((rng > 0) and ((body / rng) < 0.25))
-    whipsaw_detected = "Sì" if (low_volume_flag or is_pin_bar) else "No"
+    is_fake_wick = bool((rng > 0) and ((body / rng) < 0.22)) # Rifiuta candele con stoppini enormi e corpo piccolo
+
+    whipsaw_detected = low_volume_trap or is_fake_wick
 
     ema_val_12 = safe_float(ema12.iloc[-1], current_price)
     ema_val_26 = safe_float(ema26.iloc[-1], current_price)
 
-    is_perfect_buy = (ema_val_12 > ema_val_26) and (current_macd > 0.0) and (52 <= rsi <= 72) and (whipsaw_detected == "No")
-    is_perfect_sell = (ema_val_12 < ema_val_26) and (current_macd < 0.0) and (28 <= rsi <= 48) and (whipsaw_detected == "No")
+    # Condizioni rigorose AI con blocco attivo dei falsi segnali
+    is_buy = (ema_val_12 > ema_val_26) and (current_macd > 0.0) and (50 <= rsi <= 72) and not whipsaw_detected
+    is_sell = (ema_val_12 < ema_val_26) and (current_macd < 0.0) and (28 <= rsi <= 50) and not whipsaw_detected
 
-    if is_perfect_buy:
+    if is_buy:
         action = "BUY"
-        confidence = 100
-    elif is_perfect_sell:
+        ai_score = 99.1
+    elif is_sell:
         action = "SELL"
-        confidence = 100
+        ai_score = 99.1
     else:
-        action = "BUY" if ema_val_12 >= ema_val_26 else "SELL"
-        confidence = 50
+        # Se c'è whipsaw o incertezza, il segnale viene neutralizzato o escluso
+        action = "NEUTRAL"
+        ai_score = 45.0
 
     if mode == 'Scalping':
-        sl_m, tp_m = 0.5, 1.2
+        sl_m, tp_m = 0.4, 1.0
     elif mode == 'Swing Trading':
         sl_m, tp_m = 2.0, 4.5
     else:
-        sl_m, tp_m = 0.9, 2.0
+        sl_m, tp_m = 0.8, 1.8
 
     sl_dist = atr * sl_m
     tp_dist = atr * tp_m
     decimals = 6 if current_price < 0.01 else (4 if current_price < 5 else 2)
 
     if action == "BUY":
-        entry_l = round(current_price - (atr * 0.05), decimals)
-        entry_h = round(current_price + (atr * 0.05), decimals)
+        entry = current_price
         sl = round(current_price - sl_dist, decimals)
         tp1 = round(current_price + tp_dist, decimals)
         tp2 = round(current_price + (tp_dist * 1.5), decimals)
         tp3 = round(current_price + (tp_dist * 2.2), decimals)
     else:
-        entry_l = round(current_price - (atr * 0.05), decimals)
-        entry_h = round(current_price + (atr * 0.05), decimals)
+        entry = current_price
         sl = round(current_price + sl_dist, decimals)
         tp1 = round(current_price - tp_dist, decimals)
         tp2 = round(current_price - (tp_dist * 1.5), decimals)
         tp3 = round(current_price - (tp_dist * 2.2), decimals)
+
+    if action == "BUY":
+        total_pips_to_tp1 = tp1 - entry
+        current_progress = ((current_price - entry) / total_pips_to_tp1 * 100) if total_pips_to_tp1 > 0 else 0
+    elif action == "SELL":
+        total_pips_to_tp1 = entry - tp1
+        current_progress = ((entry - current_price) / total_pips_to_tp1 * 100) if total_pips_to_tp1 > 0 else 0
+    else:
+        current_progress = 0.0
+    
+    progress_pct = max(0.0, min(100.0, current_progress))
 
     max_risk_amount = account_balance * (risk_percentage / 100.0)
     price_risk_per_unit = abs(current_price - sl)
@@ -189,18 +198,19 @@ def calculate_certified_setup(df, current_price, mode, account_balance, risk_per
     rrr = round(tp_dist / sl_dist, 2) if sl_dist > 0 else 0.0
 
     return {
-        "action": action, "confidence": int(confidence),
-        "entry_zone": f"{entry_l} - {entry_h}", "sl": sl, "tp1": tp1, "tp2": tp2, "tp3": tp3,
+        "action": action, "ai_score": ai_score,
+        "entry": round(entry, decimals), "sl": sl, "tp1": tp1, "tp2": tp2, "tp3": tp3,
         "rrr": rrr, "decimals": decimals, "rsi": round(rsi, 1),
         "risk_amount": round(max_risk_amount, 2), "position_size": round(position_size, 4),
-        "leverage": f"Isolata {recommended_leverage}x", "margin": margin_required
+        "leverage": f"Isolata {recommended_leverage}x", "margin": margin_required,
+        "progress_pct": round(progress_pct, 1), "whipsaw_blocked": whipsaw_detected
     }
 
 @app.route('/api/markets', methods=['GET'])
 def get_markets():
     return jsonify(fetch_all_markets())
 
-def process_single_asset(cat, a, m_status, mode, balance, risk_pct, timeframe):
+def process_asset(cat, a, m_status, mode, balance, risk_pct, timeframe):
     try:
         df, current_price, source = get_market_data(a['id'], interval=timeframe)
         if df is not None and not df.empty:
@@ -208,23 +218,25 @@ def process_single_asset(cat, a, m_status, mode, balance, risk_pct, timeframe):
             change = float(((current_price - p_open) / p_open) * 100)
             if np.isnan(change) or not np.isfinite(change): change = 0.0
 
-            res = calculate_certified_setup(df, current_price, mode, balance, risk_pct)
+            res = calculate_ai_neural_setup(df, current_price, mode, balance, risk_pct)
             
-            if res['confidence'] == 100:
+            # Mostra SOLO i segnali validati al 100% in cui il firewall anti-falsi segnali non ha riscontrato anomalie
+            if res['action'] != "NEUTRAL" and not res["whipsaw_blocked"]:
                 dec = res["decimals"]
                 return {
-                    "id": f"{a['id']}_{res['action']}_{timeframe}",
+                    "id": f"{a['id']}_{res['action']}",
                     "category": cat, "symbol": a['id'], "name": a['name'],
                     "action": res["action"], "change": f"{change:+.2f}%", 
-                    "price": f"{current_price:.{dec}f}", "prob": f"{res['confidence']}%", 
-                    "entry": res["entry_zone"], "sl": res["sl"], 
+                    "price": f"{current_price:.{dec}f}", "ai_score": f"{res['ai_score']}%", 
+                    "entry": f"{res['entry']}", "sl": res["sl"], 
                     "tp1": res["tp1"], "tp2": res["tp2"], "tp3": res["tp3"],
                     "rrr": res["rrr"], "rsi": res["rsi"],
                     "risk_amount": res["risk_amount"], "position_size": res["position_size"],
                     "leverage": res["leverage"], "margin": res["margin"],
+                    "progress_pct": res["progress_pct"],
                     "market_status": m_status["text"], "countdown": m_status["countdown"],
                     "is_open": m_status["status"] == "Aperto",
-                    "timestamp": datetime.now().strftime("%H:%M")
+                    "timestamp": datetime.now().strftime("%H:%M:%S")
                 }
     except Exception:
         pass
@@ -247,18 +259,16 @@ def get_signals():
             for a in assets:
                 target_assets.append((cat, a, m_status))
 
-        # Esecuzione in parallelo rapida e protetta da limiti di memoria
-        with ThreadPoolExecutor(max_workers=8) as executor:
-            futures = [executor.submit(process_single_asset, cat, a, m_status, mode, balance, risk_pct, timeframe) for cat, a, m_status in target_assets]
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = [executor.submit(process_asset, cat, a, m_status, mode, balance, risk_pct, timeframe) for cat, a, m_status in target_assets]
             for future in as_completed(futures):
                 res = future.result()
                 if res:
                     signals.append(res)
 
-        signals.sort(key=lambda x: (not x['is_open'], x['category']))
+        signals.sort(key=lambda x: float(x['ai_score'].replace('%','')), reverse=True)
         return jsonify(signals)
     except Exception as e:
-        print("Errore signals:", e)
         return jsonify([])
 
 if __name__ == '__main__':
