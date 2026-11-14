@@ -95,7 +95,6 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
     rng = h_last - l_last
     is_pin_bar = bool((rng > 0) and ((body / rng) < 0.3))
     
-    # Trasformiamo in stringa per evitare qualsiasi errore JSON di Flask
     whipsaw_detected = "Sì" if (low_volume_flag or is_pin_bar) else "No"
 
     ema_val_12 = safe_float(ema12.iloc[-1], current_price)
@@ -120,7 +119,7 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
         confidence = 100
     else:
         action = "BUY" if ema_val_12 >= ema_val_26 else "SELL"
-        confidence = 75 if whipsaw_detected == "No" else 40
+        confidence = 75 if whipsaw_detected == "No" else 60
 
     if mode == 'Scalping':
         sl_m, tp_m = 0.4, 1.0
@@ -160,7 +159,7 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
     if confidence == 100:
         status_msg = "🔥 AUTO-PILOT: Perfezione Assoluta (100%) raggiunta. Indicatori e volumi allineati."
     else:
-        status_msg = "⚠️ AUTO-PILOT: Mercato in fase di transizione o non allineato al 100%."
+        status_msg = "📊 AUTO-PILOT: Analisi attiva sui mercati globali."
 
     ai_advice = (
         f"[{mode}] Auto-Calibrazione attiva. Rischio: {risk_percentage}% "
@@ -190,13 +189,19 @@ def analyze_chart():
         risk_percentage = float(data.get('risk_percentage', 1.0))
 
         df, current_price, source = get_market_data(symbol)
+        
+        # Calcolo variazione % giornaliera per la barra live
+        p_open = float(df['Open'].iloc[0]) if df['Open'].iloc[0] > 0 else current_price
+        change = float(((current_price - p_open) / p_open) * 100)
+        if np.isnan(change) or not np.isfinite(change): change = 0.0
+
         res = calculate_certified_setup(df, current_price, mode, timeframe, account_balance, risk_percentage)
         dec = res["decimals"]
 
         return jsonify({
             "status": "success", "symbol": symbol, "source": source,
-            "current_price": round(current_price, dec), "action": res["action"],
-            "order_type": res["order_type"], "favorability": res["confidence"],
+            "current_price": round(current_price, dec), "price_change": f"{change:+.2f}%",
+            "action": res["action"], "order_type": res["order_type"], "favorability": res["confidence"],
             "entry_zone": res["entry_zone"], "stop_loss": res["sl"],
             "take_profit_1": res["tp1"], "take_profit_2": res["tp2"], "take_profit_3": res["tp3"],
             "risk_amount": res["risk_amount"], "position_size": res["position_size"], "rrr": res["rrr"],
@@ -222,15 +227,16 @@ def get_signals():
                         change = 0.0
 
                     res = calculate_certified_setup(df, current_price, 'Day Trading', '15m', 1000.0, 1.0)
-                    if res["confidence"] == 100:
-                        dec = res["decimals"]
-                        signals.append({
-                            "category": cat, "symbol": a['id'], "name": a['name'],
-                            "action": res["action"], "order_type": res["order_type"],
-                            "change": f"{change:+.2f}%", "price": f"{current_price:.{dec}f}",
-                            "prob": f"{res['confidence']}%", "entry": res["entry_zone"],
-                            "sl": res["sl"], "tp1": res["tp1"], "rrr": res["rrr"]
-                        })
+                    dec = res["decimals"]
+                    signals.append({
+                        "category": cat, "symbol": a['id'], "name": a['name'],
+                        "action": res["action"], "order_type": res["order_type"],
+                        "change": f"{change:+.2f}%", "price": f"{current_price:.{dec}f}",
+                        "prob": f"{res['confidence']}%", "entry": res["entry_zone"],
+                        "sl": res["sl"], "tp1": res["tp1"], "rrr": res["rrr"],
+                        "raw_conf": res["confidence"]
+                    })
+        signals = sorted(signals, key=lambda x: x['raw_conf'], reverse=True)
         return jsonify(signals)
     except Exception as e:
         print("Errore in /api/signals:", e)
