@@ -7,32 +7,32 @@
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-base: #06080d;
-            --bg-card: #0b0f17;
-            --bg-panel: #0f1622;
-            --border-gold: rgba(255, 176, 0, 0.3);
-            --gold: #ffb000;
-            --green: #00ff66;
-            --red: #ff3344;
-            --blue: #00e5ff;
-            --text-main: #f1f5f9;
-            --text-dim: #94a3b8;
+            --bg-base: #f4f6f9;
+            --bg-card: #ffffff;
+            --bg-panel: #f8fafc;
+            --border-gold: rgba(180, 130, 10, 0.3);
+            --gold: #b45309;
+            --green: #059669;
+            --red: #dc2626;
+            --blue: #0284c7;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
-        body { background-color: var(--bg-base); color: var(--text-main); padding-bottom: 90px; min-height: 100vh; background-image: radial-gradient(circle at 50% 0%, #111827 0%, var(--bg-base) 80%); }
+        body { background-color: var(--bg-base); color: var(--text-main); padding-bottom: 90px; min-height: 100vh; }
 
-        header { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; background: rgba(11, 15, 23, 0.95); border-bottom: 1px solid var(--border-gold); font-size: 11px; color: var(--text-dim); backdrop-filter: blur(8px); }
-        .terminal-badge { display: inline-flex; align-items: center; gap: 6px; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--gold); background: rgba(255, 176, 0, 0.08); padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border-gold); font-weight: 700; text-transform: uppercase; }
+        header { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; background: #ffffff; border-bottom: 1px solid var(--border-gold); font-size: 11px; color: var(--text-dim); box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .terminal-badge { display: inline-flex; align-items: center; gap: 6px; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--gold); background: rgba(180, 83, 9, 0.08); padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border-gold); font-weight: 700; text-transform: uppercase; }
         .dot-live { width: 6px; height: 6px; background: var(--green); border-radius: 50%; box-shadow: 0 0 8px var(--green); animation: pulse 1.5s infinite; }
         @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(1.3); } }
 
-        .ticker-tape { background: #04060a; border-bottom: 1px solid rgba(255, 176, 0, 0.15); padding: 5px 12px; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--blue); white-space: nowrap; overflow: hidden; }
+        .ticker-tape { background: #0f172a; border-bottom: 1px solid rgba(180, 130, 10, 0.2); padding: 5px 12px; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #38bdf8; white-space: nowrap; overflow: hidden; }
         .ticker-tape span { display: inline-block; padding-left: 100%; animation: ticker 35s linear infinite; font-weight: 600; }
         @keyframes ticker { 0% { transform: translate(0, 0); } 100% { transform: translate(-100%, 0); } }
 
-        .desk-bar { background: var(--bg-card); border-bottom: 1px solid rgba(255,255,255,0.06); padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; }
-        .desk-title { font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 800; color: #fff; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px; }
+        .desk-bar { background: #ffffff; border-bottom: 1px solid #e2e8f0; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
+        .desk-title { font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 800; color: #0f172a; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px; }
         .desk-title span { color: var(--gold); }
         .clock-box { background: var(--bg-panel); padding: 4px 10px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--gold); border: 1px solid var(--border-gold); }
 
@@ -40,77 +40,76 @@
         .tab-content.active { display: block; animation: fadeIn 0.2s ease; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
-        .risk-panel { background: var(--bg-card); border: 1px solid var(--border-gold); border-radius: 8px; padding: 12px; margin-bottom: 14px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+        .risk-panel { background: var(--bg-card); border: 1px solid var(--border-gold); border-radius: 8px; padding: 12px; margin-bottom: 14px; box-shadow: 0 4px 15px rgba(0,0,0,0.04); }
         .risk-header { font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 800; color: var(--gold); text-transform: uppercase; margin-bottom: 8px; display: flex; justify-content: space-between; }
         .risk-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
         .risk-field label { display: block; font-size: 9px; color: var(--text-dim); margin-bottom: 3px; font-weight: 600; text-transform: uppercase; }
-        .risk-field input, .risk-field select { width: 100%; background: var(--bg-base); border: 1px solid var(--border-gold); border-radius: 6px; padding: 6px; color: #fff; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: bold; text-align: center; outline: none; }
+        .risk-field input, .risk-field select { width: 100%; background: var(--bg-panel); border: 1px solid var(--border-gold); border-radius: 6px; padding: 6px; color: var(--text-main); font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: bold; text-align: center; outline: none; }
 
         .filter-row { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 14px; padding-bottom: 2px; scrollbar-width: none; }
         .filter-row::-webkit-scrollbar { display: none; }
-        .filter-chip { background: var(--bg-card); border: 1px solid rgba(255,255,255,0.08); color: var(--text-dim); padding: 6px 12px; border-radius: 6px; font-size: 11px; cursor: pointer; white-space: nowrap; font-weight: 600; transition: 0.2s; font-family: 'JetBrains Mono', monospace; }
-        .filter-chip.active { background: var(--gold); color: #000; border-color: var(--gold); font-weight: 800; box-shadow: 0 0 12px rgba(255, 176, 0, 0.3); }
+        .filter-chip { background: #ffffff; border: 1px solid #cbd5e1; color: var(--text-dim); padding: 6px 12px; border-radius: 6px; font-size: 11px; cursor: pointer; white-space: nowrap; font-weight: 600; transition: 0.2s; font-family: 'JetBrains Mono', monospace; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
+        .filter-chip.active { background: var(--gold); color: #ffffff; border-color: var(--gold); font-weight: 800; box-shadow: 0 0 10px rgba(180, 83, 9, 0.25); }
 
-        .signal-card { background: var(--bg-card); border: 1px solid var(--border-gold); border-radius: 10px; padding: 14px; margin-bottom: 14px; box-shadow: 0 8px 30px rgba(0,0,0,0.6); position: relative; overflow: hidden; }
+        .signal-card { background: var(--bg-card); border: 1px solid var(--border-gold); border-radius: 10px; padding: 14px; margin-bottom: 14px; box-shadow: 0 10px 25px rgba(0,0,0,0.06); position: relative; overflow: hidden; }
         .signal-card::before { content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--green); }
         .signal-card.SELL::before { background: var(--red); }
 
         .card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
-        .asset-name { font-size: 16px; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 8px; font-family: 'JetBrains Mono', monospace; }
-        .ai-score-pill { font-size: 9px; background: var(--bg-base); color: var(--gold); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-gold); font-family: 'JetBrains Mono', monospace; }
+        .asset-name { font-size: 16px; font-weight: 800; color: var(--text-main); display: flex; align-items: center; gap: 8px; font-family: 'JetBrains Mono', monospace; }
+        .ai-score-pill { font-size: 9px; background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-gold); font-family: 'JetBrains Mono', monospace; font-weight: bold; }
         .card-meta { font-size: 10px; color: var(--text-dim); margin-top: 2px; font-family: 'JetBrains Mono', monospace; }
         
         .action-badge { padding: 5px 12px; border-radius: 6px; font-weight: 800; font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase; font-family: 'JetBrains Mono', monospace; }
-        .action-badge.BUY { background: var(--green); color: #000; box-shadow: 0 0 10px rgba(0, 255, 102, 0.3); }
-        .action-badge.SELL { background: var(--red); color: #fff; box-shadow: 0 0 10px rgba(255, 51, 68, 0.3); }
+        .action-badge.BUY { background: #d1fae5; color: #065f46; border: 1px solid #10b981; }
+        .action-badge.SELL { background: #fee2e2; color: #991b1b; border: 1px solid #ef4444; }
 
         .mod-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
-        .mod-box { background: var(--bg-panel); border: 1px solid rgba(255,255,255,0.04); border-radius: 6px; padding: 6px 8px; font-size: 10px; font-family: 'JetBrains Mono', monospace; }
+        .mod-box { background: var(--bg-panel); border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 8px; font-size: 10px; font-family: 'JetBrains Mono', monospace; }
         .mod-box span { display: block; color: var(--text-dim); font-size: 8px; text-transform: uppercase; margin-bottom: 2px; }
-        .mod-box strong { font-size: 10px; color: #fff; }
+        .mod-box strong { font-size: 10px; color: var(--text-main); }
 
-        /* Definizione Bid & Ask Pressure migliorata */
-        .orderbook-box { background: var(--bg-panel); border-radius: 6px; padding: 8px; margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.04); font-family: 'JetBrains Mono', monospace; font-size: 10px; }
+        .orderbook-box { background: var(--bg-panel); border-radius: 6px; padding: 8px; margin-bottom: 8px; border: 1px solid #e2e8f0; font-family: 'JetBrains Mono', monospace; font-size: 10px; }
         .ob-header-desc { font-size: 8px; color: var(--text-dim); margin-bottom: 4px; text-transform: uppercase; }
-        .ob-bars { display: flex; height: 5px; width: 100%; border-radius: 3px; overflow: hidden; margin-top: 4px; background: #000; }
+        .ob-bars { display: flex; height: 5px; width: 100%; border-radius: 3px; overflow: hidden; margin-top: 4px; background: #e2e8f0; }
         .ob-bid { background: var(--green); height: 100%; }
         .ob-ask { background: var(--red); height: 100%; }
 
-        .full-strip { background: var(--bg-panel); border: 1px solid rgba(255,255,255,0.04); border-radius: 6px; padding: 6px 8px; margin-bottom: 8px; font-size: 10px; font-family: 'JetBrains Mono', monospace; display: flex; justify-content: space-between; align-items: center; }
+        .full-strip { background: var(--bg-panel); border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 8px; margin-bottom: 8px; font-size: 10px; font-family: 'JetBrains Mono', monospace; display: flex; justify-content: space-between; align-items: center; }
 
-        .levels-grid { background: var(--bg-panel); border-radius: 6px; padding: 8px; margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.04); }
-        .entry-line { display: flex; justify-content: space-between; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: bold; margin-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 4px; }
+        .levels-grid { background: var(--bg-panel); border-radius: 6px; padding: 8px; margin-bottom: 8px; border: 1px solid #e2e8f0; }
+        .entry-line { display: flex; justify-content: space-between; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: bold; margin-bottom: 6px; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; }
         .tpsl-table { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-family: 'JetBrains Mono', monospace; font-size: 10px; }
-        .tpsl-item { background: var(--bg-base); padding: 5px 8px; border-radius: 4px; display: flex; justify-content: space-between; border: 1px solid rgba(255,255,255,0.03); }
+        .tpsl-item { background: #ffffff; padding: 5px 8px; border-radius: 4px; display: flex; justify-content: space-between; border: 1px solid #e2e8f0; }
 
-        .sizing-box { background: rgba(255, 176, 0, 0.04); border: 1px solid var(--border-gold); border-radius: 6px; padding: 8px; margin-bottom: 10px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; text-align: center; font-family: 'JetBrains Mono', monospace; font-size: 10px; }
+        .sizing-box { background: #fffbeb; border: 1px solid var(--border-gold); border-radius: 6px; padding: 8px; margin-bottom: 10px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; text-align: center; font-family: 'JetBrains Mono', monospace; font-size: 10px; }
         .sizing-box span { display: block; color: var(--text-dim); font-size: 8px; text-transform: uppercase; margin-bottom: 2px; }
         .sizing-box strong { color: var(--gold); }
 
-        .btn-bingx { width: 100%; background: linear-gradient(135deg, var(--gold), #d99600); border: none; color: #000; padding: 10px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-weight: 800; font-size: 11px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 4px 15px rgba(255, 176, 0, 0.2); transition: 0.2s; }
+        .btn-bingx { width: 100%; background: linear-gradient(135deg, var(--gold), #92400e); border: none; color: #ffffff; padding: 10px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-weight: 800; font-size: 11px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 4px 12px rgba(180, 83, 9, 0.25); transition: 0.2s; }
         .btn-bingx:hover { filter: brightness(1.1); }
 
-        .telemetry-box { background: var(--bg-card); border: 1px solid var(--border-gold); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
-        .audit-row { display: flex; justify-content: space-between; background: var(--bg-panel); padding: 6px 10px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 10px; margin-bottom: 6px; border-left: 3px solid var(--gold); }
+        .telemetry-box { background: var(--bg-card); border: 1px solid var(--border-gold); border-radius: 8px; padding: 12px; margin-bottom: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.04); }
+        .audit-row { display: flex; justify-content: space-between; background: var(--bg-panel); padding: 6px 10px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 10px; margin-bottom: 6px; border-left: 3px solid var(--gold); border: 1px solid #e2e8f0; }
 
-        .search-input { width: 100%; background: var(--bg-card); border: 1px solid var(--border-gold); border-radius: 8px; padding: 10px 14px; color: #fff; font-family: 'JetBrains Mono', monospace; font-size: 12px; outline: none; margin-bottom: 10px; }
-        .chart-frame { background: var(--bg-card); border: 1px solid var(--border-gold); border-radius: 8px; height: 380px; overflow: hidden; }
+        .search-input { width: 100%; background: #ffffff; border: 1px solid var(--border-gold); border-radius: 8px; padding: 10px 14px; color: var(--text-main); font-family: 'JetBrains Mono', monospace; font-size: 12px; outline: none; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
+        .chart-frame { background: #ffffff; border: 1px solid var(--border-gold); border-radius: 8px; height: 380px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.04); }
 
-        nav { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(11, 15, 23, 0.95); backdrop-filter: blur(12px); border-top: 1px solid var(--border-gold); display: flex; justify-content: space-around; padding: 10px 0; z-index: 1000; }
+        nav { position: fixed; bottom: 0; left: 0; width: 100%; background: #ffffff; backdrop-filter: blur(12px); border-top: 1px solid var(--border-gold); display: flex; justify-content: space-around; padding: 10px 0; z-index: 1000; box-shadow: 0 -4px 15px rgba(0,0,0,0.05); }
         nav button { background: none; border: none; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; font-size: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; font-weight: 700; text-transform: uppercase; }
-        nav button.active { color: var(--gold); text-shadow: 0 0 10px rgba(255, 176, 0, 0.5); }
+        nav button.active { color: var(--gold); text-shadow: 0 0 8px rgba(180, 83, 9, 0.3); }
         nav button svg { width: 20px; height: 20px; fill: currentColor; }
     </style>
 </head>
 <body>
 
     <header>
-        <div>INSTITUTIONAL QUANT TERMINAL // BLP-X PRO</div>
-        <div class="terminal-badge"><div class="dot-live"></div> PROP-DESK ACTIVE</div>
+        <div>TERMINALE ISTITUZIONALE QUANT // BLP-X PRO</div>
+        <div class="terminal-badge"><div class="dot-live"></div> DESK OPERATIVO ATTIVO</div>
     </header>
 
     <div class="ticker-tape">
-        <span>⚡ [BLOOMBERG FEED] Dark Pool Block Trades sincronizzati • Gamma Exposure (GEX) stabili • Multi-Timeframe Confluence (MTC) validata al 100% sui mercati globali.</span>
+        <span>⚡ [FEED BLOOMBERG] Transazioni Dark Pool sincronizzate • Esposizione Gamma (GEX) stabile • Confluenza Multi-Timeframe (MTC) validata al 100% sui mercati globali.</span>
     </div>
 
     <div class="desk-bar">
@@ -125,8 +124,8 @@
     <div id="tab-segnali" class="tab-content active">
         <div class="risk-panel">
             <div class="risk-header">
-                <span>🛡️ Risk Management & Drawdown Controller</span>
-                <span style="color:var(--green);">Hedge Standard</span>
+                <span>🛡️ Gestione Rischio & Controllo Drawdown</span>
+                <span style="color:var(--green);">Standard Istituzionale</span>
             </div>
             <div class="risk-grid">
                 <div class="risk-field">
@@ -149,35 +148,35 @@
         </div>
 
         <div class="filter-row">
-            <div class="filter-chip active" onclick="setFilter('ALL', this)">🌐 ALL MARKETS</div>
-            <div class="filter-chip" onclick="setFilter('BUY', this)">📈 LONG ONLY</div>
-            <div class="filter-chip" onclick="setFilter('SELL', this)">📉 SHORT ONLY</div>
-            <div class="filter-chip" onclick="setFilter('Criptovalute', this)">🪙 CRYPTO</div>
+            <div class="filter-chip active" onclick="setFilter('ALL', this)">🌐 TUTTI I MERCATI</div>
+            <div class="filter-chip" onclick="setFilter('BUY', this)">📈 SOLO LONG</div>
+            <div class="filter-chip" onclick="setFilter('SELL', this)">📉 SOLO SHORT</div>
+            <div class="filter-chip" onclick="setFilter('Criptovalute', this)">🪙 CRIPTO</div>
             <div class="filter-chip" onclick="setFilter('Materie Prime & Forex', this)">🥇 FOREX / ORO</div>
         </div>
 
         <div id="signals-container">
             <div style="text-align:center; padding:30px; color:var(--gold); font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:bold;">
-                ⚡ Connessione ai feed istituzionali in corso...
+                ⚡ Connessione ai flussi istituzionali in corso...
             </div>
         </div>
     </div>
 
     <!-- TAB 2: TELEMETRIA & AUDIT -->
     <div id="tab-storico" class="tab-content">
-        <div style="font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--gold); margin-bottom:10px; font-weight:800; text-transform:uppercase;">🏆 Telemetria & Audit Console</div>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--gold); margin-bottom:10px; font-weight:800; text-transform:uppercase;">🏆 Telemetria & Registro Audit</div>
         <div class="risk-panel" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; text-align:center;">
             <div>
                 <span style="font-size:9px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">SEGNALI ATTIVI</span>
-                <strong id="active-count" style="font-size:16px; color:#fff; font-family:'JetBrains Mono',monospace;">0</strong>
+                <strong id="active-count" style="font-size:16px; color:var(--text-main); font-family:'JetBrains Mono',monospace;">0</strong>
             </div>
             <div>
-                <span style="font-size:9px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">FIREWALL STATUS</span>
-                <strong style="font-size:13px; color:var(--green); font-family:'JetBrains Mono',monospace;">ACTIVE (0 FAKE)</strong>
+                <span style="font-size:9px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">STATO FIREWALL</span>
+                <strong style="font-size:13px; color:var(--green); font-family:'JetBrains Mono',monospace;">ATTIVO (0 FAKE)</strong>
             </div>
         </div>
         <div class="telemetry-box">
-            <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--gold); margin-bottom:8px; font-weight:bold;">REAL-TIME EXECUTION LOG</div>
+            <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--gold); margin-bottom:8px; font-weight:bold;">REGISTRO ESECUZIONE IN TEMPO REALE</div>
             <div id="audit-log-container">
                 <p style="text-align:center; padding:20px; font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">In attesa di eventi di esecuzione...</p>
             </div>
@@ -199,15 +198,15 @@
     <nav>
         <button class="active" onclick="switchTab('segnali', this)">
             <svg viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2m0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8m.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7Z"/></svg>
-            Signals
+            Segnali
         </button>
         <button onclick="switchTab('storico', this)">
             <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
-            Telemetry
+            Telemetria
         </button>
         <button onclick="switchTab('analizza', this)">
             <svg viewBox="0 0 24 24"><path d="M3 3v18h18v-2H5V3H3m4 10h2v5H7v-5m4-4h2v9h-2V9m4-6h2v15h-2V3Z"/></svg>
-            Charts
+            Grafici
         </button>
     </nav>
 
@@ -224,7 +223,7 @@
         function toggleAudio() {
             audioEnabled = !audioEnabled;
             const btn = document.getElementById('audio-btn');
-            btn.innerText = audioEnabled ? '🔊 AUDIO ON' : '🔇 MUTE';
+            btn.innerText = audioEnabled ? '🔊 AUDIO ON' : '🔇 MUTO';
             btn.style.color = audioEnabled ? 'var(--green)' : 'var(--red)';
         }
 
@@ -314,41 +313,40 @@
                     <div class="card-top">
                         <div>
                             <div class="asset-name">${s.name} <span class="ai-score-pill">AI ${s.ai_score}</span></div>
-                            <div class="card-meta">TIME: <strong style="color:var(--gold);">${s.timestamp}</strong> | PRICE: <strong style="color:#fff; font-family:'JetBrains Mono',monospace;">${s.price}</strong></div>
+                            <div class="card-meta">ORARIO: <strong style="color:var(--gold);">${s.timestamp}</strong> | PREZZO: <strong style="color:var(--text-main); font-family:'JetBrains Mono',monospace;">${s.price}</strong></div>
                         </div>
                         <div class="action-badge ${s.action}">${s.action}</div>
                     </div>
 
                     <div class="mod-row">
                         <div class="mod-box">
-                            <span>Macro Regime</span>
+                            <span>Regime Macro</span>
                             <strong>${s.regime}</strong>
                         </div>
                         <div class="mod-box">
-                            <span>Execution Algo</span>
+                            <span>Algoritmo Esecuzione</span>
                             <strong style="color:var(--blue);">${s.execution_algo}</strong>
                         </div>
                     </div>
 
                     <div class="mod-row">
                         <div class="mod-box">
-                            <span>Dark Pool Blocks</span>
-                            <strong style="color:#c084fc;">${s.dark_pool}</strong>
+                            <span>Blocchi Dark Pool</span>
+                            <strong style="color:#7c3aed;">${s.dark_pool}</strong>
                         </div>
                         <div class="mod-box">
-                            <span>Gamma Exposure</span>
+                            <span>Esposizione Gamma</span>
                             <strong style="color:var(--green);">${s.gex_status}</strong>
                         </div>
                     </div>
 
                     <div class="full-strip">
-                        <span style="color:var(--blue);">📈 Multi-TF Confluence (MTC):</span>
+                        <span style="color:var(--blue);">📈 Confluenza Multi-TF (MTC):</span>
                         <strong>${s.mtc_matrix}</strong>
                     </div>
 
-                    <!-- Modulo Bid / Ask Pressure con Definizioni Esplicite -->
                     <div class="orderbook-box">
-                        <div class="ob-header-desc">📊 Order Book Imbalance (Pressione Denaro / Lettera)</div>
+                        <div class="ob-header-desc">📊 Sbilanciamento Order Book (Pressione Denaro / Lettera)</div>
                         <div style="display:flex; justify-content:space-between; margin-bottom:3px; font-weight:600;">
                             <span style="color:var(--green);">BID (Acquisto): ${s.bid_pressure}%</span>
                             <span style="color:var(--red);">ASK (Vendita): ${s.ask_pressure}%</span>
@@ -360,27 +358,27 @@
                     </div>
 
                     <div class="full-strip">
-                        <span>📊 Session Point of Control (POC):</span>
+                        <span>📊 Point of Control di Sessione (POC):</span>
                         <strong style="color:var(--gold);">${s.poc_price}</strong>
                     </div>
 
-                    <div class="full-strip" style="border-color:rgba(255,51,68,0.2);">
-                        <span style="color:var(--red);">🪤 Liquidity Sweep (Stop Hunt):</span>
+                    <div class="full-strip" style="border-color:rgba(220,38,38,0.2);">
+                        <span style="color:var(--red);">🪤 Caccia agli Stop (Liquidity Sweep):</span>
                         <strong>${s.liquidity_sweep}</strong>
                     </div>
 
-                    <div class="projection-box" style="background:var(--bg-panel); border:1px solid rgba(255,176,0,0.2); border-radius:6px; padding:8px; margin-bottom:8px; display:flex; justify-content:space-between; font-family:'JetBrains Mono',monospace; font-size:10px;">
+                    <div class="projection-box" style="background:var(--bg-panel); border:1px solid rgba(180,83,9,0.2); border-radius:6px; padding:8px; margin-bottom:8px; display:flex; justify-content:space-between; font-family:'JetBrains Mono',monospace; font-size:10px;">
                         <div>
                             <span style="color:var(--text-dim); font-size:8px; display:block;">TARGET MASSIMO</span>
                             <strong style="color:var(--gold);">${s.max_target}</strong>
                         </div>
                         <div style="text-align:right;">
-                            <span style="color:var(--text-dim); font-size:8px; display:block;">INVALIDATION SL</span>
+                            <span style="color:var(--text-dim); font-size:8px; display:block;">STOP INVALIDAZIONE</span>
                             <strong style="color:var(--red);">${s.max_invalidation}</strong>
                         </div>
                     </div>
 
-                    <div class="full-strip" style="border-color:rgba(0,229,255,0.2);">
+                    <div class="full-strip" style="border-color:rgba(2,132,199,0.2);">
                         <span style="color:var(--blue);">📊 Monitoraggio Progresso verso Target:</span>
                         <strong style="color:var(--gold);">${s.progress_pct}% Completato</strong>
                     </div>
@@ -397,14 +395,14 @@
                             <div class="tpsl-item"><span style="color:var(--green);">TP3:</span><strong style="color:var(--green);">${s.tp3}</strong></div>
                         </div>
                         <div style="margin-top:6px; font-size:9px; color:var(--blue); text-align:center; font-family:'JetBrains Mono',monospace;">
-                            🔄 BREAK-EVEN AUTOMATION (Sposta a BE dopo TP1): <strong style="color:var(--gold);">${s.breakeven}</strong>
+                            🔄 AUTOMAZIONE BREAK-EVEN (Sposta SL a BE dopo TP1): <strong style="color:var(--gold);">${s.breakeven}</strong>
                         </div>
                     </div>
 
                     <div class="sizing-box">
                         <div><span>QUANTITÀ SIZE</span><strong>${s.position_size}</strong></div>
-                        <div><span>LEVERAGE</span><strong>${s.leverage}</strong></div>
-                        <div><span>RISK ($)</span><strong>$${s.risk_amount}</strong></div>
+                        <div><span>LEVA BINGX</span><strong>${s.leverage}</strong></div>
+                        <div><span>RISCHIO ($)</span><strong>$${s.risk_amount}</strong></div>
                     </div>
 
                     <button class="btn-bingx" onclick="copyBingX('${s.name}', '${s.action}', '${s.entry}', '${s.sl}', '${s.tp1}', '${s.tp2}', '${s.tp3}', '${s.max_target}', '${s.timestamp}', '${s.leverage}', '${s.position_size}', '${s.breakeven}')">
@@ -415,7 +413,7 @@
         }
 
         function copyBingX(name, action, entry, sl, tp1, tp2, tp3, maxTarget, timestamp, lev, size, be) {
-            const text = `✨ INSTITUTIONAL PROP-DESK SIGNAL - BINGX\nOrario: ${timestamp}\nAsset: ${name}\nSide: ${action}\nTarget Massimo: ${maxTarget}\nBreak-Even SL: ${be}\nLeva: ${lev}\nSize: ${size}\nIngresso: ${entry}\nStop Loss: ${sl}\nTP1: ${tp1}\nTP2: ${tp2}\nTP3: ${tp3}`;
+            const text = `✨ SEGNALE PROP-DESK ISTITUZIONALE - BINGX\nOrario: ${timestamp}\nAsset: ${name}\nDirezione: ${action}\nTarget Massimo: ${maxTarget}\nSposta SL in Break-Even a: ${be}\nLeva: ${lev}\nSize: ${size}\nIngresso: ${entry}\nStop Loss: ${sl}\nTP1: ${tp1}\nTP2: ${tp2}\nTP3: ${tp3}`;
             navigator.clipboard.writeText(text);
             alert('✅ Ordine istituzionale copiato negli appunti per BingX!');
         }
@@ -460,8 +458,8 @@
 
             new TradingView.widget({
                 "autosize": true, "symbol": tvSymbol, "interval": "15",
-                "timezone": "Europe/Rome", "theme": "dark", "style": "1", "locale": "it",
-                "toolbar_bg": "#0b0f17", "enable_publishing": false, "container_id": "tradingview_widget"
+                "timezone": "Europe/Rome", "theme": "light", "style": "1", "locale": "it",
+                "toolbar_bg": "#f8fafc", "enable_publishing": false, "container_id": "tradingview_widget"
             });
         }
 
