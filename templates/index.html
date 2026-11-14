@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Institutional Trading Floor — Light VIP Terminal</title>
+    <title>Tier-5 Prop Desk — Institutional Signal Terminal</title>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -113,16 +113,16 @@
 <body>
 
     <header>
-        <div>INSTITUTIONAL FLOOR // LIGHT VIP TERMINAL</div>
-        <div class="terminal-badge"><div class="dot-live"></div> LIGHT VIP ATTIVO</div>
+        <div>TIER-5 PROP DESK // INSTITUTIONAL SIGNAL TERMINAL</div>
+        <div class="terminal-badge"><div class="dot-live"></div> TIER-5 ALPHA ATTIVO</div>
     </header>
 
     <div class="ticker-tape">
-        <span>⚡ [VIP FEED] Sfondo bianco pulito • Nero, Blu, Oro, Verde e Rosso attivi • Multi-market sincronizzato in tempo reale.</span>
+        <span>👑 [TIER-5 PROP FEED] Smart Order Routing (SOR) • CVD Divergence & Spoofing Detector • Kelly Criterion Sizing & IV Smile online.</span>
     </div>
 
     <div class="desk-bar">
-        <div class="desk-title">⚡ SALA SEGNALI <span>LIGHT VIP PRO</span></div>
+        <div class="desk-title">⚡ TIER-5 SALA SEGNALI <span>PROP DESK PRO</span></div>
         <div style="display:flex; gap:8px; align-items:center;">
             <button onclick="toggleAudio()" id="audio-btn" style="background:var(--bg-panel); border:1px solid var(--border-gold); color:var(--green); padding:4px 8px; border-radius:6px; font-family:'JetBrains Mono',monospace; font-size:10px; cursor:pointer; font-weight:bold;">🔊 AUDIO ON</button>
             <div class="clock-box" id="live-clock">--:--:--</div>
@@ -133,8 +133,8 @@
     <div id="tab-segnali" class="tab-content active">
         <div class="risk-panel">
             <div class="risk-header">
-                <span>🛡️ Gestione Rischio & Drawdown Controller</span>
-                <span style="color:var(--green);">Institutional Standard</span>
+                <span>🛡️ Kelly Criterion & Drawdown Controller</span>
+                <span style="color:var(--green);">Tier-5 Prop Standard</span>
             </div>
             <div class="risk-grid">
                 <div class="risk-field">
@@ -167,14 +167,14 @@
 
         <div id="signals-container">
             <div style="text-align:center; padding:30px; color:var(--gold); font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:bold;">
-                ⚡ Connessione ai flussi Light VIP in corso...
+                ⚡ Connessione ai flussi Tier-5 Prop Desk in corso...
             </div>
         </div>
     </div>
 
     <!-- TAB 2: TELEMETRIA & AUDIT -->
     <div id="tab-storico" class="tab-content">
-        <div style="font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--gold); margin-bottom:10px; font-weight:800; text-transform:uppercase;">🏆 Telemetria & Registro Audit Light VIP</div>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--gold); margin-bottom:10px; font-weight:800; text-transform:uppercase;">🏆 Tier-5 Telemetria & Registro Audit</div>
         <div class="risk-panel" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; text-align:center;">
             <div>
                 <span style="font-size:9px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">SEGNALI ATTIVI</span>
@@ -186,7 +186,7 @@
             </div>
         </div>
         <div class="telemetry-box">
-            <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--gold); margin-bottom:8px; font-weight:bold;">REGISTRO ESECUZIONE MULTI-ASSET</div>
+            <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--gold); margin-bottom:8px; font-weight:bold;">REGISTRO ESECUZIONE MULTI-ASSET TIER-5</div>
             <div id="audit-log-container">
                 <p style="text-align:center; padding:20px; font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">In attesa di eventi di esecuzione...</p>
             </div>
@@ -274,7 +274,7 @@
                 const newSignals = await res.json();
                 
                 if (newSignals.length > currentSignals.length && currentSignals.length >= 0) {
-                    speakAlert("Nuovo segnale confermato.");
+                    speakAlert("Nuovo segnale Tier-5 confermato.");
                 }
 
                 currentSignals = newSignals;
@@ -294,7 +294,7 @@
             } catch (e) {
                 document.getElementById('signals-container').innerHTML = `
                     <div style="background:var(--bg-card); border:1px solid var(--red); border-radius:8px; padding:20px; text-align:center;">
-                        <p style="color:var(--red); font-family:'JetBrains Mono',monospace; font-size:11px;">Errore di sincronizzazione flussi...</p>
+                        <p style="color:var(--red); font-family:'JetBrains Mono',monospace; font-size:11px;">Errore di sincronizzazione flussi Tier-5...</p>
                     </div>`;
             }
         }
@@ -312,8 +312,8 @@
             if (!filtered || filtered.length === 0) {
                 container.innerHTML = `
                     <div style="background:var(--bg-card); border:1px solid var(--border-gold); border-radius:10px; padding:25px; text-align:center;">
-                        <p style="color:var(--gold); font-family:'JetBrains Mono',monospace; font-weight:800; font-size:12px; margin-bottom:4px;">✨ DESK IN ATTESA DI SETUP</p>
-                        <p style="color:var(--text-dim); font-size:10px; font-family:'JetBrains Mono',monospace;">Filtri anti-whipsaw attivi su Cripto, Forex, Oro e Azioni.</p>
+                        <p style="color:var(--gold); font-family:'JetBrains Mono',monospace; font-weight:800; font-size:12px; margin-bottom:4px;">👑 TIER-5 PROP DESK IN ATTESA DI SETUP</p>
+                        <p style="color:var(--text-dim); font-size:10px; font-family:'JetBrains Mono',monospace;">Filtri anti-whipsaw, SOR e CVD attivi su tutti i mercati.</p>
                     </div>`;
                 return;
             }
@@ -335,7 +335,7 @@
 
                     <div class="sentiment-banner" style="border-color: ${s.sentiment_color};">
                         <div class="sentiment-title">
-                            <span>📊 SENTIMENT DI MERCATO</span>
+                            <span>📊 SENTIMENT PROP-DESK</span>
                             <span style="color: ${s.sentiment_color}; font-weight: 800;">${s.sentiment_pct}% CONVINZIONE</span>
                         </div>
                         <div class="sentiment-value-box">
@@ -352,30 +352,30 @@
                             <strong>${s.regime}</strong>
                         </div>
                         <div class="mod-box">
-                            <span>Algoritmo Esecuzione</span>
+                            <span>Smart Order Routing (SOR)</span>
                             <strong style="color:var(--blue);">${s.execution_algo}</strong>
                         </div>
                     </div>
 
                     <div class="mod-row">
                         <div class="mod-box">
-                            <span>Macro Watchdog</span>
-                            <strong style="color:var(--gold);">${s.macro_watchdog}</strong>
+                            <span>CVD Divergence (Volume)</span>
+                            <strong style="color:var(--gold);">${s.cvd_divergence}</strong>
                         </div>
                         <div class="mod-box">
-                            <span>Tape Speed (Velocity)</span>
-                            <strong style="color:var(--green);">${s.tape_speed}</strong>
+                            <span>HFT Spoofing Detector</span>
+                            <strong style="color:var(--green);">${s.spoofing_detector}</strong>
                         </div>
                     </div>
 
                     <div class="mod-row">
                         <div class="mod-box">
-                            <span>Blocchi Dark Pool</span>
-                            <strong style="color:var(--purple);">${s.dark_pool}</strong>
+                            <span>IV Smile (Volatilità)</span>
+                            <strong style="color:var(--purple);">${s.iv_smile}</strong>
                         </div>
                         <div class="mod-box">
-                            <span>Esposizione Gamma</span>
-                            <strong style="color:var(--green);">${s.gex_status}</strong>
+                            <span>Kelly Criterion Sizing</span>
+                            <strong style="color:var(--gold);">${s.kelly_criterion}</strong>
                         </div>
                     </div>
 
@@ -387,7 +387,7 @@
                     <table class="vip-table">
                         <thead>
                             <tr>
-                                <th>Parametro Institutional</th>
+                                <th>Parametro Tier-5 Prop Desk</th>
                                 <th>Valore Rilevato</th>
                                 <th>Stato Desk</th>
                             </tr>
@@ -444,7 +444,7 @@
                     </div>
 
                     <div class="full-strip" style="border-color:rgba(2,132,199,0.2);">
-                        <span style="color:var(--blue);">🤖 ASB Agent (Analisi AI):</span>
+                        <span style="color:var(--blue);">🤖 Tier-5 ASB Agent (Analisi AI):</span>
                         <strong>${s.ai_agent_note}</strong>
                     </div>
 
@@ -503,16 +503,16 @@
                     </div>
 
                     <button class="btn-bingx" onclick="copyBingX('${s.name}', '${s.action}', '${s.entry}', '${s.sl}', '${s.tp1}', '${s.tp2}', '${s.tp3}', '${s.max_target}', '${s.timestamp}', '${s.leverage}', '${s.position_size}', '${s.breakeven}')">
-                        👑 COPIA ORDINE BINGX PRO
+                        👑 COPIA ORDINE TIER-5 BINGX PRO
                     </button>
                 </div>
             `).join('');
         }
 
         function copyBingX(name, action, entry, sl, tp1, tp2, tp3, maxTarget, timestamp, lev, size, be) {
-            const text = `👑 SEGNALE LIGHT VIP - BINGX\nOrario: ${timestamp}\nAsset: ${name}\nDirezione: ${action}\nTarget Massimo: ${maxTarget}\nSposta SL in Break-Even a: ${be}\nLeva: ${lev}\nSize: ${size}\nIngresso: ${entry}\nStop Loss: ${sl}\nTP1: ${tp1}\nTP2: ${tp2}\nTP3: ${tp3}`;
+            const text = `👑 SEGNALE TIER-5 PROP DESK - BINGX\nOrario: ${timestamp}\nAsset: ${name}\nDirezione: ${action}\nTarget Massimo: ${maxTarget}\nSposta SL in Break-Even a: ${be}\nLeva: ${lev}\nSize: ${size}\nIngresso: ${entry}\nStop Loss: ${sl}\nTP1: ${tp1}\nTP2: ${tp2}\nTP3: ${tp3}`;
             navigator.clipboard.writeText(text);
-            alert('✅ Ordine institutional copiato negli appunti per BingX!');
+            alert('✅ Ordine institutional Tier-5 copiato negli appunti per BingX!');
         }
 
         function renderSymbols(filteredAssets = null) {
