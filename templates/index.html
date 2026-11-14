@@ -45,6 +45,11 @@
 
         .firewall-badge { background: rgba(14, 203, 129, 0.12); color: #0ecb81; border: 1px solid rgba(14, 203, 129, 0.35); padding: 5px 10px; border-radius: 8px; font-size: 10px; font-weight: 800; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
 
+        /* Price Projection Box */
+        .projection-box { background: rgba(212, 175, 55, 0.08); border: 1px solid rgba(212, 175, 55, 0.3); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .projection-box div span { display: block; font-size: 9px; color: #94a3b8; text-transform: uppercase; font-weight: 700; }
+        .projection-box div strong { font-size: 13px; font-family: monospace; color: #fbbf24; text-shadow: 0 1px 2px rgba(0,0,0,0.8); }
+
         .status-strip { font-size: 11px; margin-bottom: 10px; display: flex; justify-content: space-between; background: rgba(6, 9, 19, 0.9); padding: 7px 12px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.06); font-weight: 600; }
 
         .progress-box { background: rgba(6, 9, 19, 0.9); border-radius: 10px; padding: 10px; margin-bottom: 10px; border: 1px solid rgba(212, 175, 55, 0.15); }
@@ -80,7 +85,7 @@
 
     <header>
         <div>Institutional 4D Terminal</div>
-        <div class="gold-badge"><div class="dot-gold"></div> REAL-TIME AI SCANNER</div>
+        <div class="gold-badge"><div class="dot-gold"></div> AI PRICE PROJECTION ACTIVE</div>
     </header>
 
     <div class="dashboard-header">
@@ -96,7 +101,7 @@
         <div class="mm-bar">
             <div class="mm-header">
                 <span>🛡️ Money Management & Size BingX</span>
-                <span style="color:#0ecb81;">Reale al 100%</span>
+                <span style="color:#0ecb81;">Proiezioni Reali</span>
             </div>
             <div class="mm-grid">
                 <div class="mm-field">
@@ -128,7 +133,7 @@
 
         <div id="signals-container">
             <div style="text-align:center; padding:35px; color:#fbbf24; font-size:13px; font-weight:bold;">
-                ✨ Scansione live reale dei mercati in corso...
+                ✨ Calcolo proiezioni di prezzo in corso...
             </div>
         </div>
     </div>
@@ -226,12 +231,11 @@
                 currentSignals = await res.json();
                 document.getElementById('active-count').innerText = currentSignals.length;
                 
-                // Aggiorna il log audit in tempo reale con i segnali trovati
                 const auditContainer = document.getElementById('audit-log-container');
                 if (currentSignals.length > 0) {
                     auditContainer.innerHTML = currentSignals.map(s => `
                         <div style="display:flex; justify-content:space-between; background:rgba(6,9,19,0.9); padding:8px 10px; border-radius:8px; border-left:3px solid ${s.action === 'BUY' ? '#0ecb81' : '#f6465d'};">
-                            <span><strong>${s.name}</strong> • ${s.action}</span>
+                            <span><strong>${s.name}</strong> • ${s.action} (Target Previsto: ${s.max_target})</span>
                             <span style="color:#fbbf24; font-family:monospace;">Score: ${s.ai_score} • ${s.timestamp}</span>
                         </div>
                     `).join('');
@@ -279,6 +283,18 @@
                         <span>🛡️ Firewall Anti-Whipsaw: <strong>Attivo (Trend Pulito / No Fakeout)</strong></span>
                     </div>
 
+                    <!-- Box Proiezione Prezzo Massimo Previsto -->
+                    <div class="projection-box">
+                        <div>
+                            <span>🎯 Previsione Target Massimo (Fino a Quota)</span>
+                            <strong>${s.max_target}</strong>
+                        </div>
+                        <div style="text-align:right;">
+                            <span>Soglia Invalido / Stop</span>
+                            <strong style="color:#f6465d;">${s.max_invalidation}</strong>
+                        </div>
+                    </div>
+
                     <div class="status-strip">
                         <span style="color: #0ecb81; font-weight:bold;">${s.market_status}</span>
                         <span style="color: #fbbf24;">RSI: ${s.rsi} • RRR 1:${s.rrr}</span>
@@ -286,7 +302,7 @@
 
                     <div class="progress-box">
                         <div style="display:flex; justify-content:space-between; font-size:11px; color:#94a3b8; font-weight:bold;">
-                            <span>📊 Monitoraggio Target TP1</span>
+                            <span>📊 Monitoraggio Progresso verso Target</span>
                             <strong style="color:#fbbf24; font-family:monospace;">${s.progress_pct}% Completato</strong>
                         </div>
                         <div class="progress-bar-container">
@@ -313,17 +329,17 @@
                         <div><span>Rischio ($)</span><strong>$${s.risk_amount}</strong></div>
                     </div>
 
-                    <button class="btn-copy-signal" onclick="copyBingX('${s.name}', '${s.action}', '${s.entry}', '${s.sl}', '${s.tp1}', '${s.tp2}', '${s.tp3}', '${s.leverage}', '${s.position_size}')">
+                    <button class="btn-copy-signal" onclick="copyBingX('${s.name}', '${s.action}', '${s.entry}', '${s.sl}', '${s.tp1}', '${s.tp2}', '${s.tp3}', '${s.max_target}', '${s.leverage}', '${s.position_size}')">
                         📋 Copia Ordine per BingX
                     </button>
                 </div>
             `).join('');
         }
 
-        function copyBingX(name, action, entry, sl, tp1, tp2, tp3, lev, size) {
-            const text = `✨ 4D INSTITUTIONAL SIGNAL - BINGX\nAsset: ${name}\nDirezione: ${action}\nLeva: ${lev}\nSize: ${size}\nIngresso: ${entry}\nStop Loss: ${sl}\nTP1: ${tp1}\nTP2: ${tp2}\nTP3: ${tp3}`;
+        function copyBingX(name, action, entry, sl, tp1, tp2, tp3, maxTarget, lev, size) {
+            const text = `✨ 4D INSTITUTIONAL SIGNAL - BINGX\nAsset: ${name}\nDirezione: ${action}\nTarget Massimo Previsto: ${maxTarget}\nLeva: ${lev}\nSize: ${size}\nIngresso: ${entry}\nStop Loss: ${sl}\nTP1: ${tp1}\nTP2: ${tp2}\nTP3: ${tp3}`;
             navigator.clipboard.writeText(text);
-            alert('✅ Ordine istituzionale copiato negli appunti per BingX!');
+            alert('✅ Ordine istituzionale con proiezione di prezzo copiato per BingX!');
         }
 
         function renderSymbols(filteredAssets = null) {
