@@ -11,7 +11,6 @@ def home():
     return render_template('index.html')
 
 def fetch_all_markets():
-    # Usiamo le API pubbliche di Binance per dati reali in tempo reale sui server cloud
     markets = {
         "Criptovalute": [
             {'id': 'BTCUSDT', 'name': '₿ Bitcoin', 'symbol': 'BTCUSDT'},
@@ -32,7 +31,6 @@ def fetch_all_markets():
 def get_market_data(symbol):
     headers = {"User-Agent": "Mozilla/5.0"}
     try:
-        # Endpoint klines pubblico di Binance (reale al 100%)
         url = "https://api.binance.com/api/v3/klines"
         res = requests.get(url, params={"symbol": symbol, "interval": "15m", "limit": 60}, headers=headers, timeout=4).json()
         
@@ -42,18 +40,15 @@ def get_market_data(symbol):
                 df[col] = df[col].astype(float)
             
             live_price = df['Close'].iloc[-1]
-            
-            # Prendi il prezzo ticker istantaneo
             p_res = requests.get("https://api.binance.com/api/v3/ticker/price", params={"symbol": symbol}, headers=headers, timeout=2).json()
             if 'price' in p_res:
                 live_price = float(p_res['price'])
                 df.loc[df.index[-1], 'Close'] = live_price
 
             return df, live_price, "Binance Live Real"
-    except Exception as e:
-        print("Errore API:", e)
+    except Exception:
+        pass
 
-    # Fallback di sicurezza estrema basato sull'ultimo prezzo noto
     p = 67000.0 if 'BTC' in symbol else (1900.0 if 'ETH' in symbol else 100.0)
     df = pd.DataFrame({
         'Open': [p]*60, 'High': [p*1.001]*60, 'Low': [p*0.999]*60,
@@ -61,7 +56,7 @@ def get_market_data(symbol):
     })
     return df, p, "Offline Sync"
 
-def calculate_certified_setup(df, current_price, mode, timeframe):
+def calculate_certified_setup(df, current_price, mode, timeframe, account_balance, risk_percentage):
     close = df['Close']
     delta = close.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
@@ -80,23 +75,43 @@ def calculate_certified_setup(df, current_price, mode, timeframe):
     atr = float(tr.rolling(14).mean().iloc[-1])
     if np.isnan(atr) or not np.isfinite(atr) or atr <= 0: atr = current_price * 0.005
 
+    # --- CONTROLLO WHISPAW / FALSE ROTTURE ---
+    vol = df['Volume']
+    vol_sma = vol.rolling(20).mean().iloc[-1]
+    current_vol = vol.iloc[-1]
+    low_volume_flag = current_vol < (vol_sma * 0.75) if not np.isnan(vol_sma) else False
+
+    # Analisi candela di rigetto (pin bar / wick esteso)
+    o_last = df['Open'].iloc[-1]
+    c_last = df['Close'].iloc[-1]
+    h_last = df['High'].iloc[-1]
+    l_last = df['Low'].iloc[-1]
+    body = abs(c_last - o_last)
+    rng = h_last - l_last
+    is_pin_bar = rng > 0 and (body / rng) < 0.35
+
+    whipsaw_detected = low_volume_flag or is_pin_bar
+
     is_bullish = (ema12.iloc[-1] >= ema26.iloc[-1]) and (current_macd >= 0)
     action = "BUY" if is_bullish else "SELL"
+    
+    # Calcolo confidenza base penalizzato se c'è rischio whipsaw
     confidence = int(min(82 + abs(rsi - 50) * 0.5 + (abs(current_macd) * 5), 96))
+    if whipsaw_detected:
+        confidence = max(45, confidence - 30)
 
     if mode == 'Scalping':
-        sl_m, tp_m = 0.4, 0.9
+        sl_m, tp_m = 0.4, 1.0
     elif mode == 'Day Trading':
-        sl_m, tp_m = 0.9, 1.8
+        sl_m, tp_m = 0.9, 2.0
     elif mode == 'Swing Trading':
-        sl_m, tp_m = 2.0, 4.0
+        sl_m, tp_m = 2.0, 4.5
     else:
         sl_m, tp_m = 1.0, 2.0
 
     sl_dist = atr * sl_m
     tp_dist = atr * tp_m
-
-    decimals = 6 if current_price < 0.01 else (4 if current_price < 5 else (2 if current_price >= 1 else 2))
+    decimals = 6 if current_price < 0.01 else (4 if current_price < 5 else 2)
 
     if action == "BUY":
         entry_l = round(current_price - (atr * 0.05), decimals)
@@ -117,19 +132,27 @@ def calculate_certified_setup(df, current_price, mode, timeframe):
         order_type = "Sell Limit"
         counter_act = "BUY"
 
-    counter_sl = round(current_price + (atr * 1.2) if counter_act == "SELL" else current_price - (atr * 1.2), decimals)
-    counter_tp = round(current_price - (atr * 1.0) if counter_act == "SELL" else current_price + (atr * 1.0), decimals)
+    max_risk_amount = account_balance * (risk_percentage / 100.0)
+    price_risk_per_unit = abs(current_price - sl)
+    position_size = (max_risk_amount / price_risk_per_unit) if price_risk_per_unit > 0 else 0.0
+    rrr = round(tp_dist / sl_dist, 2) if sl_dist > 0 else 0.0
 
-    ai_advice = f"[{mode}] Analisi completata sui dati reali di mercato. Trend rilevato: {action}. Gestione ATR attiva."
-    counter_warning = f"La posizione {counter_act} è contraria al trend principale rilevato dagli indicatori."
+    if whipsaw_detected:
+        whipsaw_msg = "🚨 ATTENZIONE: Rischio Whipsaw elevato (volumi deboli o candela di rigetto/falsa rottura). Consigliato saltare il trade."
+    else:
+        whipsaw_msg = "✅ Volumi stabili e nessun pattern di falsa rottura rilevato."
+
+    ai_advice = (
+        f"[{mode}] Controllo Rischio & Whipsaw attivo. Rischio impostato al {risk_percentage}% "
+        f"(${max_risk_amount:.2f}). RRR = 1:{rrr}. {whipsaw_msg}"
+    )
 
     return {
         "action": action, "confidence": confidence, "order_type": order_type,
         "entry_zone": f"{entry_l} - {entry_h}", "sl": sl, "tp1": tp1, "tp2": tp2, "tp3": tp3,
-        "counter_action": counter_act, "counter_order_type": f"Market {counter_act}",
-        "counter_entry": round(current_price, decimals), "counter_sl": counter_sl, "counter_tp": counter_tp,
-        "counter_warning": counter_warning, "ai_recommendation": ai_advice,
-        "decimals": decimals
+        "risk_amount": round(max_risk_amount, 2), "position_size": round(position_size, 4),
+        "rrr": rrr, "whipsaw_detected": whipsaw_detected, "whipsaw_msg": whipsaw_msg,
+        "counter_action": counter_act, "ai_recommendation": ai_advice, "decimals": decimals
     }
 
 @app.route('/api/markets', methods=['GET'])
@@ -142,9 +165,11 @@ def analyze_chart():
     symbol = data.get('symbol', 'BTCUSDT')
     timeframe = data.get('timeframe', '15m')
     mode = data.get('mode', 'Day Trading')
+    account_balance = float(data.get('account_balance', 1000.0))
+    risk_percentage = float(data.get('risk_percentage', 1.0))
 
     df, current_price, source = get_market_data(symbol)
-    res = calculate_certified_setup(df, current_price, mode, timeframe)
+    res = calculate_certified_setup(df, current_price, mode, timeframe, account_balance, risk_percentage)
     dec = res["decimals"]
 
     return jsonify({
@@ -153,9 +178,9 @@ def analyze_chart():
         "order_type": res["order_type"], "favorability": res["confidence"],
         "entry_zone": res["entry_zone"], "stop_loss": res["sl"],
         "take_profit_1": res["tp1"], "take_profit_2": res["tp2"], "take_profit_3": res["tp3"],
-        "counter_action": res["counter_action"], "counter_order_type": res["counter_order_type"],
-        "counter_entry": res["counter_entry"], "counter_sl": res["counter_sl"], "counter_tp": res["counter_tp"],
-        "counter_warning": res["counter_warning"], "ai_recommendation": res["ai_recommendation"]
+        "risk_amount": res["risk_amount"], "position_size": res["position_size"], "rrr": res["rrr"],
+        "whipsaw_detected": res["whipsaw_detected"], "whipsaw_msg": res["whipsaw_msg"],
+        "ai_recommendation": res["ai_recommendation"]
     })
 
 @app.route('/api/signals', methods=['GET'])
@@ -170,15 +195,17 @@ def get_signals():
                 change = float(((current_price - p_open) / p_open) * 100)
                 if np.isnan(change) or not np.isfinite(change): change = 0.0
 
-                res = calculate_certified_setup(df, current_price, 'Day Trading', '15m')
-                dec = res["decimals"]
-                signals.append({
-                    "category": cat, "symbol": a['id'], "name": a['name'],
-                    "action": res["action"], "order_type": res["order_type"],
-                    "change": f"{change:+.2f}%", "price": f"{current_price:.{dec}f}",
-                    "prob": f"{res['confidence']}%", "entry": res["entry_zone"],
-                    "sl": res["sl"], "tp1": res["tp1"]
-                })
+                res = calculate_certified_setup(df, current_price, 'Day Trading', '15m', 1000.0, 1.0)
+                # Filtra e mostra solo i segnali sicuri senza whipsaw e con confidenza >= 80%
+                if res["confidence"] >= 80 and not res["whipsaw_detected"]:
+                    dec = res["decimals"]
+                    signals.append({
+                        "category": cat, "symbol": a['id'], "name": a['name'],
+                        "action": res["action"], "order_type": res["order_type"],
+                        "change": f"{change:+.2f}%", "price": f"{current_price:.{dec}f}",
+                        "prob": f"{res['confidence']}%", "entry": res["entry_zone"],
+                        "sl": res["sl"], "tp1": res["tp1"], "rrr": res["rrr"]
+                    })
     return jsonify(signals)
 
 if __name__ == '__main__':
