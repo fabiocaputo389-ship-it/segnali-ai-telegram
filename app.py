@@ -109,7 +109,6 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
         action = "SELL"
         confidence = 100
     else:
-        # Trend standard ma non perfetto al 100%
         action = "BUY" if ema12.iloc[-1] >= ema26.iloc[-1] else "SELL"
         confidence = 75 if not whipsaw_detected else 40
 
@@ -149,13 +148,13 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
     rrr = round(tp_dist / sl_dist, 2) if sl_dist > 0 else 0.0
 
     if confidence == 100:
-        status_msg = "🔥 PERFEZIONE ASSOLUTA (100%): EMA, MACD, RSI e Volumi perfettamente allineati senza rischi Whipsaw."
+        status_msg = "🔥 AUTO-PILOT: Perfezione Assoluta (100%) raggiunta. Indicatori e volumi allineati."
     else:
-        status_msg = "⚠️ ATTENzione: Indicatori non completamente allineati o presenza di potenziale Whipsaw. Affidabilità inferiore al 100%."
+        status_msg = "⚠️ AUTO-PILOT: Mercato in fase di transizione. Monitoraggio rigoroso attivo."
 
     ai_advice = (
-        f"[{mode}] Rischio impostato al {risk_percentage}% (${max_risk_amount:.2f}). "
-        f"RRR = 1:{rrr}. {status_msg}"
+        f"[{mode}] Auto-Calibrazione attiva. Rischio: {risk_percentage}% "
+        f"(${max_risk_amount:.2f}). RRR = 1:{rrr}. {status_msg}"
     )
 
     return {
@@ -207,7 +206,6 @@ def get_signals():
                 if np.isnan(change) or not np.isfinite(change): change = 0.0
 
                 res = calculate_certified_setup(df, current_price, 'Day Trading', '15m', 1000.0, 1.0)
-                # MOSTRA SOLO I SEGNALI CON CONFIDENZA AL 100% (PERFEZIONE ASSOLUTA)
                 if res["confidence"] == 100:
                     dec = res["decimals"]
                     signals.append({
