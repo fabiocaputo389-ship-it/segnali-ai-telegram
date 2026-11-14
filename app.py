@@ -11,38 +11,56 @@ def home():
     return render_template('index.html')
 
 def fetch_all_markets():
-    markets = {
-        "Criptovalute": [
+    # Recupero dinamico di TUTTE le criptovalute disponibili su Binance contro USDT
+    crypto_list = []
+    try:
+        res = requests.get("https://api.binance.com/api/v3/exchangeInfo", timeout=5).json()
+        if "symbols" in res:
+            for s in res["symbols"]:
+                if s["status"] == "TRADING" and s["quoteAsset"] == "USDT":
+                    sym = s["symbol"]
+                    base = s["baseAsset"]
+                    crypto_list.append({
+                        'id': sym,
+                        'name': f"🪙 {base}/USDT",
+                        'symbol': sym
+                    })
+    except Exception as e:
+        print("Errore fetch dynamic crypto:", e)
+        crypto_list = [
             {'id': 'BTCUSDT', 'name': '₿ Bitcoin', 'symbol': 'BTCUSDT'},
             {'id': 'ETHUSDT', 'name': 'Ξ Ethereum', 'symbol': 'ETHUSDT'},
-            {'id': 'SOLUSDT', 'name': '🟣 Solana', 'symbol': 'SOLUSDT'},
-            {'id': 'XRPUSDT', 'name': '✕ Ripple', 'symbol': 'XRPUSDT'},
-            {'id': 'BNBUSDT', 'name': '🟡 BNB', 'symbol': 'BNBUSDT'},
-            {'id': 'ADAUSDT', 'name': '₳ Cardano', 'symbol': 'ADAUSDT'},
-            {'id': 'DOGEUSDT', 'name': '🐕 Dogecoin', 'symbol': 'DOGEUSDT'},
-            {'id': 'AVAXUSDT', 'name': '🔺 Avalanche', 'symbol': 'AVAXUSDT'},
-            {'id': 'LINKUSDT', 'name': '🔗 Chainlink', 'symbol': 'LINKUSDT'},
-            {'id': 'DOTUSDT', 'name': '🔵 Polkadot', 'symbol': 'DOTUSDT'}
-        ],
+            {'id': 'SOLUSDT', 'name': '🟣 Solana', 'symbol': 'SOLUSDT'}
+        ]
+
+    markets = {
+        "Criptovalute (Tutte Live)": crypto_list,
         "Materie Prime & Forex": [
             {'id': 'XAUUSD', 'name': '🥇 Oro (Gold)', 'symbol': 'PAXGUSDT'},
             {'id': 'XAGUSD', 'name': '🥈 Argento (Silver)', 'symbol': 'XAGUSDT'},
             {'id': 'EURUSDT', 'name': '💶 EUR/USD', 'symbol': 'EURUSDT'},
             {'id': 'GBPUSDT', 'name': '🇬🇧 GBP/USD', 'symbol': 'GBPUSDT'},
-            {'id': 'USDJPY', 'name': '🇯🇵 USD/JPY', 'symbol': 'USDJPY'}
+            {'id': 'USDJPY', 'name': '🇯🇵 USD/JPY', 'symbol': 'USDJPY'},
+            {'id': 'AUDUSD', 'name': '🇦🇺 AUD/USD', 'symbol': 'AUDUSDT'},
+            {'id': 'USDCAD', 'name': '🇨🇦 USD/CAD', 'symbol': 'USDCAD'},
+            {'id': 'NZDUSD', 'name': '🇳🇿 NZD/USD', 'symbol': 'NZDUSD'}
         ],
-        "Azioni & Indici": [
+        "Azioni & Indici Globali": [
             {'id': 'AAPL', 'name': '🍏 Apple Inc.', 'symbol': 'AAPLUSDT'},
             {'id': 'TSLA', 'name': '🚗 Tesla Inc.', 'symbol': 'TSLAUSDT'},
             {'id': 'NVDA', 'name': '💻 Nvidia Corp.', 'symbol': 'NVDAUSDT'},
             {'id': 'AMZN', 'name': '📦 Amazon', 'symbol': 'AMZNUSDT'},
+            {'id': 'MSFT', 'name': '🪟 Microsoft Corp.', 'symbol': 'MSFTUSDT'},
+            {'id': 'GOOGL', 'name': '🔍 Alphabet (Google)', 'symbol': 'GOOGLUSDT'},
+            {'id': 'META', 'name': '👥 Meta Platforms', 'symbol': 'METAUSDT'},
+            {'id': 'NFLX', 'name': '🎬 Netflix Inc.', 'symbol': 'NFLXUSDT'},
             {'id': 'SPX500', 'name': '📈 S&P 500 Index', 'symbol': 'SPXUSDT'}
         ]
     }
     return markets
 
 def get_market_status(category):
-    if category == "Criptovalute":
+    if "Criptovalute" in category:
         return {"status": "Aperto", "text": "🟢 Operativo 24/7", "countdown": "Mercato Continuo"}
     
     now = datetime.now(timezone.utc)
@@ -65,7 +83,7 @@ def safe_float(val, default=0.0):
 def get_market_data(symbol):
     headers = {"User-Agent": "Mozilla/5.0"}
     clean_sym = symbol
-    if symbol in ['AAPL', 'TSLA', 'NVDA', 'AMZN', 'SPX500']:
+    if symbol in ['AAPL', 'TSLA', 'NVDA', 'AMZN', 'MSFT', 'GOOGL', 'META', 'NFLX', 'SPX500']:
         clean_sym = symbol + 'USDT'
     elif symbol == 'XAGUSD':
         clean_sym = 'XAGUSDT'
@@ -85,7 +103,7 @@ def get_market_data(symbol):
                 live_price = float(p_res['price'])
                 df.loc[df.index[-1], 'Close'] = live_price
 
-            return df, live_price, "Binance Institutional Feed"
+            return df, live_price, "Binance Global Feed"
     except Exception:
         pass
 
@@ -244,7 +262,27 @@ def get_signals():
     try:
         markets = fetch_all_markets()
         signals = []
-        for cat, assets in markets.items():
+        
+        # Ordinamento intelligente per volume per scansionare i top asset attivi senza timeout
+        headers = {"User-Agent": "Mozilla/5.0"}
+        ticker_res = requests.get("https://api.binance.com/api/v3/ticker/24hr", headers=headers, timeout=5).json()
+        vol_map = {}
+        if isinstance(ticker_res, list):
+            for t in ticker_res:
+                vol_map[t['symbol']] = float(t.get('quoteVolume', 0))
+
+        crypto_assets = markets.get("Criptovalute (Tutte Live)", [])
+        crypto_assets = sorted(crypto_assets, key=lambda x: vol_map.get(x['symbol'], 0), reverse=True)
+        
+        # Top 50 cripto a maggiore liquidità + tutti i mercati tradizionali (Forex, Azioni, Materie Prime)
+        active_crypto = crypto_assets[:50]
+        other_markets = {
+            "Materie Prime & Forex": markets.get("Materie Prime & Forex", []),
+            "Azioni & Indici Globali": markets.get("Azioni & Indici Globali", [])
+        }
+        scan_groups = {"Criptovalute (Tutte Live)": active_crypto, **other_markets}
+
+        for cat, assets in scan_groups.items():
             m_status = get_market_status(cat)
             for a in assets:
                 df, current_price, source = get_market_data(a['id'])
@@ -268,6 +306,7 @@ def get_signals():
                         })
         return jsonify(signals)
     except Exception as e:
+        print("Errore signals:", e)
         return jsonify([])
 
 if __name__ == '__main__':
