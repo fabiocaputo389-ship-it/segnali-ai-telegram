@@ -2,7 +2,6 @@ from flask import Flask, render_template, jsonify, request
 import requests
 import pandas as pd
 import numpy as np
-from datetime import datetime
 
 app = Flask(__name__)
 
@@ -27,6 +26,16 @@ def fetch_all_markets():
         ]
     }
     return markets
+
+def safe_float(val, default=0.0):
+    """Filtro di sicurezza per evitare crash JSON di Flask con NaN o Inf"""
+    try:
+        f = float(val)
+        if np.isnan(f) or not np.isfinite(f):
+            return default
+        return f
+    except Exception:
+        return default
 
 def get_market_data(symbol):
     headers = {"User-Agent": "Mozilla/5.0"}
@@ -62,40 +71,40 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
     rs = gain / loss
-    rsi = float((100 - (100 / (1 + rs))).iloc[-1])
-    if np.isnan(rsi) or not np.isfinite(rsi): rsi = 50.0
+    rsi = safe_float((100 - (100 / (1 + rs))).iloc[-1], 50.0)
 
     ema12 = close.ewm(span=12, adjust=False).mean()
     ema26 = close.ewm(span=26, adjust=False).mean()
     macd_hist = (ema12 - ema26) - (ema12 - ema26).ewm(span=9, adjust=False).mean()
-    current_macd = float(macd_hist.iloc[-1])
-    if np.isnan(current_macd) or not np.isfinite(current_macd): current_macd = 0.0
+    current_macd = safe_float(macd_hist.iloc[-1], 0.0)
 
     tr = pd.concat([df['High'] - df['Low'], np.abs(df['High'] - close.shift()), np.abs(df['Low'] - close.shift())], axis=1).max(axis=1)
-    atr = float(tr.rolling(14).mean().iloc[-1])
-    if np.isnan(atr) or not np.isfinite(atr) or atr <= 0: atr = current_price * 0.005
+    atr = safe_float(tr.rolling(14).mean().iloc[-1], current_price * 0.005)
+    if atr <= 0:
+        atr = current_price * 0.005
 
-    # --- CONTROLLO WHISPAW & VOLUMI ---
     vol = df['Volume']
-    vol_sma = vol.rolling(20).mean().iloc[-1]
-    current_vol = vol.iloc[-1]
-    low_volume_flag = current_vol < (vol_sma * 0.8) if not np.isnan(vol_sma) else False
+    vol_sma = safe_float(vol.rolling(20).mean().iloc[-1], 1000.0)
+    current_vol = safe_float(vol.iloc[-1], 1000.0)
+    low_volume_flag = current_vol < (vol_sma * 0.8)
 
-    o_last = df['Open'].iloc[-1]
-    c_last = df['Close'].iloc[-1]
-    h_last = df['High'].iloc[-1]
-    l_last = df['Low'].iloc[-1]
+    o_last = safe_float(df['Open'].iloc[-1], current_price)
+    c_last = safe_float(df['Close'].iloc[-1], current_price)
+    h_last = safe_float(df['High'].iloc[-1], current_price)
+    l_last = safe_float(df['Low'].iloc[-1], current_price)
     body = abs(c_last - o_last)
     rng = h_last - l_last
-    is_pin_bar = rng > 0 and (body / rng) < 0.3
+    is_pin_bar = (rng > 0) and ((body / rng) < 0.3)
     whipsaw_detected = low_volume_flag or is_pin_bar
 
-    # --- CRITERI DI ALLINEAMENTO PERFETTO (100%) ---
-    ema_bullish = ema12.iloc[-1] > ema26.iloc[-1]
+    ema_val_12 = safe_float(ema12.iloc[-1], current_price)
+    ema_val_26 = safe_float(ema26.iloc[-1], current_price)
+
+    ema_bullish = ema_val_12 > ema_val_26
     macd_bullish = current_macd > 0.0
     rsi_bullish_perfect = 52 <= rsi <= 72
 
-    ema_bearish = ema12.iloc[-1] < ema26.iloc[-1]
+    ema_bearish = ema_val_12 < ema_val_26
     macd_bearish = current_macd < 0.0
     rsi_bearish_perfect = 28 <= rsi <= 48
 
@@ -109,7 +118,7 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
         action = "SELL"
         confidence = 100
     else:
-        action = "BUY" if ema12.iloc[-1] >= ema26.iloc[-1] else "SELL"
+        action = "BUY" if ema_val_12 >= ema_val_26 else "SELL"
         confidence = 75 if not whipsaw_detected else 40
 
     if mode == 'Scalping':
@@ -150,7 +159,7 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
     if confidence == 100:
         status_msg = "🔥 AUTO-PILOT: Perfezione Assoluta (100%) raggiunta. Indicatori e volumi allineati."
     else:
-        status_msg = "⚠️ AUTO-PILOT: Mercato in fase di transizione. Monitoraggio rigoroso attivo."
+        status_msg = "⚠️ AUTO-PILOT: Mercato in fase di transizione o non allineato al 100%."
 
     ai_advice = (
         f"[{mode}] Auto-Calibrazione attiva. Rischio: {risk_percentage}% "
@@ -158,10 +167,10 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
     )
 
     return {
-        "action": action, "confidence": confidence, "order_type": order_type,
+        "action": action, "confidence": int(confidence), "order_type": order_type,
         "entry_zone": f"{entry_l} - {entry_h}", "sl": sl, "tp1": tp1, "tp2": tp2, "tp3": tp3,
         "risk_amount": round(max_risk_amount, 2), "position_size": round(position_size, 4),
-        "rrr": rrr, "whipsaw_detected": whipsaw_detected, "status_msg": status_msg,
+        "rrr": rrr, "whipsaw_detected": bool(whipsaw_detected), "status_msg": status_msg,
         "ai_recommendation": ai_advice, "decimals": decimals
     }
 
@@ -171,51 +180,60 @@ def get_markets():
 
 @app.route('/api/analyze', methods=['POST'])
 def analyze_chart():
-    data = request.json or {}
-    symbol = data.get('symbol', 'BTCUSDT')
-    timeframe = data.get('timeframe', '15m')
-    mode = data.get('mode', 'Day Trading')
-    account_balance = float(data.get('account_balance', 1000.0))
-    risk_percentage = float(data.get('risk_percentage', 1.0))
+    try:
+        data = request.json or {}
+        symbol = data.get('symbol', 'BTCUSDT')
+        timeframe = data.get('timeframe', '15m')
+        mode = data.get('mode', 'Day Trading')
+        account_balance = float(data.get('account_balance', 1000.0))
+        risk_percentage = float(data.get('risk_percentage', 1.0))
 
-    df, current_price, source = get_market_data(symbol)
-    res = calculate_certified_setup(df, current_price, mode, timeframe, account_balance, risk_percentage)
-    dec = res["decimals"]
+        df, current_price, source = get_market_data(symbol)
+        res = calculate_certified_setup(df, current_price, mode, timeframe, account_balance, risk_percentage)
+        dec = res["decimals"]
 
-    return jsonify({
-        "status": "success", "symbol": symbol, "source": source,
-        "current_price": round(current_price, dec), "action": res["action"],
-        "order_type": res["order_type"], "favorability": res["confidence"],
-        "entry_zone": res["entry_zone"], "stop_loss": res["sl"],
-        "take_profit_1": res["tp1"], "take_profit_2": res["tp2"], "take_profit_3": res["tp3"],
-        "risk_amount": res["risk_amount"], "position_size": res["position_size"], "rrr": res["rrr"],
-        "whipsaw_detected": res["whipsaw_detected"], "status_msg": res["status_msg"],
-        "ai_recommendation": res["ai_recommendation"]
-    })
+        return jsonify({
+            "status": "success", "symbol": symbol, "source": source,
+            "current_price": round(current_price, dec), "action": res["action"],
+            "order_type": res["order_type"], "favorability": res["confidence"],
+            "entry_zone": res["entry_zone"], "stop_loss": res["sl"],
+            "take_profit_1": res["tp1"], "take_profit_2": res["tp2"], "take_profit_3": res["tp3"],
+            "risk_amount": res["risk_amount"], "position_size": res["position_size"], "rrr": res["rrr"],
+            "whipsaw_detected": res["whipsaw_detected"], "status_msg": res["status_msg"],
+            "ai_recommendation": res["ai_recommendation"]
+        })
+    except Exception as e:
+        print("Errore in /api/analyze:", e)
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/signals', methods=['GET'])
 def get_signals():
-    markets = fetch_all_markets()
-    signals = []
-    for cat, assets in markets.items():
-        for a in assets:
-            df, current_price, source = get_market_data(a['symbol'])
-            if df is not None and not df.empty:
-                p_open = float(df['Open'].iloc[0]) if df['Open'].iloc[0] > 0 else current_price
-                change = float(((current_price - p_open) / p_open) * 100)
-                if np.isnan(change) or not np.isfinite(change): change = 0.0
+    try:
+        markets = fetch_all_markets()
+        signals = []
+        for cat, assets in markets.items():
+            for a in assets:
+                df, current_price, source = get_market_data(a['symbol'])
+                if df is not None and not df.empty:
+                    p_open = float(df['Open'].iloc[0]) if df['Open'].iloc[0] > 0 else current_price
+                    change = float(((current_price - p_open) / p_open) * 100)
+                    if np.isnan(change) or not np.isfinite(change):
+                        change = 0.0
 
-                res = calculate_certified_setup(df, current_price, 'Day Trading', '15m', 1000.0, 1.0)
-                if res["confidence"] == 100:
-                    dec = res["decimals"]
-                    signals.append({
-                        "category": cat, "symbol": a['id'], "name": a['name'],
-                        "action": res["action"], "order_type": res["order_type"],
-                        "change": f"{change:+.2f}%", "price": f"{current_price:.{dec}f}",
-                        "prob": f"{res['confidence']}%", "entry": res["entry_zone"],
-                        "sl": res["sl"], "tp1": res["tp1"], "rrr": res["rrr"]
-                    })
-    return jsonify(signals)
+                    res = calculate_certified_setup(df, current_price, 'Day Trading', '15m', 1000.0, 1.0)
+                    if res["confidence"] == 100:
+                        dec = res["decimals"]
+                        signals.append({
+                            "category": cat, "symbol": a['id'], "name": a['name'],
+                            "action": res["action"], "order_type": res["order_type"],
+                            "change": f"{change:+.2f}%", "price": f"{current_price:.{dec}f}",
+                            "prob": f"{res['confidence']}%", "entry": res["entry_zone"],
+                            "sl": res["sl"], "tp1": res["tp1"], "rrr": res["rrr"]
+                        })
+        return jsonify(signals)
+    except Exception as e:
+        print("Errore in /api/signals:", e)
+        return jsonify([])
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
