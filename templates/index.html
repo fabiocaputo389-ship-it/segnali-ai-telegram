@@ -1,275 +1,356 @@
-from flask import Flask, render_template, jsonify, request
-import requests
-import yfinance as yf
-import pandas as pd
-import numpy as np
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Segnali AI Trading Terminal - PRO Italia</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        body { background-color: #0b0e14; color: #ffffff; padding-bottom: 75px; }
+        header { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; background: #121620; border-bottom: 1px solid #1f2633; font-size: 13px; color: #848e9c; }
+        .top-stats { display: flex; gap: 15px; }
+        .top-stats span { color: #fff; font-weight: bold; }
+        .tab-content { display: none; padding: 15px; }
+        .tab-content.active { display: block; }
+        .selector-row { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 12px; padding-bottom: 4px; scrollbar-width: none; }
+        .selector-row::-webkit-scrollbar { display: none; }
+        .chip { background: #181f2a; border: 1px solid #2a3447; color: #848e9c; padding: 6px 14px; border-radius: 20px; font-size: 13px; cursor: pointer; white-space: nowrap; }
+        .chip.active { background: #2b374d; color: #fff; border-color: #00b8d9; font-weight: 500; }
+        .market-category-bar { background: #121620; border: 1px solid #1f2633; border-radius: 12px; padding: 8px; margin-bottom: 12px; display: flex; gap: 8px; overflow-x: auto; }
+        .cat-btn { background: #181f2a; border: none; color: #848e9c; padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer; white-space: nowrap; font-weight: bold; }
+        .cat-btn.active { background: #00b8d9; color: #000; }
+        .chart-container { background: #121620; border-radius: 12px; border: 1px solid #1f2633; margin-bottom: 15px; height: 300px; overflow: hidden; }
+        .btn-primary { width: 100%; background: #00b8d9; color: #000; border: none; padding: 14px; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; margin-bottom: 15px; }
+        .live-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: #0ecb81; background: rgba(14, 203, 129, 0.12); padding: 3px 8px; border-radius: 6px; }
+        .dot-live { width: 7px; height: 7px; background: #0ecb81; border-radius: 50%; animation: blink 1s infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+        .result-card { background: #121620; border: 1px solid #2a3447; border-radius: 16px; padding: 16px; margin-bottom: 15px; }
+        .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .asset-title { font-size: 17px; font-weight: bold; color: #fff; }
+        .badge-action { padding: 6px 16px; border-radius: 8px; font-weight: bold; font-size: 14px; }
+        .badge-action.BUY { background: #0ecb81; color: #000; }
+        .badge-action.SELL { background: #f6465d; color: #fff; }
+        .favorability-container { margin-bottom: 14px; }
+        .favorability-info { display: flex; justify-content: space-between; font-size: 12px; color: #848e9c; margin-bottom: 4px; }
+        .favorability-bar { width: 100%; height: 6px; background: #181f2a; border-radius: 3px; overflow: hidden; }
+        .favorability-fill { height: 100%; background: linear-gradient(90deg, #f6465d, #f0b90b, #0ecb81); border-radius: 3px; }
+        .entry-box { background: #181f2a; border-radius: 12px; padding: 12px; text-align: center; margin-bottom: 12px; border: 1px solid #232d3f; }
+        .entry-box span { display: block; font-size: 11px; color: #848e9c; margin-bottom: 2px; }
+        .entry-box strong { font-size: 18px; color: #00b8d9; }
+        .grid-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+        .info-card { background: #181f2a; border: 1px solid #232d3f; border-radius: 12px; padding: 10px; text-align: center; }
+        .info-card span { display: block; font-size: 11px; color: #848e9c; margin-bottom: 4px; }
+        .info-card strong { font-size: 14px; }
+        .counter-card { background: #161512; border: 1px solid #f59e0b; border-radius: 16px; padding: 16px; margin-bottom: 15px; }
+        .ai-advice-box { background: #161c28; border: 1px solid #1f3a5f; border-radius: 12px; padding: 14px; margin-bottom: 15px; }
+        .signal-card { background: #121620; border: 1px solid #1f2633; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+        .category-title { font-size: 14px; font-weight: bold; color: #00b8d9; margin: 15px 0 8px 0; border-bottom: 1px solid #1f2633; padding-bottom: 4px; }
+        nav { position: fixed; bottom: 0; left: 0; width: 100%; background: #121620; border-top: 1px solid #1f2633; display: flex; justify-content: space-around; padding: 8px 0; z-index: 1000; }
+        nav button { background: none; border: none; color: #848e9c; font-size: 10px; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; }
+        nav button.active { color: #00b8d9; }
+        nav button svg { width: 20px; height: 20px; fill: currentColor; }
+    </style>
+</head>
+<body>
 
-app = Flask(__name__)
+    <header>
+        <div class="top-stats">
+            <span>Feed: <span style="color:#0ecb81;">BINGX LIVE</span></span>
+            <span>Auto-Sync: <span>5s</span></span>
+        </div>
+        <div class="live-badge"><div class="dot-live"></div> LIVE</div>
+    </header>
 
-@app.route('/')
-def home():
-    return render_template('index.html')
+    <!-- TAB 1: ANALIZZA -->
+    <div id="tab-analizza" class="tab-content active">
+        <div class="selector-row" id="mode-selector">
+            <div class="chip" onclick="setMode(this, 'Scalping')">⚡ Scalping</div>
+            <div class="chip active" onclick="setMode(this, 'Day Trading')">📊 Day Trading</div>
+            <div class="chip" onclick="setMode(this, 'Swing Trading')">📈 Swing Trading</div>
+        </div>
 
-ASSETS_CONFIG = {
-    "Materie Prime": {
-        'XAUUSD': {'name': '🥇 Oro (GOLD)', 'bingx': 'GOLD-USDT', 'yf': 'GC=F'},
-        'XAGUSD': {'name': '🥈 Argento (SILVER)', 'bingx': 'SILVER-USDT', 'yf': 'SI=F'},
-        'USOIL': {'name': '🛢️ Petrolio WTI', 'bingx': 'USOIL-USDT', 'yf': 'CL=F'}
-    },
-    "Crypto": {
-        'BTCUSDT': {'name': '₿ Bitcoin', 'bingx': 'BTC-USDT', 'yf': 'BTC-USD'},
-        'ETHUSDT': {'name': 'Ξ Ethereum', 'bingx': 'ETH-USDT', 'yf': 'ETH-USD'},
-        'SOLUSDT': {'name': '🟣 Solana', 'bingx': 'SOL-USDT', 'yf': 'SOL-USD'},
-        'BNBUSDT': {'name': '🟡 BNB', 'bingx': 'BNB-USDT', 'yf': 'BNB-USD'},
-        'XRPUSDT': {'name': '✕ Ripple', 'bingx': 'XRP-USDT', 'yf': 'XRP-USD'},
-        'DOGEUSDT': {'name': '🐕 Doge', 'bingx': 'DOGE-USDT', 'yf': 'DOGE-USD'},
-        'PEPEUSDT': {'name': '🐸 Pepe', 'bingx': 'PEPE-USDT', 'yf': 'PEPE24478-USD'},
-        'WIFUSDT': {'name': '🐕‍🦺 WIF', 'bingx': 'WIF-USDT', 'yf': 'WIF-USD'}
-    },
-    "Forex": {
-        'EURUSD': {'name': '💶 EUR/USD', 'bingx': 'EUR-USDT', 'yf': 'EURUSD=X'},
-        'GBPUSD': {'name': '💷 GBP/USD', 'bingx': 'GBP-USDT', 'yf': 'GBPUSD=X'},
-        'USDJPY': {'name': '💴 USD/JPY', 'bingx': 'JPY-USDT', 'yf': 'USDJPY=X'}
-    },
-    "Indici": {
-        'US500': {'name': '🇺🇸 S&P 500', 'bingx': 'SP500-USDT', 'yf': '^GSPC'},
-        'NAS100': {'name': '📈 Nasdaq 100', 'bingx': 'NAS100-USDT', 'yf': '^IXIC'}
-    }
-}
+        <div class="market-category-bar">
+            <button class="cat-btn active" onclick="filterCategory('Crypto', this)">₿ Criptovalute</button>
+            <button class="cat-btn" onclick="filterCategory('Materie Prime', this)">🥇 Materie Prime</button>
+            <button class="cat-btn" onclick="filterCategory('Forex', this)">💶 Forex</button>
+            <button class="cat-btn" onclick="filterCategory('Indici', this)">📈 Indici</button>
+        </div>
 
-def get_asset_info(symbol):
-    for cat, items in ASSETS_CONFIG.items():
-        if symbol in items:
-            return cat, items[symbol]
-    return "Crypto", {'name': symbol, 'bingx': f"{symbol}-USDT", 'yf': symbol}
+        <div class="selector-row" id="symbol-selector"></div>
 
-def fetch_bingx_live_data(symbol, timeframe):
-    """Legge il prezzo live e le ultime candele direttamente dalle API ufficiali BingX"""
-    cat, info = get_asset_info(symbol)
-    bx_sym = info['bingx']
-    headers = {"User-Agent": "Mozilla/5.0"}
+        <div class="chart-container">
+            <div class="tradingview-widget-container" style="height:100%;width:100%">
+                <div id="tradingview_widget" style="height:100%;width:100%"></div>
+                <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+            </div>
+        </div>
 
-    # 1. Recupero candele Klines reali da BingX
-    try:
-        url_klines = "https://open-api.bingx.com/openApi/swap/v3/quote/klines"
-        res_k = requests.get(url_klines, params={"symbol": bx_sym, "interval": timeframe, "limit": 60}, headers=headers, timeout=3).json()
-        if res_k.get('code') == 0 and res_k.get('data'):
-            # BingX restituisce le candele dalla più recente alla più vecchia o viceversa: ordiniamo per timestamp
-            raw = sorted(res_k['data'], key=lambda x: int(x[0]))
-            df = pd.DataFrame(raw, columns=['Open_time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Close_time'])
-            for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
-                df[col] = df[col].astype(float)
-            
-            # 2. Recupero ultimo prezzo istantaneo (tick live)
-            live_price = float(df['Close'].iloc[-1])
-            try:
-                url_price = "https://open-api.bingx.com/openApi/swap/v1/ticker/price"
-                res_p = requests.get(url_price, params={"symbol": bx_sym}, headers=headers, timeout=2).json()
-                if res_p.get('code') == 0 and res_p.get('data'):
-                    p_data = res_p['data']
-                    if isinstance(p_data, list) and len(p_data) > 0:
-                        live_price = float(p_data[0]['price'])
-                    elif isinstance(p_data, dict) and 'price' in p_data:
-                        live_price = float(p_data['price'])
-            except Exception:
-                pass
+        <div class="selector-row" id="tf-selector">
+            <div class="chip" onclick="setTimeframe(this, '1m')">1m</div>
+            <div class="chip active" onclick="setTimeframe(this, '15m')">15m</div>
+            <div class="chip" onclick="setTimeframe(this, '30m')">30m</div>
+            <div class="chip" onclick="setTimeframe(this, '1h')">1h</div>
+        </div>
 
-            df.loc[df.index[-1], 'Close'] = live_price
-            return df, live_price, "BingX Live"
-    except Exception:
-        pass
+        <button class="btn-primary" onclick="fetchLiveAnalysis(true)">Aggiorna Prezzo, SL e TP Live</button>
 
-    # Fallback rapido su Yahoo Finance se il contratto non è su BingX Swap
-    try:
-        tf_map = {'1m': '1m', '15m': '15m', '30m': '30m', '1h': '60m'}
-        df = yf.Ticker(info['yf']).history(period="3d", interval=tf_map.get(timeframe, '15m'))
-        if df is not None and not df.empty:
-            live_price = float(df['Close'].iloc[-1])
-            return df, live_price, "Market Live"
-    except Exception:
-        pass
+        <div id="analysis-result" style="display:block;">
+            <div class="result-card">
+                <div class="result-header">
+                    <div>
+                        <div class="asset-title" id="res-symbol">Caricamento...</div>
+                        <span id="res-source" style="font-size:11px; color:#848e9c;">Connessione BingX...</span>
+                    </div>
+                    <div id="res-action" class="badge-action BUY">--</div>
+                </div>
 
-    return None, None, "Offline"
+                <div class="favorability-container">
+                    <div class="favorability-info">
+                        <span>Affidabilità Segnale (Filtro Anti-Falsi)</span>
+                        <strong id="res-fav" style="color: #0ecb81;">--</strong>
+                    </div>
+                    <div class="favorability-bar">
+                        <div class="favorability-fill" id="res-fav-fill" style="width: 0%;"></div>
+                    </div>
+                </div>
 
-def analyze_technical_levels(df, current_price, mode, timeframe):
-    close = df['Close']
-    
-    # RSI 14
-    delta = close.diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-    rs = gain / loss
-    rsi = float((100 - (100 / (1 + rs))).iloc[-1])
-    if np.isnan(rsi): rsi = 50.0
+                <div class="entry-box">
+                    <span>Zona di ingresso Live</span>
+                    <strong id="res-entry">--</strong>
+                </div>
 
-    # MACD
-    exp1 = close.ewm(span=12, adjust=False).mean()
-    exp2 = close.ewm(span=26, adjust=False).mean()
-    macd_hist = (exp1 - exp2) - (exp1 - exp2).ewm(span=9, adjust=False).mean()
-    macd_val = float(macd_hist.iloc[-1])
-    prev_macd = float(macd_hist.iloc[-2]) if len(macd_hist) > 1 else 0.0
-    if np.isnan(macd_val): macd_val = 0.0
+                <div class="grid-cards">
+                    <div class="info-card"><span>Prezzo Attuale</span><strong id="res-live-price" style="color: #fff;">--</strong></div>
+                    <div class="info-card"><span>Tipo di ordine</span><strong id="res-order-type" style="color: #38bdf8;">--</strong></div>
+                    <div class="info-card"><span>Stop Loss Live</span><strong id="res-sl" style="color: #f6465d;">--</strong></div>
+                    <div class="info-card"><span>Take Profit 1</span><strong id="res-tp1" style="color: #0ecb81;">--</strong></div>
+                    <div class="info-card"><span>Take Profit 2</span><strong id="res-tp2" style="color: #0ecb81;">--</strong></div>
+                    <div class="info-card"><span>Take Profit 3</span><strong id="res-tp3" style="color: #0ecb81;">--</strong></div>
+                </div>
+            </div>
 
-    # ATR reale per calcolare SL e TP proporzionati alla volatilità vera
-    high_low = df['High'] - df['Low']
-    high_close = np.abs(df['High'] - close.shift())
-    low_close = np.abs(df['Low'] - close.shift())
-    atr = float(pd.concat([high_low, high_close, low_close], axis=1).max(axis=1).rolling(14).mean().iloc[-1])
-    if np.isnan(atr) or atr <= 0:
-        atr = current_price * 0.004
+            <div class="ai-advice-box">
+                <div style="font-size: 13px; font-weight: bold; color: #38bdf8; margin-bottom: 4px;">🤖 Analisi Live Sincronizzata</div>
+                <p id="res-ai-advice" style="font-size: 12px; color: #cbd5e1; line-height: 1.4;">--</p>
+            </div>
+        </div>
+    </div>
 
-    # Volumi
-    vol_mean = df['Volume'].rolling(20).mean().iloc[-1]
-    vol_spike = float(df['Volume'].iloc[-1] / vol_mean) if vol_mean > 0 and not np.isnan(vol_mean) else 1.0
+    <!-- TAB 2: SEGNALI CERTI -->
+    <div id="tab-segnali" class="tab-content">
+        <h3 style="font-size: 16px; margin-bottom: 12px;">Segnali Verificati Live (≥ 80%)</h3>
+        <div id="signals-container">
+            <p style="color: #848e9c; font-size: 13px;">Caricamento prezzi reali...</p>
+        </div>
+    </div>
 
-    # Direzione e filtro anti-falsi
-    is_bullish = (macd_val > 0 and macd_val >= prev_macd and rsi > 48)
-    is_bearish = (macd_val < 0 and macd_val <= prev_macd and rsi < 52)
+    <!-- NAVIGATION BAR -->
+    <nav>
+        <button class="active" onclick="switchTab('analizza', this)">
+            <svg viewBox="0 0 24 24"><path d="M3 3v18h18v-2H5V3H3m4 10h2v5H7v-5m4-4h2v9h-2V9m4-6h2v15h-2V3Z"/></svg>
+            Analizza Live
+        </button>
+        <button onclick="switchTab('segnali', this)">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2m0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8m.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7Z"/></svg>
+            Segnali Certi
+        </button>
+    </nav>
 
-    if is_bullish:
-        action = "BUY"
-        confidence = int(min(81 + abs(rsi - 50) * 0.6 + (vol_spike * 3), 97))
-    elif is_bearish:
-        action = "SELL"
-        confidence = int(min(81 + abs(50 - rsi) * 0.6 + (vol_spike * 3), 97))
-    else:
-        action = "BUY" if macd_val >= 0 else "SELL"
-        confidence = 68  # Zona neutra/laterale filtrata
+    <script>
+        const categories = {
+            "Crypto": [
+                { id: 'ETHUSDT', label: 'Ξ Ethereum', tv: 'BINANCE:ETHUSDT' },
+                { id: 'BTCUSDT', label: '₿ Bitcoin', tv: 'BINANCE:BTCUSDT' },
+                { id: 'SOLUSDT', label: '🟣 Solana', tv: 'BINANCE:SOLUSDT' },
+                { id: 'BNBUSDT', label: '🟡 BNB', tv: 'BINANCE:BNBUSDT' },
+                { id: 'XRPUSDT', label: '✕ Ripple', tv: 'BINANCE:XRPUSDT' },
+                { id: 'DOGEUSDT', label: '🐕 Doge', tv: 'BINANCE:DOGEUSDT' },
+                { id: 'PEPEUSDT', label: '🐸 Pepe', tv: 'BINANCE:PEPEUSDT' },
+                { id: 'WIFUSDT', label: '🐕‍🦺 WIF', tv: 'BINANCE:WIFUSDT' }
+            ],
+            "Materie Prime": [
+                { id: 'XAUUSD', label: '🥇 Oro', tv: 'OANDA:XAUUSD' },
+                { id: 'XAGUSD', label: '🥈 Argento', tv: 'OANDA:XAGUSD' },
+                { id: 'USOIL', label: '🛢️ Petrolio WTI', tv: 'TVC:USOIL' }
+            ],
+            "Forex": [
+                { id: 'EURUSD', label: '💶 EUR/USD', tv: 'FX:EURUSD' },
+                { id: 'GBPUSD', label: '💷 GBP/USD', tv: 'FX:GBPUSD' },
+                { id: 'USDJPY', label: '💴 USD/JPY', tv: 'FX:USDJPY' }
+            ],
+            "Indici": [
+                { id: 'US500', label: '🇺🇸 S&P 500', tv: 'CAPITALCOM:US500' },
+                { id: 'NAS100', label: '📈 Nasdaq 100', tv: 'CAPITALCOM:US100' }
+            ]
+        };
 
-    # Moltiplicatori dinamici reali basati sull'ATR del prezzo live
-    tf_mult = {'1m': 0.5, '15m': 1.0, '30m': 1.4, '1h': 2.0}.get(timeframe, 1.0)
-    if mode == 'Scalping':
-        sl_m, tp_m = 0.8, 1.4
-    elif mode == 'Swing Trading':
-        sl_m, tp_m = 2.2, 4.0
-    else:
-        sl_m, tp_m = 1.2, 2.2
+        let currentCategory = 'Crypto';
+        let currentSymbol = 'ETHUSDT';
+        let currentTimeframe = '15m';
+        let currentMode = 'Day Trading';
+        let autoRefreshTimer = null;
 
-    sl_dist = atr * sl_m * tf_mult
-    tp_dist = atr * tp_m * tf_mult
+        function filterCategory(categoryName, btn) {
+            document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentCategory = categoryName;
+            renderSymbols();
+        }
 
-    # Limite di sicurezza per evitare SL > 15% su leve alte
-    max_sl_dist = current_price * 0.04
-    if sl_dist > max_sl_dist:
-        sl_dist = max_sl_dist
+        function renderSymbols() {
+            const container = document.getElementById('symbol-selector');
+            const assets = categories[currentCategory];
+            container.innerHTML = assets.map((asset, index) => `
+                <div class="chip ${index === 0 ? 'active' : ''}" onclick="setSymbol(this, '${asset.id}')">${asset.label}</div>
+            `).join('');
+            if(assets.length > 0) {
+                setSymbol(container.children[0], assets[0].id);
+            }
+        }
 
-    decimals = 6 if current_price < 0.01 else (4 if current_price < 5 else (3 if current_price < 50 else 2))
+        function initTradingView(symbol, tf) {
+            const container = document.getElementById('tradingview_widget');
+            container.innerHTML = '';
+            let tvSymbol = 'BINANCE:ETHUSDT';
+            for(let cat in categories) {
+                const found = categories[cat].find(a => a.id === symbol);
+                if(found && found.tv) { tvSymbol = found.tv; break; }
+            }
+            const tfMap = { '1m': '1', '15m': '15', '30m': '30', '1h': '60' };
+            new TradingView.widget({
+                "autosize": true,
+                "symbol": tvSymbol,
+                "interval": tfMap[tf] || "15",
+                "timezone": "Europe/Rome",
+                "theme": "dark",
+                "style": "1",
+                "locale": "it",
+                "toolbar_bg": "#121620",
+                "enable_publishing": false,
+                "container_id": "tradingview_widget"
+            });
+        }
 
-    if action == "BUY":
-        entry_low = round(current_price - (atr * 0.15), decimals)
-        entry_high = round(current_price + (atr * 0.10), decimals)
-        sl = round(current_price - sl_dist, decimals)
-        tp1 = round(current_price + tp_dist, decimals)
-        tp2 = round(current_price + (tp_dist * 1.6), decimals)
-        tp3 = round(current_price + (tp_dist * 2.2), decimals)
-        order_type = "Buy Limit / Market"
-    else:
-        entry_low = round(current_price - (atr * 0.10), decimals)
-        entry_high = round(current_price + (atr * 0.15), decimals)
-        sl = round(current_price + sl_dist, decimals)
-        tp1 = round(current_price - tp_dist, decimals)
-        tp2 = round(current_price - (tp_dist * 1.6), decimals)
-        tp3 = round(current_price - (tp_dist * 2.2), decimals)
-        order_type = "Sell Limit / Market"
+        function switchTab(tabId, btn) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('nav button').forEach(el => el.classList.remove('active'));
+            document.getElementById('tab-' + tabId).classList.add('active');
+            btn.classList.add('active');
 
-    return {
-        "action": action,
-        "confidence": confidence,
-        "order_type": order_type,
-        "entry_zone": f"{entry_low} - {entry_high}",
-        "sl": sl,
-        "tp1": tp1,
-        "tp2": tp2,
-        "tp3": tp3,
-        "rsi": round(rsi, 2),
-        "macd": round(macd_val, 5),
-        "atr": round(atr, decimals),
-        "decimals": decimals
-    }
+            if (tabId === 'segnali') {
+                loadSignals();
+            }
+        }
 
-@app.route('/api/analyze', methods=['POST'])
-def analyze_chart():
-    data = request.json or {}
-    symbol = data.get('symbol', 'ETHUSDT')
-    timeframe = data.get('timeframe', '15m')
-    mode = data.get('mode', 'Day Trading')
+        function setMode(el, mode) {
+            document.querySelectorAll('#mode-selector .chip').forEach(c => c.classList.remove('active'));
+            el.classList.add('active');
+            currentMode = mode;
+            fetchLiveAnalysis();
+        }
 
-    df, current_price, source = fetch_bingx_live_data(symbol, timeframe)
-    if df is None or current_price is None:
-        return jsonify({"status": "error", "message": "Impossibile recuperare il prezzo live al momento."}), 503
+        function setSymbol(el, symbol) {
+            document.querySelectorAll('#symbol-selector .chip').forEach(c => c.classList.remove('active'));
+            el.classList.add('active');
+            currentSymbol = symbol;
+            initTradingView(currentSymbol, currentTimeframe);
+            fetchLiveAnalysis();
+        }
 
-    res = analyze_technical_levels(df, current_price, mode, timeframe)
-    decimals = res["decimals"]
-    atr = res["atr"]
-    counter_action = "SELL" if res["action"] == "BUY" else "BUY"
+        function setTimeframe(el, tf) {
+            document.querySelectorAll('#tf-selector .chip').forEach(c => c.classList.remove('active'));
+            el.classList.add('active');
+            currentTimeframe = tf;
+            initTradingView(currentSymbol, currentTimeframe);
+            fetchLiveAnalysis();
+        }
 
-    counter_sl = round(current_price + (atr * 1.5) if counter_action == "SELL" else current_price - (atr * 1.5), decimals)
-    counter_tp = round(current_price - (atr * 1.2) if counter_action == "SELL" else current_price + (atr * 1.2), decimals)
+        async function fetchLiveAnalysis() {
+            try {
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbol: currentSymbol, timeframe: currentTimeframe, mode: currentMode })
+                });
+                const data = await response.json();
+                if (data.status === 'success') {
+                    document.getElementById('res-symbol').innerText = `${data.symbol} — ${data.current_price}`;
+                    document.getElementById('res-source').innerText = `Fonte: ${data.source} • Aggiornato ora`;
+                    document.getElementById('res-fav').innerText = `${data.favorability}%`;
+                    document.getElementById('res-fav-fill').style.width = `${data.favorability}%`;
+                    
+                    const actionBadge = document.getElementById('res-action');
+                    actionBadge.innerText = data.action;
+                    actionBadge.className = `badge-action ${data.action}`;
 
-    return jsonify({
-        "status": "success",
-        "symbol": symbol,
-        "source": source,
-        "current_price": round(current_price, decimals),
-        "action": res["action"],
-        "order_type": res["order_type"],
-        "favorability": res["confidence"],
-        "entry_zone": res["entry_zone"],
-        "stop_loss": res["sl"],
-        "take_profit_1": res["tp1"],
-        "take_profit_2": res["tp2"],
-        "take_profit_3": res["tp3"],
-        "counter_action": counter_action,
-        "counter_order_type": "Market " + counter_action,
-        "counter_entry": round(current_price, decimals),
-        "counter_sl": counter_sl,
-        "counter_tp": counter_tp,
-        "counter_warning": "Setup contro-trend ad alto rischio: sconsigliato dai filtri di volatilità.",
-        "ai_recommendation": f"Prezzo reale rilevato da {source}: {round(current_price, decimals)}. SL e TP calcolati sull'ATR reale corrente.",
-        "analysis_text": f"Quotazione live {symbol} aggiornata a {round(current_price, decimals)} ({source}).",
-        "pattern_text": "Livelli dinamici sincronizzati con la volatilità reale di mercato.",
-        "rsi": res["rsi"],
-        "macd": res["macd"]
-    })
+                    document.getElementById('res-live-price').innerText = data.current_price;
+                    document.getElementById('res-order-type').innerText = data.order_type;
+                    document.getElementById('res-entry').innerText = data.entry_zone;
+                    document.getElementById('res-sl').innerText = data.stop_loss;
+                    document.getElementById('res-tp1').innerText = data.take_profit_1;
+                    document.getElementById('res-tp2').innerText = data.take_profit_2;
+                    document.getElementById('res-tp3').innerText = data.take_profit_3;
+                    document.getElementById('res-ai-advice').innerText = data.ai_recommendation;
+                }
+            } catch (err) {
+                console.log("Attesa aggiornamento...");
+            }
+        }
 
-@app.route('/api/signals', methods=['GET'])
-def get_signals():
-    signals = []
-    # Scansiona i principali asset in tempo reale
-    priority_assets = [
-        ("Crypto", "BTCUSDT"), ("Crypto", "ETHUSDT"), ("Crypto", "SOLUSDT"),
-        ("Crypto", "XRPUSDT"), ("Crypto", "DOGEUSDT"),
-        ("Materie Prime", "XAUUSD"), ("Forex", "EURUSD")
-    ]
-    for cat, sym in priority_assets:
-        _, info = get_asset_info(sym)
-        df, current_price, source = fetch_bingx_live_data(sym, '15m')
-        if df is not None and current_price is not None:
-            p_prev = float(df['Close'].iloc[0])
-            change = ((current_price - p_prev) / p_prev) * 100
-            res = analyze_technical_levels(df, current_price, 'Day Trading', '15m')
-            
-            # Filtro anti-falsi: mostra solo segnali ad alta affidabilità (>= 80%)
-            if res["confidence"] >= 80:
-                decimals = res["decimals"]
-                price_str = f"{current_price:.{decimals}f}"
-                signals.append({
-                    "category": cat,
-                    "symbol": sym,
-                    "name": f"{info['name']} ({source})",
-                    "action": res["action"],
-                    "order_type": res["order_type"],
-                    "change": f"Var: {change:+.2f}%",
-                    "price": price_str,
-                    "prob": f"{res['confidence']}%",
-                    "rsi": f"{res['rsi']}",
-                    "entry": res["entry_zone"],
-                    "sl": res["sl"],
-                    "tp1": res["tp1"],
-                    "tp2": res["tp2"],
-                    "tp3": res["tp3"]
-                })
-    return jsonify(signals)
+        async function loadSignals() {
+            try {
+                const res = await fetch('/api/signals');
+                const signals = await res.json();
+                const container = document.getElementById('signals-container');
+                
+                const grouped = {};
+                signals.forEach(s => {
+                    if(!grouped[s.category]) grouped[s.category] = [];
+                    grouped[s.category].push(s);
+                });
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+                let html = '';
+                for(let cat in grouped) {
+                    html += `<div class="category-title">${cat}</div>`;
+                    html += grouped[cat].map(s => `
+                        <div class="signal-card">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                                <div>
+                                    <h4 style="font-size: 15px;">${s.name}</h4>
+                                    <p style="font-size: 12px; color: #848e9c;">Prezzo Live: <strong style="color:#fff;">${s.price}</strong> • ${s.change}</p>
+                                </div>
+                                <div class="badge-action ${s.action}">${s.action}</div>
+                            </div>
+                            <div style="font-size: 12px; color: #00b8d9; margin-bottom: 4px;">
+                                <strong>Entrata:</strong> ${s.entry}
+                            </div>
+                            <div style="font-size: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
+                                <span style="color: #f6465d;"><strong>SL:</strong> ${s.sl}</span>
+                                <span style="color: #0ecb81;"><strong>TP1:</strong> ${s.tp1}</span>
+                            </div>
+                            <div style="font-size: 11px; color: #848e9c; margin-top: 6px; border-top: 1px solid #1f2633; padding-top: 4px;">
+                                RSI: <span style="color:#fff;">${s.rsi}</span> | Affidabilità: <strong style="color:#0ecb81;">${s.prob}</strong>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+                container.innerHTML = html || '<p style="color:#848e9c;">Nessun segnale ≥ 80% rilevato in questo momento.</p>';
+            } catch (e) {
+                document.getElementById('signals-container').innerHTML = '<p style="color:#f6465d;">Errore di caricamento.</p>';
+            }
+        }
+
+        window.onload = () => {
+            renderSymbols();
+            // Aggiornamento automatico in tempo reale ogni 5 secondi
+            autoRefreshTimer = setInterval(() => {
+                if (document.getElementById('tab-analizza').classList.contains('active')) {
+                    fetchLiveAnalysis();
+                } else if (document.getElementById('tab-segnali').classList.contains('active')) {
+                    loadSignals();
+                }
+            }, 5000);
+        };
+    </script>
+</body>
+</html>
