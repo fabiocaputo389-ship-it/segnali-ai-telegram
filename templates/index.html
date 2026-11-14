@@ -10,6 +10,15 @@
         header { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; background: #121620; border-bottom: 1px solid #1f2633; font-size: 13px; color: #848e9c; }
         .top-stats { display: flex; gap: 15px; }
         .top-stats span { color: #fff; font-weight: bold; }
+        
+        /* Striscia Mercato in Monitoraggio */
+        .market-ticker-strip { background: #181f2a; border-bottom: 1px solid #2a3447; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+        .ticker-info { display: flex; align-items: center; gap: 8px; font-weight: bold; color: #00b8d9; }
+        .ticker-price { color: #fff; font-weight: bold; }
+        .ticker-change { font-size: 12px; font-weight: bold; padding: 2px 6px; border-radius: 4px; }
+        .ticker-change.pos { background: rgba(14, 203, 129, 0.15); color: #0ecb81; }
+        .ticker-change.neg { background: rgba(246, 70, 93, 0.15); color: #f6465d; }
+
         .tab-content { display: none; padding: 15px; }
         .tab-content.active { display: block; }
         .selector-row { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 12px; padding-bottom: 4px; scrollbar-width: none; }
@@ -76,6 +85,18 @@
         <div class="live-badge"><div class="dot-live"></div> AUTO-PILOT ATTIVO</div>
     </header>
 
+    <!-- STRISCIA MERCATO IN MONITORAGGIO LIVE -->
+    <div class="market-ticker-strip">
+        <div class="ticker-info">
+            <span>🛰️ In Monitoraggio:</span>
+            <span id="strip-symbol" style="color: #fff;">BTCUSDT</span>
+        </div>
+        <div>
+            <span class="ticker-price" id="strip-price">--</span>
+            <span id="strip-change" class="ticker-change pos">--</span>
+        </div>
+    </div>
+
     <!-- TAB 1: ANALIZZA & RISCHIO -->
     <div id="tab-analizza" class="tab-content active">
         <div class="selector-row" id="mode-selector">
@@ -98,7 +119,7 @@
 
         <div class="status-alert-box" id="status-box" style="display: block;">
             <div style="font-size: 12px; font-weight: bold; color: #0ecb81; margin-bottom: 2px;" id="status-title">🚀 Auto-Pilot in esecuzione</div>
-            <p id="status-text" style="font-size: 12px; color: #cbd5e1; line-height: 1.3;">Calibrazione e avvio automatico in corso...</p>
+            <p id="status-text" style="font-size: 12px; color: #cbd5e1; line-height: 1.3;">Scansione mercati globali attiva...</p>
         </div>
 
         <div class="market-category-bar">
@@ -116,7 +137,7 @@
             <div class="scanner-overlay" id="scanner-overlay">
                 <div class="scanner-line"></div>
             </div>
-            <div class="scanner-text" id="scanner-text">🚀 Auto-Calibrazione in corso...</div>
+            <div class="scanner-text" id="scanner-text">🚀 Scansione in corso...</div>
             <div class="tradingview-widget-container" style="height:100%;width:100%">
                 <div id="tradingview_widget" style="height:100%;width:100%"></div>
                 <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
@@ -134,7 +155,7 @@
 
         <div id="analysis-result" style="display:block;">
             <div class="ai-master-box">
-                <div style="font-size: 14px; font-weight: bold; color: #00b8d9; margin-bottom: 6px;">🧠 AI Mastermind — Auto-Pilot 100%</div>
+                <div style="font-size: 14px; font-weight: bold; color: #00b8d9; margin-bottom: 6px;">🧠 AI Mastermind — Auto-Pilot</div>
                 <p id="res-ai-advice" style="font-size: 13px; color: #cbd5e1; line-height: 1.4;">Inizializzazione automatica...</p>
             </div>
 
@@ -181,13 +202,12 @@
 
     <!-- TAB 2: SEGNALI CERTI 100% -->
     <div id="tab-segnali" class="tab-content">
-        <h3 style="font-size: 16px; margin-bottom: 12px;">Segnali Certi al 100% (Auto-Scansione Globale)</h3>
+        <h3 style="font-size: 16px; margin-bottom: 12px;">Segnali Globali Attivi (Tutti i Mercati)</h3>
         <div id="signals-container">
             <p style="color: #848e9c; font-size: 13px;">Scansione automatica globale del mercato in corso...</p>
         </div>
     </div>
 
-    <!-- NAVIGATION BAR -->
     <nav>
         <button class="active" onclick="switchTab('analizza', this)">
             <svg viewBox="0 0 24 24"><path d="M3 3v18h18v-2H5V3H3m4 10h2v5H7v-5m4-4h2v9h-2V9m4-6h2v15h-2V3Z"/></svg>
@@ -206,15 +226,40 @@
         let currentTimeframe = '15m';
         let currentMode = 'Day Trading';
 
+        function playAudioAlert(actionText, symbolText) {
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (AudioContext) {
+                    const ctx = new AudioContext();
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(880, ctx.currentTime);
+                    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.4);
+                }
+                
+                if ('speechSynthesis' in window) {
+                    window.speechSynthesis.cancel();
+                    const msg = new SpeechSynthesisUtterance(`Attenzione. Rilevato segnale ${actionText} su ${symbolText}`);
+                    msg.lang = 'it-IT';
+                    msg.rate = 1.0;
+                    window.speechSynthesis.speak(msg);
+                }
+            } catch (e) {
+                console.log("Audio non supportato", e);
+            }
+        }
+
         async function loadMarketsData() {
             try {
                 const res = await fetch('/api/markets');
                 allMarkets = await res.json();
                 renderSymbols();
-                
-                setTimeout(() => {
-                    triggerChartScanner();
-                }, 500);
+                setTimeout(() => { triggerChartScanner(); }, 500);
             } catch (e) {
                 console.log("Errore caricamento mercati", e);
             }
@@ -253,7 +298,6 @@
         function initTradingView(symbol, tf) {
             const container = document.getElementById('tradingview_widget');
             container.innerHTML = '';
-            
             let tvSymbol = 'BINANCE:BTCUSDT';
             if(symbol === 'XAUUSD') tvSymbol = 'OANDA:XAUUSD';
             else if(symbol === 'EURUSDT') tvSymbol = 'FX:EURUSD';
@@ -261,7 +305,6 @@
                 let cleanSym = symbol.replace('USDT', '');
                 tvSymbol = `BINANCE:${cleanSym}USDT`;
             }
-
             const tfMap = { '1m': '1', '15m': '15', '30m': '30', '1h': '60' };
             new TradingView.widget({
                 "autosize": true, "symbol": tvSymbol, "interval": tfMap[tf] || "15",
@@ -305,12 +348,14 @@
         async function triggerChartScanner() {
             const overlay = document.getElementById('scanner-overlay');
             const scanText = document.getElementById('scanner-text');
-            
             overlay.style.display = 'block';
             scanText.style.display = 'block';
 
             const accBalance = document.getElementById('acc-balance').value || 1000;
             const riskPct = document.getElementById('risk-pct').value || 1;
+
+            // Aggiorna subito la striscia ticker con l'asset selezionato
+            document.getElementById('strip-symbol').innerText = currentSymbol;
 
             try {
                 const response = await fetch('/api/analyze', {
@@ -327,6 +372,12 @@
                 const data = await response.json();
                 
                 if (data.status === 'success') {
+                    // Aggiorna la striscia di monitoraggio live
+                    document.getElementById('strip-price').innerText = data.current_price;
+                    const changeEl = document.getElementById('strip-change');
+                    changeEl.innerText = data.price_change;
+                    changeEl.className = `ticker-change ${data.price_change.startsWith('+') ? 'pos' : 'neg'}`;
+
                     document.getElementById('res-symbol').innerText = `${data.symbol} — ${data.current_price}`;
                     document.getElementById('res-source').innerText = `Fonte: ${data.source}`;
                     document.getElementById('res-fav').innerText = `${data.favorability}%`;
@@ -340,8 +391,9 @@
                     const statusText = document.getElementById('status-text');
                     statusBox.style.display = 'block';
                     statusText.innerText = data.status_msg;
-                    if(data.favorability === 100) {
+                    if(data.favorability >= 90) {
                         statusBox.className = 'status-alert-box';
+                        playAudioAlert(data.action, data.symbol);
                     } else {
                         statusBox.className = 'status-alert-box danger';
                     }
@@ -354,11 +406,9 @@
                     document.getElementById('res-tp1').innerText = data.take_profit_1;
                     document.getElementById('res-rrr').innerText = `1 : ${data.rrr}`;
                     document.getElementById('res-ai-advice').innerText = data.ai_recommendation;
-                } else {
-                    console.error("Errore server API analyze:", data.message);
                 }
             } catch (err) {
-                console.log("Errore di connessione allo scanner", err);
+                console.log("Errore scanner", err);
             } finally {
                 overlay.style.display = 'none';
                 scanText.style.display = 'none';
@@ -397,20 +447,20 @@
                                 <span style="color: #0ecb81;"><strong>TP1:</strong> ${s.tp1}</span>
                             </div>
                             <div style="font-size: 11px; color: #848e9c; margin-top: 6px; border-top: 1px solid #1f2633; padding-top: 4px; display:flex; justify-content:space-between;">
-                                <span>Affidabilità: <strong style="color:#0ecb81;">${s.prob} (PERFEZIONE)</strong></span>
+                                <span>Affidabilità: <strong style="color:#0ecb81;">${s.prob}</strong></span>
                                 <span>RRR: <strong style="color:#38bdf8;">1:${s.rrr}</strong></span>
                             </div>
                         </div>
                     `).join('');
                 }
-                container.innerHTML = html || '<p style="color:#848e9c;">Nessun asset soddisfa il criterio di perfezione assoluta al 100% in questo momento (Auto-Pilot in attesa di setup ideali).</p>';
+                container.innerHTML = html || '<p style="color:#848e9c;">Nessun asset disponibile al momento.</p>';
             } catch (e) {
                 document.getElementById('signals-container').innerHTML = '<p style="color:#f6465d;">Errore di caricamento.</p>';
             }
         }
 
         function copySignal() {
-            navigator.clipboard.writeText(`Setup Auto-Pilot 100% (${currentMode}):\nAsset: ${currentSymbol}\nIngresso: ${document.getElementById('res-entry').innerText}\nStop Loss: ${document.getElementById('res-sl').innerText}\nTake Profit: ${document.getElementById('res-tp1').innerText}\nSize: ${document.getElementById('res-pos-size').innerText}`);
+            navigator.clipboard.writeText(`Setup Auto-Pilot (${currentMode}):\nAsset: ${currentSymbol}\nIngresso: ${document.getElementById('res-entry').innerText}\nStop Loss: ${document.getElementById('res-sl').innerText}\nTake Profit: ${document.getElementById('res-tp1').innerText}\nSize: ${document.getElementById('res-pos-size').innerText}`);
             alert('Setup copiato negli appunti!');
         }
 
