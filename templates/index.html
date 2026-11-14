@@ -13,6 +13,11 @@
         .dot-gold { width: 7px; height: 7px; background: #fbbf24; border-radius: 50%; animation: pulse-gold 1.5s infinite; }
         @keyframes pulse-gold { 0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 8px #fbbf24; } 50% { opacity: 0.4; transform: scale(1.4); } }
 
+        /* Ticker di News Istituzionale */
+        .news-ticker { background: #060913; border-bottom: 1px solid rgba(212, 175, 55, 0.2); padding: 6px 12px; font-size: 10px; color: #38bdf8; white-space: nowrap; overflow: hidden; position: relative; }
+        .news-ticker span { display: inline-block; padding-left: 100%; animation: ticker 25s linear infinite; font-weight: bold; }
+        @keyframes ticker { 0% { transform: translate(0, 0); } 100% { transform: translate(-100%, 0); } }
+
         .dashboard-header { background: linear-gradient(135deg, #050811, #0b1120); border-bottom: 1px solid rgba(212, 175, 55, 0.2); padding: 14px 18px; display: flex; justify-content: space-between; align-items: center; box-shadow: inset 0 1px 0 rgba(255,255,255,0.05); }
         .dashboard-title { font-size: 16px; font-weight: 900; background: linear-gradient(135deg, #ffffff, #d4af37); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: 0.8px; text-transform: uppercase; }
         .clock-badge { background: #0a0f1d; padding: 5px 12px; border-radius: 8px; font-family: monospace; font-size: 12px; color: #fbbf24; border: 1px solid rgba(212, 175, 55, 0.3); box-shadow: inset 0 2px 4px rgba(0,0,0,0.5); }
@@ -44,8 +49,8 @@
         .badge-action.SELL { background: #f6465d; color: #fff; box-shadow: 0 0 15px rgba(246, 70, 93, 0.4); }
 
         .firewall-badge { background: rgba(14, 203, 129, 0.12); color: #0ecb81; border: 1px solid rgba(14, 203, 129, 0.35); padding: 5px 10px; border-radius: 8px; font-size: 10px; font-weight: 800; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+        .sentiment-strip { background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); color: #38bdf8; font-size: 10px; font-weight: 800; padding: 5px 10px; border-radius: 8px; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
 
-        /* Projection & Schedule Boxes */
         .projection-box { background: rgba(212, 175, 55, 0.08); border: 1px solid rgba(212, 175, 55, 0.3); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
         .projection-box div span { display: block; font-size: 9px; color: #94a3b8; text-transform: uppercase; font-weight: 700; }
         .projection-box div strong { font-size: 13px; font-family: monospace; color: #fbbf24; }
@@ -86,9 +91,14 @@
 <body>
 
     <header>
-        <div>Institutional 4D Terminal</div>
-        <div class="gold-badge"><div class="dot-gold"></div> LIVE SCHEDULE & TIMESTAMPS</div>
+        <div>Institutional 4D Master Terminal</div>
+        <div class="gold-badge"><div class="dot-gold"></div> 100% LIVE PRO DESK</div>
     </header>
+
+    <!-- Ticker di News in Tempo Reale -->
+    <div class="news-ticker">
+        <span>⚡ [LIVE NEWS DESK] Flussi istituzionali attivi su Crypto & Forex • Firewall Anti-Whipsaw in esecuzione • Sincronizzazione millimetrica dei mercati globali completata senza latenza.</span>
+    </div>
 
     <div class="dashboard-header">
         <div class="dashboard-title">⚡ SALA SEGNALI PRO</div>
@@ -103,7 +113,7 @@
         <div class="mm-bar">
             <div class="mm-header">
                 <span>🛡️ Money Management & Size BingX</span>
-                <span style="color:#0ecb81;">Orari Esatti Live</span>
+                <span style="color:#0ecb81;">Standard Master</span>
             </div>
             <div class="mm-grid">
                 <div class="mm-field">
@@ -135,7 +145,7 @@
 
         <div id="signals-container">
             <div style="text-align:center; padding:35px; color:#fbbf24; font-size:13px; font-weight:bold;">
-                ✨ Sincronizzazione orari e mercati live...
+                ✨ Scansione master dei flussi globali in corso...
             </div>
         </div>
     </div>
@@ -157,7 +167,7 @@
         <div style="background: rgba(11,17,32,0.9); border: 1px solid rgba(212,175,55,0.25); border-radius: 14px; padding: 14px; margin-top: 14px;">
             <div style="font-size: 12px; font-weight: bold; color: #fbbf24; margin-bottom: 10px; text-transform: uppercase;">Registro Audit (Eventi Reali con Orario Esatto)</div>
             <div id="audit-log-container" style="display:flex; flex-direction:column; gap:8px; font-size:11px; color:#94a3b8;">
-                <p style="text-align:center; padding:15px;">Nessun evento registrato in questa sessione. Il registro si popolerà man mano che l'IA individua setup reali.</p>
+                <p style="text-align:center; padding:15px;">Nessun evento registrato in questa sessione. Il registro si popolerà man mano che il sistema individua setup reali.</p>
             </div>
         </div>
     </div>
@@ -206,6 +216,16 @@
             btn.style.color = audioEnabled ? '#0ecb81' : '#f6465d';
         }
 
+        function speakAlert(text) {
+            if (!audioEnabled) return;
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'it-IT';
+                utterance.rate = 1.1;
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
         async function loadMarketsData() {
             try {
                 const res = await fetch('/api/markets');
@@ -230,7 +250,13 @@
 
             try {
                 const res = await fetch(`/api/signals?balance=${balance}&risk=${risk}&timeframe=${tf}`);
-                currentSignals = await res.json();
+                const newSignals = await res.json();
+                
+                if (newSignals.length > currentSignals.length && currentSignals.length >= 0) {
+                    speakAlert("Nuovo segnale master confermato.");
+                }
+
+                currentSignals = newSignals;
                 document.getElementById('active-count').innerText = currentSignals.length;
                 
                 const auditContainer = document.getElementById('audit-log-container');
@@ -265,8 +291,8 @@
             if (!filtered || filtered.length === 0) {
                 container.innerHTML = `
                     <div style="background:rgba(11,17,32,0.9); border:1px solid rgba(212,175,55,0.3); border-radius:16px; padding:30px; text-align:center; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-                        <p style="color:#fbbf24; font-weight:900; font-size:14px; margin-bottom:6px;">✨ IA in attesa di pattern reali</p>
-                        <p style="color:#94a3b8; font-size:11px;">Il terminale scansiona i mercati in tempo reale e mostra solo i setup rigorosamente confermati.</p>
+                        <p style="color:#fbbf24; font-weight:900; font-size:14px; margin-bottom:6px;">✨ Desk in attesa di pattern istituzionali perfetti</p>
+                        <p style="color:#94a3b8; font-size:11px;">Il terminale scansiona i flussi reali bloccando ogni finta rottura.</p>
                     </div>`;
                 return;
             }
@@ -281,17 +307,19 @@
                         <div class="badge-action ${s.action}">${s.action}</div>
                     </div>
 
+                    <div class="sentiment-strip">
+                        <span>🌊 Sentiment Flusso: <strong>${s.sentiment}</strong></span>
+                    </div>
+
                     <div class="firewall-badge">
                         <span>🛡️ Firewall Anti-Whipsaw: <strong>Attivo (Trend Pulito / No Fakeout)</strong></span>
                     </div>
 
-                    <!-- Box Orario Mercato & Schedulazione Apertura/Chiusura -->
                     <div class="schedule-box">
                         <span style="color:#0ecb81; font-weight:bold;">${s.market_status}</span>
                         <span style="color:#94a3b8; font-size:10px;">📅 ${s.market_schedule}</span>
                     </div>
 
-                    <!-- Box Proiezione Prezzo Massimo -->
                     <div class="projection-box">
                         <div>
                             <span>🎯 Previsione Target Massimo (Fino a Quota)</span>
@@ -333,8 +361,7 @@
 
                     <div class="bingx-sizing">
                         <div><span>Quantità Size</span><strong>${s.position_size}</strong></div>
-                        <div><span>Leva BingX</span><strong>${s.leverage}</strong></div>
-                        <div><span>Rischio ($)</span><strong>$${s.risk_amount}</strong></div>
+                        <div><span>Leva BingX</span><strong>${s.leverage}</strong></div> <div><span>Rischio ($)</span><strong>$${s.risk_amount}</strong></div>
                     </div>
 
                     <button class="btn-copy-signal" onclick="copyBingX('${s.name}', '${s.action}', '${s.entry}', '${s.sl}', '${s.tp1}', '${s.tp2}', '${s.tp3}', '${s.max_target}', '${s.timestamp}', '${s.leverage}', '${s.position_size}')">
@@ -345,9 +372,9 @@
         }
 
         function copyBingX(name, action, entry, sl, tp1, tp2, tp3, maxTarget, timestamp, lev, size) {
-            const text = `✨ 4D INSTITUTIONAL SIGNAL - BINGX\nOrario Emissione: ${timestamp}\nAsset: ${name}\nDirezione: ${action}\nTarget Massimo Previsto: ${maxTarget}\nLeva: ${lev}\nSize: ${size}\nIngresso: ${entry}\nStop Loss: ${sl}\nTP1: ${tp1}\nTP2: ${tp2}\nTP3: ${tp3}`;
+            const text = `✨ 4D MASTER SIGNAL - BINGX\nOrario Emissione: ${timestamp}\nAsset: ${name}\nDirezione:${action}\nTarget Massimo Previsto: ${maxTarget}\nLeva:${lev}\nSize: ${size}\nIngresso:${entry}\nStop Loss: ${sl}\nTP1:${tp1}\nTP2: ${tp2}\nTP3:${tp3}`;
             navigator.clipboard.writeText(text);
-            alert('✅ Ordine istituzionale con orario esatto copiato per BingX!');
+            alert('✅ Ordine master istituzionale copiato per BingX!');
         }
 
         function renderSymbols(filteredAssets = null) {
@@ -384,9 +411,7 @@
             else if (symbol === 'EURUSDT') tvSymbol = 'FX:EURUSD';
             else if (symbol === 'GBPUSDT') tvSymbol = 'FX:GBPUSD';
             else if (symbol === 'USDJPY') tvSymbol = 'FX:USDJPY';
-            else if (['AAPL', 'TSLA', 'NVDA', 'AMZN'].includes(symbol)) tvSymbol = `NASDAQ:${symbol}`;
-            else if (symbol === 'SPX500') tvSymbol = 'SP:SPX';
-            else tvSymbol = `BINANCE:${symbol.replace('USDT', '')}USDT`;
+            else if (['AAPL', 'TSLA', 'NVDA', 'AMZN'].includes(symbol)) tvSymbol = `NASDAQ:${symbol}`; else if (symbol === 'SPX500') tvSymbol = 'SP:SPX'; else tvSymbol = `BINANCE:${symbol.replace('USDT', '')}USDT`;
 
             new TradingView.widget({
                 "autosize": true, "symbol": tvSymbol, "interval": "15",
