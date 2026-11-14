@@ -42,16 +42,61 @@ def fetch_all_markets():
     }
 
 def get_market_status(category):
-    if category == "Criptovalute":
-        return {"status": "Aperto", "text": "🟢 Operativo 24/7", "countdown": "Mercato Continuo"}
-    
     now = datetime.now(timezone.utc)
-    weekday = now.weekday()
+    weekday = now.weekday() # 0 = Lunedì, 5 = Sabato, 6 = Domenica
+    hour = now.hour
+    minute = now.minute
+
+    if category == "Criptovalute":
+        return {
+            "status": "Aperto", 
+            "text": "🟢 Operativo 24/7", 
+            "schedule": "Apertura Continua — Chiusura: Mai (24/7)"
+        }
     
-    if weekday >= 5:
-        return {"status": "Chiuso", "text": "🔴 Mercato Chiuso", "countdown": "Riapertura Lunedì 00:00 UTC"}
-    else:
-        return {"status": "Aperto", "text": "🟢 Aperto", "countdown": "Sessione Live"}
+    elif category == "Materie Prime & Forex":
+        # Forex apre la domenica sera (circa 22:00 UTC) e chiude il venerdì sera (21:00 UTC)
+        if weekday == 5 or (weekday == 6 and hour < 22):
+            return {
+                "status": "Chiuso", 
+                "text": "🔴 Mercato Chiuso (Weekend)", 
+                "schedule": "Riapertura: Domenica 22:00 UTC"
+            }
+        elif weekday == 4 and hour >= 21:
+            return {
+                "status": "Chiuso", 
+                "text": "🔴 Chiusura Settimanale", 
+                "schedule": "Riapertura: Domenica 22:00 UTC"
+            }
+        else:
+            return {
+                "status": "Aperto", 
+                "text": "🟢 Sessione Forex Aperta", 
+                "schedule": "Orario: Mon 00:00 - Fri 21:00 UTC"
+            }
+            
+    elif category == "Azioni & Indici":
+        # Azioni USA aprono lun-ven dalle 14:30 UTC alle 21:00 UTC
+        if weekday >= 5:
+            return {
+                "status": "Chiuso", 
+                "text": "🔴 Chiuso (Weekend)", 
+                "schedule": "Riapertura Wall Street: Lunedì 14:30 UTC"
+            }
+        elif hour < 14 or (hour == 14 and minute < 30) or hour >= 21:
+            return {
+                "status": "Chiuso", 
+                "text": "🔴 Fuori Orario Wall Street", 
+                "schedule": "Orario Sessione: 14:30 - 21:00 UTC"
+            }
+        else:
+            return {
+                "status": "Aperto", 
+                "text": "🟢 Wall Street Live", 
+                "schedule": "Chiusura Sessione: Oggi alle 21:00 UTC"
+            }
+            
+    return {"status": "Aperto", "text": "🟢 Live", "schedule": "Sessione Attiva"}
 
 def safe_float(val, default=0.0):
     try:
@@ -99,14 +144,12 @@ def get_market_data(symbol, interval="15m"):
 def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_percentage):
     close = df['Close']
     
-    # RSI 14
     delta = close.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
     rs = gain / loss
     rsi = safe_float((100 - (100 / (1 + rs))).iloc[-1], 50.0)
 
-    # EMA & MACD
     ema12 = close.ewm(span=12, adjust=False).mean()
     ema26 = close.ewm(span=26, adjust=False).mean()
     macd_line = ema12 - ema26
@@ -114,12 +157,10 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
     macd_hist = macd_line - macd_signal
     current_macd = safe_float(macd_hist.iloc[-1], 0.0)
 
-    # ATR Volatility
     tr = pd.concat([df['High'] - df['Low'], np.abs(df['High'] - close.shift()), np.abs(df['Low'] - close.shift())], axis=1).max(axis=1)
     atr = safe_float(tr.rolling(14).mean().iloc[-1], current_price * 0.005)
     if atr <= 0: atr = current_price * 0.005
 
-    # 🛡️ Firewall Anti-Whipsaw
     vol = df['Volume']
     vol_sma = safe_float(vol.rolling(20).mean().iloc[-1], 1000.0)
     current_vol = safe_float(vol.iloc[-1], 1000.0)
@@ -143,10 +184,10 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
 
     if is_buy:
         action = "BUY"
-        ai_score = 99.4
+        ai_score = 99.6
     elif is_sell:
         action = "SELL"
-        ai_score = 99.4
+        ai_score = 99.6
     else:
         action = "NEUTRAL"
         ai_score = 45.0
@@ -167,17 +208,17 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
         sl = round(current_price - sl_dist, decimals)
         tp1 = round(current_price + tp_dist, decimals)
         tp2 = round(current_price + (tp_dist * 1.5), decimals)
-        tp3 = round(current_price + (tp_dist * 2.5), decimals) # Target massimo esteso di proiezione
-        max_target_price = tp3
-        max_invalidation_price = sl
+        tp3 = round(current_price + (tp_dist * 2.5), decimals)
+        max_target = tp3
+        max_invalidation = sl
     else:
         entry = current_price
         sl = round(current_price + sl_dist, decimals)
         tp1 = round(current_price - tp_dist, decimals)
         tp2 = round(current_price - (tp_dist * 1.5), decimals)
-        tp3 = round(current_price - (tp_dist * 2.5), decimals) # Target massimo esteso di proiezione
-        max_target_price = tp3
-        max_invalidation_price = sl
+        tp3 = round(current_price - (tp_dist * 2.5), decimals)
+        max_target = tp3
+        max_invalidation = sl
 
     if action == "BUY":
         total_pips_to_tp1 = tp1 - entry
@@ -202,7 +243,7 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
     return {
         "action": action, "ai_score": ai_score,
         "entry": round(entry, decimals), "sl": sl, "tp1": tp1, "tp2": tp2, "tp3": tp3,
-        "max_target": max_target_price, "max_invalidation": max_invalidation_price,
+        "max_target": max_target, "max_invalidation": max_invalidation,
         "rrr": rrr, "decimals": decimals, "rsi": round(rsi, 1),
         "risk_amount": round(max_risk_amount, 2), "position_size": round(position_size, 4),
         "leverage": f"Isolata {recommended_leverage}x", "margin": margin_required,
@@ -237,7 +278,7 @@ def process_asset(cat, a, m_status, mode, balance, risk_pct, timeframe):
                     "risk_amount": res["risk_amount"], "position_size": res["position_size"],
                     "leverage": res["leverage"], "margin": res["margin"],
                     "progress_pct": res["progress_pct"],
-                    "market_status": m_status["text"], "countdown": m_status["countdown"],
+                    "market_status": m_status["text"], "market_schedule": m_status["schedule"],
                     "is_open": m_status["status"] == "Aperto",
                     "timestamp": datetime.now().strftime("%H:%M:%S")
                 }
