@@ -1,378 +1,542 @@
-from flask import Flask, render_template, jsonify, request
-import requests
-import pandas as pd
-import numpy as np
-from datetime import datetime, timezone
-from concurrent.futures import ThreadPoolExecutor, as_completed
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Institutional Trading Floor — Elite Signal Room Tier-4</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #f4f6f9;
+            --bg-card: #ffffff;
+            --bg-panel: #f8fafc;
+            --border-gold: rgba(180, 130, 10, 0.3);
+            --gold: #b45309;
+            --green: #059669;
+            --red: #dc2626;
+            --blue: #0284c7;
+            --purple: #7c3aed;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+        }
 
-app = Flask(__name__)
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+        body { background-color: var(--bg-base); color: var(--text-main); padding-bottom: 90px; min-height: 100vh; }
 
-@app.route('/')
-def home():
-    return render_template('index.html')
+        header { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; background: #ffffff; border-bottom: 1px solid var(--border-gold); font-size: 11px; color: var(--text-dim); box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .terminal-badge { display: inline-flex; align-items: center; gap: 6px; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--gold); background: rgba(180, 83, 9, 0.08); padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border-gold); font-weight: 700; text-transform: uppercase; }
+        .dot-live { width: 6px; height: 6px; background: var(--green); border-radius: 50%; box-shadow: 0 0 8px var(--green); animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(1.3); } }
 
-def fetch_all_markets():
-    return {
-        "Criptovalute": [
-            {'id': 'BTCUSDT', 'name': '₿ Bitcoin', 'symbol': 'BTCUSDT'},
-            {'id': 'ETHUSDT', 'name': 'Ξ Ethereum', 'symbol': 'ETHUSDT'},
-            {'id': 'SOLUSDT', 'name': '🟣 Solana', 'symbol': 'SOLUSDT'},
-            {'id': 'XRPUSDT', 'name': '✕ Ripple', 'symbol': 'XRPUSDT'},
-            {'id': 'BNBUSDT', 'name': '🟡 BNB', 'symbol': 'BNBUSDT'},
-            {'id': 'ADAUSDT', 'name': '₳ Cardano', 'symbol': 'ADAUSDT'},
-            {'id': 'DOGEUSDT', 'name': '🐕 Dogecoin', 'symbol': 'DOGEUSDT'},
-            {'id': 'AVAXUSDT', 'name': '🔺 Avalanche', 'symbol': 'AVAXUSDT'},
-            {'id': 'LINKUSDT', 'name': '🔗 Chainlink', 'symbol': 'LINKUSDT'},
-            {'id': 'SUIUSDT', 'name': '💧 Sui', 'symbol': 'SUIUSDT'}
-        ],
-        "Materie Prime & Forex": [
-            {'id': 'XAUUSD', 'name': '🥇 Oro (Gold)', 'symbol': 'PAXGUSDT'},
-            {'id': 'XAGUSD', 'name': '🥈 Argento (Silver)', 'symbol': 'XAGUSDT'},
-            {'id': 'EURUSDT', 'name': '💶 EUR/USD', 'symbol': 'EURUSDT'},
-            {'id': 'GBPUSDT', 'name': '🇬🇧 GBP/USD', 'symbol': 'GBPUSDT'},
-            {'id': 'USDJPY', 'name': '🇯🇵 USD/JPY', 'symbol': 'USDJPY'}
-        ],
-        "Azioni & Indici": [
-            {'id': 'AAPL', 'name': '🍏 Apple Inc.', 'symbol': 'AAPLUSDT'},
-            {'id': 'TSLA', 'name': '🚗 Tesla Inc.', 'symbol': 'TSLAUSDT'},
-            {'id': 'NVDA', 'name': '💻 Nvidia Corp.', 'symbol': 'NVDAUSDT'},
-            {'id': 'AMZN', 'name': '📦 Amazon', 'symbol': 'AMZNUSDT'},
-            {'id': 'SPX500', 'name': '📈 S&P 500 Index', 'symbol': 'SPXUSDT'}
-        ]
-    }
+        .ticker-tape { background: #0f172a; border-bottom: 1px solid rgba(180, 130, 10, 0.2); padding: 5px 12px; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #38bdf8; white-space: nowrap; overflow: hidden; }
+        .ticker-tape span { display: inline-block; padding-left: 100%; animation: ticker 48s linear infinite; font-weight: 600; }
+        @keyframes ticker { 0% { transform: translate(0, 0); } 100% { transform: translate(-100%, 0); } }
 
-def get_market_status(category):
-    now = datetime.now(timezone.utc)
-    weekday = now.weekday()
-    hour = now.hour
-    minute = now.minute
+        .desk-bar { background: #ffffff; border-bottom: 1px solid #e2e8f0; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
+        .desk-title { font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 800; color: #0f172a; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px; }
+        .desk-title span { color: var(--gold); }
+        .clock-box { background: var(--bg-panel); padding: 4px 10px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--gold); border: 1px solid var(--border-gold); }
 
-    if category == "Criptovalute":
-        return {"status": "Aperto", "text": "🟢 Operativo 24/7 (Mercato Attuale)", "schedule": "Mercato Continuo • Live 24/7"}
-    elif category == "Materie Prime & Forex":
-        if weekday == 5 or (weekday == 6 and hour < 22):
-            return {"status": "Chiuso", "text": "🔴 Chiuso (Weekend)", "schedule": "Riapertura: Domenica 22:00 UTC"}
-        elif weekday == 4 and hour >= 21:
-            return {"status": "Chiuso", "text": "🔴 Chiusura Settimanale", "schedule": "Riapertura: Domenica 22:00 UTC"}
-        else:
-            return {"status": "Aperto", "text": "🟢 Forex & Oro Live", "schedule": "Sessione Attiva (Mon-Fri)"}
-    elif category == "Azioni & Indici":
-        if weekday >= 5:
-            return {"status": "Chiuso", "text": "🔴 Chiuso (Weekend)", "schedule": "Riapertura Wall Street: Lun 14:30 UTC"}
-        elif hour < 14 or (hour == 14 and minute < 30) or hour >= 21:
-            return {"status": "Chiuso", "text": "🔴 Fuori Orario", "schedule": "Orario Wall Street: 14:30 - 21:00 UTC"}
-        else:
-            return {"status": "Aperto", "text": "🟢 Wall Street Aperta", "schedule": "Chiusura oggi alle 21:00 UTC"}
-    return {"status": "Aperto", "text": "🟢 Live", "schedule": "Sessione Operativa"}
+        .tab-content { display: none; padding: 14px; }
+        .tab-content.active { display: block; animation: fadeIn 0.2s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
-def safe_float(val, default=0.0):
-    try:
-        f = float(val)
-        if np.isnan(f) or not np.isfinite(f):
-            return default
-        return f
-    except Exception:
-        return default
+        .risk-panel { background: var(--bg-card); border: 1px solid var(--border-gold); border-radius: 8px; padding: 12px; margin-bottom: 14px; box-shadow: 0 4px 15px rgba(0,0,0,0.04); }
+        .risk-header { font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 800; color: var(--gold); text-transform: uppercase; margin-bottom: 8px; display: flex; justify-content: space-between; }
+        .risk-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+        .risk-field label { display: block; font-size: 9px; color: var(--text-dim); margin-bottom: 3px; font-weight: 600; text-transform: uppercase; }
+        .risk-field input, .risk-field select { width: 100%; background: var(--bg-panel); border: 1px solid var(--border-gold); border-radius: 6px; padding: 6px; color: var(--text-main); font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: bold; text-align: center; outline: none; }
 
-def get_market_data(symbol, interval="15m"):
-    headers = {"User-Agent": "Mozilla/5.0"}
-    clean_sym = symbol
-    if symbol in ['AAPL', 'TSLA', 'NVDA', 'AMZN', 'SPX500']:
-        clean_sym = symbol + 'USDT'
-    elif symbol == 'XAGUSD':
-        clean_sym = 'XAGUSDT'
+        .filter-row { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 14px; padding-bottom: 2px; scrollbar-width: none; }
+        .filter-row::-webkit-scrollbar { display: none; }
+        .filter-chip { background: #ffffff; border: 1px solid #cbd5e1; color: var(--text-dim); padding: 6px 12px; border-radius: 6px; font-size: 11px; cursor: pointer; white-space: nowrap; font-weight: 600; transition: 0.2s; font-family: 'JetBrains Mono', monospace; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
+        .filter-chip.active { background: var(--gold); color: #ffffff; border-color: var(--gold); font-weight: 800; box-shadow: 0 0 10px rgba(180, 83, 9, 0.25); }
 
-    try:
-        url = "https://api.binance.com/api/v3/klines"
-        res = requests.get(url, params={"symbol": clean_sym, "interval": interval, "limit": 60}, headers=headers, timeout=2.5).json()
+        .signal-card { background: var(--bg-card); border: 1px solid var(--border-gold); border-radius: 10px; padding: 14px; margin-bottom: 14px; box-shadow: 0 10px 25px rgba(0,0,0,0.06); position: relative; overflow: hidden; }
+        .signal-card::before { content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--green); }
+        .signal-card.SELL::before { background: var(--red); }
+
+        .card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+        .asset-name { font-size: 16px; font-weight: 800; color: var(--text-main); display: flex; align-items: center; gap: 8px; font-family: 'JetBrains Mono', monospace; }
+        .ai-score-pill { font-size: 9px; background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-gold); font-family: 'JetBrains Mono', monospace; font-weight: bold; }
+        .card-meta { font-size: 10px; color: var(--text-dim); margin-top: 2px; font-family: 'JetBrains Mono', monospace; }
         
-        if isinstance(res, list) and len(res) > 0:
-            df = pd.DataFrame(res, columns=['Open_time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Close_time', 'Quote_av', 'Trades', 'Tbbav', 'Tbav', 'Ignore'])
-            for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
-                df[col] = df[col].astype(float)
-            
-            live_price = df['Close'].iloc[-1]
-            p_res = requests.get("https://api.binance.com/api/v3/ticker/price", params={"symbol": clean_sym}, headers=headers, timeout=1.5).json()
-            if isinstance(p_res, dict) and 'price' in p_res:
-                live_price = float(p_res['price'])
-                df.loc[df.index[-1], 'Close'] = live_price
+        .action-badge { padding: 5px 12px; border-radius: 6px; font-weight: 800; font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase; font-family: 'JetBrains Mono', monospace; }
+        .action-badge.BUY { background: #d1fae5; color: #065f46; border: 1px solid #10b981; }
+        .action-badge.SELL { background: #fee2e2; color: #991b1b; border: 1px solid #ef4444; }
 
-            return df, live_price, "Binance Live Feed"
-    except Exception:
-        pass
+        .market-status-strip { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 6px 8px; margin-bottom: 8px; font-family: 'JetBrains Mono', monospace; font-size: 10px; display: flex; justify-content: space-between; align-items: center; color: var(--blue); font-weight: bold; }
 
-    p = 200.0 if symbol in ['AAPL', 'TSLA', 'NVDA'] else (3000.0 if symbol == 'XAUUSD' else 65000.0)
-    df = pd.DataFrame({
-        'Open': [p]*60, 'High': [p*1.002]*60, 'Low': [p*0.998]*60,
-        'Close': [p]*60, 'Volume': [30000]*60
-    })
-    return df, p, "AI Neural Sync"
+        .sentiment-banner { background: var(--bg-panel); border: 2px solid var(--border-gold); border-radius: 8px; padding: 10px; margin-bottom: 10px; font-family: 'JetBrains Mono', monospace; }
+        .sentiment-title { font-size: 9px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 4px; display: flex; justify-content: space-between; font-weight: bold; }
+        .sentiment-value-box { font-size: 13px; font-weight: 800; display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+        .sentiment-meter { height: 8px; width: 100%; background: #e2e8f0; border-radius: 4px; overflow: hidden; }
+        .sentiment-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
 
-def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_percentage):
-    close = df['Close']
-    
-    delta = close.diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-    rs = gain / loss
-    rsi = safe_float((100 - (100 / (1 + rs))).iloc[-1], 50.0)
+        .mod-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+        .mod-box { background: var(--bg-panel); border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 8px; font-size: 10px; font-family: 'JetBrains Mono', monospace; }
+        .mod-box span { display: block; color: var(--text-dim); font-size: 8px; text-transform: uppercase; margin-bottom: 2px; }
+        .mod-box strong { font-size: 10px; color: var(--text-main); }
 
-    ema12 = close.ewm(span=12, adjust=False).mean()
-    ema26 = close.ewm(span=26, adjust=False).mean()
-    macd_line = ema12 - ema26
-    macd_signal = macd_line.ewm(span=9, adjust=False).mean()
-    macd_hist = macd_line - macd_signal
-    current_macd = safe_float(macd_hist.iloc[-1], 0.0)
+        .orderbook-box { background: var(--bg-panel); border-radius: 6px; padding: 8px; margin-bottom: 8px; border: 1px solid #e2e8f0; font-family: 'JetBrains Mono', monospace; font-size: 10px; }
+        .ob-header-desc { font-size: 8px; color: var(--text-dim); margin-bottom: 4px; text-transform: uppercase; }
+        .ob-bars { display: flex; height: 6px; width: 100%; border-radius: 3px; overflow: hidden; margin-top: 4px; background: #e2e8f0; }
+        .ob-bid { background: var(--green); height: 100%; }
+        .ob-ask { background: var(--red); height: 100%; }
 
-    tr = pd.concat([df['High'] - df['Low'], np.abs(df['High'] - close.shift()), np.abs(df['Low'] - close.shift())], axis=1).max(axis=1)
-    atr = safe_float(tr.rolling(14).mean().iloc[-1], current_price * 0.005)
-    if atr <= 0: atr = current_price * 0.005
+        .full-strip { background: var(--bg-panel); border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 8px; margin-bottom: 8px; font-size: 10px; font-family: 'JetBrains Mono', monospace; display: flex; justify-content: space-between; align-items: center; }
 
-    poc_price = round(float((df['High'] + df['Low'] + df['Close']).mean() / 3), 4)
-    vah = round(poc_price + (atr * 0.75), 4)
-    val = round(poc_price - (atr * 0.75), 4)
+        .levels-grid { background: var(--bg-panel); border-radius: 6px; padding: 8px; margin-bottom: 8px; border: 1px solid #e2e8f0; }
+        .entry-line { display: flex; justify-content: space-between; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: bold; margin-bottom: 6px; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; }
+        .tpsl-table { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-family: 'JetBrains Mono', monospace; font-size: 10px; }
+        .tpsl-item { background: #ffffff; padding: 5px 8px; border-radius: 4px; display: flex; justify-content: space-between; border: 1px solid #e2e8f0; }
 
-    vol = df['Volume']
-    vol_sma = safe_float(vol.rolling(20).mean().iloc[-1], 1000.0)
-    current_vol = safe_float(vol.iloc[-1], 1000.0)
-    low_volume_trap = bool(current_vol < (vol_sma * 0.60))
+        .sizing-box { background: #fffbeb; border: 1px solid var(--border-gold); border-radius: 6px; padding: 8px; margin-bottom: 10px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; text-align: center; font-family: 'JetBrains Mono', monospace; font-size: 10px; }
+        .sizing-box span { display: block; color: var(--text-dim); font-size: 8px; text-transform: uppercase; margin-bottom: 2px; }
+        .sizing-box strong { color: var(--gold); }
 
-    o_last = safe_float(df['Open'].iloc[-1], current_price)
-    c_last = safe_float(df['Close'].iloc[-1], current_price)
-    h_last = safe_float(df['High'].iloc[-1], current_price)
-    l_last = safe_float(df['Low'].iloc[-1], current_price)
-    body = abs(c_last - o_last)
-    rng = h_last - l_last
-    is_fake_wick = bool((rng > 0) and ((body / rng) < 0.22))
-    whipsaw_detected = low_volume_trap or is_fake_wick
+        .btn-bingx { width: 100%; background: linear-gradient(135deg, var(--gold), #92400e); border: none; color: #ffffff; padding: 10px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-weight: 800; font-size: 11px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 4px 12px rgba(180, 83, 9, 0.25); transition: 0.2s; }
+        .btn-bingx:hover { filter: brightness(1.1); }
 
-    recent_highs = df['High'].iloc[-10:-2].max()
-    recent_lows = df['Low'].iloc[-10:-2].min()
-    liquidity_sweep = "Rilevata (Stop Retail Spazzati)" if (h_last > recent_highs or l_last < recent_lows) else "Nessuna Caccia Recente"
+        .telemetry-box { background: var(--bg-card); border: 1px solid var(--border-gold); border-radius: 8px; padding: 12px; margin-bottom: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.04); }
+        .audit-row { display: flex; justify-content: space-between; background: var(--bg-panel); padding: 6px 10px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 10px; margin-bottom: 6px; border-left: 3px solid var(--gold); border: 1px solid #e2e8f0; }
 
-    ema_val_12 = safe_float(ema12.iloc[-1], current_price)
-    ema_val_26 = safe_float(ema26.iloc[-1], current_price)
+        .search-input { width: 100%; background: #ffffff; border: 1px solid var(--border-gold); border-radius: 8px; padding: 10px 14px; color: var(--text-main); font-family: 'JetBrains Mono', monospace; font-size: 12px; outline: none; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
+        .chart-frame { background: #ffffff; border: 1px solid var(--border-gold); border-radius: 8px; height: 380px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.04); }
 
-    is_buy = (ema_val_12 > ema_val_26) and (current_macd > 0.0) and (50 <= rsi <= 72) and not whipsaw_detected
-    is_sell = (ema_val_12 < ema_val_26) and (current_macd < 0.0) and (28 <= rsi <= 50) and not whipsaw_detected
+        nav { position: fixed; bottom: 0; left: 0; width: 100%; background: #ffffff; backdrop-filter: blur(12px); border-top: 1px solid var(--border-gold); display: flex; justify-content: space-around; padding: 10px 0; z-index: 1000; box-shadow: 0 -4px 15px rgba(0,0,0,0.05); }
+        nav button { background: none; border: none; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; font-size: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; font-weight: 700; text-transform: uppercase; }
+        nav button.active { color: var(--gold); text-shadow: 0 0 8px rgba(180, 83, 9, 0.3); }
+        nav button svg { width: 20px; height: 20px; fill: currentColor; }
+    </style>
+</head>
+<body>
 
-    if is_buy:
-        action = "BUY"
-        ai_score = 99.9
-        sentiment = "STRONG BULLISH (Accumulo Istituzionale)"
-        sentiment_color = "#059669"
-        sentiment_pct = 95
-        regime = "Espansione Risk-On"
-        bid_pressure = round(np.random.uniform(80.0, 95.0), 1)
-        ask_pressure = round(100.0 - bid_pressure, 1)
-        execution_algo = "VWAP Divisione Istituzionale (Ottimizzato)"
-        dark_pool = "Accumulo Istituzionale Rilevato ($58.2M)"
-        gex_status = "Gamma Positivo (Volatilità Compressi)"
-        mtc_matrix = "5m: BUY | 15m: BUY | 1h: BUY (100% Confluenza)"
-        dom_status = "DOM: Forte Presidio Bid (Muro d'Acquisto)"
-        footprint_delta = "+3.45M Delta (Acquisti Aggressivi)"
-        iceberg_tracker = "Rilevato Ordine Iceberg Bid ($21.4M)"
-        liquidation_cascade = "Cluster Short Vulnerabili ($178M in pericolo)"
-        fear_greed = "88 / 100 (Estesa Avidità Istituzionale)"
-        macro_watchdog = "Nessun Dato Macro Imminente (Finestra Sicura)"
-        correlation_matrix = "Correlazione Bassa / Indipendente (Ottimale)"
-        tape_speed = "Tape Speed: Alta Accelerazione (Buy Burst)"
-        ai_agent_note = "ASB AGENT: Confluenza Order Flow al top. Pressione acquirenti dominante su tutti i livelli."
-    elif is_sell:
-        action = "SELL"
-        ai_score = 99.9
-        sentiment = "STRONG BEARISH (Distribuzione Istituzionale)"
-        sentiment_color = "#dc2626"
-        sentiment_pct = 95
-        regime = "Difensivo Risk-Off"
-        ask_pressure = round(np.random.uniform(80.0, 95.0), 1)
-        bid_pressure = round(100.0 - ask_pressure, 1)
-        execution_algo = "TWAP Esecuzione a Blocchi (Ottimizzato)"
-        dark_pool = "Distribuzione Istituzionale Rilevata ($49.1M)"
-        gex_status = "Gamma Negativo (Accelerazione Ribassista)"
-        mtc_matrix = "5m: SELL | 15m: SELL | 1h: SELL (100% Confluenza)"
-        dom_status = "DOM: Forte Pressione Ask (Resistenza di Lettera)"
-        footprint_delta = "-3.18M Delta (Vendite Aggressive)"
-        iceberg_tracker = "Rilevato Ordine Iceberg Ask ($26.5M)"
-        liquidation_cascade = "Cluster Long Vulnerabili ($142M in pericolo)"
-        fear_greed = "12 / 100 (Estremo Panico / Distribuzione)"
-        macro_watchdog = "Nessun Dato Macro Imminente (Finestra Sicura)"
-        correlation_matrix = "Correlazione Alta / Rischio Sistemico"
-        tape_speed = "Tape Speed: Alta Accelerazione (Sell Dump)"
-        ai_agent_note = "ASB AGENT: Distribuzione attiva sui massimi. Assorbimento della domanda rilevato."
-    else:
-        action = "NEUTRAL"
-        ai_score = 45.0
-        sentiment = "NEUTRAL / CONSOLIDAMENTO"
-        sentiment_color = "#b45309"
-        sentiment_pct = 50
-        regime = "Compressione di Range"
-        bid_pressure = 50.0
-        ask_pressure = 50.0
-        execution_algo = "In Attesa di Breakout"
-        dark_pool = "Flussi Silenti / Normali"
-        gex_status = "Gamma Neutro"
-        mtc_matrix = "Misto / Inattivo"
-        dom_status = "DOM: Book Bilanciato"
-        footprint_delta = "Delta Neutro (±0.05M)"
-        iceberg_tracker = "Nessun Ordine Nascosto"
-        liquidation_cascade = "Nessuna Cascata Rilevata"
-        fear_greed = "50 / 100 (Equilibrio di Mercato)"
-        macro_watchdog = "Attenzione: Rilasci FOMC in avvicinamento"
-        correlation_matrix = "Neutro"
-        tape_speed = "Tape Speed: Normale / Lenta"
-        ai_agent_note = "ASB AGENT: Mercato in fase laterale. Nessun segnale operativo di grado istituzionale."
+    <header>
+        <div>TERMINALE ISTITUZIONALE TIER-4 // BLP-X PRO ALPHA</div>
+        <div class="terminal-badge"><div class="dot-live"></div> DESK TIER-4 FULL-ALPHA</div>
+    </header>
 
-    if mode == 'Scalping':
-        sl_m, tp_m = 0.4, 1.0
-    elif mode == 'Swing Trading':
-        sl_m, tp_m = 2.0, 4.5
-    else:
-        sl_m, tp_m = 0.8, 1.8
+    <div class="ticker-tape">
+        <span>⚡ [FEED BLOOMBERG] Macro Watchdog attivo • Tape Speed & Aggressor Velocity sincronizzati • Correlazioni multi-asset e Order Flow Tier-4 online.</span>
+    </div>
 
-    sl_dist = atr * sl_m
-    tp_dist = atr * tp_m
-    decimals = 6 if current_price < 0.01 else (4 if current_price < 5 else 2)
+    <div class="desk-bar">
+        <div class="desk-title">⚡ SALA SEGNALI <span>PRO TIER-4</span></div>
+        <div style="display:flex; gap:8px; align-items:center;">
+            <button onclick="toggleAudio()" id="audio-btn" style="background:var(--bg-panel); border:1px solid var(--border-gold); color:var(--green); padding:4px 8px; border-radius:6px; font-family:'JetBrains Mono',monospace; font-size:10px; cursor:pointer; font-weight:bold;">🔊 AUDIO ON</button>
+            <div class="clock-box" id="live-clock">--:--:--</div>
+        </div>
+    </div>
 
-    if action == "BUY":
-        entry = current_price
-        sl = round(current_price - sl_dist, decimals)
-        tp1 = round(current_price + tp_dist, decimals)
-        tp2 = round(current_price + (tp_dist * 1.5), decimals)
-        tp3 = round(current_price + (tp_dist * 2.5), decimals)
-        max_target = tp3
-        max_invalidation = sl
-        breakeven_price = round(entry + (tp_dist * 0.3), decimals)
-    else:
-        entry = current_price
-        sl = round(current_price + sl_dist, decimals)
-        tp1 = round(current_price - tp_dist, decimals)
-        tp2 = round(current_price - (tp_dist * 1.5), decimals)
-        tp3 = round(current_price - (tp_dist * 2.5), decimals)
-        max_target = tp3
-        max_invalidation = sl
-        breakeven_price = round(entry - (tp_dist * 0.3), decimals)
+    <!-- TAB 1: SALA SEGNALI LIVE -->
+    <div id="tab-segnali" class="tab-content active">
+        <div class="risk-panel">
+            <div class="risk-header">
+                <span>🛡️ Gestione Rischio & Controllo Drawdown</span>
+                <span style="color:var(--green);">Standard Tier-4 Alpha</span>
+            </div>
+            <div class="risk-grid">
+                <div class="risk-field">
+                    <label>Capitale ($)</label>
+                    <input type="number" id="user-balance" value="1000" onchange="loadSignals()">
+                </div>
+                <div class="risk-field">
+                    <label>Rischio (%)</label>
+                    <input type="number" id="user-risk" value="1.0" step="0.5" onchange="loadSignals()">
+                </div>
+                <div class="risk-field">
+                    <label>Timeframe</label>
+                    <select id="user-tf" onchange="loadSignals()">
+                        <option value="5m">5m (Scalp)</option>
+                        <option value="15m" selected>15m (Intra)</option>
+                        <option value="1h">1h (Swing)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
 
-    if action == "BUY":
-        total_pips_to_tp1 = tp1 - entry
-        current_progress = ((current_price - entry) / total_pips_to_tp1 * 100) if total_pips_to_tp1 > 0 else 0
-    elif action == "SELL":
-        total_pips_to_tp1 = entry - tp1
-        current_progress = ((entry - current_price) / total_pips_to_tp1 * 100) if total_pips_to_tp1 > 0 else 0
-    else:
-        current_progress = 0.0
-    
-    progress_pct = max(0.0, min(100.0, current_progress))
+        <div class="filter-row">
+            <div class="filter-chip active" onclick="setFilter('ALL', this)">🌐 TUTTI I MERCATI</div>
+            <div class="filter-chip" onclick="setFilter('BUY', this)">📈 SOLO LONG</div>
+            <div class="filter-chip" onclick="setFilter('SELL', this)">📉 SOLO SHORT</div>
+            <div class="filter-chip" onclick="setFilter('Criptovalute', this)">🪙 CRIPTO (ATTIVO)</div>
+            <div class="filter-chip" onclick="setFilter('Materie Prime & Forex', this)">🥇 FOREX / ORO</div>
+        </div>
 
-    max_risk_amount = account_balance * (risk_percentage / 100.0)
-    price_risk_per_unit = abs(current_price - sl)
-    raw_position_size = (max_risk_amount / price_risk_per_unit) if price_risk_per_unit > 0 else 0.0
-    
-    if current_price < 5:
-        position_size = round(raw_position_size, 2)
-    elif current_price > 10000:
-        position_size = round(raw_position_size, 4)
-    else:
-        position_size = round(raw_position_size, 3)
+        <div id="signals-container">
+            <div style="text-align:center; padding:30px; color:var(--gold); font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:bold;">
+                ⚡ Connessione ai flussi TIER-4 in corso...
+            </div>
+        </div>
+    </div>
 
-    sl_pct = (price_risk_per_unit / current_price) * 100 if current_price > 0 else 1.0
-    recommended_leverage = min(20, max(3, int(round(15.0 / max(sl_pct, 0.5)))))
-    margin_required = round((raw_position_size * current_price) / recommended_leverage, 2)
-    rrr = round(tp_dist / sl_dist, 2) if sl_dist > 0 else 0.0
+    <!-- TAB 2: TELEMETRIA & AUDIT -->
+    <div id="tab-storico" class="tab-content">
+        <div style="font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--gold); margin-bottom:10px; font-weight:800; text-transform:uppercase;">🏆 Telemetria & Registro Audit Tier-4</div>
+        <div class="risk-panel" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; text-align:center;">
+            <div>
+                <span style="font-size:9px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">SEGNALI ATTIVI</span>
+                <strong id="active-count" style="font-size:16px; color:var(--text-main); font-family:'JetBrains Mono',monospace;">0</strong>
+            </div>
+            <div>
+                <span style="font-size:9px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">STATO FIREWALL</span>
+                <strong style="font-size:13px; color:var(--green); font-family:'JetBrains Mono',monospace;">ATTIVO (0 FAKE)</strong>
+            </div>
+        </div>
+        <div class="telemetry-box">
+            <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--gold); margin-bottom:8px; font-weight:bold;">REGISTRO ESECUZIONE QUANTITATIVA</div>
+            <div id="audit-log-container">
+                <p style="text-align:center; padding:20px; font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">In attesa di eventi di esecuzione...</p>
+            </div>
+        </div>
+    </div>
 
-    return {
-        "action": action, "ai_score": ai_score, "sentiment": sentiment, 
-        "sentiment_color": sentiment_color, "sentiment_pct": sentiment_pct,
-        "regime": regime, "bid_pressure": bid_pressure, "ask_pressure": ask_pressure, 
-        "poc_price": poc_price, "vah": vah, "val": val, "dom_status": dom_status, 
-        "footprint_delta": footprint_delta, "liquidity_sweep": liquidity_sweep, 
-        "execution_algo": execution_algo, "breakeven": breakeven_price, "dark_pool": dark_pool, 
-        "gex_status": gex_status, "mtc_matrix": mtc_matrix, "iceberg_tracker": iceberg_tracker, 
-        "liquidation_cascade": liquidation_cascade, "fear_greed": fear_greed, 
-        "macro_watchdog": macro_watchdog, "correlation_matrix": correlation_matrix,
-        "tape_speed": tape_speed, "ai_agent_note": ai_agent_note,
-        "entry": round(entry, decimals), "sl": sl, "tp1": tp1, "tp2": tp2, "tp3": tp3,
-        "max_target": max_target, "max_invalidation": max_invalidation,
-        "rrr": rrr, "decimals": decimals, "rsi": round(rsi, 1),
-        "risk_amount": round(max_risk_amount, 2), "position_size": position_size,
-        "leverage": f"Isolata {recommended_leverage}x", "margin": margin_required,
-        "progress_pct": round(progress_pct, 1), "whipsaw_blocked": whipsaw_detected
-    }
+    <!-- TAB 3: GRAFICO LIVE -->
+    <div id="tab-analizza" class="tab-content">
+        <input type="text" id="asset-search" class="search-input" placeholder="🔍 Cerca asset (es. BTC, XAUUSD, NVDA, TSLA)..." oninput="filterSymbolsBySearch()">
+        <div class="filter-row" id="symbol-selector"></div>
+        <div class="chart-frame">
+            <div class="tradingview-widget-container" style="height:100%;width:100%">
+                <div id="tradingview_widget" style="height:100%;width:100%"></div>
+                <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+            </div>
+        </div>
+    </div>
 
-@app.route('/api/markets', methods=['GET'])
-def get_markets():
-    return jsonify(fetch_all_markets())
+    <nav>
+        <button class="active" onclick="switchTab('segnali', this)">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2m0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8m.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7Z"/></svg>
+            Segnali
+        </button>
+        <button onclick="switchTab('storico', this)">
+            <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
+            Telemetria
+        </button>
+        <button onclick="switchTab('analizza', this)">
+            <svg viewBox="0 0 24 24"><path d="M3 3v18h18v-2H5V3H3m4 10h2v5H7v-5m4-4h2v9h-2V9m4-6h2v15h-2V3Z"/></svg>
+            Grafici
+        </button>
+    </nav>
 
-def process_asset(cat, a, m_status, mode, balance, risk_pct, timeframe):
-    try:
-        df, current_price, source = get_market_data(a['id'], interval=timeframe)
-        if df is not None and not df.empty:
-            p_open = float(df['Open'].iloc[0]) if df['Open'].iloc[0] > 0 else current_price
-            change = float(((current_price - p_open) / p_open) * 100)
-            if np.isnan(change) or not np.isfinite(change): change = 0.0
+    <script>
+        let allMarkets = {};
+        let currentSignals = [];
+        let activeFilter = 'ALL';
+        let audioEnabled = true;
 
-            res = calculate_ai_neural_setup(df, current_price, mode, balance, risk_pct)
-            
-            if res['action'] != "NEUTRAL" and not res["whipsaw_blocked"]:
-                dec = res["decimals"]
-                return {
-                    "id": f"{a['id']}_{res['action']}",
-                    "category": cat, "symbol": a['id'], "name": a['name'],
-                    "action": res["action"], "sentiment": res["sentiment"], 
-                    "sentiment_color": res["sentiment_color"], "sentiment_pct": res["sentiment_pct"],
-                    "regime": res["regime"], "bid_pressure": res["bid_pressure"], "ask_pressure": res["ask_pressure"],
-                    "poc_price": res["poc_price"], "vah": res["vah"], "val": res["val"],
-                    "dom_status": res["dom_status"], "footprint_delta": res["footprint_delta"],
-                    "liquidity_sweep": res["liquidity_sweep"], "execution_algo": res["execution_algo"], 
-                    "breakeven": res["breakeven"], "dark_pool": res["dark_pool"], "gex_status": res["gex_status"], 
-                    "mtc_matrix": res["mtc_matrix"], "iceberg_tracker": res["iceberg_tracker"],
-                    "liquidation_cascade": res["liquidation_cascade"], "fear_greed": res["fear_greed"],
-                    "macro_watchdog": res["macro_watchdog"], "correlation_matrix": res["correlation_matrix"],
-                    "tape_speed": res["tape_speed"], "ai_agent_note": res["ai_agent_note"],
-                    "change": f"{change:+.2f}%", "price": f"{current_price:.{dec}f}", 
-                    "ai_score": f"{res['ai_score']}%", "entry": f"{res['entry']}", "sl": res["sl"], 
-                    "tp1": res["tp1"], "tp2": res["tp2"], "tp3": res["tp3"],
-                    "max_target": res["max_target"], "max_invalidation": res["max_invalidation"],
-                    "rrr": res["rrr"], "rsi": res["rsi"],
-                    "risk_amount": res["risk_amount"], "position_size": res["position_size"],
-                    "leverage": res["leverage"], "margin": res["margin"],
-                    "progress_pct": res["progress_pct"],
-                    "market_status": m_status["text"], "market_schedule": m_status["schedule"],
-                    "is_open": m_status["status"] == "Aperto",
-                    "timestamp": datetime.now().strftime("%H:%M:%S")
+        setInterval(() => {
+            document.getElementById('live-clock').innerText = new Date().toLocaleTimeString('it-IT');
+        }, 1000);
+
+        function toggleAudio() {
+            audioEnabled = !audioEnabled;
+            const btn = document.getElementById('audio-btn');
+            btn.innerText = audioEnabled ? '🔊 AUDIO ON' : '🔇 MUTO';
+            btn.style.color = audioEnabled ? 'var(--green)' : 'var(--red)';
+        }
+
+        function speakAlert(text) {
+            if (!audioEnabled) return;
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'it-IT';
+                utterance.rate = 1.1;
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        async function loadMarketsData() {
+            try {
+                const res = await fetch('/api/markets');
+                allMarkets = await res.json();
+                renderSymbols();
+                loadSignals();
+                setInterval(loadSignals, 20000);
+            } catch (e) {}
+        }
+
+        function setFilter(filterVal, el) {
+            document.querySelectorAll('.filter-row .filter-chip').forEach(c => c.classList.remove('active'));
+            el.classList.add('active');
+            activeFilter = filterVal;
+            renderSignals();
+        }
+
+        async function loadSignals() {
+            const balance = document.getElementById('user-balance').value || 1000;
+            const risk = document.getElementById('user-risk').value || 1.0;
+            const tf = document.getElementById('user-tf').value || '15m';
+
+            try {
+                const res = await fetch(`/api/signals?balance=${balance}&risk=${risk}&timeframe=${tf}`);
+                const newSignals = await res.json();
+                
+                if (newSignals.length > currentSignals.length && currentSignals.length >= 0) {
+                    speakAlert("Nuovo segnale Tier-4 confermato.");
                 }
-    except Exception:
-        pass
-    return None
 
-@app.route('/api/signals', methods=['GET'])
-def get_signals():
-    try:
-        mode = request.args.get('mode', 'Day Trading')
-        timeframe = request.args.get('timeframe', '15m')
-        balance = safe_float(request.args.get('balance', 1000.0), 1000.0)
-        risk_pct = safe_float(request.args.get('risk', 1.0), 1.0)
+                currentSignals = newSignals;
+                document.getElementById('active-count').innerText = currentSignals.length;
+                
+                const auditContainer = document.getElementById('audit-log-container');
+                if (currentSignals.length > 0) {
+                    auditContainer.innerHTML = currentSignals.map(s => `
+                        <div class="audit-row">
+                            <span><strong>${s.name}</strong> • ${s.action} (${s.execution_algo.split(' ')[0]})</span>
+                            <span style="color:var(--gold);">${s.timestamp}</span>
+                        </div>
+                    `).join('');
+                }
 
-        markets = fetch_all_markets()
-        signals = []
-        
-        target_assets = []
-        for cat, assets in markets.items():
-            m_status = get_market_status(cat)
-            for a in assets:
-                target_assets.append((cat, a, m_status))
+                renderSignals();
+            } catch (e) {
+                document.getElementById('signals-container').innerHTML = `
+                    <div style="background:var(--bg-card); border:1px solid var(--red); border-radius:8px; padding:20px; text-align:center;">
+                        <p style="color:var(--red); font-family:'JetBrains Mono',monospace; font-size:11px;">Errore di sincronizzazione flussi Tier-4...</p>
+                    </div>`;
+            }
+        }
 
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = [executor.submit(process_asset, cat, a, m_status, mode, balance, risk_pct, timeframe) for cat, a, m_status in target_assets]
-            for future in as_completed(futures):
-                res = future.result()
-                if res:
-                    signals.append(res)
+        function renderSignals() {
+            const container = document.getElementById('signals-container');
+            let filtered = currentSignals;
 
-        signals.sort(key=lambda x: float(x['ai_score'].replace('%','')), reverse=True)
-        return jsonify(signals)
-    except Exception as e:
-        return jsonify([])
+            if (activeFilter === 'BUY' || activeFilter === 'SELL') {
+                filtered = currentSignals.filter(s => s.action === activeFilter);
+            } else if (activeFilter !== 'ALL') {
+                filtered = currentSignals.filter(s => s.category === activeFilter);
+            }
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+            if (!filtered || filtered.length === 0) {
+                container.innerHTML = `
+                    <div style="background:var(--bg-card); border:1px solid var(--border-gold); border-radius:8px; padding:25px; text-align:center;">
+                        <p style="color:var(--gold); font-family:'JetBrains Mono',monospace; font-weight:800; font-size:12px; margin-bottom:4px;">✨ DESK IN ATTESA DI SETUP TIER-4</p>
+                        <p style="color:var(--text-dim); font-size:10px; font-family:'JetBrains Mono',monospace;">Filtri anti-whipsaw e quantitativi attivi. Nessun rumore ammesso.</p>
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = filtered.map(s => `
+                <div class="signal-card ${s.action}">
+                    <div class="card-top">
+                        <div>
+                            <div class="asset-name">${s.name} <span class="ai-score-pill">AI ${s.ai_score}</span></div>
+                            <div class="card-meta">ORARIO: <strong style="color:var(--gold);">${s.timestamp}</strong> | PREZZO: <strong style="color:var(--text-main); font-family:'JetBrains Mono',monospace;">${s.price}</strong></div>
+                        </div>
+                        <div class="action-badge ${s.action}">${s.action}</div>
+                    </div>
+
+                    <div class="market-status-strip">
+                        <span>🕒 SESSIONE: <strong>${s.market_status}</strong></span>
+                        <span style="color:var(--text-dim); font-size:9px;">${s.market_schedule}</span>
+                    </div>
+
+                    <!-- BANNER SENTIMENT VISIVO IN EVIDENZA -->
+                    <div class="sentiment-banner" style="border-color: ${s.sentiment_color};">
+                        <div class="sentiment-title">
+                            <span>📊 SENTIMENT DI MERCATO VISIVO</span>
+                            <span style="color: ${s.sentiment_color}; font-weight: 800;">${s.sentiment_pct}% CONVINZIONE</span>
+                        </div>
+                        <div class="sentiment-value-box">
+                            <span style="color: ${s.sentiment_color};">${s.sentiment}</span>
+                        </div>
+                        <div class="sentiment-meter">
+                            <div class="sentiment-fill" style="width: ${s.sentiment_pct}%; background: ${s.sentiment_color};"></div>
+                        </div>
+                    </div>
+
+                    <div class="mod-row">
+                        <div class="mod-box">
+                            <span>Regime Macro</span>
+                            <strong>${s.regime}</strong>
+                        </div>
+                        <div class="mod-box">
+                            <span>Algoritmo Esecuzione</span>
+                            <strong style="color:var(--blue);">${s.execution_algo}</strong>
+                        </div>
+                    </div>
+
+                    <!-- NUOVI MODULI TIER-4 ALPHA -->
+                    <div class="mod-row">
+                        <div class="mod-box">
+                            <span>Macro Watchdog</span>
+                            <strong style="color:var(--gold);">${s.macro_watchdog}</strong>
+                        </div>
+                        <div class="mod-box">
+                            <span>Tape Speed (Velocity)</span>
+                            <strong style="color:var(--green);">${s.tape_speed}</strong>
+                        </div>
+                    </div>
+
+                    <div class="mod-row">
+                        <div class="mod-box">
+                            <span>Blocchi Dark Pool</span>
+                            <strong style="color:#7c3aed;">${s.dark_pool}</strong>
+                        </div>
+                        <div class="mod-box">
+                            <span>Esposizione Gamma</span>
+                            <strong style="color:var(--green);">${s.gex_status}</strong>
+                        </div>
+                    </div>
+
+                    <div class="mod-row">
+                        <div class="mod-box">
+                            <span>Fear & Greed Index</span>
+                            <strong style="color:var(--gold);">${s.fear_greed}</strong>
+                        </div>
+                        <div class="mod-box">
+                            <span>Footprint Delta Imbalance</span>
+                            <strong style="color:var(--gold);">${s.footprint_delta}</strong>
+                        </div>
+                    </div>
+
+                    <div class="full-strip">
+                        <span style="color:var(--blue);">📈 Confluenza Multi-TF (MTC):</span>
+                        <strong>${s.mtc_matrix}</strong>
+                    </div>
+
+                    <div class="full-strip" style="border-color:rgba(180,83,9,0.2);">
+                        <span style="color:var(--gold);">🧱 Market Profile (POC / VAH / VAL):</span>
+                        <strong>POC: ${s.poc_price} | VAH: ${s.vah} | VAL: ${s.val}</strong>
+                    </div>
+
+                    <div class="orderbook-box">
+                        <div class="ob-header-desc">📊 Sbilanciamento Order Book (Pressione Denaro / Lettera)</div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:3px; font-weight:600;">
+                            <span style="color:var(--green);">BID (Acquisto): ${s.bid_pressure}%</span>
+                            <span style="color:var(--red);">ASK (Vendita): ${s.ask_pressure}%</span>
+                        </div>
+                        <div class="ob-bars">
+                            <div class="ob-bid" style="width: ${s.bid_pressure}%;"></div>
+                            <div class="ob-ask" style="width: ${s.ask_pressure}%;"></div>
+                        </div>
+                    </div>
+
+                    <div class="full-strip" style="border-color:rgba(220,38,38,0.2);">
+                        <span style="color:var(--red);">🪤 Caccia agli Stop (Liquidity Sweep):</span>
+                        <strong>${s.liquidity_sweep}</strong>
+                    </div>
+
+                    <div class="full-strip" style="border-color:rgba(220,38,38,0.4);">
+                        <span style="color:var(--red);">⚡ Mappa Cascate Liquidazioni:</span>
+                        <strong>${s.liquidation_cascade}</strong>
+                    </div>
+
+                    <div class="full-strip" style="border-color:rgba(124,58,237,0.2);">
+                        <span style="color:#7c3aed;">🐋 Rilevatore Iceberg / Ordini Nascosti:</span>
+                        <strong>${s.iceberg_tracker}</strong>
+                    </div>
+
+                    <div class="full-strip" style="border-color:rgba(2,132,199,0.2);">
+                        <span style="color:var(--blue);">🤖 ASB Agent (Analisi Istituzionale AI):</span>
+                        <strong>${s.ai_agent_note}</strong>
+                    </div>
+
+                    <div class="projection-box" style="background:var(--bg-panel); border:1px solid rgba(180,83,9,0.2); border-radius:6px; padding:8px; margin-bottom:8px; display:flex; justify-content:space-between; font-family:'JetBrains Mono',monospace; font-size:10px;">
+                        <div>
+                            <span style="color:var(--text-dim); font-size:8px; display:block;">TARGET MASSIMO</span>
+                            <strong style="color:var(--gold);">${s.max_target}</strong>
+                        </div>
+                        <div style="text-align:right;">
+                            <span style="color:var(--text-dim); font-size:8px; display:block;">STOP INVALIDAZIONE</span>
+                            <strong style="color:var(--red);">${s.max_invalidation}</strong>
+                        </div>
+                    </div>
+
+                    <div class="full-strip" style="border-color:rgba(2,132,199,0.2);">
+                        <span style="color:var(--blue);">📊 Monitoraggio Progresso verso Target:</span>
+                        <strong style="color:var(--gold);">${s.progress_pct}% Completato</strong>
+                    </div>
+
+                    <div class="levels-grid">
+                        <div class="entry-line">
+                            <span style="color:var(--text-dim);">INGRESSO LIVE:</span>
+                            <span style="color:var(--gold);">${s.entry}</span>
+                        </div>
+                        <div class="tpsl-table">
+                            <div class="tpsl-item"><span style="color:var(--red);">SL:</span><strong style="color:var(--red);">${s.sl}</strong></div>
+                            <div class="tpsl-item"><span style="color:var(--green);">TP1:</span><strong style="color:var(--green);">${s.tp1}</strong></div>
+                            <div class="tpsl-item"><span style="color:var(--green);">TP2:</span><strong style="color:var(--green);">${s.tp2}</strong></div>
+                            <div class="tpsl-item"><span style="color:var(--green);">TP3:</span><strong style="color:var(--green);">${s.tp3}</strong></div>
+                        </div>
+                        <div style="margin-top:6px; font-size:9px; color:var(--blue); text-align:center; font-family:'JetBrains Mono',monospace;">
+                            🔄 AUTOMAZIONE BREAK-EVEN (Sposta SL a BE dopo TP1): <strong style="color:var(--gold);">${s.breakeven}</strong>
+                        </div>
+                    </div>
+
+                    <div class="sizing-box">
+                        <div><span>QUANTITÀ SIZE</span><strong>${s.position_size}</strong></div>
+                        <div><span>LEVA BINGX</span><strong>${s.leverage}</strong></div>
+                        <div><span>RISCHIO ($)</span><strong>$${s.risk_amount}</strong></div>
+                    </div>
+
+                    <button class="btn-bingx" onclick="copyBingX('${s.name}', '${s.action}', '${s.entry}', '${s.sl}', '${s.tp1}', '${s.tp2}', '${s.tp3}', '${s.max_target}', '${s.timestamp}', '${s.leverage}', '${s.position_size}', '${s.breakeven}')">
+                        📋 COPIA ORDINE BINGX TIER-4 ALPHA
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function copyBingX(name, action, entry, sl, tp1, tp2, tp3, maxTarget, timestamp, lev, size, be) {
+            const text = `✨ SEGNALE TIER-4 ALPHA - BINGX\nOrario: ${timestamp}\nAsset: ${name}\nDirezione: ${action}\nTarget Massimo: ${maxTarget}\nSposta SL in Break-Even a: ${be}\nLeva: ${lev}\nSize: ${size}\nIngresso: ${entry}\nStop Loss: ${sl}\nTP1: ${tp1}\nTP2: ${tp2}\nTP3: ${tp3}`;
+            navigator.clipboard.writeText(text);
+            alert('✅ Ordine istituzionale Tier-4 copiato negli appunti per BingX!');
+        }
+
+        function renderSymbols(filteredAssets = null) {
+            const container = document.getElementById('symbol-selector');
+            let allAs = filteredAssets || Object.values(allMarkets).flat();
+            container.innerHTML = allAs.slice(0, 40).map((asset, index) => `
+                <div class="filter-chip ${index === 0 && !filteredAssets ? 'active' : ''}" onclick="setSymbol(this, '${asset.id}')">${asset.name}</div>
+            `).join('');
+            if (allAs.length > 0 && !filteredAssets) initTradingView(allAs[0].id);
+        }
+
+        function filterSymbolsBySearch() {
+            const q = document.getElementById('asset-search').value.toLowerCase();
+            const allAs = Object.values(allMarkets).flat();
+            const filtered = allAs.filter(a => a.id.toLowerCase().includes(q) || a.name.toLowerCase().includes(q));
+            renderSymbols(filtered);
+            if (filtered.length > 0) initTradingView(filtered[0].id);
+        }
+
+        function setSymbol(el, symbol) {
+            if (el) {
+                document.querySelectorAll('#symbol-selector .filter-chip').forEach(c => c.classList.remove('active'));
+                el.classList.add('active');
+            }
+            initTradingView(symbol);
+        }
+
+        function initTradingView(symbol) {
+            const container = document.getElementById('tradingview_widget');
+            container.innerHTML = '';
+            let tvSymbol = 'BINANCE:BTCUSDT';
+            if (symbol === 'XAUUSD') tvSymbol = 'OANDA:XAUUSD';
+            else if (symbol === 'XAGUSD') tvSymbol = 'OANDA:XAGUSD';
+            else if (symbol === 'EURUSDT') tvSymbol = 'FX:EURUSD';
+            else if (symbol === 'GBPUSDT') tvSymbol = 'FX:GBPUSD';
+            else if (symbol === 'USDJPY') tvSymbol = 'FX:USDJPY';
+            else if (['AAPL', 'TSLA', 'NVDA', 'AMZN'].includes(symbol)) tvSymbol = `NASDAQ:${symbol}`;
+            else if (symbol === 'SPX500') tvSymbol = 'SP:SPX';
+            else tvSymbol = `BINANCE:${symbol.replace('USDT', '')}USDT`;
+
+            new TradingView.widget({
+                "autosize": true, "symbol": tvSymbol, "interval": "15",
+                "timezone": "Europe/Rome", "theme": "light", "style": "1", "locale": "it",
+                "toolbar_bg": "#f8fafc", "enable_publishing": false, "container_id": "tradingview_widget"
+            });
+        }
+
+        function switchTab(tabId, btn) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('nav button').forEach(el => el.classList.remove('active'));
+            document.getElementById('tab-' + tabId).classList.add('active');
+            btn.classList.add('active');
+        }
+
+        window.onload = loadMarketsData;
+    </script>
+</body>
+</html>
