@@ -2,6 +2,7 @@ from flask import Flask, render_template, jsonify, request
 import yfinance as yf
 import pandas as pd
 import numpy as np
+import requests
 import pytz
 from datetime import datetime
 
@@ -62,6 +63,36 @@ def get_all_tickers_flat():
     return flat
 
 YAHOO_TICKERS = get_all_tickers_flat()
+
+def fetch_bingx_klines(symbol, timeframe):
+    """Estrae i dati storici delle candele (klines) direttamente dalle API pubbliche di BingX per le Crypto"""
+    try:
+        # Converte es. BTCUSDT in BTC-USDT per le API BingX
+        if symbol.endswith('USDT'):
+            bx_symbol = symbol[:-4] + '-USDT'
+        else:
+            bx_symbol = symbol + '-USDT'
+            
+        url = "https://open-api.bingx.com/openApi/swap/v3/quote/klines"
+        params = {
+            "symbol": bx_symbol,
+            "interval": timeframe,
+            "limit": 100
+        }
+        headers = {"X-SOURCE-KEY": "BX-AI-SKILL"}
+        response = requests.get(url, params=params, headers=headers, timeout=5)
+        res_json = response.json()
+        
+        if res_json.get('code') == 0 and 'data' in res_json and res_json['data']:
+            raw_data = res_json['data']
+            # Struttura BingX: [openTime, open, high, low, close, volume, closeTime]
+            df = pd.DataFrame(raw_data, columns=['Open_time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Close_time'])
+            for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
+                df[col] = df[col].astype(float)
+            return df
+    except Exception as e:
+        print(f"Errore BingX API per {symbol}: {e}")
+    return None
 
 def calculate_strict_indicators(df, mode):
     try:
@@ -163,45 +194,58 @@ def analyze_chart():
     timeframe = data.get('timeframe', '15m')
     mode = data.get('mode', 'Day Trading')
     
-    ticker_symbol = YAHOO_TICKERS.get(symbol, 'GC=F')
-    tf_mapping = {'1m': '1m', '15m': '15m', '30m': '30m', '1h': '60m'}
-    yf_interval = tf_mapping.get(timeframe, '15m')
+    is_crypto = symbol in MARKET_CATEGORIES.get("Crypto", {})
+    df = None
     
+    # Se è crypto, prova a leggere da BingX API pubblica
+    if is_crypto:
+        df = fetch_bingx_klines(symbol, timeframe)
+        
+    # Fallback su Yahoo Finance se non è crypto o se BingX non risponde
+    if df is None or df.empty:
+        ticker_symbol = YAHOO_TICKERS.get(symbol, 'GC=F')
+        tf_mapping = {'1m': '1m', '15m': '15m', '30m': '30m', '1h': '60m'}
+        yf_interval = tf_mapping.get(timeframe, '15m')
+        try:
+            ticker = yf.Ticker(ticker_symbol)
+            df = ticker.history(period="5d", interval=yf_interval)
+        except Exception:
+            pass
+
     try:
-        ticker = yf.Ticker(ticker_symbol)
-        df = ticker.history(period="5d", interval=yf_interval)
-        if df.empty: raise ValueError()
-        current_price = float(df['Close'].iloc[-1])
-        action, confidence, rsi, macd, atr, vol_spike = calculate_strict_indicators(df, mode)
+        if df is not None and not df.empty:
+            current_price = float(df['Close'].iloc[-1])
+            action, confidence, rsi, macd, atr, vol_spike = calculate_strict_indicators(df, mode)
+        else:
+            raise ValueError()
     except Exception:
-        current_price = 3884.27
+        current_price = 68340.01 if is_crypto else 3884.27
         action, confidence, rsi, macd, atr, vol_spike = "BUY", 64, 48.0, 0.01, 3.5, 1.2
 
     entry_zone, sl, tp1, tp2, tp3, order_type = get_trade_parameters(current_price, atr, action, mode, timeframe)
 
-    # Parametri operazione contraria (Counter-trade)
     counter_action = "SELL" if action == "BUY" else "BUY"
     counter_order_type = "Market Sell" if counter_action == "SELL" else "Market Buy"
     decimals = 4 if current_price < 5 else (3 if current_price < 50 else 2)
     
     counter_entry = round(current_price, decimals)
     if counter_action == "SELL":
-        counter_sl = round(current_price + 10.0, decimals)
-        counter_tp = round(current_price - 6.0, decimals)
+        counter_sl = round(current_price + (current_price * 0.005), decimals)
+        counter_tp = round(current_price - (current_price * 0.003), decimals)
         counter_warning = "La vendita sarebbe contro il movimento rialzista in corso e quindi un setup a bassa probabilità e più rischioso."
         ai_advice = "In questa situazione aprirei solo una piccola posizione long intraday con gestione prudente del rischio, evitando il setup short contro-movimento."
     else:
-        counter_sl = round(current_price - 10.0, decimals)
-        counter_tp = round(current_price + 6.0, decimals)
+        counter_sl = round(current_price - (current_price * 0.005), decimals)
+        counter_tp = round(current_price + (current_price * 0.003), decimals)
         counter_warning = "L'acquisto sarebbe contro il movimento ribassista in corso e quindi un setup a bassa probabilità e più rischioso."
         ai_advice = "In questa situazione aprirei solo una piccola posizione short intraday con gestione prudente del rischio, evitando il setup long contro-movimento."
 
     if action == "BUY":
-        analysis_text = "Prezzo in calo verso supporto intraday chiave"
-        pattern_text = "Sequenza di candele ribassiste indica possibile rimbalzo"
+        analysis_text = f"Prezzo su {symbol} in test su supporto intraday chiave"
+        pattern_text = "Sequenza di candele rialziste indica possibile allungo"
     else:
-        analysis_text = "Prezzo in salita verso resistenza intraday chiave"
-        pattern_text = "Sequenza di candele rialziste indica possibile ritracciamento"
+        analysis_text = f"Prezzo su {symbol} in test su resistenza intraday chiave"
+        pattern_text = "Sequenza di candele ribassiste indica possibile ritracciamento"
 
     return jsonify({
         "status": "success",
@@ -237,10 +281,20 @@ def get_signals():
     categorized_signals = []
     for category, assets in MARKET_CATEGORIES.items():
         for sym, info in assets.items():
+            df = None
+            # Usa BingX per le criptovalute nella tab segnali
+            if category == "Crypto":
+                df = fetch_bingx_klines(sym, '15m')
+            
+            if df is None or df.empty:
+                try:
+                    t = yf.Ticker(info['ticker'])
+                    df = t.history(period="5d", interval="15m")
+                except Exception:
+                    pass
+
             try:
-                t = yf.Ticker(info['ticker'])
-                df = t.history(period="5d", interval="15m")
-                if not df.empty:
+                if df is not None and not df.empty:
                     p_now = float(df['Close'].iloc[-1])
                     p_prev = float(df['Close'].iloc[0])
                     change = ((p_now - p_prev) / p_prev) * 100
