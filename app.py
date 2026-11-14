@@ -42,17 +42,16 @@ def fetch_all_markets():
     return markets
 
 def get_market_status(category):
-    # Le cripto sono sempre aperte (24/7), Forex/Azioni chiudono nel weekend
     if category == "Criptovalute":
-        return {"status": "Aperto", "text": "🟢 Aperto 24/7", "countdown": ""}
+        return {"status": "Aperto", "text": "🟢 Operativo 24/7", "countdown": "Mercato Continuo"}
     
     now = datetime.now(timezone.utc)
-    weekday = now.weekday() # 5 = Sabato, 6 = Domenica
+    weekday = now.weekday()
     
-    if weekday >= 5: # Weekend
-        return {"status": "Chiuso", "text": "🔴 Mercato Chiuso", "countdown": "Riapre lunedì 00:00 UTC"}
+    if weekday >= 5:
+        return {"status": "Chiuso", "text": "🔴 Mercato Chiuso", "countdown": "Riapertura Lunedì 00:00 UTC"}
     else:
-        return {"status": "Aperto", "text": "🟢 Aperto", "countdown": ""}
+        return {"status": "Aperto", "text": "🟢 Aperto", "countdown": "Sessione Live"}
 
 def safe_float(val, default=0.0):
     try:
@@ -86,7 +85,7 @@ def get_market_data(symbol):
                 live_price = float(p_res['price'])
                 df.loc[df.index[-1], 'Close'] = live_price
 
-            return df, live_price, "Binance Live Real"
+            return df, live_price, "Binance Institutional Feed"
     except Exception:
         pass
 
@@ -95,7 +94,7 @@ def get_market_data(symbol):
         'Open': [p]*70, 'High': [p*1.002]*70, 'Low': [p*0.998]*70,
         'Close': [p]*70, 'Volume': [30000]*70
     })
-    return df, p, "Smart Sync"
+    return df, p, "Smart Sync Protocol"
 
 def calculate_certified_setup(df, current_price, mode, timeframe, account_balance, risk_percentage):
     close = df['Close']
@@ -120,7 +119,7 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
     atr = safe_float(tr.rolling(14).mean().iloc[-1], current_price * 0.005)
     if atr <= 0: atr = current_price * 0.005
 
-    # Filtri Whipsaw
+    # Filtri Anti-Whipsaw
     vol = df['Volume']
     vol_sma = safe_float(vol.rolling(20).mean().iloc[-1], 1000.0)
     current_vol = safe_float(vol.iloc[-1], 1000.0)
@@ -149,7 +148,6 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
     is_perfect_buy = ema_bullish and macd_bullish and rsi_bullish_perfect and (whipsaw_detected == "No")
     is_perfect_sell = ema_bearish and macd_bearish and rsi_bearish_perfect and (whipsaw_detected == "No")
 
-    # STRICT 100% LOGIC: Se non è perfetto al 100%, confidenza base inferiore
     if is_perfect_buy:
         action = "BUY"
         confidence = 100
@@ -158,7 +156,7 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
         confidence = 100
     else:
         action = "BUY" if ema_val_12 >= ema_val_26 else "SELL"
-        confidence = 45 # Sotto la soglia del 100% per non essere esposto nei segnali certi
+        confidence = 50
 
     if mode == 'Scalping':
         sl_m, tp_m = 0.4, 1.0
@@ -195,11 +193,7 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
     position_size = (max_risk_amount / price_risk_per_unit) if price_risk_per_unit > 0 else 0.0
     rrr = round(tp_dist / sl_dist, 2) if sl_dist > 0 else 0.0
 
-    if confidence == 100:
-        status_msg = f"🔥 Segnale Certificato al 100%: RSI ({rsi:.1f}), MACD e filtri allineati."
-    else:
-        status_msg = f"⏳ In attesa di perfezione assoluta (RSI: {rsi:.1f})."
-
+    status_msg = f"🔥 SETUP MASTER 100%: RSI ({rsi:.1f}), MACD e filtri anti-rumore allineati." if confidence == 100 else f"⏳ In attesa di perfezione (RSI: {rsi:.1f})."
     ai_advice = f"[{mode}] Rischio: {risk_percentage}% (${max_risk_amount:.2f}). RRR = 1:{rrr}. {status_msg}"
 
     return {
@@ -225,7 +219,6 @@ def analyze_chart():
         risk_percentage = float(data.get('risk_percentage', 1.0))
 
         df, current_price, source = get_market_data(symbol)
-        
         p_open = float(df['Open'].iloc[0]) if df['Open'].iloc[0] > 0 else current_price
         change = float(((current_price - p_open) / p_open) * 100)
         if np.isnan(change) or not np.isfinite(change): change = 0.0
@@ -262,7 +255,7 @@ def get_signals():
 
                     res = calculate_certified_setup(df, current_price, 'Day Trading', '15m', 1000.0, 1.0)
                     
-                    # FILTRO RIGIDO: Mostriamo SOLO i segnali esatti con confidenza al 100%
+                    # FILTRO RIGIDO: Solo segnali esatti al 100%
                     if res['confidence'] == 100:
                         dec = res["decimals"]
                         signals.append({
@@ -270,12 +263,11 @@ def get_signals():
                             "action": res["action"], "order_type": res["order_type"],
                             "change": f"{change:+.2f}%", "price": f"{current_price:.{dec}f}",
                             "prob": f"{res['confidence']}%", "entry": res["entry_zone"],
-                            "sl": res["sl"], "tp1": res["tp1"], "rrr": res["rrr"],
-                            "market_status": m_status["text"], "countdown": m_status["countdown"]
+                            "sl": res["sl"], "tp1": res["tp1"], "tp2": res["tp2"], "tp3": res["tp3"],
+                            "rrr": res["rrr"], "market_status": m_status["text"], "countdown": m_status["countdown"]
                         })
         return jsonify(signals)
     except Exception as e:
-        print("Errore signals:", e)
         return jsonify([])
 
 if __name__ == '__main__':
