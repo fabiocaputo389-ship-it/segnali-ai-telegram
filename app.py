@@ -94,7 +94,9 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
     body = abs(c_last - o_last)
     rng = h_last - l_last
     is_pin_bar = bool((rng > 0) and ((body / rng) < 0.3))
-    whipsaw_detected = bool(low_volume_flag or is_pin_bar)
+    
+    # Trasformiamo in intero (1 o 0) per evitare qualsiasi errore JSON
+    whipsaw_detected = 1 if (low_volume_flag or is_pin_bar) else 0
 
     ema_val_12 = safe_float(ema12.iloc[-1], current_price)
     ema_val_26 = safe_float(ema26.iloc[-1], current_price)
@@ -107,8 +109,8 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
     macd_bearish = current_macd < 0.0
     rsi_bearish_perfect = 28 <= rsi <= 48
 
-    is_perfect_buy = bool(ema_bullish and macd_bullish and rsi_bullish_perfect and not whipsaw_detected)
-    is_perfect_sell = bool(ema_bearish and macd_bearish and rsi_bearish_perfect and not whipsaw_detected)
+    is_perfect_buy = ema_bullish and macd_bullish and rsi_bullish_perfect and (whipsaw_detected == 0)
+    is_perfect_sell = ema_bearish and macd_bearish and rsi_bearish_perfect and (whipsaw_detected == 0)
 
     if is_perfect_buy:
         action = "BUY"
@@ -118,7 +120,7 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
         confidence = 100
     else:
         action = "BUY" if ema_val_12 >= ema_val_26 else "SELL"
-        confidence = 75 if not whipsaw_detected else 40
+        confidence = 75 if whipsaw_detected == 0 else 40
 
     if mode == 'Scalping':
         sl_m, tp_m = 0.4, 1.0
@@ -169,7 +171,7 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
         "action": action, "confidence": int(confidence), "order_type": order_type,
         "entry_zone": f"{entry_l} - {entry_h}", "sl": sl, "tp1": tp1, "tp2": tp2, "tp3": tp3,
         "risk_amount": round(max_risk_amount, 2), "position_size": round(position_size, 4),
-        "rrr": rrr, "whipsaw_detected": bool(whipsaw_detected), "status_msg": status_msg,
+        "rrr": rrr, "whipsaw_detected": whipsaw_detected, "status_msg": status_msg,
         "ai_recommendation": ai_advice, "decimals": decimals
     }
 
@@ -198,7 +200,7 @@ def analyze_chart():
             "entry_zone": res["entry_zone"], "stop_loss": res["sl"],
             "take_profit_1": res["tp1"], "take_profit_2": res["tp2"], "take_profit_3": res["tp3"],
             "risk_amount": res["risk_amount"], "position_size": res["position_size"], "rrr": res["rrr"],
-            "whipsaw_detected": bool(res["whipsaw_detected"]), "status_msg": res["status_msg"],
+            "whipsaw_detected": int(res["whipsaw_detected"]), "status_msg": res["status_msg"],
             "ai_recommendation": res["ai_recommendation"]
         })
     except Exception as e:
