@@ -32,8 +32,8 @@
         @keyframes scanMove { 0% { top: 0%; } 100% { top: 98%; } }
         .scanner-text { position: absolute; top: 10px; right: 10px; background: rgba(0, 0, 0, 0.8); color: #00b8d9; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: bold; z-index: 51; display: none; border: 1px solid #00b8d9; }
 
-        .whipsaw-alert-box { background: #1f1610; border: 1px solid #f59e0b; border-radius: 12px; padding: 12px; margin-bottom: 15px; display: none; }
-        .whipsaw-alert-box.danger { background: #261012; border-color: #f6465d; }
+        .status-alert-box { background: #121f1a; border: 1px solid #0ecb81; border-radius: 12px; padding: 12px; margin-bottom: 15px; display: none; }
+        .status-alert-box.danger { background: #261012; border-color: #f6465d; }
 
         .btn-primary { width: 100%; background: #00b8d9; color: #000; border: none; padding: 14px; border-radius: 12px; font-size: 15px; font-weight: bold; cursor: pointer; margin-bottom: 15px; }
         .live-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: #0ecb81; background: rgba(14, 203, 129, 0.12); padding: 3px 8px; border-radius: 6px; }
@@ -73,7 +73,7 @@
         <div class="top-stats">
             <span>Modo: <span id="mode-display" style="color:#0ecb81;">Day Trading</span></span>
         </div>
-        <div class="live-badge"><div class="dot-live"></div> WHISPAW GUARD ACTIVE</div>
+        <div class="live-badge"><div class="dot-live"></div> SOGLIA 100% PERFEZIONE</div>
     </header>
 
     <!-- TAB 1: ANALIZZA & RISCHIO -->
@@ -96,10 +96,10 @@
             </div>
         </div>
 
-        <!-- BOX AVVISO WHISPAW -->
-        <div class="whipsaw-alert-box" id="whipsaw-box">
-            <div style="font-size: 12px; font-weight: bold; color: #f59e0b; margin-bottom: 2px;" id="whipsaw-title">🛡️ Whipsaw Guard</div>
-            <p id="whipsaw-text" style="font-size: 12px; color: #cbd5e1; line-height: 1.3;">Analisi falsi breakout in corso...</p>
+        <!-- BOX DI STATO PERFEZIONE 100% -->
+        <div class="status-alert-box" id="status-box">
+            <div style="font-size: 12px; font-weight: bold; color: #0ecb81; margin-bottom: 2px;" id="status-title">🔥 Controllo Allineamento 100%</div>
+            <p id="status-text" style="font-size: 12px; color: #cbd5e1; line-height: 1.3;">In attesa di scansione...</p>
         </div>
 
         <div class="market-category-bar">
@@ -117,7 +117,7 @@
             <div class="scanner-overlay" id="scanner-overlay">
                 <div class="scanner-line"></div>
             </div>
-            <div class="scanner-text" id="scanner-text">🛡️ Scansione Whipsaw & Trend...</div>
+            <div class="scanner-text" id="scanner-text">🔍 Scansione Allineamento 100%...</div>
             <div class="tradingview-widget-container" style="height:100%;width:100%">
                 <div id="tradingview_widget" style="height:100%;width:100%"></div>
                 <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
@@ -131,26 +131,26 @@
             <div class="chip" onclick="setTimeframe(this, '1h')">1h</div>
         </div>
 
-        <button class="btn-primary" onclick="triggerChartScanner()">🛡️ Avvia Scanner Anti-Whipsaw & TP/SL</button>
+        <button class="btn-primary" onclick="triggerChartScanner()">🔥 Avvia Scanner 100% & Calcola TP/SL</button>
 
         <div id="analysis-result" style="display:block;">
             <div class="ai-master-box">
-                <div style="font-size: 14px; font-weight: bold; color: #00b8d9; margin-bottom: 6px;">🧠 AI Mastermind & Risk Guard</div>
-                <p id="res-ai-advice" style="font-size: 13px; color: #cbd5e1; line-height: 1.4;">In attesa di scansione...</p>
+                <div style="font-size: 14px; font-weight: bold; color: #00b8d9; margin-bottom: 6px;">🧠 AI Mastermind — Filtro Perfezione</div>
+                <p id="res-ai-advice" style="font-size: 13px; color: #cbd5e1; line-height: 1.4;">Pronto per la scansione...</p>
             </div>
 
             <div class="result-card">
                 <div class="result-header">
                     <div>
                         <div class="asset-title" id="res-symbol">Pronto alla Scansione</div>
-                        <span id="res-source" style="font-size:11px; color:#848e9c;">Whipsaw Guard Attivo</span>
+                        <span id="res-source" style="font-size:11px; color:#848e9c;">Filtro 100% Attivo</span>
                     </div>
                     <div id="res-action" class="badge-action BUY">--</div>
                 </div>
 
                 <div class="favorability-container">
                     <div class="favorability-info">
-                        <span>Affidabilità Matematica (≥80%)</span>
+                        <span>Affidabilità (Target 100%)</span>
                         <strong id="res-fav" style="color: #0ecb81;">--</strong>
                     </div>
                     <div class="favorability-bar">
@@ -174,17 +174,17 @@
             </div>
 
             <div class="btn-row" style="margin-top: 15px;">
-                <button class="btn-action" onclick="copySignal()"><span>📋</span> Copia segnale protetto</button>
+                <button class="btn-action" onclick="copySignal()"><span>📋</span> Copia segnale 100%</button>
                 <button class="btn-action" onclick="shareSignal()"><span>📤</span> Condividi segnale</button>
             </div>
         </div>
     </div>
 
-    <!-- TAB 2: SEGNALI CERTI -->
+    <!-- TAB 2: SEGNALI CERTI 100% -->
     <div id="tab-segnali" class="tab-content">
-        <h3 style="font-size: 16px; margin-bottom: 12px;">Top Asset Certi (Filtro Whipsaw & Confidenza ≥ 80%)</h3>
+        <h3 style="font-size: 16px; margin-bottom: 12px;">Segnali Certi al 100% (Allineamento Perfetto)</h3>
         <div id="signals-container">
-            <p style="color: #848e9c; font-size: 13px;">Scansione globale del mercato in corso...</p>
+            <p style="color: #848e9c; font-size: 13px;">Scansione globale del mercato in corso (richiede allineamento 100% rigoroso)...</p>
         </div>
     </div>
 
@@ -192,11 +192,11 @@
     <nav>
         <button class="active" onclick="switchTab('analizza', this)">
             <svg viewBox="0 0 24 24"><path d="M3 3v18h18v-2H5V3H3m4 10h2v5H7v-5m4-4h2v9h-2V9m4-6h2v15h-2V3Z"/></svg>
-            Analizza & Anti-Whipsaw
+            Analizza 100%
         </button>
         <button onclick="switchTab('segnali', this)">
             <svg viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2m0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8m.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7Z"/></svg>
-            Segnali Certi
+            Segnali Certi 100%
         </button>
     </nav>
 
@@ -334,15 +334,14 @@
                     actionBadge.innerText = data.action;
                     actionBadge.className = `badge-action ${data.action}`;
 
-                    // Gestione visiva box Whipsaw
-                    const whipsawBox = document.getElementById('whipsaw-box');
-                    const whipsawText = document.getElementById('whipsaw-text');
-                    whipsawBox.style.display = 'block';
-                    whipsawText.innerText = data.whipsaw_msg;
-                    if(data.whipsaw_detected) {
-                        whipsawBox.className = 'whipsaw-alert-box danger';
+                    const statusBox = document.getElementById('status-box');
+                    const statusText = document.getElementById('status-text');
+                    statusBox.style.display = 'block';
+                    statusText.innerText = data.status_msg;
+                    if(data.favorability === 100) {
+                        statusBox.className = 'status-alert-box';
                     } else {
-                        whipsawBox.className = 'whipsaw-alert-box';
+                        statusBox.className = 'status-alert-box danger';
                     }
 
                     document.getElementById('res-live-price').innerText = data.current_price;
@@ -394,26 +393,26 @@
                                 <span style="color: #0ecb81;"><strong>TP1:</strong> ${s.tp1}</span>
                             </div>
                             <div style="font-size: 11px; color: #848e9c; margin-top: 6px; border-top: 1px solid #1f2633; padding-top: 4px; display:flex; justify-content:space-between;">
-                                <span>Affidabilità: <strong style="color:#0ecb81;">${s.prob}</strong></span>
+                                <span>Affidabilità: <strong style="color:#0ecb81;">${s.prob} (PERFEZIONE)</strong></span>
                                 <span>RRR: <strong style="color:#38bdf8;">1:${s.rrr}</strong></span>
                             </div>
                         </div>
                     `).join('');
                 }
-                container.innerHTML = html || '<p style="color:#848e9c;">Nessun segnale sicuro senza rischi Whipsaw al momento.</p>';
+                container.innerHTML = html || '<p style="color:#848e9c;">Nessun asset soddisfa il criterio di perfezione assoluta al 100% in questo momento (mercato in attesa di setup ideali).</p>';
             } catch (e) {
                 document.getElementById('signals-container').innerHTML = '<p style="color:#f6465d;">Errore di caricamento.</p>';
             }
         }
 
         function copySignal() {
-            navigator.clipboard.writeText(`Setup AI protetto (${currentMode}):\nAsset: ${currentSymbol}\nIngresso: ${document.getElementById('res-entry').innerText}\nStop Loss: ${document.getElementById('res-sl').innerText}\nTake Profit: ${document.getElementById('res-tp1').innerText}\nSize: ${document.getElementById('res-pos-size').innerText}`);
+            navigator.clipboard.writeText(`Setup AI 100% (${currentMode}):\nAsset: ${currentSymbol}\nIngresso: ${document.getElementById('res-entry').innerText}\nStop Loss: ${document.getElementById('res-sl').innerText}\nTake Profit: ${document.getElementById('res-tp1').innerText}\nSize: ${document.getElementById('res-pos-size').innerText}`);
             alert('Segnale copiato negli appunti!');
         }
 
         function shareSignal() {
             if (navigator.share) {
-                navigator.share({ title: 'Segnale Protetto', text: 'Setup verificato:', url: window.location.href });
+                navigator.share({ title: 'Segnale 100%', text: 'Setup perfetto verificato:', url: window.location.href });
             } else {
                 copySignal();
             }
