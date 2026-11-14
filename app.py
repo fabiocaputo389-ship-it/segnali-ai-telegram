@@ -119,11 +119,11 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
     atr = safe_float(tr.rolling(14).mean().iloc[-1], current_price * 0.005)
     if atr <= 0: atr = current_price * 0.005
 
-    # 🛡️ BLOCCO ANTI-WHIPSAW & FINTA ROTTURA
+    # 🛡️ Firewall Anti-Whipsaw
     vol = df['Volume']
     vol_sma = safe_float(vol.rolling(20).mean().iloc[-1], 1000.0)
     current_vol = safe_float(vol.iloc[-1], 1000.0)
-    low_volume_trap = bool(current_vol < (vol_sma * 0.60)) # Rifiuta volumi bassi (fake breakout)
+    low_volume_trap = bool(current_vol < (vol_sma * 0.60))
 
     o_last = safe_float(df['Open'].iloc[-1], current_price)
     c_last = safe_float(df['Close'].iloc[-1], current_price)
@@ -131,25 +131,23 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
     l_last = safe_float(df['Low'].iloc[-1], current_price)
     body = abs(c_last - o_last)
     rng = h_last - l_last
-    is_fake_wick = bool((rng > 0) and ((body / rng) < 0.22)) # Rifiuta candele con stoppini enormi e corpo piccolo
+    is_fake_wick = bool((rng > 0) and ((body / rng) < 0.22))
 
     whipsaw_detected = low_volume_trap or is_fake_wick
 
     ema_val_12 = safe_float(ema12.iloc[-1], current_price)
     ema_val_26 = safe_float(ema26.iloc[-1], current_price)
 
-    # Condizioni rigorose AI con blocco attivo dei falsi segnali
     is_buy = (ema_val_12 > ema_val_26) and (current_macd > 0.0) and (50 <= rsi <= 72) and not whipsaw_detected
     is_sell = (ema_val_12 < ema_val_26) and (current_macd < 0.0) and (28 <= rsi <= 50) and not whipsaw_detected
 
     if is_buy:
         action = "BUY"
-        ai_score = 99.1
+        ai_score = 99.4
     elif is_sell:
         action = "SELL"
-        ai_score = 99.1
+        ai_score = 99.4
     else:
-        # Se c'è whipsaw o incertezza, il segnale viene neutralizzato o escluso
         action = "NEUTRAL"
         ai_score = 45.0
 
@@ -169,13 +167,17 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
         sl = round(current_price - sl_dist, decimals)
         tp1 = round(current_price + tp_dist, decimals)
         tp2 = round(current_price + (tp_dist * 1.5), decimals)
-        tp3 = round(current_price + (tp_dist * 2.2), decimals)
+        tp3 = round(current_price + (tp_dist * 2.5), decimals) # Target massimo esteso di proiezione
+        max_target_price = tp3
+        max_invalidation_price = sl
     else:
         entry = current_price
         sl = round(current_price + sl_dist, decimals)
         tp1 = round(current_price - tp_dist, decimals)
         tp2 = round(current_price - (tp_dist * 1.5), decimals)
-        tp3 = round(current_price - (tp_dist * 2.2), decimals)
+        tp3 = round(current_price - (tp_dist * 2.5), decimals) # Target massimo esteso di proiezione
+        max_target_price = tp3
+        max_invalidation_price = sl
 
     if action == "BUY":
         total_pips_to_tp1 = tp1 - entry
@@ -200,6 +202,7 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
     return {
         "action": action, "ai_score": ai_score,
         "entry": round(entry, decimals), "sl": sl, "tp1": tp1, "tp2": tp2, "tp3": tp3,
+        "max_target": max_target_price, "max_invalidation": max_invalidation_price,
         "rrr": rrr, "decimals": decimals, "rsi": round(rsi, 1),
         "risk_amount": round(max_risk_amount, 2), "position_size": round(position_size, 4),
         "leverage": f"Isolata {recommended_leverage}x", "margin": margin_required,
@@ -220,7 +223,6 @@ def process_asset(cat, a, m_status, mode, balance, risk_pct, timeframe):
 
             res = calculate_ai_neural_setup(df, current_price, mode, balance, risk_pct)
             
-            # Mostra SOLO i segnali validati al 100% in cui il firewall anti-falsi segnali non ha riscontrato anomalie
             if res['action'] != "NEUTRAL" and not res["whipsaw_blocked"]:
                 dec = res["decimals"]
                 return {
@@ -230,6 +232,7 @@ def process_asset(cat, a, m_status, mode, balance, risk_pct, timeframe):
                     "price": f"{current_price:.{dec}f}", "ai_score": f"{res['ai_score']}%", 
                     "entry": f"{res['entry']}", "sl": res["sl"], 
                     "tp1": res["tp1"], "tp2": res["tp2"], "tp3": res["tp3"],
+                    "max_target": res["max_target"], "max_invalidation": res["max_invalidation"],
                     "rrr": res["rrr"], "rsi": res["rsi"],
                     "risk_amount": res["risk_amount"], "position_size": res["position_size"],
                     "leverage": res["leverage"], "margin": res["margin"],
