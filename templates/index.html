@@ -22,14 +22,20 @@
         .search-box { margin-bottom: 10px; }
         .search-input { width: 100%; background: #181f2a; border: 1px solid #2a3447; border-radius: 10px; padding: 10px 14px; color: #fff; font-size: 13px; outline: none; }
         
-        /* Grafico con Scanner Laser Effetto */
-        .chart-container { position: relative; background: #121620; border-radius: 12px; border: 1px solid #1f2633; margin-bottom: 15px; height: 300px; overflow: hidden; }
+        .risk-box { background: #121620; border: 1px solid #2a3447; border-radius: 12px; padding: 12px; margin-bottom: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .risk-field label { display: block; font-size: 11px; color: #848e9c; margin-bottom: 4px; }
+        .risk-field input { width: 100%; background: #181f2a; border: 1px solid #2a3447; border-radius: 8px; padding: 8px; color: #fff; font-size: 14px; text-align: center; font-weight: bold; outline: none; }
+
+        .chart-container { position: relative; background: #121620; border-radius: 12px; border: 1px solid #1f2633; margin-bottom: 15px; height: 260px; overflow: hidden; }
         .scanner-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 184, 217, 0.08); display: none; z-index: 50; pointer-events: none; }
-        .scanner-line { position: absolute; top: 0; left: 0; width: 100%; height: 3px; background: #00b8d9; box-shadow: 0 0 15px #00b8d9, 0 0 30px #00b8d9; animation: scanMove 1.2s ease-in-out infinite alternate; }
+        .scanner-line { position: absolute; top: 0; left: 0; width: 100%; height: 3px; background: #00b8d9; box-shadow: 0 0 15px #00b8d9; animation: scanMove 1.2s ease-in-out infinite alternate; }
         @keyframes scanMove { 0% { top: 0%; } 100% { top: 98%; } }
         .scanner-text { position: absolute; top: 10px; right: 10px; background: rgba(0, 0, 0, 0.8); color: #00b8d9; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: bold; z-index: 51; display: none; border: 1px solid #00b8d9; }
 
-        .btn-primary { width: 100%; background: #00b8d9; color: #000; border: none; padding: 14px; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; margin-bottom: 15px; }
+        .whipsaw-alert-box { background: #1f1610; border: 1px solid #f59e0b; border-radius: 12px; padding: 12px; margin-bottom: 15px; display: none; }
+        .whipsaw-alert-box.danger { background: #261012; border-color: #f6465d; }
+
+        .btn-primary { width: 100%; background: #00b8d9; color: #000; border: none; padding: 14px; border-radius: 12px; font-size: 15px; font-weight: bold; cursor: pointer; margin-bottom: 15px; }
         .live-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: #0ecb81; background: rgba(14, 203, 129, 0.12); padding: 3px 8px; border-radius: 6px; }
         .dot-live { width: 7px; height: 7px; background: #0ecb81; border-radius: 50%; animation: blink 1s infinite; }
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
@@ -49,9 +55,8 @@
         .grid-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
         .info-card { background: #181f2a; border: 1px solid #232d3f; border-radius: 12px; padding: 10px; text-align: center; }
         .info-card span { display: block; font-size: 11px; color: #848e9c; margin-bottom: 4px; }
-        .info-card strong { font-size: 14px; }
-        .counter-card { background: #161512; border: 1px solid #f59e0b; border-radius: 16px; padding: 16px; margin-bottom: 15px; }
-        .ai-master-box { background: #101c2c; border: 1px solid #00b8d9; border-radius: 16px; padding: 16px; margin-bottom: 15px; }
+        .info-card strong { font-size: 13px; }
+        .ai-master-box { background: #101c2c; border: 1px solid #00b8d9; border-radius: 16px; padding: 14px; margin-bottom: 15px; }
         .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
         .btn-action { background: #181f2a; border: 1px solid #2a3447; color: #fff; padding: 12px; border-radius: 10px; font-size: 13px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
         .signal-card { background: #121620; border: 1px solid #1f2633; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
@@ -68,10 +73,10 @@
         <div class="top-stats">
             <span>Modo: <span id="mode-display" style="color:#0ecb81;">Day Trading</span></span>
         </div>
-        <div class="live-badge"><div class="dot-live"></div> SCANNER LASER LIVE</div>
+        <div class="live-badge"><div class="dot-live"></div> WHISPAW GUARD ACTIVE</div>
     </header>
 
-    <!-- TAB 1: ANALIZZA & SCANNER GRAFICO -->
+    <!-- TAB 1: ANALIZZA & RISCHIO -->
     <div id="tab-analizza" class="tab-content active">
         <div class="selector-row" id="mode-selector">
             <div class="chip" onclick="setMode(this, 'Scalping')">⚡ Scalping</div>
@@ -80,15 +85,30 @@
             <div class="chip" onclick="setMode(this, 'Long Term')">🪐 Long Term</div>
         </div>
 
+        <div class="risk-box">
+            <div class="risk-field">
+                <label>💰 Capitale Account ($)</label>
+                <input type="number" id="acc-balance" value="1000" onchange="triggerChartScanner()">
+            </div>
+            <div class="risk-field">
+                <label>🛡️ Rischio per Trade (%)</label>
+                <input type="number" id="risk-pct" value="1.0" step="0.1" onchange="triggerChartScanner()">
+            </div>
+        </div>
+
+        <!-- BOX AVVISO WHISPAW -->
+        <div class="whipsaw-alert-box" id="whipsaw-box">
+            <div style="font-size: 12px; font-weight: bold; color: #f59e0b; margin-bottom: 2px;" id="whipsaw-title">🛡️ Whipsaw Guard</div>
+            <p id="whipsaw-text" style="font-size: 12px; color: #cbd5e1; line-height: 1.3;">Analisi falsi breakout in corso...</p>
+        </div>
+
         <div class="market-category-bar">
             <button class="cat-btn active" onclick="filterCategory('Criptovalute', this)">₿ Criptovalute</button>
-            <button class="cat-btn" onclick="filterCategory('Materie Prime', this)">🥇 Materie Prime</button>
-            <button class="cat-btn" onclick="filterCategory('Forex', this)">💶 Forex</button>
-            <button class="cat-btn" onclick="filterCategory('Indici', this)">📈 Indici</button>
+            <button class="cat-btn" onclick="filterCategory('Materie Prime & Forex', this)">🥇 Materie Prime & Forex</button>
         </div>
 
         <div class="search-box">
-            <input type="text" id="asset-search" class="search-input" placeholder="🔍 Cerca cripto o valuta (es. ETH, BTC, EURUSD)..." oninput="filterSymbolsBySearch()">
+            <input type="text" id="asset-search" class="search-input" placeholder="🔍 Cerca asset (es. BTC, ETH, XAUUSD)..." oninput="filterSymbolsBySearch()">
         </div>
 
         <div class="selector-row" id="symbol-selector"></div>
@@ -97,7 +117,7 @@
             <div class="scanner-overlay" id="scanner-overlay">
                 <div class="scanner-line"></div>
             </div>
-            <div class="scanner-text" id="scanner-text">🔍 AI Scanner in esecuzione...</div>
+            <div class="scanner-text" id="scanner-text">🛡️ Scansione Whipsaw & Trend...</div>
             <div class="tradingview-widget-container" style="height:100%;width:100%">
                 <div id="tradingview_widget" style="height:100%;width:100%"></div>
                 <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
@@ -111,19 +131,19 @@
             <div class="chip" onclick="setTimeframe(this, '1h')">1h</div>
         </div>
 
-        <button class="btn-primary" onclick="triggerChartScanner()">⚡ Avvia Scanner Grafico & Calcola TP/SL</button>
+        <button class="btn-primary" onclick="triggerChartScanner()">🛡️ Avvia Scanner Anti-Whipsaw & TP/SL</button>
 
         <div id="analysis-result" style="display:block;">
             <div class="ai-master-box">
-                <div style="font-size: 14px; font-weight: bold; color: #00b8d9; margin-bottom: 6px;">🧠 AI Mastermind — Orari e Sessioni</div>
-                <p id="res-ai-advice" style="font-size: 13px; color: #cbd5e1; line-height: 1.4;">Pronto per la scansione...</p>
+                <div style="font-size: 14px; font-weight: bold; color: #00b8d9; margin-bottom: 6px;">🧠 AI Mastermind & Risk Guard</div>
+                <p id="res-ai-advice" style="font-size: 13px; color: #cbd5e1; line-height: 1.4;">In attesa di scansione...</p>
             </div>
 
             <div class="result-card">
                 <div class="result-header">
                     <div>
                         <div class="asset-title" id="res-symbol">Pronto alla Scansione</div>
-                        <span id="res-source" style="font-size:11px; color:#848e9c;">In attesa di input</span>
+                        <span id="res-source" style="font-size:11px; color:#848e9c;">Whipsaw Guard Attivo</span>
                     </div>
                     <div id="res-action" class="badge-action BUY">--</div>
                 </div>
@@ -145,32 +165,16 @@
 
                 <div class="grid-cards">
                     <div class="info-card"><span>Prezzo Live</span><strong id="res-live-price" style="color: #fff;">--</strong></div>
-                    <div class="info-card"><span>Ordine</span><strong id="res-order-type" style="color: #38bdf8;">--</strong></div>
+                    <div class="info-card"><span>Dimensione Posizione</span><strong id="res-pos-size" style="color: #38bdf8;">--</strong></div>
                     <div class="info-card"><span>Stop Loss</span><strong id="res-sl" style="color: #f6465d;">--</strong></div>
+                    <div class="info-card"><span>Capitale a Rischio ($)</span><strong id="res-risk-amt" style="color: #f59e0b;">--</strong></div>
                     <div class="info-card"><span>Take Profit 1</span><strong id="res-tp1" style="color: #0ecb81;">--</strong></div>
-                    <div class="info-card"><span>Take Profit 2</span><strong id="res-tp2" style="color: #0ecb81;">--</strong></div>
-                    <div class="info-card"><span>Take Profit 3</span><strong id="res-tp3" style="color: #0ecb81;">--</strong></div>
-                </div>
-            </div>
-
-            <div class="counter-card">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                    <h4 style="font-size: 15px; color: #f59e0b; font-weight: bold;">Idea di operazione contraria</h4>
-                    <div id="res-counter-action" class="badge-action SELL">SELL</div>
-                </div>
-                <p style="font-size: 11px; color: #f87171; font-weight: bold; margin-bottom: 6px;">Scenario ad alto rischio</p>
-                <p id="res-counter-warning" style="font-size: 12px; color: #cbd5e1; margin-bottom: 12px; line-height: 1.4;">--</p>
-                
-                <div class="grid-cards" style="margin-bottom: 0;">
-                    <div class="info-card"><span>Zona di ingresso</span><strong id="res-counter-entry" style="color: #fff;">--</strong></div>
-                    <div class="info-card"><span>Tipo di ordine</span><strong id="res-counter-order" style="color: #38bdf8;">--</strong></div>
-                    <div class="info-card"><span>Stop Loss</span><strong id="res-counter-sl" style="color: #f6465d;">--</strong></div>
-                    <div class="info-card"><span>Take Profit</span><strong id="res-counter-tp" style="color: #0ecb81;">--</strong></div>
+                    <div class="info-card"><span>Rapporto RRR (1:X)</span><strong id="res-rrr" style="color: #38bdf8;">--</strong></div>
                 </div>
             </div>
 
             <div class="btn-row" style="margin-top: 15px;">
-                <button class="btn-action" onclick="copySignal()"><span>📋</span> Copia segnale</button>
+                <button class="btn-action" onclick="copySignal()"><span>📋</span> Copia segnale protetto</button>
                 <button class="btn-action" onclick="shareSignal()"><span>📤</span> Condividi segnale</button>
             </div>
         </div>
@@ -178,7 +182,7 @@
 
     <!-- TAB 2: SEGNALI CERTI -->
     <div id="tab-segnali" class="tab-content">
-        <h3 style="font-size: 16px; margin-bottom: 12px;">Top Cripto e Valute Consigliate dall'AI (≥ 80%)</h3>
+        <h3 style="font-size: 16px; margin-bottom: 12px;">Top Asset Certi (Filtro Whipsaw & Confidenza ≥ 80%)</h3>
         <div id="signals-container">
             <p style="color: #848e9c; font-size: 13px;">Scansione globale del mercato in corso...</p>
         </div>
@@ -188,18 +192,18 @@
     <nav>
         <button class="active" onclick="switchTab('analizza', this)">
             <svg viewBox="0 0 24 24"><path d="M3 3v18h18v-2H5V3H3m4 10h2v5H7v-5m4-4h2v9h-2V9m4-6h2v15h-2V3Z"/></svg>
-            Analizza & Scanner
+            Analizza & Anti-Whipsaw
         </button>
         <button onclick="switchTab('segnali', this)">
             <svg viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2m0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8m.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7Z"/></svg>
-            Segnali AI Certi
+            Segnali Certi
         </button>
     </nav>
 
     <script>
         let allMarkets = {};
         let currentCategory = 'Criptovalute';
-        let currentSymbol = 'ETHUSDT';
+        let currentSymbol = 'BTCUSDT';
         let currentTimeframe = '15m';
         let currentMode = 'Day Trading';
 
@@ -246,16 +250,9 @@
             const container = document.getElementById('tradingview_widget');
             container.innerHTML = '';
             
-            let tvSymbol = 'BINANCE:ETHUSDT';
+            let tvSymbol = 'BINANCE:BTCUSDT';
             if(symbol === 'XAUUSD') tvSymbol = 'OANDA:XAUUSD';
-            else if(symbol === 'XAGUSD') tvSymbol = 'OANDA:XAGUSD';
-            else if(symbol === 'USOIL') tvSymbol = 'TVC:USOIL';
-            else if(symbol === 'EURUSD') tvSymbol = 'FX:EURUSD';
-            else if(symbol === 'GBPUSD') tvSymbol = 'FX:GBPUSD';
-            else if(symbol === 'USDJPY') tvSymbol = 'FX:USDJPY';
-            else if(symbol === 'AUDUSD') tvSymbol = 'FX:AUDUSD';
-            else if(symbol === 'US500') tvSymbol = 'CAPITALCOM:US500';
-            else if(symbol === 'NAS100') tvSymbol = 'CAPITALCOM:US100';
+            else if(symbol === 'EURUSDT') tvSymbol = 'FX:EURUSD';
             else {
                 let cleanSym = symbol.replace('USDT', '');
                 tvSymbol = `BINANCE:${cleanSym}USDT`;
@@ -305,20 +302,27 @@
             const overlay = document.getElementById('scanner-overlay');
             const scanText = document.getElementById('scanner-text');
             
-            // Attiva l'animazione visiva dello scanner sul grafico
             overlay.style.display = 'block';
             scanText.style.display = 'block';
+
+            const accBalance = document.getElementById('acc-balance').value || 1000;
+            const riskPct = document.getElementById('risk-pct').value || 1;
 
             try {
                 const response = await fetch('/api/analyze', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ symbol: currentSymbol, timeframe: currentTimeframe, mode: currentMode })
+                    body: JSON.stringify({ 
+                        symbol: currentSymbol, 
+                        timeframe: currentTimeframe, 
+                        mode: currentMode,
+                        account_balance: parseFloat(accBalance),
+                        risk_percentage: parseFloat(riskPct)
+                    })
                 });
                 const data = await response.json();
                 
-                // Simula il tempo di scansione visiva per apprezzare l'effetto grafico
-                await new Promise(r => setTimeout(r, 800));
+                await new Promise(r => setTimeout(r, 600));
 
                 if (data.status === 'success') {
                     document.getElementById('res-symbol').innerText = `${data.symbol} — ${data.current_price}`;
@@ -330,28 +334,29 @@
                     actionBadge.innerText = data.action;
                     actionBadge.className = `badge-action ${data.action}`;
 
+                    // Gestione visiva box Whipsaw
+                    const whipsawBox = document.getElementById('whipsaw-box');
+                    const whipsawText = document.getElementById('whipsaw-text');
+                    whipsawBox.style.display = 'block';
+                    whipsawText.innerText = data.whipsaw_msg;
+                    if(data.whipsaw_detected) {
+                        whipsawBox.className = 'whipsaw-alert-box danger';
+                    } else {
+                        whipsawBox.className = 'whipsaw-alert-box';
+                    }
+
                     document.getElementById('res-live-price').innerText = data.current_price;
-                    document.getElementById('res-order-type').innerText = data.order_type;
+                    document.getElementById('res-pos-size').innerText = `${data.position_size} unità`;
                     document.getElementById('res-entry').innerText = data.entry_zone;
                     document.getElementById('res-sl').innerText = data.stop_loss;
+                    document.getElementById('res-risk-amt').innerText = `$${data.risk_amount}`;
                     document.getElementById('res-tp1').innerText = data.take_profit_1;
-                    document.getElementById('res-tp2').innerText = data.take_profit_2;
-                    document.getElementById('res-tp3').innerText = data.take_profit_3;
-
-                    const counterBadge = document.getElementById('res-counter-action');
-                    counterBadge.innerText = data.counter_action;
-                    counterBadge.className = `badge-action ${data.counter_action}`;
-                    document.getElementById('res-counter-warning').innerText = data.counter_warning;
-                    document.getElementById('res-counter-entry').innerText = data.counter_entry;
-                    document.getElementById('res-counter-order').innerText = data.counter_order_type;
-                    document.getElementById('res-counter-sl').innerText = data.counter_sl;
-                    document.getElementById('res-counter-tp').innerText = data.counter_tp;
+                    document.getElementById('res-rrr').innerText = `1 : ${data.rrr}`;
                     document.getElementById('res-ai-advice').innerText = data.ai_recommendation;
                 }
             } catch (err) {
                 console.log("Errore scanner");
             } finally {
-                // Disattiva l'animazione scanner
                 overlay.style.display = 'none';
                 scanText.style.display = 'none';
             }
@@ -388,26 +393,27 @@
                                 <span style="color: #f6465d;"><strong>SL:</strong> ${s.sl}</span>
                                 <span style="color: #0ecb81;"><strong>TP1:</strong> ${s.tp1}</span>
                             </div>
-                            <div style="font-size: 11px; color: #848e9c; margin-top: 6px; border-top: 1px solid #1f2633; padding-top: 4px;">
-                                Affidabilità AI: <strong style="color:#0ecb81;">${s.prob}</strong>
+                            <div style="font-size: 11px; color: #848e9c; margin-top: 6px; border-top: 1px solid #1f2633; padding-top: 4px; display:flex; justify-content:space-between;">
+                                <span>Affidabilità: <strong style="color:#0ecb81;">${s.prob}</strong></span>
+                                <span>RRR: <strong style="color:#38bdf8;">1:${s.rrr}</strong></span>
                             </div>
                         </div>
                     `).join('');
                 }
-                container.innerHTML = html || '<p style="color:#848e9c;">Nessun segnale AI confermato (≥80%) al momento.</p>';
+                container.innerHTML = html || '<p style="color:#848e9c;">Nessun segnale sicuro senza rischi Whipsaw al momento.</p>';
             } catch (e) {
                 document.getElementById('signals-container').innerHTML = '<p style="color:#f6465d;">Errore di caricamento.</p>';
             }
         }
 
         function copySignal() {
-            navigator.clipboard.writeText(`Setup AI Mastermind (${currentMode}):\nAsset: ${currentSymbol}\nIngresso: ${document.getElementById('res-entry').innerText}\nStop Loss: ${document.getElementById('res-sl').innerText}\nTake Profit: ${document.getElementById('res-tp1').innerText}`);
+            navigator.clipboard.writeText(`Setup AI protetto (${currentMode}):\nAsset: ${currentSymbol}\nIngresso: ${document.getElementById('res-entry').innerText}\nStop Loss: ${document.getElementById('res-sl').innerText}\nTake Profit: ${document.getElementById('res-tp1').innerText}\nSize: ${document.getElementById('res-pos-size').innerText}`);
             alert('Segnale copiato negli appunti!');
         }
 
         function shareSignal() {
             if (navigator.share) {
-                navigator.share({ title: 'Segnale AI Mastermind', text: 'Setup verificato:', url: window.location.href });
+                navigator.share({ title: 'Segnale Protetto', text: 'Setup verificato:', url: window.location.href });
             } else {
                 copySignal();
             }
