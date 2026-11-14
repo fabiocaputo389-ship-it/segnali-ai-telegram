@@ -96,7 +96,6 @@
             </div>
         </div>
 
-        <!-- BOX DI STATO AUTO-PILOT -->
         <div class="status-alert-box" id="status-box" style="display: block;">
             <div style="font-size: 12px; font-weight: bold; color: #0ecb81; margin-bottom: 2px;" id="status-title">🚀 Auto-Pilot in esecuzione</div>
             <p id="status-text" style="font-size: 12px; color: #cbd5e1; line-height: 1.3;">Calibrazione e avvio automatico in corso...</p>
@@ -213,13 +212,11 @@
                 allMarkets = await res.json();
                 renderSymbols();
                 
-                // --- AUTO-PILOT AUTOMATICO ALL'AVVIO ---
-                // Seleziona e avvia automaticamente la scansione sul primo asset disponibile
                 setTimeout(() => {
                     triggerChartScanner();
-                }, 400);
+                }, 500);
             } catch (e) {
-                console.log("Errore caricamento mercati");
+                console.log("Errore caricamento mercati", e);
             }
         }
 
@@ -286,7 +283,7 @@
             el.classList.add('active');
             currentMode = mode;
             document.getElementById('mode-display').innerText = mode;
-            triggerChartScanner(); // Auto-avvio al cambio di modalità
+            triggerChartScanner();
         }
 
         function setSymbol(el, symbol) {
@@ -294,7 +291,7 @@
             if(el) el.classList.add('active');
             currentSymbol = symbol;
             initTradingView(currentSymbol, currentTimeframe);
-            triggerChartScanner(); // Auto-avvio al cambio di asset
+            triggerChartScanner();
         }
 
         function setTimeframe(el, tf) {
@@ -302,7 +299,7 @@
             el.classList.add('active');
             currentTimeframe = tf;
             initTradingView(currentSymbol, currentTimeframe);
-            triggerChartScanner(); // Auto-avvio al cambio di timeframe
+            triggerChartScanner();
         }
 
         async function triggerChartScanner() {
@@ -329,8 +326,6 @@
                 });
                 const data = await response.json();
                 
-                await new Promise(r => setTimeout(r, 400));
-
                 if (data.status === 'success') {
                     document.getElementById('res-symbol').innerText = `${data.symbol} — ${data.current_price}`;
                     document.getElementById('res-source').innerText = `Fonte: ${data.source}`;
@@ -359,9 +354,11 @@
                     document.getElementById('res-tp1').innerText = data.take_profit_1;
                     document.getElementById('res-rrr').innerText = `1 : ${data.rrr}`;
                     document.getElementById('res-ai-advice').innerText = data.ai_recommendation;
+                } else {
+                    console.error("Errore server API analyze:", data.message);
                 }
             } catch (err) {
-                console.log("Errore scanner");
+                console.log("Errore di connessione allo scanner", err);
             } finally {
                 overlay.style.display = 'none';
                 scanText.style.display = 'none';
