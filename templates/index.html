@@ -73,7 +73,7 @@
         <div class="top-stats">
             <span>Modo: <span id="mode-display" style="color:#0ecb81;">Day Trading</span></span>
         </div>
-        <div class="live-badge"><div class="dot-live"></div> SOGLIA 100% PERFEZIONE</div>
+        <div class="live-badge"><div class="dot-live"></div> AUTO-PILOT ATTIVO</div>
     </header>
 
     <!-- TAB 1: ANALIZZA & RISCHIO -->
@@ -96,10 +96,10 @@
             </div>
         </div>
 
-        <!-- BOX DI STATO PERFEZIONE 100% -->
-        <div class="status-alert-box" id="status-box">
-            <div style="font-size: 12px; font-weight: bold; color: #0ecb81; margin-bottom: 2px;" id="status-title">🔥 Controllo Allineamento 100%</div>
-            <p id="status-text" style="font-size: 12px; color: #cbd5e1; line-height: 1.3;">In attesa di scansione...</p>
+        <!-- BOX DI STATO AUTO-PILOT -->
+        <div class="status-alert-box" id="status-box" style="display: block;">
+            <div style="font-size: 12px; font-weight: bold; color: #0ecb81; margin-bottom: 2px;" id="status-title">🚀 Auto-Pilot in esecuzione</div>
+            <p id="status-text" style="font-size: 12px; color: #cbd5e1; line-height: 1.3;">Calibrazione e avvio automatico in corso...</p>
         </div>
 
         <div class="market-category-bar">
@@ -117,7 +117,7 @@
             <div class="scanner-overlay" id="scanner-overlay">
                 <div class="scanner-line"></div>
             </div>
-            <div class="scanner-text" id="scanner-text">🔍 Scansione Allineamento 100%...</div>
+            <div class="scanner-text" id="scanner-text">🚀 Auto-Calibrazione in corso...</div>
             <div class="tradingview-widget-container" style="height:100%;width:100%">
                 <div id="tradingview_widget" style="height:100%;width:100%"></div>
                 <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
@@ -131,19 +131,19 @@
             <div class="chip" onclick="setTimeframe(this, '1h')">1h</div>
         </div>
 
-        <button class="btn-primary" onclick="triggerChartScanner()">🔥 Avvia Scanner 100% & Calcola TP/SL</button>
+        <button class="btn-primary" onclick="triggerChartScanner()">🚀 Ri-avvia Auto-Pilot & Scanner</button>
 
         <div id="analysis-result" style="display:block;">
             <div class="ai-master-box">
-                <div style="font-size: 14px; font-weight: bold; color: #00b8d9; margin-bottom: 6px;">🧠 AI Mastermind — Filtro Perfezione</div>
-                <p id="res-ai-advice" style="font-size: 13px; color: #cbd5e1; line-height: 1.4;">Pronto per la scansione...</p>
+                <div style="font-size: 14px; font-weight: bold; color: #00b8d9; margin-bottom: 6px;">🧠 AI Mastermind — Auto-Pilot 100%</div>
+                <p id="res-ai-advice" style="font-size: 13px; color: #cbd5e1; line-height: 1.4;">Inizializzazione automatica...</p>
             </div>
 
             <div class="result-card">
                 <div class="result-header">
                     <div>
-                        <div class="asset-title" id="res-symbol">Pronto alla Scansione</div>
-                        <span id="res-source" style="font-size:11px; color:#848e9c;">Filtro 100% Attivo</span>
+                        <div class="asset-title" id="res-symbol">Inizializzazione...</div>
+                        <span id="res-source" style="font-size:11px; color:#848e9c;">Auto-Pilot Attivo</span>
                     </div>
                     <div id="res-action" class="badge-action BUY">--</div>
                 </div>
@@ -174,7 +174,7 @@
             </div>
 
             <div class="btn-row" style="margin-top: 15px;">
-                <button class="btn-action" onclick="copySignal()"><span>📋</span> Copia segnale 100%</button>
+                <button class="btn-action" onclick="copySignal()"><span>📋</span> Copia segnale calibrato</button>
                 <button class="btn-action" onclick="shareSignal()"><span>📤</span> Condividi segnale</button>
             </div>
         </div>
@@ -182,9 +182,9 @@
 
     <!-- TAB 2: SEGNALI CERTI 100% -->
     <div id="tab-segnali" class="tab-content">
-        <h3 style="font-size: 16px; margin-bottom: 12px;">Segnali Certi al 100% (Allineamento Perfetto)</h3>
+        <h3 style="font-size: 16px; margin-bottom: 12px;">Segnali Certi al 100% (Auto-Scansione Globale)</h3>
         <div id="signals-container">
-            <p style="color: #848e9c; font-size: 13px;">Scansione globale del mercato in corso (richiede allineamento 100% rigoroso)...</p>
+            <p style="color: #848e9c; font-size: 13px;">Scansione automatica globale del mercato in corso...</p>
         </div>
     </div>
 
@@ -192,7 +192,7 @@
     <nav>
         <button class="active" onclick="switchTab('analizza', this)">
             <svg viewBox="0 0 24 24"><path d="M3 3v18h18v-2H5V3H3m4 10h2v5H7v-5m4-4h2v9h-2V9m4-6h2v15h-2V3Z"/></svg>
-            Analizza 100%
+            Auto-Pilot
         </button>
         <button onclick="switchTab('segnali', this)">
             <svg viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2m0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8m.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7Z"/></svg>
@@ -212,6 +212,12 @@
                 const res = await fetch('/api/markets');
                 allMarkets = await res.json();
                 renderSymbols();
+                
+                // --- AUTO-PILOT AUTOMATICO ALL'AVVIO ---
+                // Seleziona e avvia automaticamente la scansione sul primo asset disponibile
+                setTimeout(() => {
+                    triggerChartScanner();
+                }, 400);
             } catch (e) {
                 console.log("Errore caricamento mercati");
             }
@@ -232,7 +238,8 @@
                 <div class="chip ${index === 0 && !filteredAssets ? 'active' : ''}" onclick="setSymbol(this, '${asset.id}')">${asset.name}</div>
             `).join('');
             if(assets.length > 0 && !filteredAssets) {
-                setSymbol(container.children[0], assets[0].id);
+                currentSymbol = assets[0].id;
+                initTradingView(currentSymbol, currentTimeframe);
             }
         }
 
@@ -279,7 +286,7 @@
             el.classList.add('active');
             currentMode = mode;
             document.getElementById('mode-display').innerText = mode;
-            triggerChartScanner();
+            triggerChartScanner(); // Auto-avvio al cambio di modalità
         }
 
         function setSymbol(el, symbol) {
@@ -287,7 +294,7 @@
             if(el) el.classList.add('active');
             currentSymbol = symbol;
             initTradingView(currentSymbol, currentTimeframe);
-            triggerChartScanner();
+            triggerChartScanner(); // Auto-avvio al cambio di asset
         }
 
         function setTimeframe(el, tf) {
@@ -295,7 +302,7 @@
             el.classList.add('active');
             currentTimeframe = tf;
             initTradingView(currentSymbol, currentTimeframe);
-            triggerChartScanner();
+            triggerChartScanner(); // Auto-avvio al cambio di timeframe
         }
 
         async function triggerChartScanner() {
@@ -322,7 +329,7 @@
                 });
                 const data = await response.json();
                 
-                await new Promise(r => setTimeout(r, 600));
+                await new Promise(r => setTimeout(r, 400));
 
                 if (data.status === 'success') {
                     document.getElementById('res-symbol').innerText = `${data.symbol} — ${data.current_price}`;
@@ -399,20 +406,20 @@
                         </div>
                     `).join('');
                 }
-                container.innerHTML = html || '<p style="color:#848e9c;">Nessun asset soddisfa il criterio di perfezione assoluta al 100% in questo momento (mercato in attesa di setup ideali).</p>';
+                container.innerHTML = html || '<p style="color:#848e9c;">Nessun asset soddisfa il criterio di perfezione assoluta al 100% in questo momento (Auto-Pilot in attesa di setup ideali).</p>';
             } catch (e) {
                 document.getElementById('signals-container').innerHTML = '<p style="color:#f6465d;">Errore di caricamento.</p>';
             }
         }
 
         function copySignal() {
-            navigator.clipboard.writeText(`Setup AI 100% (${currentMode}):\nAsset: ${currentSymbol}\nIngresso: ${document.getElementById('res-entry').innerText}\nStop Loss: ${document.getElementById('res-sl').innerText}\nTake Profit: ${document.getElementById('res-tp1').innerText}\nSize: ${document.getElementById('res-pos-size').innerText}`);
-            alert('Segnale copiato negli appunti!');
+            navigator.clipboard.writeText(`Setup Auto-Pilot 100% (${currentMode}):\nAsset: ${currentSymbol}\nIngresso: ${document.getElementById('res-entry').innerText}\nStop Loss: ${document.getElementById('res-sl').innerText}\nTake Profit: ${document.getElementById('res-tp1').innerText}\nSize: ${document.getElementById('res-pos-size').innerText}`);
+            alert('Setup copiato negli appunti!');
         }
 
         function shareSignal() {
             if (navigator.share) {
-                navigator.share({ title: 'Segnale 100%', text: 'Setup perfetto verificato:', url: window.location.href });
+                navigator.share({ title: 'Setup Auto-Pilot', text: 'Setup verificato:', url: window.location.href });
             } else {
                 copySignal();
             }
