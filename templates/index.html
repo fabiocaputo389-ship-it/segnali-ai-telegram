@@ -11,7 +11,6 @@
         .top-stats { display: flex; gap: 15px; }
         .top-stats span { color: #fff; font-weight: bold; }
         
-        /* Striscia Mercato in Monitoraggio */
         .market-ticker-strip { background: #181f2a; border-bottom: 1px solid #2a3447; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
         .ticker-info { display: flex; align-items: center; gap: 8px; font-weight: bold; color: #00b8d9; }
         .ticker-price { color: #fff; font-weight: bold; }
@@ -85,7 +84,6 @@
         <div class="live-badge"><div class="dot-live"></div> AUTO-PILOT ATTIVO</div>
     </header>
 
-    <!-- STRISCIA MERCATO IN MONITORAGGIO LIVE -->
     <div class="market-ticker-strip">
         <div class="ticker-info">
             <span>🛰️ In Monitoraggio:</span>
@@ -97,7 +95,6 @@
         </div>
     </div>
 
-    <!-- TAB 1: ANALIZZA & RISCHIO -->
     <div id="tab-analizza" class="tab-content active">
         <div class="selector-row" id="mode-selector">
             <div class="chip" onclick="setMode(this, 'Scalping')">⚡ Scalping</div>
@@ -200,7 +197,6 @@
         </div>
     </div>
 
-    <!-- TAB 2: SEGNALI CERTI 100% -->
     <div id="tab-segnali" class="tab-content">
         <h3 style="font-size: 16px; margin-bottom: 12px;">Segnali Globali Attivi (Tutti i Mercati)</h3>
         <div id="signals-container">
@@ -241,7 +237,6 @@
                     osc.start();
                     osc.stop(ctx.currentTime + 0.4);
                 }
-                
                 if ('speechSynthesis' in window) {
                     window.speechSynthesis.cancel();
                     const msg = new SpeechSynthesisUtterance(`Attenzione. Rilevato segnale ${actionText} su ${symbolText}`);
@@ -258,10 +253,32 @@
             try {
                 const res = await fetch('/api/markets');
                 allMarkets = await res.json();
+                
+                // Fallback di sicurezza front-end se la risposta è vuota
+                if (!allMarkets || Object.keys(allMarkets).length === 0) {
+                    allMarkets = {
+                        "Criptovalute": [
+                            {'id': 'BTCUSDT', 'name': '₿ Bitcoin', 'symbol': 'BTCUSDT'},
+                            {'id': 'ETHUSDT', 'name': 'Ξ Ethereum', 'symbol': 'ETHUSDT'},
+                            {'id': 'SOLUSDT', 'name': '🟣 Solana', 'symbol': 'SOLUSDT'}
+                        ],
+                        "Materie Prime & Forex": [
+                            {'id': 'XAUUSD', 'name': '🥇 Oro (Simulato Live)', 'symbol': 'PAXGUSDT'}
+                        ]
+                    };
+                }
+
                 renderSymbols();
                 setTimeout(() => { triggerChartScanner(); }, 500);
             } catch (e) {
-                console.log("Errore caricamento mercati", e);
+                console.log("Errore caricamento mercati, uso backup", e);
+                allMarkets = {
+                    "Criptovalute": [
+                        {'id': 'BTCUSDT', 'name': '₿ Bitcoin', 'symbol': 'BTCUSDT'},
+                        {'id': 'ETHUSDT', 'name': 'Ξ Ethereum', 'symbol': 'ETHUSDT'}
+                    ]
+                };
+                renderSymbols();
             }
         }
 
@@ -354,7 +371,6 @@
             const accBalance = document.getElementById('acc-balance').value || 1000;
             const riskPct = document.getElementById('risk-pct').value || 1;
 
-            // Aggiorna subito la striscia ticker con l'asset selezionato
             document.getElementById('strip-symbol').innerText = currentSymbol;
 
             try {
@@ -372,7 +388,6 @@
                 const data = await response.json();
                 
                 if (data.status === 'success') {
-                    // Aggiorna la striscia di monitoraggio live
                     document.getElementById('strip-price').innerText = data.current_price;
                     const changeEl = document.getElementById('strip-change');
                     changeEl.innerText = data.price_change;
