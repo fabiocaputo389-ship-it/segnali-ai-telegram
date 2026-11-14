@@ -24,9 +24,11 @@
         .selector-row::-webkit-scrollbar { display: none; }
         .chip { background: #181f2a; border: 1px solid #2a3447; color: #848e9c; padding: 6px 14px; border-radius: 20px; font-size: 13px; cursor: pointer; white-space: nowrap; }
         .chip.active { background: #2b374d; color: #fff; border-color: #00b8d9; font-weight: 500; }
+        
         .market-category-bar { background: #121620; border: 1px solid #1f2633; border-radius: 12px; padding: 8px; margin-bottom: 12px; display: flex; gap: 8px; overflow-x: auto; }
         .cat-btn { background: #181f2a; border: none; color: #848e9c; padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer; white-space: nowrap; font-weight: bold; }
         .cat-btn.active { background: #00b8d9; color: #000; }
+        
         .search-box { margin-bottom: 10px; }
         .search-input { width: 100%; background: #181f2a; border: 1px solid #2a3447; border-radius: 10px; padding: 10px 14px; color: #fff; font-size: 13px; outline: none; }
         
@@ -47,6 +49,7 @@
         .live-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: #0ecb81; background: rgba(14, 203, 129, 0.12); padding: 3px 8px; border-radius: 6px; }
         .dot-live { width: 7px; height: 7px; background: #0ecb81; border-radius: 50%; animation: blink 1s infinite; }
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+        
         .result-card { background: #121620; border: 1px solid #2a3447; border-radius: 16px; padding: 16px; margin-bottom: 15px; }
         .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .asset-title { font-size: 17px; font-weight: bold; color: #fff; }
@@ -69,6 +72,7 @@
         .btn-action { background: #181f2a; border: 1px solid #2a3447; color: #fff; padding: 12px; border-radius: 10px; font-size: 13px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
         .signal-card { background: #121620; border: 1px solid #1f2633; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
         .category-title { font-size: 14px; font-weight: bold; color: #00b8d9; margin: 15px 0 8px 0; border-bottom: 1px solid #1f2633; padding-bottom: 4px; }
+        
         nav { position: fixed; bottom: 0; left: 0; width: 100%; background: #121620; border-top: 1px solid #1f2633; display: flex; justify-content: space-around; padding: 8px 0; z-index: 1000; }
         nav button { background: none; border: none; color: #848e9c; font-size: 10px; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; }
         nav button.active { color: #00b8d9; }
@@ -86,7 +90,7 @@
 
     <div class="market-ticker-strip">
         <div class="ticker-info">
-            <span>🛰️ In Monitoraggio:</span>
+            <span>🛰️ Monitoraggio:</span>
             <span id="strip-symbol" style="color: #fff;">BTCUSDT</span>
         </div>
         <div>
@@ -95,6 +99,7 @@
         </div>
     </div>
 
+    <!-- TAB 1: ANALIZZA -->
     <div id="tab-analizza" class="tab-content active">
         <div class="selector-row" id="mode-selector">
             <div class="chip" onclick="setMode(this, 'Scalping')">⚡ Scalping</div>
@@ -116,16 +121,17 @@
 
         <div class="status-alert-box" id="status-box" style="display: block;">
             <div style="font-size: 12px; font-weight: bold; color: #0ecb81; margin-bottom: 2px;" id="status-title">🚀 Auto-Pilot in esecuzione</div>
-            <p id="status-text" style="font-size: 12px; color: #cbd5e1; line-height: 1.3;">Scansione mercati globali attiva...</p>
+            <p id="status-text" style="font-size: 12px; color: #cbd5e1; line-height: 1.3;">Scansione globale attiva...</p>
         </div>
 
         <div class="market-category-bar">
             <button class="cat-btn active" onclick="filterCategory('Criptovalute', this)">₿ Criptovalute</button>
             <button class="cat-btn" onclick="filterCategory('Materie Prime & Forex', this)">🥇 Materie Prime & Forex</button>
+            <button class="cat-btn" onclick="filterCategory('Azioni & Indici Globali', this)">📈 Azioni & Indici</button>
         </div>
 
         <div class="search-box">
-            <input type="text" id="asset-search" class="search-input" placeholder="🔍 Cerca asset (es. BTC, ETH, XAUUSD)..." oninput="filterSymbolsBySearch()">
+            <input type="text" id="asset-search" class="search-input" placeholder="🔍 Cerca asset (es. BTC, ETH, XAUUSD, TSLA)..." oninput="filterSymbolsBySearch()">
         </div>
 
         <div class="selector-row" id="symbol-selector"></div>
@@ -197,10 +203,11 @@
         </div>
     </div>
 
+    <!-- TAB 2: SEGNALI CERTI 100% -->
     <div id="tab-segnali" class="tab-content">
         <h3 style="font-size: 16px; margin-bottom: 12px;">Segnali Globali Attivi (Tutti i Mercati)</h3>
         <div id="signals-container">
-            <p style="color: #848e9c; font-size: 13px;">Scansione automatica globale del mercato in corso...</p>
+            <p style="color: #848e9c; font-size: 13px;">Scansione automatica globale di cripto, forex e azioni in corso...</p>
         </div>
     </div>
 
@@ -253,32 +260,10 @@
             try {
                 const res = await fetch('/api/markets');
                 allMarkets = await res.json();
-                
-                // Fallback di sicurezza front-end se la risposta è vuota
-                if (!allMarkets || Object.keys(allMarkets).length === 0) {
-                    allMarkets = {
-                        "Criptovalute": [
-                            {'id': 'BTCUSDT', 'name': '₿ Bitcoin', 'symbol': 'BTCUSDT'},
-                            {'id': 'ETHUSDT', 'name': 'Ξ Ethereum', 'symbol': 'ETHUSDT'},
-                            {'id': 'SOLUSDT', 'name': '🟣 Solana', 'symbol': 'SOLUSDT'}
-                        ],
-                        "Materie Prime & Forex": [
-                            {'id': 'XAUUSD', 'name': '🥇 Oro (Simulato Live)', 'symbol': 'PAXGUSDT'}
-                        ]
-                    };
-                }
-
                 renderSymbols();
                 setTimeout(() => { triggerChartScanner(); }, 500);
             } catch (e) {
-                console.log("Errore caricamento mercati, uso backup", e);
-                allMarkets = {
-                    "Criptovalute": [
-                        {'id': 'BTCUSDT', 'name': '₿ Bitcoin', 'symbol': 'BTCUSDT'},
-                        {'id': 'ETHUSDT', 'name': 'Ξ Ethereum', 'symbol': 'ETHUSDT'}
-                    ]
-                };
-                renderSymbols();
+                console.log("Errore caricamento mercati", e);
             }
         }
 
@@ -317,7 +302,12 @@
             container.innerHTML = '';
             let tvSymbol = 'BINANCE:BTCUSDT';
             if(symbol === 'XAUUSD') tvSymbol = 'OANDA:XAUUSD';
+            else if(symbol === 'XAGUSD') tvSymbol = 'OANDA:XAGUSD';
             else if(symbol === 'EURUSDT') tvSymbol = 'FX:EURUSD';
+            else if(symbol === 'GBPUSDT') tvSymbol = 'FX:GBPUSD';
+            else if(symbol === 'USDJPY') tvSymbol = 'FX:USDJPY';
+            else if(['AAPL', 'TSLA', 'NVDA', 'AMZN'].includes(symbol)) tvSymbol = `NASDAQ:${symbol}`;
+            else if(symbol === 'SPX500') tvSymbol = 'SP:SPX';
             else {
                 let cleanSym = symbol.replace('USDT', '');
                 tvSymbol = `BINANCE:${cleanSym}USDT`;
