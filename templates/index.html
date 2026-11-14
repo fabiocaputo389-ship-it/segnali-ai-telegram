@@ -7,76 +7,56 @@
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
         body { background-color: #0b0e14; color: #ffffff; padding-bottom: 75px; }
-        
         header { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; background: #121620; border-bottom: 1px solid #1f2633; font-size: 13px; color: #848e9c; }
         .top-stats { display: flex; gap: 15px; }
         .top-stats span { color: #fff; font-weight: bold; }
-
         .tab-content { display: none; padding: 15px; }
         .tab-content.active { display: block; }
-
         .selector-row { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 12px; padding-bottom: 4px; scrollbar-width: none; }
         .selector-row::-webkit-scrollbar { display: none; }
-        
         .chip { background: #181f2a; border: 1px solid #2a3447; color: #848e9c; padding: 6px 14px; border-radius: 20px; font-size: 13px; cursor: pointer; white-space: nowrap; }
         .chip.active { background: #2b374d; color: #fff; border-color: #00b8d9; font-weight: 500; }
-
         .market-category-bar { background: #121620; border: 1px solid #1f2633; border-radius: 12px; padding: 8px; margin-bottom: 12px; display: flex; gap: 8px; overflow-x: auto; }
         .cat-btn { background: #181f2a; border: none; color: #848e9c; padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer; white-space: nowrap; font-weight: bold; }
         .cat-btn.active { background: #00b8d9; color: #000; }
-
         .chart-container { background: #121620; border-radius: 12px; border: 1px solid #1f2633; margin-bottom: 15px; height: 320px; overflow: hidden; }
         .btn-primary { width: 100%; background: #00b8d9; color: #fff; border: none; padding: 14px; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; margin-bottom: 15px; box-shadow: 0 4px 12px rgba(0,184,217,0.3); }
-
         #scanning-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(11, 14, 20, 0.95); z-index: 2000; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 20px; }
         .scanner-box { border: 2px dashed #00b8d9; border-radius: 20px; width: 280px; height: 160px; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative; margin-bottom: 25px; background: rgba(0,184,217,0.03); }
         .scanner-box svg { width: 40px; height: 40px; fill: #00b8d9; margin-bottom: 10px; animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { opacity: 0.3; } 50% { opacity: 1; } 100% { opacity: 0.3; } }
         .scan-progress-bar { width: 200px; height: 4px; background: #1f2633; border-radius: 2px; overflow: hidden; margin-top: 15px; }
         .scan-progress-fill { width: 0%; height: 100%; background: #00b8d9; transition: width 1.2s ease-in-out; }
-
         .result-card { background: #121620; border: 1px solid #2a3447; border-radius: 16px; padding: 16px; margin-bottom: 15px; }
         .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .asset-title { font-size: 18px; font-weight: bold; color: #fff; display: flex; align-items: center; gap: 8px; }
-        
         .badge-action { padding: 6px 16px; border-radius: 8px; font-weight: bold; font-size: 14px; }
         .badge-action.BUY { background: #0ecb81; color: #000; }
         .badge-action.SELL { background: #f6465d; color: #fff; }
-
         .favorability-container { margin-bottom: 14px; }
         .favorability-info { display: flex; justify-content: space-between; font-size: 12px; color: #848e9c; margin-bottom: 4px; }
         .favorability-bar { width: 100%; height: 6px; background: #181f2a; border-radius: 3px; overflow: hidden; }
         .favorability-fill { height: 100%; background: linear-gradient(90deg, #f6465d, #f0b90b, #0ecb81); border-radius: 3px; }
-
         .entry-box { background: #181f2a; border-radius: 12px; padding: 12px; text-align: center; margin-bottom: 12px; border: 1px solid #232d3f; }
         .entry-box span { display: block; font-size: 11px; color: #848e9c; margin-bottom: 2px; }
         .entry-box strong { font-size: 18px; color: #00b8d9; }
-
         .grid-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
         .info-card { background: #181f2a; border: 1px solid #232d3f; border-radius: 12px; padding: 10px; text-align: center; }
         .info-card span { display: block; font-size: 11px; color: #848e9c; margin-bottom: 4px; }
         .info-card strong { font-size: 14px; }
-
         .counter-card { background: #161512; border: 1px solid #f59e0b; border-radius: 16px; padding: 16px; margin-bottom: 15px; }
         .ai-advice-box { background: #161c28; border: 1px solid #1f3a5f; border-radius: 12px; padding: 14px; margin-bottom: 15px; }
         .ai-advice-title { font-size: 14px; font-weight: bold; color: #38bdf8; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
-
         .analysis-card { background: #161c28; border-left: 3px solid #00b8d9; border-radius: 10px; padding: 12px; margin-bottom: 10px; font-size: 13px; color: #e2e8f0; display: flex; align-items: flex-start; gap: 8px; }
         .pattern-card { background: #1a1a24; border-left: 3px solid #f59e0b; border-radius: 10px; padding: 12px; margin-bottom: 14px; font-size: 13px; color: #e2e8f0; display: flex; align-items: flex-start; gap: 8px; }
-
         .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
         .btn-action { background: #181f2a; border: 1px solid #2a3447; color: #fff; padding: 12px; border-radius: 10px; font-size: 13px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
-
         .social-btn { width: 100%; border: none; padding: 12px; border-radius: 10px; font-size: 13px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px; }
         .btn-whatsapp { background: #064e3b; color: #34d399; border: 1px solid #059669; }
         .btn-instagram { background: #2e1065; color: #c084fc; border: 1px solid #7c3aed; }
-
         .disclaimer { font-size: 10px; color: #64748b; text-align: center; line-height: 1.3; margin: 15px 0; padding: 0 10px; }
-        .pro-banner { background: linear-gradient(135deg, #1e1b4b, #312e81); border: 1px solid #4f46e5; border-radius: 14px; padding: 14px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; margin-top: 15px; }
-
         .signal-card { background: #121620; border: 1px solid #1f2633; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
         .category-title { font-size: 14px; font-weight: bold; color: #00b8d9; margin: 15px 0 8px 0; border-bottom: 1px solid #1f2633; padding-bottom: 4px; }
-
         nav { position: fixed; bottom: 0; left: 0; width: 100%; background: #121620; border-top: 1px solid #1f2633; display: flex; justify-content: space-around; padding: 8px 0; z-index: 1000; }
         nav button { background: none; border: none; color: #848e9c; font-size: 10px; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; }
         nav button.active { color: #00b8d9; }
@@ -96,10 +76,10 @@
     <div id="scanning-modal">
         <div class="scanner-box">
             <svg viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2m0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8m.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7Z"/></svg>
-            <span style="font-size: 12px; color: #00b8d9; font-weight: bold;">BINGX REAL FEED</span>
+            <span style="font-size: 12px; color: #00b8d9; font-weight: bold;">FEED REALE ATTIVO</span>
         </div>
-        <h3 style="font-size: 18px; margin-bottom: 6px;">Filtro anti-falsi attivo...</h3>
-        <p id="scan-status-text" style="font-size: 13px; color: #848e9c;">Analisi volumi e momentum reale...</p>
+        <h3 style="font-size: 18px; margin-bottom: 6px;">Elaborazione dati di mercato...</h3>
+        <p id="scan-status-text" style="font-size: 13px; color: #848e9c;">Sincronizzazione ticker...</p>
         <div class="scan-progress-bar">
             <div class="scan-progress-fill" id="scan-progress"></div>
         </div>
@@ -136,14 +116,14 @@
             <div class="chip" onclick="setTimeframe(this, '1h')">1h</div>
         </div>
 
-        <button class="btn-primary" onclick="runAnalysis()">Conferma Setup Reale BingX</button>
+        <button class="btn-primary" onclick="runAnalysis()">Conferma Setup Reale</button>
 
         <div id="analysis-result" style="display:none;">
             <div class="result-card">
                 <div class="result-header">
-                    <div class="asset-title" id="res-symbol"><span>🪙 GOLD</span></div>
+                    <div class="asset-title" id="res-symbol"><span>🪙 XAUUSD</span></div>
                     <div style="display: flex; gap: 8px; align-items: center;">
-                        <button onclick="alert('Alert impostato sui prezzi BingX.')" style="background:#181f2a; border:1px solid #2a3447; color:#00b8d9; padding:6px 10px; border-radius:8px; font-size:11px; font-weight:bold; cursor:pointer;">🔔 Alert</button>
+                        <button onclick="alert('Alert impostato.')" style="background:#181f2a; border:1px solid #2a3447; color:#00b8d9; padding:6px 10px; border-radius:8px; font-size:11px; font-weight:bold; cursor:pointer;">🔔 Alert</button>
                         <div id="res-action" class="badge-action BUY">BUY</div>
                         <button onclick="shareSignal()" style="background:#181f2a; border:1px solid #2a3447; color:#fff; padding:6px 8px; border-radius:8px; cursor:pointer;">📤</button>
                     </div>
@@ -151,7 +131,7 @@
 
                 <div class="favorability-container">
                     <div class="favorability-info">
-                        <span>Affidabilità Reale (Filtro anti-falsi)</span>
+                        <span>Affidabilità Reale</span>
                         <strong id="res-fav" style="color: #0ecb81;">--</strong>
                     </div>
                     <div class="favorability-bar">
@@ -225,7 +205,7 @@
 
     <!-- TAB 2: GRAFICI LIVE -->
     <div id="tab-grafici" class="tab-content">
-        <h3 style="font-size: 16px; margin-bottom: 12px;">Grafico Avanzato BingX / TV</h3>
+        <h3 style="font-size: 16px; margin-bottom: 12px;">Grafico Avanzato</h3>
         <div style="background: #121620; border-radius: 12px; border: 1px solid #1f2633; height: 450px; overflow: hidden;">
             <div id="tradingview_full_widget" style="height:100%;width:100%"></div>
         </div>
@@ -233,9 +213,9 @@
 
     <!-- TAB 3: SEGNALI CERTI -->
     <div id="tab-segnali" class="tab-content">
-        <h3 style="font-size: 16px; margin-bottom: 15px;">Segnali Verificati (Filtro anti-falsi attivo)</h3>
+        <h3 style="font-size: 16px; margin-bottom: 15px;">Segnali Verificati</h3>
         <div id="signals-container">
-            <p style="color: #848e9c; font-size: 13px;">Scansione server BingX in corso...</p>
+            <p style="color: #848e9c; font-size: 13px;">Scansione in corso...</p>
         </div>
     </div>
 
@@ -257,30 +237,9 @@
     <div id="tab-altro" class="tab-content">
         <h3 style="font-size: 18px; font-weight: bold; margin-bottom: 4px;">Altro</h3>
         <p style="font-size: 12px; color: #848e9c; margin-bottom: 20px;">Accedi a tutti i tuoi strumenti in un unico posto</p>
-
         <p style="font-size: 11px; font-weight: bold; color: #848e9c; letter-spacing: 1px; margin-bottom: 10px;">STRUMENTI</p>
-        
         <div class="result-card" onclick="alert('Cronologia salvata.')" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
-            <div>
-                <h4 style="font-size: 14px; margin-bottom: 2px;">Cronologia analisi</h4>
-                <p style="font-size: 11px; color: #848e9c;">Visualizza analisi e segnali precedenti</p>
-            </div>
-            <span style="color: #00b8d9;">➔</span>
-        </div>
-
-        <div class="result-card" onclick="alert('Avvisi attivi.')" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
-            <div>
-                <h4 style="font-size: 14px; margin-bottom: 2px;">I Miei Avvisi di Prezzo</h4>
-                <p style="font-size: 11px; color: #848e9c;">Notifiche target prezzo</p>
-            </div>
-            <span style="color: #00b8d9;">➔</span>
-        </div>
-
-        <div class="result-card" onclick="alert('Prezzi Live attivi.')" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
-            <div>
-                <h4 style="font-size: 14px; margin-bottom: 2px;">Prezzi Live <span style="background: #0ecb81; color:#000; font-size:9px; padding:2px 6px; border-radius:4px; margin-left:6px;">● On</span></h4>
-                <p style="font-size: 11px; color: #848e9c;">Streaming in tempo reale</p>
-            </div>
+            <div><h4 style="font-size: 14px; margin-bottom: 2px;">Cronologia analisi</h4><p style="font-size: 11px; color: #848e9c;">Visualizza analisi precedenti</p></div>
             <span style="color: #00b8d9;">➔</span>
         </div>
     </div>
@@ -312,8 +271,8 @@
     <script>
         const categories = {
             "Materie Prime": [
-                { id: 'XAUUSD', label: '🥇 Oro', tv: 'BINANCE:GOLDUSDT', bx: 'GOLD-USDT' },
-                { id: 'XAGUSD', label: '🥈 Argento', tv: 'BINANCE:SILVERUSDT', bx: 'SILVER-USDT' },
+                { id: 'XAUUSD', label: '🥇 Oro', tv: 'OANDA:XAUUSD', bx: 'GOLD-USDT' },
+                { id: 'XAGUSD', label: '🥈 Argento', tv: 'OANDA:XAGUSD', bx: 'SILVER-USDT' },
                 { id: 'USOIL', label: '🛢️ Petrolio WTI', tv: 'TVC:USOIL', bx: 'USOIL-USDT' }
             ],
             "Crypto": [
@@ -365,10 +324,10 @@
             const container = document.getElementById('tradingview_widget');
             container.innerHTML = '';
             
-            let tvSymbol = 'BINANCE:GOLDUSDT';
+            let tvSymbol = 'OANDA:XAUUSD';
             for(let cat in categories) {
                 const found = categories[cat].find(a => a.id === symbol);
-                if(found) { tvSymbol = found.tv; break; }
+                if(found && found.tv) { tvSymbol = found.tv; break; }
             }
 
             const tfMap = { '1m': '1', '15m': '15', '30m': '30', '1h': '60' };
@@ -392,7 +351,7 @@
             if (container && container.innerHTML === '') {
                 new TradingView.widget({
                     "autosize": true,
-                    "symbol": "BINANCE:GOLDUSDT",
+                    "symbol": "OANDA:XAUUSD",
                     "interval": "15",
                     "timezone": "Europe/Rome",
                     "theme": "dark",
@@ -448,10 +407,10 @@
             
             modal.style.display = 'flex';
             progress.style.width = '30%';
-            statusText.innerText = "Connessione feed BingX reale...";
+            statusText.innerText = "Connessione al feed di mercato...";
 
-            setTimeout(() => { progress.style.width = '70%'; statusText.innerText = "Filtraggio falsi segnali e micro-rotture..."; }, 500);
-            setTimeout(() => { progress.style.width = '95%'; statusText.innerText = "Calcolo livelli di precisione completato."; }, 1000);
+            setTimeout(() => { progress.style.width = '70%'; statusText.innerText = "Elaborazione indicatori..."; }, 500);
+            setTimeout(() => { progress.style.width = '95%'; statusText.innerText = "Completato."; }, 1000);
 
             try {
                 const response = await fetch('/api/analyze', {
@@ -517,7 +476,7 @@
                     grouped[s.category].push(s);
                 });
 
-                let html = '<div style="font-size:11px; color:#0ecb81; margin-bottom:10px; text-align:right;">🟢 Feed BingX Reale • Filtro Anti-False Rotture Attivo</div>';
+                let html = '<div style="font-size:11px; color:#0ecb81; margin-bottom:10px; text-align:right;">🟢 Feed Verificato Attivo</div>';
                 for(let cat in grouped) {
                     html += `<div class="category-title">${cat}</div>`;
                     html += grouped[cat].map(s => `
@@ -532,33 +491,27 @@
                             <div style="font-size: 12px; color: #00b8d9; margin-bottom: 4px;">
                                 <strong>Entrata:</strong> ${s.entry}
                             </div>
-                            <div class="signal-details">
+                            <div class="signal-details" style="font-size: 12px; color: #848e9c; display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
                                 <span style="color: #f6465d;"><strong>SL:</strong> ${s.sl}</span>
                                 <span style="color: #0ecb81;"><strong>TP1:</strong> ${s.tp1}</span>
-                                <span style="color: #0ecb81;"><strong>TP2:</strong> ${s.tp2}</span>
-                                <span style="color: #0ecb81;"><strong>TP3:</strong> ${s.tp3}</span>
-                            </div>
-                            <div style="font-size: 11px; color: #848e9c; margin-top: 6px; border-top: 1px solid #1f2633; padding-top: 4px;">
-                                RSI: <span style="color:#fff;">${s.rsi}</span> | Ordine: <span style="color:#38bdf8;">${s.order_type}</span> | Affidabilità: <strong style="color:#0ecb81;">${s.prob}</strong>
                             </div>
                         </div>
                     `).join('');
                 }
-                container.innerHTML = html || '<p style="color:#848e9c;">Nessun segnale ad alta probabilità in questo momento (filtro anti-falsi restrittivo).</p>';
+                container.innerHTML = html || '<p style="color:#848e9c;">Nessun segnale attivo.</p>';
             } catch (e) {
                 container.innerHTML = '<p style="color:#f6465d;">Errore nel caricamento dei segnali.</p>';
             }
         }
 
         function copySignal() {
-            const text = `Setup BingX AI:\nAsset: ${currentSymbol}\nIngresso: ${document.getElementById('res-entry').innerText}\nStop Loss: ${document.getElementById('res-sl').innerText}\nTP1: ${document.getElementById('res-tp1').innerText}`;
-            navigator.clipboard.writeText(text);
-            alert('Segnale copiato negli appunti!');
+            navigator.clipboard.writeText(`Segnale: ${currentSymbol} - Ingresso: ${document.getElementById('res-entry').innerText}`);
+            alert('Segnale copiato!');
         }
 
         function shareSignal() {
             if (navigator.share) {
-                navigator.share({ title: 'Segnale BingX AI', text: 'Setup verificato:', url: window.location.href });
+                navigator.share({ title: 'Segnale AI', text: 'Analisi:', url: window.location.href });
             } else {
                 copySignal();
             }
@@ -569,10 +522,9 @@
             if(!input.value.trim()) return;
             const chat = document.getElementById('chat-messages');
             chat.innerHTML += `<p style="background: #232d3f; padding: 10px; border-radius: 8px; margin-bottom: 8px; text-align: right;">${input.value}</p>`;
-            const val = input.value;
             input.value = '';
             setTimeout(() => {
-                chat.innerHTML += `<p style="background: #181f2a; padding: 10px; border-radius: 8px; margin-bottom: 8px;">Analisi BingX completata per "${val}": dati di prezzo reali sincronizzati.</p>`;
+                chat.innerHTML += `<p style="background: #181f2a; padding: 10px; border-radius: 8px; margin-bottom: 8px;">Analisi completata.</p>`;
                 chat.scrollTop = chat.scrollHeight;
             }, 600);
         }
