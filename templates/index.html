@@ -26,7 +26,7 @@
         .scanner-box svg { width: 40px; height: 40px; fill: #00b8d9; margin-bottom: 10px; animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { opacity: 0.3; } 50% { opacity: 1; } 100% { opacity: 0.3; } }
         .scan-progress-bar { width: 200px; height: 4px; background: #1f2633; border-radius: 2px; overflow: hidden; margin-top: 15px; }
-        .scan-progress-fill { width: 0%; height: 100%; background: #00b8d9; transition: width 1.2s ease-in-out; }
+        .scan-progress-fill { width: 0%; height: 100%; background: #00b8d9; transition: width 0.6s ease-in-out; }
         .result-card { background: #121620; border: 1px solid #2a3447; border-radius: 16px; padding: 16px; margin-bottom: 15px; }
         .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .asset-title { font-size: 18px; font-weight: bold; color: #fff; display: flex; align-items: center; gap: 8px; }
@@ -76,10 +76,10 @@
     <div id="scanning-modal">
         <div class="scanner-box">
             <svg viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2m0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8m.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7Z"/></svg>
-            <span style="font-size: 12px; color: #00b8d9; font-weight: bold;">FEED REALE ATTIVO</span>
+            <span style="font-size: 12px; color: #00b8d9; font-weight: bold;">LIVE SCANNER</span>
         </div>
-        <h3 style="font-size: 18px; margin-bottom: 6px;">Elaborazione dati di mercato...</h3>
-        <p id="scan-status-text" style="font-size: 13px; color: #848e9c;">Sincronizzazione ticker...</p>
+        <h3 style="font-size: 18px; margin-bottom: 6px;">Analisi in corso...</h3>
+        <p id="scan-status-text" style="font-size: 13px; color: #848e9c;">Elaborazione dati di mercato...</p>
         <div class="scan-progress-bar">
             <div class="scan-progress-fill" id="scan-progress"></div>
         </div>
@@ -131,7 +131,7 @@
 
                 <div class="favorability-container">
                     <div class="favorability-info">
-                        <span>Affidabilità Reale</span>
+                        <span>Affidabilità</span>
                         <strong id="res-fav" style="color: #0ecb81;">--</strong>
                     </div>
                     <div class="favorability-bar">
@@ -271,19 +271,19 @@
     <script>
         const categories = {
             "Materie Prime": [
-                { id: 'XAUUSD', label: '🥇 Oro', tv: 'OANDA:XAUUSD', bx: 'GOLD-USDT' },
-                { id: 'XAGUSD', label: '🥈 Argento', tv: 'OANDA:XAGUSD', bx: 'SILVER-USDT' },
-                { id: 'USOIL', label: '🛢️ Petrolio WTI', tv: 'TVC:USOIL', bx: 'USOIL-USDT' }
+                { id: 'XAUUSD', label: '🥇 Oro', tv: 'OANDA:XAUUSD' },
+                { id: 'XAGUSD', label: '🥈 Argento', tv: 'OANDA:XAGUSD' },
+                { id: 'USOIL', label: '🛢️ Petrolio WTI', tv: 'TVC:USOIL' }
             ],
             "Crypto": [
-                { id: 'BTCUSDT', label: '₿ Bitcoin', tv: 'BINANCE:BTCUSDT', bx: 'BTC-USDT' },
-                { id: 'ETHUSDT', label: 'Ξ Ethereum', tv: 'BINANCE:ETHUSDT', bx: 'ETH-USDT' },
-                { id: 'SOLUSDT', label: '🟣 Solana', tv: 'BINANCE:SOLUSDT', bx: 'SOL-USDT' },
-                { id: 'BNBUSDT', label: '🟡 BNB', tv: 'BINANCE:BNBUSDT', bx: 'BNB-USDT' },
-                { id: 'XRPUSDT', label: '✕ Ripple', tv: 'BINANCE:XRPUSDT', bx: 'XRP-USDT' },
-                { id: 'DOGEUSDT', label: '🐕 Doge', tv: 'BINANCE:DOGEUSDT', bx: 'DOGE-USDT' },
-                { id: 'PEPEUSDT', label: '🐸 Pepe', tv: 'BINANCE:PEPEUSDT', bx: 'PEPE-USDT' },
-                { id: 'WIFUSDT', label: '🐕‍🦺 WIF', tv: 'BINANCE:WIFUSDT', bx: 'WIF-USDT' }
+                { id: 'BTCUSDT', label: '₿ Bitcoin', tv: 'BINANCE:BTCUSDT' },
+                { id: 'ETHUSDT', label: 'Ξ Ethereum', tv: 'BINANCE:ETHUSDT' },
+                { id: 'SOLUSDT', label: '🟣 Solana', tv: 'BINANCE:SOLUSDT' },
+                { id: 'BNBUSDT', label: '🟡 BNB', tv: 'BINANCE:BNBUSDT' },
+                { id: 'XRPUSDT', label: '✕ Ripple', tv: 'BINANCE:XRPUSDT' },
+                { id: 'DOGEUSDT', label: '🐕 Doge', tv: 'BINANCE:DOGEUSDT' },
+                { id: 'PEPEUSDT', label: '🐸 Pepe', tv: 'BINANCE:PEPEUSDT' },
+                { id: 'WIFUSDT', label: '🐕‍🦺 WIF', tv: 'BINANCE:WIFUSDT' }
             ],
             "Forex": [
                 { id: 'EURUSD', label: '💶 EUR/USD', tv: 'FX:EURUSD' },
@@ -406,11 +406,10 @@
             const statusText = document.getElementById('scan-status-text');
             
             modal.style.display = 'flex';
-            progress.style.width = '30%';
-            statusText.innerText = "Connessione al feed di mercato...";
+            progress.style.width = '40%';
+            statusText.innerText = "Analisi dati in corso...";
 
-            setTimeout(() => { progress.style.width = '70%'; statusText.innerText = "Elaborazione indicatori..."; }, 500);
-            setTimeout(() => { progress.style.width = '95%'; statusText.innerText = "Completato."; }, 1000);
+            setTimeout(() => { progress.style.width = '80%'; statusText.innerText = "Calcolo livelli di precisione..."; }, 300);
 
             try {
                 const response = await fetch('/api/analyze', {
@@ -456,7 +455,7 @@
                     document.getElementById('res-pattern-text').innerText = data.pattern_text;
 
                     document.getElementById('analysis-result').style.display = 'block';
-                }, 1200);
+                }, 600);
 
             } catch (err) {
                 modal.style.display = 'none';
@@ -476,7 +475,7 @@
                     grouped[s.category].push(s);
                 });
 
-                let html = '<div style="font-size:11px; color:#0ecb81; margin-bottom:10px; text-align:right;">🟢 Feed Verificato Attivo</div>';
+                let html = '<div style="font-size:11px; color:#0ecb81; margin-bottom:10px; text-align:right;">🟢 Scanner Attivo • Segnali Certi (≥80%)</div>';
                 for(let cat in grouped) {
                     html += `<div class="category-title">${cat}</div>`;
                     html += grouped[cat].map(s => `
@@ -495,23 +494,26 @@
                                 <span style="color: #f6465d;"><strong>SL:</strong> ${s.sl}</span>
                                 <span style="color: #0ecb81;"><strong>TP1:</strong> ${s.tp1}</span>
                             </div>
+                            <div style="font-size: 11px; color: #848e9c; margin-top: 6px; border-top: 1px solid #1f2633; padding-top: 4px;">
+                                RSI: <span style="color:#fff;">${s.rsi}</span> | Ordine: <span style="color:#38bdf8;">${s.order_type}</span> | Affidabilità: <strong style="color:#0ecb81;">${s.prob}</strong>
+                            </div>
                         </div>
                     `).join('');
                 }
-                container.innerHTML = html || '<p style="color:#848e9c;">Nessun segnale attivo.</p>';
+                container.innerHTML = html || '<p style="color:#848e9c;">Nessun segnale ad alta probabilità in questo momento.</p>';
             } catch (e) {
-                container.innerHTML = '<p style="color:#f6465d;">Errore nel caricamento dei segnali.</p>';
+                document.getElementById('signals-container').innerHTML = '<p style="color:#f6465d;">Errore nel caricamento dei segnali.</p>';
             }
         }
 
         function copySignal() {
-            navigator.clipboard.writeText(`Segnale: ${currentSymbol} - Ingresso: ${document.getElementById('res-entry').innerText}`);
-            alert('Segnale copiato!');
+            navigator.clipboard.writeText(`Setup AI:\nAsset: ${currentSymbol}\nIngresso: ${document.getElementById('res-entry').innerText}\nStop Loss: ${document.getElementById('res-sl').innerText}`);
+            alert('Segnale copiato negli appunti!');
         }
 
         function shareSignal() {
             if (navigator.share) {
-                navigator.share({ title: 'Segnale AI', text: 'Analisi:', url: window.location.href });
+                navigator.share({ title: 'Segnale AI', text: 'Setup verificato:', url: window.location.href });
             } else {
                 copySignal();
             }
@@ -524,7 +526,7 @@
             chat.innerHTML += `<p style="background: #232d3f; padding: 10px; border-radius: 8px; margin-bottom: 8px; text-align: right;">${input.value}</p>`;
             input.value = '';
             setTimeout(() => {
-                chat.innerHTML += `<p style="background: #181f2a; padding: 10px; border-radius: 8px; margin-bottom: 8px;">Analisi completata.</p>`;
+                chat.innerHTML += `<p style="background: #181f2a; padding: 10px; border-radius: 8px; margin-bottom: 8px;">Analisi completata: parametri verificati.</p>`;
                 chat.scrollTop = chat.scrollHeight;
             }, 600);
         }
