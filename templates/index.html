@@ -41,7 +41,6 @@
         .info-card { background: #181f2a; border: 1px solid #232d3f; border-radius: 12px; padding: 10px; text-align: center; }
         .info-card span { display: block; font-size: 11px; color: #848e9c; margin-bottom: 4px; }
         .info-card strong { font-size: 14px; }
-        .counter-card { background: #161512; border: 1px solid #f59e0b; border-radius: 16px; padding: 16px; margin-bottom: 15px; }
         .ai-advice-box { background: #161c28; border: 1px solid #1f3a5f; border-radius: 12px; padding: 14px; margin-bottom: 15px; }
         .signal-card { background: #121620; border: 1px solid #1f2633; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
         .category-title { font-size: 14px; font-weight: bold; color: #00b8d9; margin: 15px 0 8px 0; border-bottom: 1px solid #1f2633; padding-bottom: 4px; }
@@ -55,18 +54,19 @@
 
     <header>
         <div class="top-stats">
-            <span>Feed: <span style="color:#0ecb81;">BINGX LIVE</span></span>
-            <span>Auto-Sync: <span>5s</span></span>
+            <span>Sezione: <span id="mode-display" style="color:#0ecb81;">Day Trading</span></span>
         </div>
-        <div class="live-badge"><div class="dot-live"></div> LIVE</div>
+        <div class="live-badge"><div class="dot-live"></div> ATTIVO</div>
     </header>
 
     <!-- TAB 1: ANALIZZA -->
     <div id="tab-analizza" class="tab-content active">
+        <!-- 4 Modalità Operative Complete -->
         <div class="selector-row" id="mode-selector">
             <div class="chip" onclick="setMode(this, 'Scalping')">⚡ Scalping</div>
             <div class="chip active" onclick="setMode(this, 'Day Trading')">📊 Day Trading</div>
             <div class="chip" onclick="setMode(this, 'Swing Trading')">📈 Swing Trading</div>
+            <div class="chip" onclick="setMode(this, 'Long Term')">🪐 Long Term</div>
         </div>
 
         <div class="market-category-bar">
@@ -92,21 +92,21 @@
             <div class="chip" onclick="setTimeframe(this, '1h')">1h</div>
         </div>
 
-        <button class="btn-primary" onclick="fetchLiveAnalysis(true)">Aggiorna Prezzo, SL e TP Live</button>
+        <button class="btn-primary" onclick="fetchLiveAnalysis()">Ricalcola Setup Dinamico</button>
 
         <div id="analysis-result" style="display:block;">
             <div class="result-card">
                 <div class="result-header">
                     <div>
                         <div class="asset-title" id="res-symbol">Caricamento...</div>
-                        <span id="res-source" style="font-size:11px; color:#848e9c;">Connessione BingX...</span>
+                        <span id="res-source" style="font-size:11px; color:#848e9c;">Sincronizzazione...</span>
                     </div>
                     <div id="res-action" class="badge-action BUY">--</div>
                 </div>
 
                 <div class="favorability-container">
                     <div class="favorability-info">
-                        <span>Affidabilità Segnale (Filtro Anti-Falsi)</span>
+                        <span>Affidabilità Matematica (≥80%)</span>
                         <strong id="res-fav" style="color: #0ecb81;">--</strong>
                     </div>
                     <div class="favorability-bar">
@@ -115,14 +115,14 @@
                 </div>
 
                 <div class="entry-box">
-                    <span>Zona di ingresso Live</span>
+                    <span>Zona di Ingresso Calcolata</span>
                     <strong id="res-entry">--</strong>
                 </div>
 
                 <div class="grid-cards">
-                    <div class="info-card"><span>Prezzo Attuale</span><strong id="res-live-price" style="color: #fff;">--</strong></div>
-                    <div class="info-card"><span>Tipo di ordine</span><strong id="res-order-type" style="color: #38bdf8;">--</strong></div>
-                    <div class="info-card"><span>Stop Loss Live</span><strong id="res-sl" style="color: #f6465d;">--</strong></div>
+                    <div class="info-card"><span>Prezzo Live</span><strong id="res-live-price" style="color: #fff;">--</strong></div>
+                    <div class="info-card"><span>Ordine</span><strong id="res-order-type" style="color: #38bdf8;">--</strong></div>
+                    <div class="info-card"><span>Stop Loss</span><strong id="res-sl" style="color: #f6465d;">--</strong></div>
                     <div class="info-card"><span>Take Profit 1</span><strong id="res-tp1" style="color: #0ecb81;">--</strong></div>
                     <div class="info-card"><span>Take Profit 2</span><strong id="res-tp2" style="color: #0ecb81;">--</strong></div>
                     <div class="info-card"><span>Take Profit 3</span><strong id="res-tp3" style="color: #0ecb81;">--</strong></div>
@@ -130,7 +130,7 @@
             </div>
 
             <div class="ai-advice-box">
-                <div style="font-size: 13px; font-weight: bold; color: #38bdf8; margin-bottom: 4px;">🤖 Analisi Live Sincronizzata</div>
+                <div style="font-size: 13px; font-weight: bold; color: #38bdf8; margin-bottom: 4px;">🤖 Diagnostica Modalità Attiva</div>
                 <p id="res-ai-advice" style="font-size: 12px; color: #cbd5e1; line-height: 1.4;">--</p>
             </div>
         </div>
@@ -138,9 +138,9 @@
 
     <!-- TAB 2: SEGNALI CERTI -->
     <div id="tab-segnali" class="tab-content">
-        <h3 style="font-size: 16px; margin-bottom: 12px;">Segnali Verificati Live (≥ 80%)</h3>
+        <h3 style="font-size: 16px; margin-bottom: 12px;">Segnali Matematici Certi (≥ 80%)</h3>
         <div id="signals-container">
-            <p style="color: #848e9c; font-size: 13px;">Caricamento prezzi reali...</p>
+            <p style="color: #848e9c; font-size: 13px;">Scansione in corso...</p>
         </div>
     </div>
 
@@ -148,7 +148,7 @@
     <nav>
         <button class="active" onclick="switchTab('analizza', this)">
             <svg viewBox="0 0 24 24"><path d="M3 3v18h18v-2H5V3H3m4 10h2v5H7v-5m4-4h2v9h-2V9m4-6h2v15h-2V3Z"/></svg>
-            Analizza Live
+            Analizza
         </button>
         <button onclick="switchTab('segnali', this)">
             <svg viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2m0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8m.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7Z"/></svg>
@@ -188,7 +188,6 @@
         let currentSymbol = 'ETHUSDT';
         let currentTimeframe = '15m';
         let currentMode = 'Day Trading';
-        let autoRefreshTimer = null;
 
         function filterCategory(categoryName, btn) {
             document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
@@ -218,16 +217,9 @@
             }
             const tfMap = { '1m': '1', '15m': '15', '30m': '30', '1h': '60' };
             new TradingView.widget({
-                "autosize": true,
-                "symbol": tvSymbol,
-                "interval": tfMap[tf] || "15",
-                "timezone": "Europe/Rome",
-                "theme": "dark",
-                "style": "1",
-                "locale": "it",
-                "toolbar_bg": "#121620",
-                "enable_publishing": false,
-                "container_id": "tradingview_widget"
+                "autosize": true, "symbol": tvSymbol, "interval": tfMap[tf] || "15",
+                "timezone": "Europe/Rome", "theme": "dark", "style": "1", "locale": "it",
+                "toolbar_bg": "#121620", "enable_publishing": false, "container_id": "tradingview_widget"
             });
         }
 
@@ -236,16 +228,14 @@
             document.querySelectorAll('nav button').forEach(el => el.classList.remove('active'));
             document.getElementById('tab-' + tabId).classList.add('active');
             btn.classList.add('active');
-
-            if (tabId === 'segnali') {
-                loadSignals();
-            }
+            if (tabId === 'segnali') loadSignals();
         }
 
         function setMode(el, mode) {
             document.querySelectorAll('#mode-selector .chip').forEach(c => c.classList.remove('active'));
             el.classList.add('active');
             currentMode = mode;
+            document.getElementById('mode-display').innerText = mode;
             fetchLiveAnalysis();
         }
 
@@ -275,7 +265,7 @@
                 const data = await response.json();
                 if (data.status === 'success') {
                     document.getElementById('res-symbol').innerText = `${data.symbol} — ${data.current_price}`;
-                    document.getElementById('res-source').innerText = `Fonte: ${data.source} • Aggiornato ora`;
+                    document.getElementById('res-source').innerText = `Fonte: ${data.source}`;
                     document.getElementById('res-fav').innerText = `${data.favorability}%`;
                     document.getElementById('res-fav-fill').style.width = `${data.favorability}%`;
                     
@@ -293,7 +283,7 @@
                     document.getElementById('res-ai-advice').innerText = data.ai_recommendation;
                 }
             } catch (err) {
-                console.log("Attesa aggiornamento...");
+                console.log("Errore di rete");
             }
         }
 
@@ -316,8 +306,8 @@
                         <div class="signal-card">
                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
                                 <div>
-                                    <h4 style="font-size: 15px;">${s.name}</h4>
-                                    <p style="font-size: 12px; color: #848e9c;">Prezzo Live: <strong style="color:#fff;">${s.price}</strong> • ${s.change}</p>
+                                    <h4 style="font-size: 15px;">${s.symbol}</h4>
+                                    <p style="font-size: 12px; color: #848e9c;">Prezzo: <strong style="color:#fff;">${s.price}</strong> • ${s.change}</p>
                                 </div>
                                 <div class="badge-action ${s.action}">${s.action}</div>
                             </div>
@@ -334,7 +324,7 @@
                         </div>
                     `).join('');
                 }
-                container.innerHTML = html || '<p style="color:#848e9c;">Nessun segnale ≥ 80% rilevato in questo momento.</p>';
+                container.innerHTML = html || '<p style="color:#848e9c;">Nessun segnale matematico confermato (≥80%) al momento.</p>';
             } catch (e) {
                 document.getElementById('signals-container').innerHTML = '<p style="color:#f6465d;">Errore di caricamento.</p>';
             }
@@ -342,12 +332,9 @@
 
         window.onload = () => {
             renderSymbols();
-            // Aggiornamento automatico in tempo reale ogni 5 secondi
-            autoRefreshTimer = setInterval(() => {
+            setInterval(() => {
                 if (document.getElementById('tab-analizza').classList.contains('active')) {
                     fetchLiveAnalysis();
-                } else if (document.getElementById('tab-segnali').classList.contains('active')) {
-                    loadSignals();
                 }
             }, 5000);
         };
