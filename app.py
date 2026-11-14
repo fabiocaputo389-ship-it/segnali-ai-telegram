@@ -157,35 +157,35 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
     if is_buy:
         action = "BUY"
         ai_score = 99.9
-        sentiment = "Institutional Bullish Accumulation"
-        regime = "Risk-On Expansion"
+        sentiment = "Accumulo Istituzionale Rialzista"
+        regime = "Espansione Risk-On"
         bid_pressure = round(np.random.uniform(74.0, 91.0), 1)
         ask_pressure = round(100.0 - bid_pressure, 1)
-        execution_algo = "VWAP Institutional Split (Optimized)"
+        execution_algo = "VWAP Divisione Istituzionale (Ottimizzato)"
         dark_pool = "Accumulo Istituzionale Rilevato ($48.2M Block)"
-        gex_status = "Positive Gamma (Volatilità Compressi in Salita)"
+        gex_status = "Gamma Positivo (Volatilità Compressi in Salita)"
         mtc_matrix = "5m: BUY | 15m: BUY | 1h: BUY (100% Confluenza)"
     elif is_sell:
         action = "SELL"
         ai_score = 99.9
-        sentiment = "Institutional Bearish Distribution"
-        regime = "Risk-Off Defensive"
+        sentiment = "Distribuzione Istituzionale Ribassista"
+        regime = "Difensivo Risk-Off"
         ask_pressure = round(np.random.uniform(74.0, 91.0), 1)
         bid_pressure = round(100.0 - ask_pressure, 1)
-        execution_algo = "TWAP Block Execution (Optimized)"
+        execution_algo = "TWAP Esecuzione a Blocchi (Ottimizzato)"
         dark_pool = "Distribuzione Istituzionale Rilevata ($41.9M Block)"
-        gex_status = "Negative Gamma (Accelerazione Ribassista Imminente)"
+        gex_status = "Gamma Negativo (Accelerazione Ribassista Imminente)"
         mtc_matrix = "5m: SELL | 15m: SELL | 1h: SELL (100% Confluenza)"
     else:
         action = "NEUTRAL"
         ai_score = 45.0
         sentiment = "Consolidamento / Incertezza"
-        regime = "Range Compression"
+        regime = "Compressione di Range"
         bid_pressure = 50.0
         ask_pressure = 50.0
         execution_algo = "In Attesa di Breakout"
         dark_pool = "Flussi Silenti / Normali"
-        gex_status = "Neutral Gamma"
+        gex_status = "Gamma Neutro"
         mtc_matrix = "Misto / Inattivo"
 
     if mode == 'Scalping':
@@ -233,10 +233,9 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
     price_risk_per_unit = abs(current_price - sl)
     raw_position_size = (max_risk_amount / price_risk_per_unit) if price_risk_per_unit > 0 else 0.0
     
-    # Formattazione intelligente della size in base al tipo di asset per evitare valori giganti o illeggibili
-    if current_price < 5:  # Forex / piccoli asset
+    if current_price < 5:
         position_size = round(raw_position_size, 2)
-    elif current_price > 10000:  # Crypto maggiori (BTC, ecc.)
+    elif current_price > 10000:
         position_size = round(raw_position_size, 4)
     else:
         position_size = round(raw_position_size, 3)
