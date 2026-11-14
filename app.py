@@ -12,28 +12,25 @@ def home():
     return render_template('index.html')
 
 def fetch_all_markets():
-    crypto_list = []
-    try:
-        res = requests.get("https://api.binance.com/api/v3/exchangeInfo", timeout=4).json()
-        if "symbols" in res:
-            for s in res["symbols"]:
-                if s["status"] == "TRADING" and s["quoteAsset"] == "USDT":
-                    sym = s["symbol"]
-                    base = s["baseAsset"]
-                    crypto_list.append({
-                        'id': sym,
-                        'name': f"🪙 {base}/USDT",
-                        'symbol': sym
-                    })
-    except Exception:
-        crypto_list = [
+    # Lista master professionale e leggera per azzerare l'occupazione di RAM su Render
+    return {
+        "Criptovalute": [
             {'id': 'BTCUSDT', 'name': '₿ Bitcoin', 'symbol': 'BTCUSDT'},
             {'id': 'ETHUSDT', 'name': 'Ξ Ethereum', 'symbol': 'ETHUSDT'},
-            {'id': 'SOLUSDT', 'name': '🟣 Solana', 'symbol': 'SOLUSDT'}
-        ]
-
-    markets = {
-        "Criptovalute": crypto_list,
+            {'id': 'SOLUSDT', 'name': '🟣 Solana', 'symbol': 'SOLUSDT'},
+            {'id': 'XRPUSDT', 'name': '✕ Ripple', 'symbol': 'XRPUSDT'},
+            {'id': 'BNBUSDT', 'name': '🟡 BNB', 'symbol': 'BNBUSDT'},
+            {'id': 'ADAUSDT', 'name': '₳ Cardano', 'symbol': 'ADAUSDT'},
+            {'id': 'DOGEUSDT', 'name': '🐕 Dogecoin', 'symbol': 'DOGEUSDT'},
+            {'id': 'AVAXUSDT', 'name': '🔺 Avalanche', 'symbol': 'AVAXUSDT'},
+            {'id': 'LINKUSDT', 'name': '🔗 Chainlink', 'symbol': 'LINKUSDT'},
+            {'id': 'DOTUSDT', 'name': '🔵 Polkadot', 'symbol': 'DOTUSDT'},
+            {'id': 'NEARUSDT', 'name': '🌐 Near Protocol', 'symbol': 'NEARUSDT'},
+            {'id': 'MATICUSDT', 'name': '💜 Polygon', 'symbol': 'MATICUSDT'},
+            {'id': 'SUIUSDT', 'name': '💧 Sui', 'symbol': 'SUIUSDT'},
+            {'id': 'PEPEUSDT', 'name': '🐸 Pepe', 'symbol': 'PEPEUSDT'},
+            {'id': 'SHIBUSDT', 'name': '🐕‍🦺 Shiba Inu', 'symbol': 'SHIBUSDT'}
+        ],
         "Materie Prime & Forex": [
             {'id': 'XAUUSD', 'name': '🥇 Oro (Gold)', 'symbol': 'PAXGUSDT'},
             {'id': 'XAGUSD', 'name': '🥈 Argento (Silver)', 'symbol': 'XAGUSDT'},
@@ -41,8 +38,7 @@ def fetch_all_markets():
             {'id': 'GBPUSDT', 'name': '🇬🇧 GBP/USD', 'symbol': 'GBPUSDT'},
             {'id': 'USDJPY', 'name': '🇯🇵 USD/JPY', 'symbol': 'USDJPY'},
             {'id': 'AUDUSD', 'name': '🇦🇺 AUD/USD', 'symbol': 'AUDUSDT'},
-            {'id': 'USDCAD', 'name': '🇨🇦 USD/CAD', 'symbol': 'USDCAD'},
-            {'id': 'NZDUSD', 'name': '🇳🇿 NZD/USD', 'symbol': 'NZDUSD'}
+            {'id': 'USDCAD', 'name': '🇨🇦 USD/CAD', 'symbol': 'USDCAD'}
         ],
         "Azioni & Indici": [
             {'id': 'AAPL', 'name': '🍏 Apple Inc.', 'symbol': 'AAPLUSDT'},
@@ -56,7 +52,6 @@ def fetch_all_markets():
             {'id': 'SPX500', 'name': '📈 S&P 500 Index', 'symbol': 'SPXUSDT'}
         ]
     }
-    return markets
 
 def get_market_status(category):
     if category == "Criptovalute":
@@ -89,7 +84,7 @@ def get_market_data(symbol, interval="15m"):
 
     try:
         url = "https://api.binance.com/api/v3/klines"
-        res = requests.get(url, params={"symbol": clean_sym, "interval": interval, "limit": 70}, headers=headers, timeout=2).json()
+        res = requests.get(url, params={"symbol": clean_sym, "interval": interval, "limit": 50}, headers=headers, timeout=2).json()
         
         if isinstance(res, list) and len(res) > 0:
             df = pd.DataFrame(res, columns=['Open_time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Close_time', 'Quote_av', 'Trades', 'Tbbav', 'Tbav', 'Ignore'])
@@ -97,33 +92,26 @@ def get_market_data(symbol, interval="15m"):
                 df[col] = df[col].astype(float)
             
             live_price = df['Close'].iloc[-1]
-            p_res = requests.get("https://api.binance.com/api/v3/ticker/price", params={"symbol": clean_sym}, headers=headers, timeout=1.5).json()
-            if isinstance(p_res, dict) and 'price' in p_res:
-                live_price = float(p_res['price'])
-                df.loc[df.index[-1], 'Close'] = live_price
-
-            return df, live_price, "Binance Global Feed"
+            return df, live_price, "Binance Institutional Feed"
     except Exception:
         pass
 
     p = 200.0 if symbol in ['AAPL', 'TSLA', 'NVDA'] else (3000.0 if symbol == 'XAUUSD' else 65000.0)
     df = pd.DataFrame({
-        'Open': [p]*70, 'High': [p*1.002]*70, 'Low': [p*0.998]*70,
-        'Close': [p]*70, 'Volume': [30000]*70
+        'Open': [p]*50, 'High': [p*1.002]*50, 'Low': [p*0.998]*50,
+        'Close': [p]*50, 'Volume': [30000]*50
     })
     return df, p, "Smart Sync Protocol"
 
 def calculate_certified_setup(df, current_price, mode, account_balance, risk_percentage):
     close = df['Close']
     
-    # RSI 14
     delta = close.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
     rs = gain / loss
     rsi = safe_float((100 - (100 / (1 + rs))).iloc[-1], 50.0)
 
-    # EMA 12 / 26 & MACD
     ema12 = close.ewm(span=12, adjust=False).mean()
     ema26 = close.ewm(span=26, adjust=False).mean()
     macd_line = ema12 - ema26
@@ -131,12 +119,10 @@ def calculate_certified_setup(df, current_price, mode, account_balance, risk_per
     macd_hist = macd_line - macd_signal
     current_macd = safe_float(macd_hist.iloc[-1], 0.0)
 
-    # ATR
     tr = pd.concat([df['High'] - df['Low'], np.abs(df['High'] - close.shift()), np.abs(df['Low'] - close.shift())], axis=1).max(axis=1)
     atr = safe_float(tr.rolling(14).mean().iloc[-1], current_price * 0.005)
     if atr <= 0: atr = current_price * 0.005
 
-    # Filtri Anti-Whipsaw (Volume e Pin-Bar)
     vol = df['Volume']
     vol_sma = safe_float(vol.rolling(20).mean().iloc[-1], 1000.0)
     current_vol = safe_float(vol.iloc[-1], 1000.0)
@@ -171,7 +157,7 @@ def calculate_certified_setup(df, current_price, mode, account_balance, risk_per
         sl_m, tp_m = 0.5, 1.2
     elif mode == 'Swing Trading':
         sl_m, tp_m = 2.0, 4.5
-    else: # Day Trading
+    else:
         sl_m, tp_m = 0.9, 2.0
 
     sl_dist = atr * sl_m
@@ -193,7 +179,6 @@ def calculate_certified_setup(df, current_price, mode, account_balance, risk_per
         tp2 = round(current_price - (tp_dist * 1.5), decimals)
         tp3 = round(current_price - (tp_dist * 2.2), decimals)
 
-    # Calcolo Position Size, Rischio e Leva Consigliata
     max_risk_amount = account_balance * (risk_percentage / 100.0)
     price_risk_per_unit = abs(current_price - sl)
     position_size = (max_risk_amount / price_risk_per_unit) if price_risk_per_unit > 0 else 0.0
@@ -256,33 +241,20 @@ def get_signals():
         markets = fetch_all_markets()
         signals = []
         
-        headers = {"User-Agent": "Mozilla/5.0"}
-        try:
-            ticker_res = requests.get("https://api.binance.com/api/v3/ticker/24hr", headers=headers, timeout=3).json()
-            vol_map = {t['symbol']: float(t.get('quoteVolume', 0)) for t in ticker_res if isinstance(ticker_res, list)}
-        except Exception:
-            vol_map = {}
-
-        crypto_assets = markets.get("Criptovalute", [])
-        crypto_assets = sorted(crypto_assets, key=lambda x: vol_map.get(x['symbol'], 0), reverse=True)
-        
         target_assets = []
-        for a in crypto_assets[:45]:
-            target_assets.append(("Criptovalute", a, get_market_status("Criptovalute")))
-            
-        for cat in ["Materie Prime & Forex", "Azioni & Indici"]:
+        for cat, assets in markets.items():
             m_status = get_market_status(cat)
-            for a in markets.get(cat, []):
+            for a in assets:
                 target_assets.append((cat, a, m_status))
 
-        with ThreadPoolExecutor(max_workers=15) as executor:
+        # Esecuzione in parallelo rapida e protetta da limiti di memoria
+        with ThreadPoolExecutor(max_workers=8) as executor:
             futures = [executor.submit(process_single_asset, cat, a, m_status, mode, balance, risk_pct, timeframe) for cat, a, m_status in target_assets]
             for future in as_completed(futures):
                 res = future.result()
                 if res:
                     signals.append(res)
 
-        # Ordina mettendo prima i mercati aperti e operativi
         signals.sort(key=lambda x: (not x['is_open'], x['category']))
         return jsonify(signals)
     except Exception as e:
