@@ -10,6 +10,7 @@ def home():
     return render_template('index.html')
 
 def fetch_all_markets():
+    # Elenco statico di backup garantito al 100% per evitare che la lista scompaia mai
     markets = {
         "Criptovalute": [
             {'id': 'BTCUSDT', 'name': '₿ Bitcoin', 'symbol': 'BTCUSDT'},
@@ -49,7 +50,7 @@ def get_market_data(symbol):
             
             live_price = df['Close'].iloc[-1]
             p_res = requests.get("https://api.binance.com/api/v3/ticker/price", params={"symbol": symbol}, headers=headers, timeout=2).json()
-            if 'price' in p_res:
+            if isinstance(p_res, dict) and 'price' in p_res:
                 live_price = float(p_res['price'])
                 df.loc[df.index[-1], 'Close'] = live_price
 
@@ -176,7 +177,21 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
 
 @app.route('/api/markets', methods=['GET'])
 def get_markets():
-    return jsonify(fetch_all_markets())
+    try:
+        return jsonify(fetch_all_markets())
+    except Exception as e:
+        print("Errore markets:", e)
+        # Ritorna comunque il dizionario di backup se qualcosa va storto
+        return jsonify({
+            "Criptovalute": [
+                {'id': 'BTCUSDT', 'name': '₿ Bitcoin', 'symbol': 'BTCUSDT'},
+                {'id': 'ETHUSDT', 'name': 'Ξ Ethereum', 'symbol': 'ETHUSDT'},
+                {'id': 'SOLUSDT', 'name': '🟣 Solana', 'symbol': 'SOLUSDT'}
+            ],
+            "Materie Prime & Forex": [
+                {'id': 'XAUUSD', 'name': '🥇 Oro (Simulato Live)', 'symbol': 'PAXGUSDT'}
+            ]
+        })
 
 @app.route('/api/analyze', methods=['POST'])
 def analyze_chart():
@@ -190,7 +205,6 @@ def analyze_chart():
 
         df, current_price, source = get_market_data(symbol)
         
-        # Calcolo variazione % giornaliera per la barra live
         p_open = float(df['Open'].iloc[0]) if df['Open'].iloc[0] > 0 else current_price
         change = float(((current_price - p_open) / p_open) * 100)
         if np.isnan(change) or not np.isfinite(change): change = 0.0
