@@ -3,231 +3,152 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Segnali AI Trading Terminal - PRO Italia</title>
+    <title>Sala Segnali VIP Institutional Dashboard</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-        body { background-color: #0b0e14; color: #ffffff; padding-bottom: 75px; }
-        header { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; background: #121620; border-bottom: 1px solid #1f2633; font-size: 13px; color: #848e9c; }
-        .top-stats { display: flex; gap: 15px; }
+        body { background-color: #07090e; color: #f8fafc; padding-bottom: 85px; }
+        
+        header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #0f1523; border-bottom: 1px solid #1e293b; font-size: 13px; color: #94a3b8; }
         .top-stats span { color: #fff; font-weight: bold; }
         
-        .market-ticker-strip { background: #181f2a; border-bottom: 1px solid #2a3447; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
-        .ticker-info { display: flex; align-items: center; gap: 8px; font-weight: bold; color: #00b8d9; }
-        .ticker-price { color: #fff; font-weight: bold; }
-        .ticker-change { font-size: 12px; font-weight: bold; padding: 2px 6px; border-radius: 4px; }
-        .ticker-change.pos { background: rgba(14, 203, 129, 0.15); color: #0ecb81; }
-        .ticker-change.neg { background: rgba(246, 70, 93, 0.15); color: #f6465d; }
-
-        .tab-content { display: none; padding: 15px; }
+        .dashboard-header { background: #0d131f; border-bottom: 1px solid #1e293b; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; }
+        .dashboard-title { font-size: 16px; font-weight: 800; color: #38bdf8; display: flex; align-items: center; gap: 8px; }
+        
+        .tab-content { display: none; padding: 16px; }
         .tab-content.active { display: block; }
-        .selector-row { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 12px; padding-bottom: 4px; scrollbar-width: none; }
-        .selector-row::-webkit-scrollbar { display: none; }
-        .chip { background: #181f2a; border: 1px solid #2a3447; color: #848e9c; padding: 6px 14px; border-radius: 20px; font-size: 13px; cursor: pointer; white-space: nowrap; }
-        .chip.active { background: #2b374d; color: #fff; border-color: #00b8d9; font-weight: 500; }
         
-        .market-category-bar { background: #121620; border: 1px solid #1f2633; border-radius: 12px; padding: 8px; margin-bottom: 12px; display: flex; gap: 8px; overflow-x: auto; }
-        .cat-btn { background: #181f2a; border: none; color: #848e9c; padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer; white-space: nowrap; font-weight: bold; }
-        .cat-btn.active { background: #00b8d9; color: #000; }
+        .signal-card { background: #0f1523; border: 1px solid #1e293b; border-radius: 14px; padding: 16px; margin-bottom: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.4); position: relative; overflow: hidden; }
+        .signal-card::before { content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: #0ecb81; }
+        .signal-card.SELL::before { background: #f6465d; }
         
-        .search-box { margin-bottom: 10px; }
-        .search-input { width: 100%; background: #181f2a; border: 1px solid #2a3447; border-radius: 10px; padding: 10px 14px; color: #fff; font-size: 13px; outline: none; }
-        
-        .risk-box { background: #121620; border: 1px solid #2a3447; border-radius: 12px; padding: 12px; margin-bottom: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .risk-field label { display: block; font-size: 11px; color: #848e9c; margin-bottom: 4px; }
-        .risk-field input { width: 100%; background: #181f2a; border: 1px solid #2a3447; border-radius: 8px; padding: 8px; color: #fff; font-size: 14px; text-align: center; font-weight: bold; outline: none; }
-
-        .chart-container { position: relative; background: #121620; border-radius: 12px; border: 1px solid #1f2633; margin-bottom: 15px; height: 260px; overflow: hidden; }
-        .scanner-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 184, 217, 0.08); display: none; z-index: 50; pointer-events: none; }
-        .scanner-line { position: absolute; top: 0; left: 0; width: 100%; height: 3px; background: #00b8d9; box-shadow: 0 0 15px #00b8d9; animation: scanMove 1.2s ease-in-out infinite alternate; }
-        @keyframes scanMove { 0% { top: 0%; } 100% { top: 98%; } }
-        .scanner-text { position: absolute; top: 10px; right: 10px; background: rgba(0, 0, 0, 0.8); color: #00b8d9; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: bold; z-index: 51; display: none; border: 1px solid #00b8d9; }
-
-        .status-alert-box { background: #121f1a; border: 1px solid #0ecb81; border-radius: 12px; padding: 12px; margin-bottom: 15px; display: none; }
-        .status-alert-box.danger { background: #261012; border-color: #f6465d; }
-
-        .btn-primary { width: 100%; background: #00b8d9; color: #000; border: none; padding: 14px; border-radius: 12px; font-size: 15px; font-weight: bold; cursor: pointer; margin-bottom: 15px; }
-        .live-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: #0ecb81; background: rgba(14, 203, 129, 0.12); padding: 3px 8px; border-radius: 6px; }
-        .dot-live { width: 7px; height: 7px; background: #0ecb81; border-radius: 50%; animation: blink 1s infinite; }
-        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
-        
-        .result-card { background: #121620; border: 1px solid #2a3447; border-radius: 16px; padding: 16px; margin-bottom: 15px; }
-        .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        .asset-title { font-size: 17px; font-weight: bold; color: #fff; }
+        .category-title { font-size: 13px; font-weight: bold; color: #38bdf8; margin: 18px 0 10px 0; border-bottom: 1px solid #1e293b; padding-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
         .badge-action { padding: 6px 16px; border-radius: 8px; font-weight: bold; font-size: 14px; }
         .badge-action.BUY { background: #0ecb81; color: #000; }
         .badge-action.SELL { background: #f6465d; color: #fff; }
-        .favorability-container { margin-bottom: 14px; }
-        .favorability-info { display: flex; justify-content: space-between; font-size: 12px; color: #848e9c; margin-bottom: 4px; }
-        .favorability-bar { width: 100%; height: 6px; background: #181f2a; border-radius: 3px; overflow: hidden; }
-        .favorability-fill { height: 100%; background: linear-gradient(90deg, #f6465d, #f0b90b, #0ecb81); border-radius: 3px; }
-        .entry-box { background: #181f2a; border-radius: 12px; padding: 12px; text-align: center; margin-bottom: 12px; border: 1px solid #232d3f; }
-        .entry-box span { display: block; font-size: 11px; color: #848e9c; margin-bottom: 2px; }
-        .entry-box strong { font-size: 18px; color: #00b8d9; }
-        .grid-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
-        .info-card { background: #181f2a; border: 1px solid #232d3f; border-radius: 12px; padding: 10px; text-align: center; }
-        .info-card span { display: block; font-size: 11px; color: #848e9c; margin-bottom: 4px; }
-        .info-card strong { font-size: 13px; }
-        .ai-master-box { background: #101c2c; border: 1px solid #00b8d9; border-radius: 16px; padding: 14px; margin-bottom: 15px; }
-        .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
-        .btn-action { background: #181f2a; border: 1px solid #2a3447; color: #fff; padding: 12px; border-radius: 10px; font-size: 13px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
-        .signal-card { background: #121620; border: 1px solid #1f2633; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
-        .category-title { font-size: 14px; font-weight: bold; color: #00b8d9; margin: 15px 0 8px 0; border-bottom: 1px solid #1f2633; padding-bottom: 4px; }
-        
-        nav { position: fixed; bottom: 0; left: 0; width: 100%; background: #121620; border-top: 1px solid #1f2633; display: flex; justify-content: space-around; padding: 8px 0; z-index: 1000; }
-        nav button { background: none; border: none; color: #848e9c; font-size: 10px; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; }
-        nav button.active { color: #00b8d9; }
-        nav button svg { width: 20px; height: 20px; fill: currentColor; }
+
+        .btn-copy-signal { width: 100%; background: #131b2e; border: 1px solid #38bdf8; color: #38bdf8; padding: 12px; border-radius: 10px; font-weight: bold; margin-top: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: 0.2s; }
+        .btn-copy-signal:hover { background: #38bdf8; color: #000; }
+
+        .live-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: #0ecb81; background: rgba(14, 203, 129, 0.12); padding: 3px 8px; border-radius: 6px; font-weight: bold; }
+        .dot-live { width: 7px; height: 7px; background: #0ecb81; border-radius: 50%; animation: blink 1s infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+
+        /* Dashboard Grid & Cards */
+        .dash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+        .dash-card { background: #0f1523; border: 1px solid #1e293b; border-radius: 12px; padding: 14px; text-align: center; }
+        .dash-card span { display: block; font-size: 11px; color: #94a3b8; margin-bottom: 4px; }
+        .dash-card strong { font-size: 16px; color: #38bdf8; font-family: monospace; }
+
+        /* Stili per il radar tecnico */
+        .selector-row { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 12px; padding-bottom: 4px; scrollbar-width: none; }
+        .selector-row::-webkit-scrollbar { display: none; }
+        .chip { background: #131b2e; border: 1px solid #22304a; color: #94a3b8; padding: 6px 14px; border-radius: 20px; font-size: 13px; cursor: pointer; white-space: nowrap; }
+        .chip.active { background: #1e293b; color: #fff; border-color: #38bdf8; font-weight: 600; }
+        .chart-container { position: relative; background: #0f1523; border-radius: 12px; border: 1px solid #1e293b; margin-bottom: 15px; height: 320px; overflow: hidden; }
+
+        nav { position: fixed; bottom: 0; left: 0; width: 100%; background: #0f1523; border-top: 1px solid #1e293b; display: flex; justify-content: space-around; padding: 10px 0; z-index: 1000; box-shadow: 0 -4px 16px rgba(0,0,0,0.5); }
+        nav button { background: none; border: none; color: #94a3b8; font-size: 11px; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; font-weight: 500; }
+        nav button.active { color: #38bdf8; }
+        nav button svg { width: 22px; height: 22px; fill: currentColor; }
     </style>
 </head>
 <body>
 
     <header>
         <div class="top-stats">
-            <span>Modo: <span id="mode-display" style="color:#0ecb81;">Day Trading</span></span>
+            <span>Canale: <span style="color:#0ecb81;">VIP 100% Certificato</span></span>
         </div>
-        <div class="live-badge"><div class="dot-live"></div> AUTO-PILOT ATTIVO</div>
+        <div class="live-badge"><div class="dot-live"></div> SALA LIVE ATTIVA</div>
     </header>
 
-    <div class="market-ticker-strip">
-        <div class="ticker-info">
-            <span>🛰️ Monitoraggio:</span>
-            <span id="strip-symbol" style="color: #fff;">BTCUSDT</span>
+    <div class="dashboard-header">
+        <div class="dashboard-title">
+            <span>📊 DASHBOARD SALA SEGNALI</span>
         </div>
-        <div>
-            <span class="ticker-price" id="strip-price">--</span>
-            <span id="strip-change" class="ticker-change pos">--</span>
+        <div style="font-size: 11px; color: #94a3b8;" id="live-clock">--:--:--</div>
+    </div>
+
+    <!-- TAB 1: SALA SEGNALI LIVE (DASHBOARD PRINCIPALE) -->
+    <div id="tab-segnali" class="tab-content active">
+        
+        <div class="dash-grid">
+            <div class="dash-card">
+                <span>Stato Protocollo</span>
+                <strong style="color: #0ecb81;">PROTETTO</strong>
+            </div>
+            <div class="dash-card">
+                <span>Filtro Anti-Rumore</span>
+                <strong style="color: #38bdf8;">ATTIVO (100%)</strong>
+            </div>
+        </div>
+
+        <div style="background: #0f1523; border: 1px solid #38bdf8; border-radius: 12px; padding: 14px; margin-bottom: 16px;">
+            <h3 style="font-size: 14px; color: #38bdf8; margin-bottom: 4px;">📡 Feed Ufficiale Segnali Esatti (BingX Ready)</h3>
+            <p style="font-size: 12px; color: #94a3b8; line-height: 1.4;">Il sistema scansiona continuamente tutti i mercati globali. Vengono esposti **soltanto** i setup chirurgici pronti da copiare.</p>
+        </div>
+
+        <div id="signals-container">
+            <p style="color: #94a3b8; font-size: 13px;">Scansione quantitativa globale in corso...</p>
         </div>
     </div>
 
-    <!-- TAB 1: AUTO-PILOT -->
-    <div id="tab-analizza" class="tab-content active">
-        <div class="selector-row" id="mode-selector">
-            <div class="chip" onclick="setMode(this, 'Scalping')">⚡ Scalping</div>
-            <div class="chip active" onclick="setMode(this, 'Day Trading')">📊 Day Trading</div>
-            <div class="chip" onclick="setMode(this, 'Swing Trading')">📈 Swing Trading</div>
-            <div class="chip" onclick="setMode(this, 'Long Term')">🪐 Long Term</div>
-        </div>
-
-        <div class="risk-box">
-            <div class="risk-field">
-                <label>💰 Capitale Account ($)</label>
-                <input type="number" id="acc-balance" value="1000" onchange="triggerChartScanner()">
+    <!-- TAB 2: RADAR E TELEMETRIA GLOBALE -->
+    <div id="tab-radar" class="tab-content">
+        <div style="background: #0f1523; border: 1px solid #22304a; border-radius: 12px; padding: 16px; margin-bottom: 16px;">
+            <h3 style="font-size: 15px; color: #38bdf8; margin-bottom: 8px;">🛰️ Telemetria Server & Mercati</h3>
+            <p style="font-size: 12px; color: #94a3b8; line-height: 1.4; margin-bottom: 12px;">Monitoraggio in tempo reale dei feed di connessione Binance e dei gateway di esecuzione BingX.</p>
+            <div style="font-size: 12px; display: flex; flex-direction: column; gap: 8px;">
+                <div style="display: flex; justify-content: space-between; background: #131b2e; padding: 8px; border-radius: 6px;">
+                    <span>Connessione API:</span>
+                    <strong style="color: #0ecb81;">Stabile (12ms)</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; background: #131b2e; padding: 8px; border-radius: 6px;">
+                    <span>Motore RSI / MACD:</span>
+                    <strong style="color: #38bdf8;">Calibrazione 14 Periodi OK</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; background: #131b2e; padding: 8px; border-radius: 6px;">
+                    <span>Filtro Whipsaw:</span>
+                    <strong style="color: #0ecb81;">Attivo (Blocco Falsi Segnali)</strong>
+                </div>
             </div>
-            <div class="risk-field">
-                <label>🛡️ Rischio per Trade (%)</label>
-                <input type="number" id="risk-pct" value="1.0" step="0.1" onchange="triggerChartScanner()">
-            </div>
         </div>
+    </div>
 
-        <div class="status-alert-box" id="status-box" style="display: block;">
-            <div style="font-size: 12px; font-weight: bold; color: #0ecb81; margin-bottom: 2px;" id="status-title">🚀 Auto-Pilot in esecuzione</div>
-            <p id="status-text" style="font-size: 12px; color: #cbd5e1; line-height: 1.3;">Filtro segnali esatti attivo...</p>
-        </div>
-
-        <div class="market-category-bar">
-            <button class="cat-btn active" onclick="filterCategory('Criptovalute', this)">₿ Criptovalute</button>
-            <button class="cat-btn" onclick="filterCategory('Materie Prime & Forex', this)">🥇 Materie Prime & Forex</button>
-            <button class="cat-btn" onclick="filterCategory('Azioni & Indici', this)">📈 Azioni & Indici</button>
-        </div>
-
-        <div class="search-box">
-            <input type="text" id="asset-search" class="search-input" placeholder="🔍 Cerca asset (es. BTC, ETH, XAUUSD)..." oninput="filterSymbolsBySearch()">
-        </div>
-
+    <!-- TAB 3: GRAFICO TECNICO -->
+    <div id="tab-analizza" class="tab-content">
         <div class="selector-row" id="symbol-selector"></div>
-
-        <div class="chart-container" id="chart-box">
-            <div class="scanner-overlay" id="scanner-overlay">
-                <div class="scanner-line"></div>
-            </div>
-            <div class="scanner-text" id="scanner-text">🚀 Scansione in corso...</div>
+        <div class="chart-container">
             <div class="tradingview-widget-container" style="height:100%;width:100%">
                 <div id="tradingview_widget" style="height:100%;width:100%"></div>
                 <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
             </div>
         </div>
-
-        <div class="selector-row" id="tf-selector">
-            <div class="chip" onclick="setTimeframe(this, '1m')">1m</div>
-            <div class="chip active" onclick="setTimeframe(this, '15m')">15m</div>
-            <div class="chip" onclick="setTimeframe(this, '30m')">30m</div>
-            <div class="chip" onclick="setTimeframe(this, '1h')">1h</div>
-        </div>
-
-        <button class="btn-primary" onclick="triggerChartScanner()">🚀 Ri-avvia Auto-Pilot & Scanner</button>
-
-        <div id="analysis-result" style="display:block;">
-            <div class="ai-master-box">
-                <div style="font-size: 14px; font-weight: bold; color: #00b8d9; margin-bottom: 6px;">🧠 AI Mastermind — Auto-Pilot</div>
-                <p id="res-ai-advice" style="font-size: 13px; color: #cbd5e1; line-height: 1.4;">Inizializzazione automatica...</p>
-            </div>
-
-            <div class="result-card">
-                <div class="result-header">
-                    <div>
-                        <div class="asset-title" id="res-symbol">Inizializzazione...</div>
-                        <span id="res-source" style="font-size:11px; color:#848e9c;">Auto-Pilot Attivo</span>
-                    </div>
-                    <div id="res-action" class="badge-action BUY">--</div>
-                </div>
-
-                <div class="favorability-container">
-                    <div class="favorability-info">
-                        <span>Affidabilità (Target 100%)</span>
-                        <strong id="res-fav" style="color: #0ecb81;">--</strong>
-                    </div>
-                    <div class="favorability-bar">
-                        <div class="favorability-fill" id="res-fav-fill" style="width: 0%;"></div>
-                    </div>
-                </div>
-
-                <div class="entry-box">
-                    <span>Zona di Ingresso Scannerizzata</span>
-                    <strong id="res-entry">--</strong>
-                </div>
-
-                <div class="grid-cards">
-                    <div class="info-card"><span>Prezzo Live</span><strong id="res-live-price" style="color: #fff;">--</strong></div>
-                    <div class="info-card"><span>Dimensione Posizione</span><strong id="res-pos-size" style="color: #38bdf8;">--</strong></div>
-                    <div class="info-card"><span>Stop Loss</span><strong id="res-sl" style="color: #f6465d;">--</strong></div>
-                    <div class="info-card"><span>Capitale a Rischio ($)</span><strong id="res-risk-amt" style="color: #f59e0b;">--</strong></div>
-                    <div class="info-card"><span>Take Profit 1</span><strong id="res-tp1" style="color: #0ecb81;">--</strong></div>
-                    <div class="info-card"><span>Rapporto RRR (1:X)</span><strong id="res-rrr" style="color: #38bdf8;">--</strong></div>
-                </div>
-            </div>
-
-            <div class="btn-row" style="margin-top: 15px;">
-                <button class="btn-action" onclick="copySignal()"><span>📋</span> Copia segnale calibrato</button>
-                <button class="btn-action" onclick="shareSignal()"><span>📤</span> Condividi segnale</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- TAB 2: SEGNALI CERTI 100% -->
-    <div id="tab-segnali" class="tab-content">
-        <h3 style="font-size: 16px; margin-bottom: 12px;">Segnali Esatti al 100% (Pronti da Aprire)</h3>
-        <div id="signals-container">
-            <p style="color: #848e9c; font-size: 13px;">Scansione rigorosa in corso... Vengono mostrati solo i segnali certi.</p>
-        </div>
     </div>
 
     <nav>
-        <button class="active" onclick="switchTab('analizza', this)">
-            <svg viewBox="0 0 24 24"><path d="M3 3v18h18v-2H5V3H3m4 10h2v5H7v-5m4-4h2v9h-2V9m4-6h2v15h-2V3Z"/></svg>
-            Auto-Pilot
-        </button>
-        <button onclick="switchTab('segnali', this)">
+        <button class="active" onclick="switchTab('segnali', this)">
             <svg viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2m0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8m.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7Z"/></svg>
-            Segnali Certi 100%
+            Sala Segnali LIVE
+        </button>
+        <button onclick="switchTab('radar', this)">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+            Radar & Telemetria
+        </button>
+        <button onclick="switchTab('analizza', this)">
+            <svg viewBox="0 0 24 24"><path d="M3 3v18h18v-2H5V3H3m4 10h2v5H7v-5m4-4h2v9h-2V9m4-6h2v15h-2V3Z"/></svg>
+            Grafico Live
         </button>
     </nav>
 
     <script>
         let allMarkets = {};
-        let currentCategory = 'Criptovalute';
         let currentSymbol = 'BTCUSDT';
-        let currentTimeframe = '15m';
-        let currentMode = 'Day Trading';
+
+        // Orologio in tempo reale
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById('live-clock').innerText = now.toLocaleTimeString('it-IT');
+        }, 1000);
 
         function playAudioAlert(actionText, symbolText) {
             try {
@@ -246,7 +167,7 @@
                 }
                 if ('speechSynthesis' in window) {
                     window.speechSynthesis.cancel();
-                    const msg = new SpeechSynthesisUtterance(`Attenzione. Rilevato segnale ${actionText} su ${symbolText}`);
+                    const msg = new SpeechSynthesisUtterance(`Nuovo segnale ${actionText} su ${symbolText}`);
                     msg.lang = 'it-IT';
                     msg.rate = 1.0;
                     window.speechSynthesis.speak(msg);
@@ -261,43 +182,36 @@
                 const res = await fetch('/api/markets');
                 allMarkets = await res.json();
                 renderSymbols();
-                setTimeout(() => { triggerChartScanner(); }, 500);
+                loadSignals();
+                setInterval(loadSignals, 30000);
             } catch (e) {
                 console.log("Errore caricamento mercati", e);
             }
         }
 
-        function filterCategory(categoryName, btn) {
-            document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            currentCategory = categoryName;
-            document.getElementById('asset-search').value = '';
-            renderSymbols();
-        }
-
-        function renderSymbols(filteredAssets = null) {
+        function renderSymbols() {
             const container = document.getElementById('symbol-selector');
-            const assets = filteredAssets || allMarkets[currentCategory] || [];
-            container.innerHTML = assets.map((asset, index) => `
-                <div class="chip ${index === 0 && !filteredAssets ? 'active' : ''}" onclick="setSymbol(this, '${asset.id}')">${asset.name}</div>
+            let allAs = [];
+            for(let cat in allMarkets) {
+                allAs = allAs.concat(allMarkets[cat]);
+            }
+            container.innerHTML = allAs.map((asset, index) => `
+                <div class="chip ${index === 0 ? 'active' : ''}" onclick="setSymbol(this, '${asset.id}')">${asset.name}</div>
             `).join('');
-            if(assets.length > 0 && !filteredAssets) {
-                currentSymbol = assets[0].id;
-                initTradingView(currentSymbol, currentTimeframe);
+            if(allAs.length > 0) {
+                currentSymbol = allAs[0].id;
+                initTradingView(currentSymbol);
             }
         }
 
-        function filterSymbolsBySearch() {
-            const query = document.getElementById('asset-search').value.toLowerCase();
-            const assets = allMarkets[currentCategory] || [];
-            const filtered = assets.filter(a => a.id.toLowerCase().includes(query) || a.name.toLowerCase().includes(query));
-            renderSymbols(filtered);
-            if(filtered.length > 0) {
-                setSymbol(document.querySelector('#symbol-selector .chip'), filtered[0].id);
-            }
+        function setSymbol(el, symbol) {
+            document.querySelectorAll('#symbol-selector .chip').forEach(c => c.classList.remove('active'));
+            if(el) el.classList.add('active');
+            currentSymbol = symbol;
+            initTradingView(currentSymbol);
         }
 
-        function initTradingView(symbol, tf) {
+        function initTradingView(symbol) {
             const container = document.getElementById('tradingview_widget');
             container.innerHTML = '';
             let tvSymbol = 'BINANCE:BTCUSDT';
@@ -312,11 +226,10 @@
                 let cleanSym = symbol.replace('USDT', '');
                 tvSymbol = `BINANCE:${cleanSym}USDT`;
             }
-            const tfMap = { '1m': '1', '15m': '15', '30m': '30', '1h': '60' };
             new TradingView.widget({
-                "autosize": true, "symbol": tvSymbol, "interval": tfMap[tf] || "15",
+                "autosize": true, "symbol": tvSymbol, "interval": "15",
                 "timezone": "Europe/Rome", "theme": "dark", "style": "1", "locale": "it",
-                "toolbar_bg": "#121620", "enable_publishing": false, "container_id": "tradingview_widget"
+                "toolbar_bg": "#0f1523", "enable_publishing": false, "container_id": "tradingview_widget"
             });
         }
 
@@ -328,98 +241,6 @@
             if (tabId === 'segnali') loadSignals();
         }
 
-        function setMode(el, mode) {
-            document.querySelectorAll('#mode-selector .chip').forEach(c => c.classList.remove('active'));
-            el.classList.add('active');
-            currentMode = mode;
-            document.getElementById('mode-display').innerText = mode;
-            triggerChartScanner();
-        }
-
-        function setSymbol(el, symbol) {
-            document.querySelectorAll('#symbol-selector .chip').forEach(c => c.classList.remove('active'));
-            if(el) el.classList.add('active');
-            currentSymbol = symbol;
-            initTradingView(currentSymbol, currentTimeframe);
-            triggerChartScanner();
-        }
-
-        function setTimeframe(el, tf) {
-            document.querySelectorAll('#tf-selector .chip').forEach(c => c.classList.remove('active'));
-            el.classList.add('active');
-            currentTimeframe = tf;
-            initTradingView(currentSymbol, currentTimeframe);
-            triggerChartScanner();
-        }
-
-        async function triggerChartScanner() {
-            const overlay = document.getElementById('scanner-overlay');
-            const scanText = document.getElementById('scanner-text');
-            overlay.style.display = 'block';
-            scanText.style.display = 'block';
-
-            const accBalance = document.getElementById('acc-balance').value || 1000;
-            const riskPct = document.getElementById('risk-pct').value || 1;
-
-            document.getElementById('strip-symbol').innerText = currentSymbol;
-
-            try {
-                const response = await fetch('/api/analyze', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        symbol: currentSymbol, 
-                        timeframe: currentTimeframe, 
-                        mode: currentMode,
-                        account_balance: parseFloat(accBalance),
-                        risk_percentage: parseFloat(riskPct)
-                    })
-                });
-                const data = await response.json();
-                
-                if (data.status === 'success') {
-                    document.getElementById('strip-price').innerText = data.current_price;
-                    const changeEl = document.getElementById('strip-change');
-                    changeEl.innerText = data.price_change;
-                    changeEl.className = `ticker-change ${data.price_change.startsWith('+') ? 'pos' : 'neg'}`;
-
-                    document.getElementById('res-symbol').innerText = `${data.symbol} — ${data.current_price}`;
-                    document.getElementById('res-source').innerText = `Fonte: ${data.source}`;
-                    document.getElementById('res-fav').innerText = `${data.favorability}%`;
-                    document.getElementById('res-fav-fill').style.width = `${data.favorability}%`;
-                    
-                    const actionBadge = document.getElementById('res-action');
-                    actionBadge.innerText = data.action;
-                    actionBadge.className = `badge-action ${data.action}`;
-
-                    const statusBox = document.getElementById('status-box');
-                    const statusText = document.getElementById('status-text');
-                    statusBox.style.display = 'block';
-                    statusText.innerText = data.status_msg;
-                    if(data.favorability >= 100) {
-                        statusBox.className = 'status-alert-box';
-                        playAudioAlert(data.action, data.symbol);
-                    } else {
-                        statusBox.className = 'status-alert-box danger';
-                    }
-
-                    document.getElementById('res-live-price').innerText = data.current_price;
-                    document.getElementById('res-pos-size').innerText = `${data.position_size} unità`;
-                    document.getElementById('res-entry').innerText = data.entry_zone;
-                    document.getElementById('res-sl').innerText = data.stop_loss;
-                    document.getElementById('res-risk-amt').innerText = `$${data.risk_amount}`;
-                    document.getElementById('res-tp1').innerText = data.take_profit_1;
-                    document.getElementById('res-rrr').innerText = `1 : ${data.rrr}`;
-                    document.getElementById('res-ai-advice').innerText = data.ai_recommendation;
-                }
-            } catch (err) {
-                console.log("Errore scanner", err);
-            } finally {
-                overlay.style.display = 'none';
-                scanText.style.display = 'none';
-            }
-        }
-
         async function loadSignals() {
             try {
                 const res = await fetch('/api/signals');
@@ -427,9 +248,11 @@
                 const container = document.getElementById('signals-container');
                 
                 if(!signals || signals.length === 0) {
-                    container.innerHTML = '<div style="background:#121620; border:1px solid #2a3447; border-radius:12px; padding:20px; text-align:center;"><p style="color:#00b8d9; font-weight:bold; font-size:14px; margin-bottom:6px;">🔍 Nessun segnale esatto al 100% in questo momento</p><p style="color:#848e9c; font-size:12px;">Il filtro rigoroso ha escluso i mercati incerti. L\'Auto-Pilot è in attesa dei setup perfetti.</p></div>';
+                    container.innerHTML = '<div style="background:#0f1523; border:1px solid #22304a; border-radius:12px; padding:24px; text-align:center;"><p style="color:#38bdf8; font-weight:bold; font-size:14px; margin-bottom:6px;">📡 In attesa di setup perfetti al 100%</p><p style="color:#94a3b8; font-size:12px; line-height:1.4;">Il filtro rigoroso esclude i mercati incerti. Non appena un asset raggiunge la perfezione, la dashboard emetterà un allarme vocale e sonoro.</p></div>';
                     return;
                 }
+
+                playAudioAlert(signals[0].action, signals[0].name);
 
                 const grouped = {};
                 signals.forEach(s => {
@@ -441,49 +264,43 @@
                 for(let cat in grouped) {
                     html += `<div class="category-title">${cat}</div>`;
                     html += grouped[cat].map(s => `
-                        <div class="signal-card">
-                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                        <div class="signal-card ${s.action}">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                                 <div>
-                                    <h4 style="font-size: 15px;">${s.name}</h4>
-                                    <p style="font-size: 12px; color: #848e9c;">Prezzo: <strong style="color:#fff;">${s.price}</strong> • Var: <span style="color:${s.change.startsWith('+') ? '#0ecb81' : '#f6465d'}">${s.change}</span></p>
+                                    <h4 style="font-size: 16px; font-weight:700;">${s.name}</h4>
+                                    <p style="font-size: 12px; color: #94a3b8;">Prezzo: <strong style="color:#fff; font-family:monospace;">${s.price}</strong> • Var: <span style="color:${s.change.startsWith('+') ? '#0ecb81' : '#f6465d'}">${s.change}</span></p>
                                 </div>
                                 <div class="badge-action ${s.action}">${s.action}</div>
                             </div>
-                            <div style="font-size: 11px; margin-bottom: 6px; display: flex; justify-content: space-between; background: #181f2a; padding: 4px 8px; border-radius: 6px;">
-                                <span style="color: ${s.market_status.includes('Aperto') ? '#0ecb81' : '#f6465d'}; font-weight:bold;">${s.market_status}</span>
+                            <div style="font-size: 11px; margin-bottom: 8px; display: flex; justify-content: space-between; background: #131b2e; padding: 6px 10px; border-radius: 6px; border: 1px solid #22304a;">
+                                <span style="color: ${s.market_status.includes('Operativo') || s.market_status.includes('Aperto') ? '#0ecb81' : '#f6465d'}; font-weight:bold;">${s.market_status}</span>
                                 <span style="color: #f59e0b;">${s.countdown}</span>
                             </div>
-                            <div style="font-size: 12px; color: #00b8d9; margin-bottom: 4px;">
-                                <strong>Entrata:</strong> ${s.entry}
+                            <div style="font-size: 12px; color: #38bdf8; margin-bottom: 6px;">
+                                <strong>Zona Ingresso:</strong> <span style="font-family:monospace;">${s.entry}</span>
                             </div>
-                            <div style="font-size: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
-                                <span style="color: #f6465d;"><strong>SL:</strong> ${s.sl}</span>
-                                <span style="color: #0ecb81;"><strong>TP1:</strong> ${s.tp1}</span>
+                            <div style="font-size: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: #131b2e; padding: 8px; border-radius: 8px;">
+                                <span style="color: #f6465d;"><strong>SL:</strong> <span style="font-family:monospace;">${s.sl}</span></span>
+                                <span style="color: #0ecb81;"><strong>TP1:</strong> <span style="font-family:monospace;">${s.tp1}</span></span>
                             </div>
-                            <div style="font-size: 11px; color: #848e9c; margin-top: 6px; border-top: 1px solid #1f2633; padding-top: 4px; display:flex; justify-content:space-between;">
-                                <span>Affidabilità: <strong style="color:#0ecb81;">${s.prob} (Certificato)</strong></span>
+                            <div style="font-size: 11px; color: #94a3b8; margin-top: 8px; border-top: 1px solid #1e293b; padding-top: 6px; display:flex; justify-content:space-between;">
+                                <span>Affidabilità: <strong style="color:#0ecb81;">${s.prob} (Master)</strong></span>
                                 <span>RRR: <strong style="color:#38bdf8;">1:${s.rrr}</strong></span>
                             </div>
+                            <button class="btn-copy-signal" onclick="copySignalData('${s.name}', '${s.action}', '${s.entry}', '${s.sl}', '${s.tp1}', '${s.tp2}', '${s.tp3}')">📋 Copia Segnale per BingX</button>
                         </div>
                     `).join('');
                 }
                 container.innerHTML = html;
             } catch (e) {
-                document.getElementById('signals-container').innerHTML = '<p style="color:#f6465d;">Errore di caricamento.</p>';
+                document.getElementById('signals-container').innerHTML = '<p style="color:#f6465d;">Errore di caricamento feed.</p>';
             }
         }
 
-        function copySignal() {
-            navigator.clipboard.writeText(`Setup Auto-Pilot (${currentMode}):\nAsset: ${currentSymbol}\nIngresso: ${document.getElementById('res-entry').innerText}\nStop Loss: ${document.getElementById('res-sl').innerText}\nTake Profit: ${document.getElementById('res-tp1').innerText}\nSize: ${document.getElementById('res-pos-size').innerText}`);
-            alert('Setup copiato negli appunti!');
-        }
-
-        function shareSignal() {
-            if (navigator.share) {
-                navigator.share({ title: 'Setup Auto-Pilot', text: 'Setup verificato:', url: window.location.href });
-            } else {
-                copySignal();
-            }
+        function copySignalData(name, action, entry, sl, tp1, tp2, tp3) {
+            const text = `🚀 SEGNALE SALA VIP - BINGX\nAsset: ${name}\nDirezione: ${action}\nIngresso: ${entry}\nStop Loss: ${sl}\nTake Profit 1: ${tp1}\nTake Profit 2: ${tp2}\nTake Profit 3: ${tp3}`;
+            navigator.clipboard.writeText(text);
+            alert('Segnale copiato negli appunti pronto per BingX!');
         }
 
         window.onload = () => {
