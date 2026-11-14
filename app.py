@@ -3,6 +3,7 @@ import requests
 import pandas as pd
 import numpy as np
 from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 app = Flask(__name__)
 
@@ -11,10 +12,9 @@ def home():
     return render_template('index.html')
 
 def fetch_all_markets():
-    # Recupero dinamico di TUTTE le criptovalute disponibili su Binance contro USDT
     crypto_list = []
     try:
-        res = requests.get("https://api.binance.com/api/v3/exchangeInfo", timeout=5).json()
+        res = requests.get("https://api.binance.com/api/v3/exchangeInfo", timeout=4).json()
         if "symbols" in res:
             for s in res["symbols"]:
                 if s["status"] == "TRADING" and s["quoteAsset"] == "USDT":
@@ -90,7 +90,7 @@ def get_market_data(symbol):
 
     try:
         url = "https://api.binance.com/api/v3/klines"
-        res = requests.get(url, params={"symbol": clean_sym, "interval": "15m", "limit": 70}, headers=headers, timeout=3).json()
+        res = requests.get(url, params={"symbol": clean_sym, "interval": "15m", "limit": 70}, headers=headers, timeout=2).json()
         
         if isinstance(res, list) and len(res) > 0:
             df = pd.DataFrame(res, columns=['Open_time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Close_time', 'Quote_av', 'Trades', 'Tbbav', 'Tbav', 'Ignore'])
@@ -98,7 +98,7 @@ def get_market_data(symbol):
                 df[col] = df[col].astype(float)
             
             live_price = df['Close'].iloc[-1]
-            p_res = requests.get("https://api.binance.com/api/v3/ticker/price", params={"symbol": clean_sym}, headers=headers, timeout=2).json()
+            p_res = requests.get("https://api.binance.com/api/v3/ticker/price", params={"symbol": clean_sym}, headers=headers, timeout=1.5).json()
             if isinstance(p_res, dict) and 'price' in p_res:
                 live_price = float(p_res['price'])
                 df.loc[df.index[-1], 'Close'] = live_price
@@ -117,14 +117,12 @@ def get_market_data(symbol):
 def calculate_certified_setup(df, current_price, mode, timeframe, account_balance, risk_percentage):
     close = df['Close']
     
-    # RSI 14 periodi
     delta = close.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
     rs = gain / loss
     rsi = safe_float((100 - (100 / (1 + rs))).iloc[-1], 50.0)
 
-    # EMA & MACD
     ema12 = close.ewm(span=12, adjust=False).mean()
     ema26 = close.ewm(span=26, adjust=False).mean()
     macd_line = ema12 - ema26
@@ -132,12 +130,10 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
     macd_hist = macd_line - macd_signal
     current_macd = safe_float(macd_hist.iloc[-1], 0.0)
 
-    # ATR
     tr = pd.concat([df['High'] - df['Low'], np.abs(df['High'] - close.shift()), np.abs(df['Low'] - close.shift())], axis=1).max(axis=1)
     atr = safe_float(tr.rolling(14).mean().iloc[-1], current_price * 0.005)
     if atr <= 0: atr = current_price * 0.005
 
-    # Filtri Anti-Whipsaw
     vol = df['Volume']
     vol_sma = safe_float(vol.rolling(20).mean().iloc[-1], 1000.0)
     current_vol = safe_float(vol.iloc[-1], 1000.0)
@@ -155,16 +151,8 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
     ema_val_12 = safe_float(ema12.iloc[-1], current_price)
     ema_val_26 = safe_float(ema26.iloc[-1], current_price)
 
-    ema_bullish = ema_val_12 > ema_val_26
-    macd_bullish = current_macd > 0.0
-    rsi_bullish_perfect = 52 <= rsi <= 72
-
-    ema_bearish = ema_val_12 < ema_val_26
-    macd_bearish = current_macd < 0.0
-    rsi_bearish_perfect = 28 <= rsi <= 48
-
-    is_perfect_buy = ema_bullish and macd_bullish and rsi_bullish_perfect and (whipsaw_detected == "No")
-    is_perfect_sell = ema_bearish and macd_bearish and rsi_bearish_perfect and (whipsaw_detected == "No")
+    is_perfect_buy = (ema_val_12 > ema_val_26) and (current_macd > 0.0) and (52 <= rsi <= 72) and (whipsaw_detected == "No")
+    is_perfect_sell = (ema_val_12 < ema_val_26) and (current_macd < 0.0) and (28 <= rsi <= 48) and (whipsaw_detected == "No")
 
     if is_perfect_buy:
         action = "BUY"
@@ -176,15 +164,7 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
         action = "BUY" if ema_val_12 >= ema_val_26 else "SELL"
         confidence = 50
 
-    if mode == 'Scalping':
-        sl_m, tp_m = 0.4, 1.0
-    elif mode == 'Day Trading':
-        sl_m, tp_m = 0.9, 2.0
-    elif mode == 'Swing Trading':
-        sl_m, tp_m = 2.0, 4.5
-    else:
-        sl_m, tp_m = 1.0, 2.0
-
+    sl_m, tp_m = 0.9, 2.0
     sl_dist = atr * sl_m
     tp_dist = atr * tp_m
     decimals = 6 if current_price < 0.01 else (4 if current_price < 5 else 2)
@@ -196,7 +176,6 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
         tp1 = round(current_price + tp_dist, decimals)
         tp2 = round(current_price + (tp_dist * 1.5), decimals)
         tp3 = round(current_price + (tp_dist * 2.0), decimals)
-        order_type = "Buy Limit"
     else:
         entry_l = round(current_price - (atr * 0.05), decimals)
         entry_h = round(current_price + (atr * 0.05), decimals)
@@ -204,22 +183,16 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
         tp1 = round(current_price - tp_dist, decimals)
         tp2 = round(current_price - (tp_dist * 1.5), decimals)
         tp3 = round(current_price - (tp_dist * 2.0), decimals)
-        order_type = "Sell Limit"
 
     max_risk_amount = account_balance * (risk_percentage / 100.0)
     price_risk_per_unit = abs(current_price - sl)
     position_size = (max_risk_amount / price_risk_per_unit) if price_risk_per_unit > 0 else 0.0
     rrr = round(tp_dist / sl_dist, 2) if sl_dist > 0 else 0.0
 
-    status_msg = f"🔥 SETUP MASTER 100%: RSI ({rsi:.1f}), MACD e filtri anti-rumore allineati." if confidence == 100 else f"⏳ In attesa di perfezione (RSI: {rsi:.1f})."
-    ai_advice = f"[{mode}] Rischio: {risk_percentage}% (${max_risk_amount:.2f}). RRR = 1:{rrr}. {status_msg}"
-
     return {
-        "action": action, "confidence": int(confidence), "order_type": order_type,
+        "action": action, "confidence": int(confidence),
         "entry_zone": f"{entry_l} - {entry_h}", "sl": sl, "tp1": tp1, "tp2": tp2, "tp3": tp3,
-        "risk_amount": round(max_risk_amount, 2), "position_size": round(position_size, 4),
-        "rrr": rrr, "whipsaw_detected": whipsaw_detected, "status_msg": status_msg,
-        "ai_recommendation": ai_advice, "decimals": decimals
+        "rrr": rrr, "decimals": decimals
     }
 
 @app.route('/api/markets', methods=['GET'])
@@ -247,15 +220,37 @@ def analyze_chart():
         return jsonify({
             "status": "success", "symbol": symbol, "source": source,
             "current_price": round(current_price, dec), "price_change": f"{change:+.2f}%",
-            "action": res["action"], "order_type": res["order_type"], "favorability": res["confidence"],
+            "action": res["action"], "favorability": res["confidence"],
             "entry_zone": res["entry_zone"], "stop_loss": res["sl"],
             "take_profit_1": res["tp1"], "take_profit_2": res["tp2"], "take_profit_3": res["tp3"],
-            "risk_amount": res["risk_amount"], "position_size": res["position_size"], "rrr": res["rrr"],
-            "whipsaw_detected": str(res["whipsaw_detected"]), "status_msg": res["status_msg"],
-            "ai_recommendation": res["ai_recommendation"]
+            "rrr": res["rrr"]
         })
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+def process_single_asset(cat, a, vol_map, m_status):
+    try:
+        df, current_price, source = get_market_data(a['id'])
+        if df is not None and not df.empty:
+            p_open = float(df['Open'].iloc[0]) if df['Open'].iloc[0] > 0 else current_price
+            change = float(((current_price - p_open) / p_open) * 100)
+            if np.isnan(change) or not np.isfinite(change): change = 0.0
+
+            res = calculate_certified_setup(df, current_price, 'Day Trading', '15m', 1000.0, 1.0)
+            
+            if res['confidence'] == 100:
+                dec = res["decimals"]
+                return {
+                    "category": cat, "symbol": a['id'], "name": a['name'],
+                    "action": res["action"], "change": f"{change:+.2f}%", 
+                    "price": f"{current_price:.{dec}f}", "prob": f"{res['confidence']}%", 
+                    "entry": res["entry_zone"], "sl": res["sl"], 
+                    "tp1": res["tp1"], "tp2": res["tp2"], "tp3": res["tp3"],
+                    "rrr": res["rrr"], "market_status": m_status["text"], "countdown": m_status["countdown"]
+                }
+    except Exception:
+        pass
+    return None
 
 @app.route('/api/signals', methods=['GET'])
 def get_signals():
@@ -263,47 +258,34 @@ def get_signals():
         markets = fetch_all_markets()
         signals = []
         
-        # Ordinamento intelligente per volume per scansionare i top asset attivi senza timeout
         headers = {"User-Agent": "Mozilla/5.0"}
-        ticker_res = requests.get("https://api.binance.com/api/v3/ticker/24hr", headers=headers, timeout=5).json()
-        vol_map = {}
-        if isinstance(ticker_res, list):
-            for t in ticker_res:
-                vol_map[t['symbol']] = float(t.get('quoteVolume', 0))
+        try:
+            ticker_res = requests.get("https://api.binance.com/api/v3/ticker/24hr", headers=headers, timeout=3).json()
+            vol_map = {t['symbol']: float(t.get('quoteVolume', 0)) for t in ticker_res if isinstance(ticker_res, list)}
+        except Exception:
+            vol_map = {}
 
         crypto_assets = markets.get("Criptovalute (Tutte Live)", [])
         crypto_assets = sorted(crypto_assets, key=lambda x: vol_map.get(x['symbol'], 0), reverse=True)
         
-        # Top 50 cripto a maggiore liquidità + tutti i mercati tradizionali (Forex, Azioni, Materie Prime)
-        active_crypto = crypto_assets[:50]
-        other_markets = {
-            "Materie Prime & Forex": markets.get("Materie Prime & Forex", []),
-            "Azioni & Indici Globali": markets.get("Azioni & Indici Globali", [])
-        }
-        scan_groups = {"Criptovalute (Tutte Live)": active_crypto, **other_markets}
-
-        for cat, assets in scan_groups.items():
+        # Scansiona le top 40 cripto più scambiate + tutte le materie prime, forex e azioni in parallelo
+        target_assets = []
+        for a in crypto_assets[:40]:
+            target_assets.append(("Criptovalute (Tutte Live)", a, get_market_status("Criptovalute (Tutte Live)")))
+            
+        for cat in ["Materie Prime & Forex", "Azioni & Indici Globali"]:
             m_status = get_market_status(cat)
-            for a in assets:
-                df, current_price, source = get_market_data(a['id'])
-                if df is not None and not df.empty:
-                    p_open = float(df['Open'].iloc[0]) if df['Open'].iloc[0] > 0 else current_price
-                    change = float(((current_price - p_open) / p_open) * 100)
-                    if np.isnan(change) or not np.isfinite(change): change = 0.0
+            for a in markets.get(cat, []):
+                target_assets.append((cat, a, m_status))
 
-                    res = calculate_certified_setup(df, current_price, 'Day Trading', '15m', 1000.0, 1.0)
-                    
-                    # FILTRO RIGIDO: Solo segnali esatti al 100%
-                    if res['confidence'] == 100:
-                        dec = res["decimals"]
-                        signals.append({
-                            "category": cat, "symbol": a['id'], "name": a['name'],
-                            "action": res["action"], "order_type": res["order_type"],
-                            "change": f"{change:+.2f}%", "price": f"{current_price:.{dec}f}",
-                            "prob": f"{res['confidence']}%", "entry": res["entry_zone"],
-                            "sl": res["sl"], "tp1": res["tp1"], "tp2": res["tp2"], "tp3": res["tp3"],
-                            "rrr": res["rrr"], "market_status": m_status["text"], "countdown": m_status["countdown"]
-                        })
+        # Esecuzione parallela con ThreadPoolExecutor (velocità massima, zero timeout)
+        with ThreadPoolExecutor(max_workers=15) as executor:
+            futures = [executor.submit(process_single_asset, cat, a, vol_map, m_status) for cat, a, m_status in target_assets]
+            for future in as_completed(futures):
+                res = future.result()
+                if res:
+                    signals.append(res)
+
         return jsonify(signals)
     except Exception as e:
         print("Errore signals:", e)
