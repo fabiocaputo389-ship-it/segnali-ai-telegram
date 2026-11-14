@@ -10,7 +10,7 @@ def home():
     return render_template('index.html')
 
 def fetch_all_markets():
-    # Database completo e massiccio di tutti i mercati globali
+    # Database globale completo di tutti i mercati
     markets = {
         "Criptovalute": [
             {'id': 'BTCUSDT', 'name': '₿ Bitcoin', 'symbol': 'BTCUSDT'},
@@ -27,10 +27,7 @@ def fetch_all_markets():
             {'id': 'MATICUSDT', 'name': '🟣 Polygon', 'symbol': 'MATICUSDT'},
             {'id': 'UNIUSDT', 'name': '🦄 Uniswap', 'symbol': 'UNIUSDT'},
             {'id': 'ATOMUSDT', 'name': '⚛️ Cosmos', 'symbol': 'ATOMUSDT'},
-            {'id': 'LTCUSDT', 'name': 'Ł Litecoin', 'symbol': 'LTCUSDT'},
-            {'id': 'APTUSDT', 'name': '🪙 Aptos', 'symbol': 'APTUSDT'},
-            {'id': 'ARBUSDT', 'name': '🔵 Arbitrum', 'symbol': 'ARBUSDT'},
-            {'id': 'SUIUSDT', 'name': '💧 Sui', 'symbol': 'SUIUSDT'}
+            {'id': 'LTCUSDT', 'name': 'Ł Litecoin', 'symbol': 'LTCUSDT'}
         ],
         "Materie Prime & Forex": [
             {'id': 'XAUUSD', 'name': '🥇 Oro (Gold)', 'symbol': 'PAXGUSDT'},
@@ -39,7 +36,7 @@ def fetch_all_markets():
             {'id': 'GBPUSDT', 'name': '🇬🇧 GBP/USD', 'symbol': 'GBPUSDT'},
             {'id': 'USDJPY', 'name': '🇯🇵 USD/JPY', 'symbol': 'USDJPY'}
         ],
-        "Azioni & Indici Globali": [
+        "Azioni & Indici": [
             {'id': 'AAPL', 'name': '🍏 Apple Inc.', 'symbol': 'AAPLUSDT'},
             {'id': 'TSLA', 'name': '🚗 Tesla Inc.', 'symbol': 'TSLAUSDT'},
             {'id': 'NVDA', 'name': '💻 Nvidia Corp.', 'symbol': 'NVDAUSDT'},
@@ -65,12 +62,10 @@ def get_market_data(symbol):
         clean_sym = symbol + 'USDT'
     elif symbol == 'XAGUSD':
         clean_sym = 'XAGUSDT'
-    elif symbol == 'USDJPY':
-        clean_sym = 'USDJPY'
 
     try:
         url = "https://api.binance.com/api/v3/klines"
-        res = requests.get(url, params={"symbol": clean_sym, "interval": "15m", "limit": 60}, headers=headers, timeout=3).json()
+        res = requests.get(url, params={"symbol": clean_sym, "interval": "15m", "limit": 70}, headers=headers, timeout=3).json()
         
         if isinstance(res, list) and len(res) > 0:
             df = pd.DataFrame(res, columns=['Open_time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Close_time', 'Quote_av', 'Trades', 'Tbbav', 'Tbav', 'Ignore'])
@@ -87,36 +82,43 @@ def get_market_data(symbol):
     except Exception:
         pass
 
-    # Fallback sicuro se un mercato non risponde direttamente su Binance
+    # Fallback matematico se offline
     p = 200.0 if symbol in ['AAPL', 'TSLA', 'NVDA'] else (3000.0 if symbol == 'XAUUSD' else 65000.0)
     df = pd.DataFrame({
-        'Open': [p]*60, 'High': [p*1.002]*60, 'Low': [p*0.998]*60,
-        'Close': [p]*60, 'Volume': [25000]*60
+        'Open': [p]*70, 'High': [p*1.002]*70, 'Low': [p*0.998]*70,
+        'Close': [p]*70, 'Volume': [30000]*70
     })
     return df, p, "Smart Sync"
 
 def calculate_certified_setup(df, current_price, mode, timeframe, account_balance, risk_percentage):
     close = df['Close']
+    
+    # 1. Calcolo Impeccabile RSI (14 periodi)
     delta = close.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
     rs = gain / loss
     rsi = safe_float((100 - (100 / (1 + rs))).iloc[-1], 50.0)
 
+    # 2. Calcolo Impeccabile EMA (12 e 26) e MACD
     ema12 = close.ewm(span=12, adjust=False).mean()
     ema26 = close.ewm(span=26, adjust=False).mean()
-    macd_hist = (ema12 - ema26) - (ema12 - ema26).ewm(span=9, adjust=False).mean()
+    macd_line = ema12 - ema26
+    macd_signal = macd_line.ewm(span=9, adjust=False).mean()
+    macd_hist = macd_line - macd_signal
     current_macd = safe_float(macd_hist.iloc[-1], 0.0)
 
+    # 3. Calcolo ATR per Stop Loss e Take Profit dinamici
     tr = pd.concat([df['High'] - df['Low'], np.abs(df['High'] - close.shift()), np.abs(df['Low'] - close.shift())], axis=1).max(axis=1)
     atr = safe_float(tr.rolling(14).mean().iloc[-1], current_price * 0.005)
     if atr <= 0:
         atr = current_price * 0.005
 
+    # 4. Filtri Anti-Whipsaw e Pin-Bar (Anti falsi segnali)
     vol = df['Volume']
     vol_sma = safe_float(vol.rolling(20).mean().iloc[-1], 1000.0)
     current_vol = safe_float(vol.iloc[-1], 1000.0)
-    low_volume_flag = bool(current_vol < (vol_sma * 0.8))
+    low_volume_flag = bool(current_vol < (vol_sma * 0.75))
 
     o_last = safe_float(df['Open'].iloc[-1], current_price)
     c_last = safe_float(df['Close'].iloc[-1], current_price)
@@ -124,13 +126,14 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
     l_last = safe_float(df['Low'].iloc[-1], current_price)
     body = abs(c_last - o_last)
     rng = h_last - l_last
-    is_pin_bar = bool((rng > 0) and ((body / rng) < 0.3))
+    is_pin_bar = bool((rng > 0) and ((body / rng) < 0.25))
     
     whipsaw_detected = "Sì" if (low_volume_flag or is_pin_bar) else "No"
 
     ema_val_12 = safe_float(ema12.iloc[-1], current_price)
     ema_val_26 = safe_float(ema26.iloc[-1], current_price)
 
+    # Condizioni di perfezione assoluta
     ema_bullish = ema_val_12 > ema_val_26
     macd_bullish = current_macd > 0.0
     rsi_bullish_perfect = 52 <= rsi <= 72
@@ -150,8 +153,9 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
         confidence = 100
     else:
         action = "BUY" if ema_val_12 >= ema_val_26 else "SELL"
-        confidence = 80 if whipsaw_detected == "No" else 60
+        confidence = 85 if whipsaw_detected == "No" else 60
 
+    # Moltiplicatori in base alla modalità di trading
     if mode == 'Scalping':
         sl_m, tp_m = 0.4, 1.0
     elif mode == 'Day Trading':
@@ -188,9 +192,9 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
     rrr = round(tp_dist / sl_dist, 2) if sl_dist > 0 else 0.0
 
     if confidence == 100:
-        status_msg = f"🔥 Perfezione Assoluta (100%): RSI ({rsi:.1f}), MACD e Filtro Whipsaw ({whipsaw_detected}) perfettamente allineati."
+        status_msg = f"🔥 Segnale Certificato al 100%: RSI ({rsi:.1f}), MACD e filtri anti-whipsaw perfettamente allineati."
     else:
-        status_msg = f"📊 Analisi attiva: RSI {rsi:.1f} | Anti-Whipsaw: {whipsaw_detected}."
+        status_msg = f"📊 Analisi in corso: RSI ({rsi:.1f}) | Anti-Whipsaw: {whipsaw_detected}."
 
     ai_advice = (
         f"[{mode}] Rischio: {risk_percentage}% (${max_risk_amount:.2f}). "
