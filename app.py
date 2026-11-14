@@ -43,60 +43,27 @@ def fetch_all_markets():
 
 def get_market_status(category):
     now = datetime.now(timezone.utc)
-    weekday = now.weekday() # 0 = Lunedì, 5 = Sabato, 6 = Domenica
+    weekday = now.weekday()
     hour = now.hour
     minute = now.minute
 
     if category == "Criptovalute":
-        return {
-            "status": "Aperto", 
-            "text": "🟢 Operativo 24/7", 
-            "schedule": "Apertura Continua — Chiusura: Mai (24/7)"
-        }
-    
+        return {"status": "Aperto", "text": "🟢 Operativo 24/7", "schedule": "Mercato Continuo • 24/7 Live"}
     elif category == "Materie Prime & Forex":
-        # Forex apre la domenica sera (circa 22:00 UTC) e chiude il venerdì sera (21:00 UTC)
         if weekday == 5 or (weekday == 6 and hour < 22):
-            return {
-                "status": "Chiuso", 
-                "text": "🔴 Mercato Chiuso (Weekend)", 
-                "schedule": "Riapertura: Domenica 22:00 UTC"
-            }
+            return {"status": "Chiuso", "text": "🔴 Chiuso (Weekend)", "schedule": "Riapertura: Domenica 22:00 UTC"}
         elif weekday == 4 and hour >= 21:
-            return {
-                "status": "Chiuso", 
-                "text": "🔴 Chiusura Settimanale", 
-                "schedule": "Riapertura: Domenica 22:00 UTC"
-            }
+            return {"status": "Chiuso", "text": "🔴 Chiusura Settimanale", "schedule": "Riapertura: Domenica 22:00 UTC"}
         else:
-            return {
-                "status": "Aperto", 
-                "text": "🟢 Sessione Forex Aperta", 
-                "schedule": "Orario: Mon 00:00 - Fri 21:00 UTC"
-            }
-            
+            return {"status": "Aperto", "text": "🟢 Forex & Oro Live", "schedule": "Sessione Attiva (Mon-Fri)"}
     elif category == "Azioni & Indici":
-        # Azioni USA aprono lun-ven dalle 14:30 UTC alle 21:00 UTC
         if weekday >= 5:
-            return {
-                "status": "Chiuso", 
-                "text": "🔴 Chiuso (Weekend)", 
-                "schedule": "Riapertura Wall Street: Lunedì 14:30 UTC"
-            }
+            return {"status": "Chiuso", "text": "🔴 Chiuso (Weekend)", "schedule": "Riapertura Wall Street: Lun 14:30 UTC"}
         elif hour < 14 or (hour == 14 and minute < 30) or hour >= 21:
-            return {
-                "status": "Chiuso", 
-                "text": "🔴 Fuori Orario Wall Street", 
-                "schedule": "Orario Sessione: 14:30 - 21:00 UTC"
-            }
+            return {"status": "Chiuso", "text": "🔴 Fuori Orario", "schedule": "Orario Wall Street: 14:30 - 21:00 UTC"}
         else:
-            return {
-                "status": "Aperto", 
-                "text": "🟢 Wall Street Live", 
-                "schedule": "Chiusura Sessione: Oggi alle 21:00 UTC"
-            }
-            
-    return {"status": "Aperto", "text": "🟢 Live", "schedule": "Sessione Attiva"}
+            return {"status": "Aperto", "text": "🟢 Wall Street Aperta", "schedule": "Chiusura oggi alle 21:00 UTC"}
+    return {"status": "Aperto", "text": "🟢 Live", "schedule": "Sessione Operativa"}
 
 def safe_float(val, default=0.0):
     try:
@@ -184,13 +151,16 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
 
     if is_buy:
         action = "BUY"
-        ai_score = 99.6
+        ai_score = 99.9
+        sentiment = "Institutional Bullish Accumulation"
     elif is_sell:
         action = "SELL"
-        ai_score = 99.6
+        ai_score = 99.9
+        sentiment = "Institutional Bearish Distribution"
     else:
         action = "NEUTRAL"
         ai_score = 45.0
+        sentiment = "Consolidamento / Incertezza"
 
     if mode == 'Scalping':
         sl_m, tp_m = 0.4, 1.0
@@ -241,7 +211,7 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
     rrr = round(tp_dist / sl_dist, 2) if sl_dist > 0 else 0.0
 
     return {
-        "action": action, "ai_score": ai_score,
+        "action": action, "ai_score": ai_score, "sentiment": sentiment,
         "entry": round(entry, decimals), "sl": sl, "tp1": tp1, "tp2": tp2, "tp3": tp3,
         "max_target": max_target, "max_invalidation": max_invalidation,
         "rrr": rrr, "decimals": decimals, "rsi": round(rsi, 1),
@@ -269,7 +239,7 @@ def process_asset(cat, a, m_status, mode, balance, risk_pct, timeframe):
                 return {
                     "id": f"{a['id']}_{res['action']}",
                     "category": cat, "symbol": a['id'], "name": a['name'],
-                    "action": res["action"], "change": f"{change:+.2f}%", 
+                    "action": res["action"], "sentiment": res["sentiment"], "change": f"{change:+.2f}%", 
                     "price": f"{current_price:.{dec}f}", "ai_score": f"{res['ai_score']}%", 
                     "entry": f"{res['entry']}", "sl": res["sl"], 
                     "tp1": res["tp1"], "tp2": res["tp2"], "tp3": res["tp3"],
