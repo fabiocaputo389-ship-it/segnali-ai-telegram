@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VIP Trading Floor — Elite Signal Room Terminal</title>
+    <title>VIP Trading Floor — Multi-Market Elite Terminal</title>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -74,7 +74,6 @@
         .sentiment-meter { height: 8px; width: 100%; background: #000000; border-radius: 4px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); }
         .sentiment-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
 
-        /* TABELLE VIP INSTITUTIONAL */
         .vip-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-family: 'JetBrains Mono', monospace; font-size: 10px; background: var(--bg-panel); border-radius: 6px; overflow: hidden; border: 1px solid rgba(212,175,55,0.2); }
         .vip-table th { background: #000000; color: var(--gold); padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border-gold); font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; }
         .vip-table td { padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.05); color: #f8fafc; }
@@ -115,16 +114,16 @@
 <body>
 
     <header>
-        <div>VIP TRADING FLOOR // TERMINALE INSTITUTIONAL DESK</div>
-        <div class="terminal-badge"><div class="dot-live"></div> VIP DESK ATTIVO</div>
+        <div>VIP TRADING FLOOR // MULTI-MARKET ELITE TERMINAL</div>
+        <div class="terminal-badge"><div class="dot-live"></div> MULTI-MARKET VIP ATTIVO</div>
     </header>
 
     <div class="ticker-tape">
-        <span>👑 [VIP DESK FEED] Sfondi Nero & Oro attivi • Order Flow avanzato • Tabelle di esecuzione e indicatori di rischio istituzionali online in tempo reale.</span>
+        <span>👑 [VIP MULTI-MARKET FEED] Cripto 24/7 • Forex & Oro • Azioni & Indici USA sincronizzati • Tabelle istituzionali e Order Flow online in tempo reale.</span>
     </div>
 
     <div class="desk-bar">
-        <div class="desk-title">⚡ VIP SALA SEGNALI <span>PRO TERMINAL</span></div>
+        <div class="desk-title">⚡ VIP SALA SEGNALI <span>MULTI-MARKET PRO</span></div>
         <div style="display:flex; gap:8px; align-items:center;">
             <button onclick="toggleAudio()" id="audio-btn" style="background:var(--bg-panel); border:1px solid var(--border-gold); color:var(--green); padding:4px 8px; border-radius:6px; font-family:'JetBrains Mono',monospace; font-size:10px; cursor:pointer; font-weight:bold;">🔊 AUDIO ON</button>
             <div class="clock-box" id="live-clock">--:--:--</div>
@@ -136,7 +135,7 @@
         <div class="risk-panel">
             <div class="risk-header">
                 <span>🛡️ Gestione Rischio VIP & Drawdown Controller</span>
-                <span style="color:var(--green);">Standard Institutional</span>
+                <span style="color:var(--green);">Multi-Asset Standard</span>
             </div>
             <div class="risk-grid">
                 <div class="risk-field">
@@ -162,20 +161,21 @@
             <div class="filter-chip active" onclick="setFilter('ALL', this)">🌐 TUTTI I MERCATI</div>
             <div class="filter-chip" onclick="setFilter('BUY', this)">📈 SOLO LONG</div>
             <div class="filter-chip" onclick="setFilter('SELL', this)">📉 SOLO SHORT</div>
-            <div class="filter-chip" onclick="setFilter('Criptovalute', this)">🪙 CRIPTO (ATTIVO)</div>
-            <div class="filter-chip" onclick="setFilter('Materie Prime & Forex', this)">🥇 FOREX / ORO</div>
+            <div class="filter-chip" onclick="setFilter('Criptovalute', this)">🪙 CRIPTO (24/7)</div>
+            <div class="filter-chip" onclick="setFilter('Materie Prime & Forex', this)">🥇 ORO & FOREX</div>
+            <div class="filter-chip" onclick="setFilter('Azioni & Indici', this)">📈 AZIONI & INDICI</div>
         </div>
 
         <div id="signals-container">
             <div style="text-align:center; padding:30px; color:var(--gold); font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:bold;">
-                ⚡ Connessione ai flussi VIP in corso...
+                ⚡ Connessione ai flussi Multi-Market VIP in corso...
             </div>
         </div>
     </div>
 
     <!-- TAB 2: TELEMETRIA & AUDIT -->
     <div id="tab-storico" class="tab-content">
-        <div style="font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--gold); margin-bottom:10px; font-weight:800; text-transform:uppercase;">🏆 VIP Telemetria & Registro Audit</div>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--gold); margin-bottom:10px; font-weight:800; text-transform:uppercase;">🏆 VIP Telemetria & Registro Multi-Market</div>
         <div class="risk-panel" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; text-align:center;">
             <div>
                 <span style="font-size:9px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">SEGNALI ATTIVI</span>
@@ -187,7 +187,7 @@
             </div>
         </div>
         <div class="telemetry-box">
-            <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--gold); margin-bottom:8px; font-weight:bold;">REGISTRO ESECUZIONE QUANTITATIVA VIP</div>
+            <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--gold); margin-bottom:8px; font-weight:bold;">REGISTRO ESECUZIONE MULTI-ASSET</div>
             <div id="audit-log-container">
                 <p style="text-align:center; padding:20px; font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">In attesa di eventi di esecuzione...</p>
             </div>
@@ -196,7 +196,7 @@
 
     <!-- TAB 3: GRAFICO LIVE -->
     <div id="tab-analizza" class="tab-content">
-        <input type="text" id="asset-search" class="search-input" placeholder="🔍 Cerca asset (es. BTC, XAUUSD, NVDA, TSLA)..." oninput="filterSymbolsBySearch()">
+        <input type="text" id="asset-search" class="search-input" placeholder="🔍 Cerca asset (es. BTC, XAUUSD, EURUSDT, AAPL, SPX500)..." oninput="filterSymbolsBySearch()">
         <div class="filter-row" id="symbol-selector"></div>
         <div class="chart-frame">
             <div class="tradingview-widget-container" style="height:100%;width:100%">
@@ -275,7 +275,7 @@
                 const newSignals = await res.json();
                 
                 if (newSignals.length > currentSignals.length && currentSignals.length >= 0) {
-                    speakAlert("Nuovo segnale VIP confermato.");
+                    speakAlert("Nuovo segnale multi-mercato confermato.");
                 }
 
                 currentSignals = newSignals;
@@ -295,7 +295,7 @@
             } catch (e) {
                 document.getElementById('signals-container').innerHTML = `
                     <div style="background:var(--bg-card); border:1px solid var(--red); border-radius:8px; padding:20px; text-align:center;">
-                        <p style="color:var(--red); font-family:'JetBrains Mono',monospace; font-size:11px;">Errore di sincronizzazione flussi VIP...</p>
+                        <p style="color:var(--red); font-family:'JetBrains Mono',monospace; font-size:11px;">Errore di sincronizzazione flussi Multi-Market...</p>
                     </div>`;
             }
         }
@@ -313,8 +313,8 @@
             if (!filtered || filtered.length === 0) {
                 container.innerHTML = `
                     <div style="background:var(--bg-card); border:1px solid var(--border-gold); border-radius:10px; padding:25px; text-align:center;">
-                        <p style="color:var(--gold); font-family:'JetBrains Mono',monospace; font-weight:800; font-size:12px; margin-bottom:4px;">👑 VIP DESK IN ATTESA DI SETUP INSTITUTIONAL</p>
-                        <p style="color:var(--text-dim); font-size:10px; font-family:'JetBrains Mono',monospace;">Filtri anti-whipsaw attivi. Nessun rumore ammesso.</p>
+                        <p style="color:var(--gold); font-family:'JetBrains Mono',monospace; font-weight:800; font-size:12px; margin-bottom:4px;">👑 MULTI-MARKET DESK IN ATTESA DI SETUP</p>
+                        <p style="color:var(--text-dim); font-size:10px; font-family:'JetBrains Mono',monospace;">Filtri anti-whipsaw attivi su Cripto, Forex, Oro e Azioni.</p>
                     </div>`;
                 return;
             }
@@ -324,17 +324,16 @@
                     <div class="card-top">
                         <div>
                             <div class="asset-name">${s.name} <span class="ai-score-pill">AI ${s.ai_score}</span></div>
-                            <div class="card-meta">ORARIO: <strong style="color:var(--gold);">${s.timestamp}</strong> | PREZZO: <strong style="color:#ffffff; font-family:'JetBrains Mono',monospace;">${s.price}</strong></div>
+                            <div class="card-meta">MERCATO: <strong style="color:var(--gold);">${s.category}</strong> | PREZZO: <strong style="color:#ffffff; font-family:'JetBrains Mono',monospace;">${s.price}</strong></div>
                         </div>
                         <div class="action-badge ${s.action}">${s.action}</div>
                     </div>
 
                     <div class="market-status-strip">
-                        <span>🕒 SESSIONE VIP: <strong>${s.market_status}</strong></span>
+                        <span>🕒 SESSIONE: <strong>${s.market_status}</strong></span>
                         <span style="color:var(--text-dim); font-size:9px;">${s.market_schedule}</span>
                     </div>
 
-                    <!-- BANNER SENTIMENT VISIVO VIP -->
                     <div class="sentiment-banner" style="border-color: ${s.sentiment_color};">
                         <div class="sentiment-title">
                             <span>📊 SENTIMENT DI MERCATO VIP</span>
@@ -386,11 +385,10 @@
                         <strong>${s.mtc_matrix}</strong>
                     </div>
 
-                    <!-- TABELLA DATI VIP INSTITUTIONAL -->
                     <table class="vip-table">
                         <thead>
                             <tr>
-                                <th>Parametro VIP</th>
+                                <th>Parametro VIP Multi-Asset</th>
                                 <th>Valore Rilevato</th>
                                 <th>Stato Desk</th>
                             </tr>
@@ -467,7 +465,6 @@
                         <strong style="color:var(--gold);">${s.progress_pct}% Completato</strong>
                     </div>
 
-                    <!-- TABELLA LIVELLO INGRESSO & TP/SL -->
                     <table class="vip-table" style="margin-bottom:8px;">
                         <thead>
                             <tr>
@@ -514,9 +511,9 @@
         }
 
         function copyBingX(name, action, entry, sl, tp1, tp2, tp3, maxTarget, timestamp, lev, size, be) {
-            const text = `👑 SEGNALE VIP TRADING DESK - BINGX\nOrario: ${timestamp}\nAsset: ${name}\nDirezione: ${action}\nTarget Massimo: ${maxTarget}\nSposta SL in Break-Even a: ${be}\nLeva: ${lev}\nSize: ${size}\nIngresso: ${entry}\nStop Loss: ${sl}\nTP1: ${tp1}\nTP2: ${tp2}\nTP3: ${tp3}`;
+            const text = `👑 SEGNALE VIP MULTI-MARKET - BINGX\nOrario: ${timestamp}\nAsset: ${name}\nDirezione: ${action}\nTarget Massimo: ${maxTarget}\nSposta SL in Break-Even a: ${be}\nLeva: ${lev}\nSize: ${size}\nIngresso: ${entry}\nStop Loss: ${sl}\nTP1: ${tp1}\nTP2: ${tp2}\nTP3: ${tp3}`;
             navigator.clipboard.writeText(text);
-            alert('✅ Ordine VIP institutional copiato negli appunti per BingX!');
+            alert('✅ Ordine VIP multi-mercato copiato negli appunti per BingX!');
         }
 
         function renderSymbols(filteredAssets = null) {
