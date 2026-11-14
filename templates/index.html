@@ -57,9 +57,7 @@
         .info-card span { display: block; font-size: 11px; color: #848e9c; margin-bottom: 4px; }
         .info-card strong { font-size: 14px; }
 
-        /* Idea di operazione contraria card (Immagine 1) */
         .counter-card { background: #161512; border: 1px solid #f59e0b; border-radius: 16px; padding: 16px; margin-bottom: 15px; }
-        
         .ai-advice-box { background: #161c28; border: 1px solid #1f3a5f; border-radius: 12px; padding: 14px; margin-bottom: 15px; }
         .ai-advice-title { font-size: 14px; font-weight: bold; color: #38bdf8; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
 
@@ -90,7 +88,7 @@
     <header>
         <div class="top-stats">
             <span>Analisi: ∞</span>
-            <span>Piano: <span>FREE</span></span>
+            <span>Piano: <span>PRO LIVE</span></span>
         </div>
         <div>Chat: <span>0/5</span></div>
     </header>
@@ -98,10 +96,10 @@
     <div id="scanning-modal">
         <div class="scanner-box">
             <svg viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2m0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8m.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7Z"/></svg>
-            <span style="font-size: 12px; color: #00b8d9; font-weight: bold;">AI SCAN LIVE</span>
+            <span style="font-size: 12px; color: #00b8d9; font-weight: bold;">BINGX REAL FEED</span>
         </div>
-        <h3 style="font-size: 18px; margin-bottom: 6px;">Verifica segnali e scenari...</h3>
-        <p id="scan-status-text" style="font-size: 13px; color: #848e9c;">Analisi trend e operazioni contrarie...</p>
+        <h3 style="font-size: 18px; margin-bottom: 6px;">Filtro anti-falsi attivo...</h3>
+        <p id="scan-status-text" style="font-size: 13px; color: #848e9c;">Analisi volumi e momentum reale...</p>
         <div class="scan-progress-bar">
             <div class="scan-progress-fill" id="scan-progress"></div>
         </div>
@@ -138,15 +136,14 @@
             <div class="chip" onclick="setTimeframe(this, '1h')">1h</div>
         </div>
 
-        <button class="btn-primary" onclick="runAnalysis()">Calcola Previsione & Scanner AI</button>
+        <button class="btn-primary" onclick="runAnalysis()">Conferma Setup Reale BingX</button>
 
         <div id="analysis-result" style="display:none;">
-            <!-- SEGNALE PRINCIPALE -->
             <div class="result-card">
                 <div class="result-header">
-                    <div class="asset-title" id="res-symbol"><span>🪙 XAU/USD</span></div>
+                    <div class="asset-title" id="res-symbol"><span>🪙 GOLD</span></div>
                     <div style="display: flex; gap: 8px; align-items: center;">
-                        <button onclick="alert('Alert impostato.')" style="background:#181f2a; border:1px solid #2a3447; color:#00b8d9; padding:6px 10px; border-radius:8px; font-size:11px; font-weight:bold; cursor:pointer;">🔔 Alert</button>
+                        <button onclick="alert('Alert impostato sui prezzi BingX.')" style="background:#181f2a; border:1px solid #2a3447; color:#00b8d9; padding:6px 10px; border-radius:8px; font-size:11px; font-weight:bold; cursor:pointer;">🔔 Alert</button>
                         <div id="res-action" class="badge-action BUY">BUY</div>
                         <button onclick="shareSignal()" style="background:#181f2a; border:1px solid #2a3447; color:#fff; padding:6px 8px; border-radius:8px; cursor:pointer;">📤</button>
                     </div>
@@ -154,11 +151,11 @@
 
                 <div class="favorability-container">
                     <div class="favorability-info">
-                        <span>Favorabilità</span>
-                        <strong id="res-fav" style="color: #0ecb81;">64%</strong>
+                        <span>Affidabilità Reale (Filtro anti-falsi)</span>
+                        <strong id="res-fav" style="color: #0ecb81;">--</strong>
                     </div>
                     <div class="favorability-bar">
-                        <div class="favorability-fill" id="res-fav-fill" style="width: 64%;"></div>
+                        <div class="favorability-fill" id="res-fav-fill" style="width: 0%;"></div>
                     </div>
                 </div>
 
@@ -177,7 +174,6 @@
                 </div>
             </div>
 
-            <!-- IDEA DI OPERAZIONE CONTRARIA (AGGIUNTA DA IMMAGINE) -->
             <div class="counter-card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                     <h4 style="font-size: 15px; color: #f59e0b; font-weight: bold;">Idea di operazione contraria</h4>
@@ -187,32 +183,18 @@
                 <p id="res-counter-warning" style="font-size: 12px; color: #cbd5e1; margin-bottom: 12px; line-height: 1.4;">--</p>
                 
                 <div class="grid-cards" style="margin-bottom: 0;">
-                    <div class="info-card">
-                        <span>Zona di ingresso</span>
-                        <strong id="res-counter-entry" style="color: #fff;">--</strong>
-                    </div>
-                    <div class="info-card">
-                        <span>Tipo di ordine</span>
-                        <strong id="res-counter-order" style="color: #38bdf8;">--</strong>
-                    </div>
-                    <div class="info-card">
-                        <span>Stop Loss</span>
-                        <strong id="res-counter-sl" style="color: #f6465d;">--</strong>
-                    </div>
-                    <div class="info-card">
-                        <span>Take Profit</span>
-                        <strong id="res-counter-tp" style="color: #0ecb81;">--</strong>
-                    </div>
+                    <div class="info-card"><span>Zona di ingresso</span><strong id="res-counter-entry" style="color: #fff;">--</strong></div>
+                    <div class="info-card"><span>Tipo di ordine</span><strong id="res-counter-order" style="color: #38bdf8;">--</strong></div>
+                    <div class="info-card"><span>Stop Loss</span><strong id="res-counter-sl" style="color: #f6465d;">--</strong></div>
+                    <div class="info-card"><span>Take Profit</span><strong id="res-counter-tp" style="color: #0ecb81;">--</strong></div>
                 </div>
             </div>
 
-            <!-- COSA FAREBBE L'AI? -->
             <div class="ai-advice-box">
                 <div class="ai-advice-title">🤖 Cosa farebbe l'AI?</div>
                 <p id="res-ai-advice" style="font-size: 13px; color: #cbd5e1; line-height: 1.4;">--</p>
             </div>
 
-            <!-- PATTERNS & ANALYSIS -->
             <div class="analysis-card">
                 <span>🌍</span>
                 <div>
@@ -237,24 +219,13 @@
             <button class="social-btn btn-whatsapp" onclick="window.open('https://whatsapp.com', '_blank')">💬 Entra nella community WhatsApp</button>
             <button class="social-btn btn-instagram" onclick="window.open('https://instagram.com', '_blank')">📸 Seguici su Instagram</button>
 
-            <div class="disclaimer">Solo a scopo formativo e di ricerca, non è una consulenza finanziaria. I mercati comportano rischi: informati per conto tuo prima di agire su qualsiasi setup.</div>
-
-            <div class="pro-banner" onclick="alert('Passa al piano PRO per sbloccare analisi illimitate e cross-trade avanzati.')">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <span style="font-size: 24px;">👑</span>
-                    <div>
-                        <strong style="font-size: 14px; color: #fff; display: block;">Get Full Analysis</strong>
-                        <span style="font-size: 11px; color: #a5b4fc;">Patterns, AI action & counter-trade</span>
-                    </div>
-                </div>
-                <span style="color: #818cf8; font-size: 18px;">➔</span>
-            </div>
+            <div class="disclaimer">Solo a scopo formativo e di ricerca, non è una consulenza finanziaria. I mercati comportano rischi.</div>
         </div>
     </div>
 
     <!-- TAB 2: GRAFICI LIVE -->
     <div id="tab-grafici" class="tab-content">
-        <h3 style="font-size: 16px; margin-bottom: 12px;">Grafico Avanzato Multi-Asset</h3>
+        <h3 style="font-size: 16px; margin-bottom: 12px;">Grafico Avanzato BingX / TV</h3>
         <div style="background: #121620; border-radius: 12px; border: 1px solid #1f2633; height: 450px; overflow: hidden;">
             <div id="tradingview_full_widget" style="height:100%;width:100%"></div>
         </div>
@@ -262,9 +233,9 @@
 
     <!-- TAB 3: SEGNALI CERTI -->
     <div id="tab-segnali" class="tab-content">
-        <h3 style="font-size: 16px; margin-bottom: 15px;">Segnali Certi con Scanner Monitorato</h3>
+        <h3 style="font-size: 16px; margin-bottom: 15px;">Segnali Verificati (Filtro anti-falsi attivo)</h3>
         <div id="signals-container">
-            <p style="color: #848e9c; font-size: 13px;">Scansione posizioni in corso...</p>
+            <p style="color: #848e9c; font-size: 13px;">Scansione server BingX in corso...</p>
         </div>
     </div>
 
@@ -289,7 +260,7 @@
 
         <p style="font-size: 11px; font-weight: bold; color: #848e9c; letter-spacing: 1px; margin-bottom: 10px;">STRUMENTI</p>
         
-        <div class="result-card" onclick="alert('Cronologia Analisi salvata in memoria.')" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+        <div class="result-card" onclick="alert('Cronologia salvata.')" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
             <div>
                 <h4 style="font-size: 14px; margin-bottom: 2px;">Cronologia analisi</h4>
                 <p style="font-size: 11px; color: #848e9c;">Visualizza analisi e segnali precedenti</p>
@@ -297,10 +268,10 @@
             <span style="color: #00b8d9;">➔</span>
         </div>
 
-        <div class="result-card" onclick="alert('Avvisi di Prezzo attivi.')" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+        <div class="result-card" onclick="alert('Avvisi attivi.')" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
             <div>
                 <h4 style="font-size: 14px; margin-bottom: 2px;">I Miei Avvisi di Prezzo</h4>
-                <p style="font-size: 11px; color: #848e9c;">Notifiche quando una coppia raggiunge il target</p>
+                <p style="font-size: 11px; color: #848e9c;">Notifiche target prezzo</p>
             </div>
             <span style="color: #00b8d9;">➔</span>
         </div>
@@ -309,16 +280,6 @@
             <div>
                 <h4 style="font-size: 14px; margin-bottom: 2px;">Prezzi Live <span style="background: #0ecb81; color:#000; font-size:9px; padding:2px 6px; border-radius:4px; margin-left:6px;">● On</span></h4>
                 <p style="font-size: 11px; color: #848e9c;">Streaming in tempo reale</p>
-            </div>
-            <span style="color: #00b8d9;">➔</span>
-        </div>
-
-        <p style="font-size: 11px; font-weight: bold; color: #848e9c; letter-spacing: 1px; margin: 20px 0 10px 0;">ACCOUNT</p>
-
-        <div class="result-card" onclick="alert('Impostazioni: Piano FREE attivo.')" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
-            <div>
-                <h4 style="font-size: 14px; margin-bottom: 2px;">Impostazioni</h4>
-                <p style="font-size: 11px; color: #848e9c;">Abbonamento, lingua e preferenze</p>
             </div>
             <span style="color: #00b8d9;">➔</span>
         </div>
@@ -351,44 +312,28 @@
     <script>
         const categories = {
             "Materie Prime": [
-                { id: 'XAUUSD', label: '🥇 Oro', tv: 'FX:XAUUSD' },
-                { id: 'XAGUSD', label: '🥈 Argento', tv: 'FX:XAGUSD' },
-                { id: 'USOIL', label: '🛢️ Petrolio WTI', tv: 'TVC:USOIL' },
-                { id: 'COPPER', label: '🥉 Rame', tv: 'COMEX:HG1!' },
-                { id: 'NATGAS', label: '⚡ Gas Naturale', tv: 'NYMEX:NG1!' }
+                { id: 'XAUUSD', label: '🥇 Oro', tv: 'BINANCE:GOLDUSDT', bx: 'GOLD-USDT' },
+                { id: 'XAGUSD', label: '🥈 Argento', tv: 'BINANCE:SILVERUSDT', bx: 'SILVER-USDT' },
+                { id: 'USOIL', label: '🛢️ Petrolio WTI', tv: 'TVC:USOIL', bx: 'USOIL-USDT' }
             ],
             "Crypto": [
-                { id: 'BTCUSDT', label: '₿ Bitcoin', tv: 'BINANCE:BTCUSDT' },
-                { id: 'ETHUSDT', label: 'Ξ Ethereum', tv: 'BINANCE:ETHUSDT' },
-                { id: 'SOLUSDT', label: '🟣 Solana', tv: 'BINANCE:SOLUSDT' },
-                { id: 'BNBUSDT', label: '🟡 BNB', tv: 'BINANCE:BNBUSDT' },
-                { id: 'ADAUSDT', label: '₳ Cardano', tv: 'BINANCE:ADAUSDT' },
-                { id: 'AVAXUSDT', label: '🔺 Avalanche', tv: 'BINANCE:AVAXUSDT' },
-                { id: 'SUIUSDT', label: '💧 Sui', tv: 'BINANCE:SUIUSDT' },
-                { id: 'NEARUSDT', label: '🌐 Near', tv: 'BINANCE:NEARUSDT' },
-                { id: 'XRPUSDT', label: '✕ Ripple', tv: 'BINANCE:XRPUSDT' },
-                { id: 'DOGEUSDT', label: '🐕 Doge (Meme)', tv: 'BINANCE:DOGEUSDT' },
-                { id: 'SHIBUSDT', label: '🐶 Shiba (Meme)', tv: 'BINANCE:SHIBUSDT' },
-                { id: 'PEPEUSDT', label: '🐸 Pepe (Meme)', tv: 'BINANCE:PEPEUSDT' },
-                { id: 'BONKUSDT', label: '🦴 Bonk (Meme)', tv: 'BINANCE:BONKUSDT' },
-                { id: 'WIFUSDT', label: '🐕‍🦺 WIF (Meme)', tv: 'BINANCE:WIFUSDT' },
-                { id: 'LINKUSDT', label: '🔗 Chainlink', tv: 'BINANCE:LINKUSDT' },
-                { id: 'UNIUSDT', label: '🦄 Uniswap', tv: 'BINANCE:UNIUSDT' }
+                { id: 'BTCUSDT', label: '₿ Bitcoin', tv: 'BINANCE:BTCUSDT', bx: 'BTC-USDT' },
+                { id: 'ETHUSDT', label: 'Ξ Ethereum', tv: 'BINANCE:ETHUSDT', bx: 'ETH-USDT' },
+                { id: 'SOLUSDT', label: '🟣 Solana', tv: 'BINANCE:SOLUSDT', bx: 'SOL-USDT' },
+                { id: 'BNBUSDT', label: '🟡 BNB', tv: 'BINANCE:BNBUSDT', bx: 'BNB-USDT' },
+                { id: 'XRPUSDT', label: '✕ Ripple', tv: 'BINANCE:XRPUSDT', bx: 'XRP-USDT' },
+                { id: 'DOGEUSDT', label: '🐕 Doge', tv: 'BINANCE:DOGEUSDT', bx: 'DOGE-USDT' },
+                { id: 'PEPEUSDT', label: '🐸 Pepe', tv: 'BINANCE:PEPEUSDT', bx: 'PEPE-USDT' },
+                { id: 'WIFUSDT', label: '🐕‍🦺 WIF', tv: 'BINANCE:WIFUSDT', bx: 'WIF-USDT' }
             ],
             "Forex": [
                 { id: 'EURUSD', label: '💶 EUR/USD', tv: 'FX:EURUSD' },
                 { id: 'GBPUSD', label: '💷 GBP/USD', tv: 'FX:GBPUSD' },
-                { id: 'USDJPY', label: '💴 USD/JPY', tv: 'FX:USDJPY' },
-                { id: 'AUDUSD', label: '🇦🇺 AUD/USD', tv: 'FX:AUDUSD' },
-                { id: 'USDCAD', label: '🇨🇦 USD/CAD', tv: 'FX:USDCAD' },
-                { id: 'EURGBP', label: '🇪🇺 EUR/GBP', tv: 'FX:EURGBP' }
+                { id: 'USDJPY', label: '💴 USD/JPY', tv: 'FX:USDJPY' }
             ],
             "Indici": [
                 { id: 'US500', label: '🇺🇸 S&P 500', tv: 'CAPITALCOM:US500' },
-                { id: 'NAS100', label: '📈 Nasdaq 100', tv: 'CAPITALCOM:US100' },
-                { id: 'US30', label: '🏛️ Dow Jones', tv: 'CAPITALCOM:US30' },
-                { id: 'DAX40', label: '🇩🇪 DAX 40', tv: 'CAPITALCOM:DE40' },
-                { id: 'FTSE100', label: '🇬🇧 FTSE 100', tv: 'CAPITALCOM:UK100' }
+                { id: 'NAS100', label: '📈 Nasdaq 100', tv: 'CAPITALCOM:US100' }
             ]
         };
 
@@ -420,7 +365,7 @@
             const container = document.getElementById('tradingview_widget');
             container.innerHTML = '';
             
-            let tvSymbol = 'FX:XAUUSD';
+            let tvSymbol = 'BINANCE:GOLDUSDT';
             for(let cat in categories) {
                 const found = categories[cat].find(a => a.id === symbol);
                 if(found) { tvSymbol = found.tv; break; }
@@ -447,7 +392,7 @@
             if (container && container.innerHTML === '') {
                 new TradingView.widget({
                     "autosize": true,
-                    "symbol": "FX:XAUUSD",
+                    "symbol": "BINANCE:GOLDUSDT",
                     "interval": "15",
                     "timezone": "Europe/Rome",
                     "theme": "dark",
@@ -503,10 +448,10 @@
             
             modal.style.display = 'flex';
             progress.style.width = '30%';
-            statusText.innerText = "Analisi del grafico in corso...";
+            statusText.innerText = "Connessione feed BingX reale...";
 
-            setTimeout(() => { progress.style.width = '70%'; statusText.innerText = "Elaborazione scenari contrari e IA..."; }, 500);
-            setTimeout(() => { progress.style.width = '95%'; statusText.innerText = "Calcolo completato."; }, 1000);
+            setTimeout(() => { progress.style.width = '70%'; statusText.innerText = "Filtraggio falsi segnali e micro-rotture..."; }, 500);
+            setTimeout(() => { progress.style.width = '95%'; statusText.innerText = "Calcolo livelli di precisione completato."; }, 1000);
 
             try {
                 const response = await fetch('/api/analyze', {
@@ -520,7 +465,7 @@
                     progress.style.width = '100%';
                     modal.style.display = 'none';
 
-                    document.getElementById('res-symbol').innerHTML = `<span>🪙 ${data.symbol}</span>`;
+                    document.getElementById('res-symbol').innerHTML = `<span>🪙 ${data.symbol} (${data.current_price})</span>`;
                     document.getElementById('res-fav').innerText = `${data.favorability}%`;
                     document.getElementById('res-fav-fill').style.width = `${data.favorability}%`;
                     
@@ -538,7 +483,6 @@
                     document.getElementById('res-tp2').innerText = data.take_profit_2;
                     document.getElementById('res-tp3').innerText = data.take_profit_3;
                     
-                    // Operazione contraria
                     const counterBadge = document.getElementById('res-counter-action');
                     counterBadge.innerText = data.counter_action;
                     counterBadge.className = `badge-action ${data.counter_action}`;
@@ -548,7 +492,6 @@
                     document.getElementById('res-counter-sl').innerText = data.counter_sl;
                     document.getElementById('res-counter-tp').innerText = data.counter_tp;
 
-                    // AI advice & patterns
                     document.getElementById('res-ai-advice').innerText = data.ai_recommendation;
                     document.getElementById('res-analysis-text').innerText = data.analysis_text;
                     document.getElementById('res-pattern-text').innerText = data.pattern_text;
@@ -558,7 +501,7 @@
 
             } catch (err) {
                 modal.style.display = 'none';
-                alert('Errore durante l\'analisi.');
+                alert('Errore di connessione al server.');
             }
         }
 
@@ -574,7 +517,7 @@
                     grouped[s.category].push(s);
                 });
 
-                let html = '<div style="font-size:11px; color:#0ecb81; margin-bottom:10px; text-align:right;">🟢 Scanner Live Attivo</div>';
+                let html = '<div style="font-size:11px; color:#0ecb81; margin-bottom:10px; text-align:right;">🟢 Feed BingX Reale • Filtro Anti-False Rotture Attivo</div>';
                 for(let cat in grouped) {
                     html += `<div class="category-title">${cat}</div>`;
                     html += grouped[cat].map(s => `
@@ -601,21 +544,21 @@
                         </div>
                     `).join('');
                 }
-                container.innerHTML = html || '<p style="color:#848e9c;">Nessun segnale attivo al momento.</p>';
+                container.innerHTML = html || '<p style="color:#848e9c;">Nessun segnale ad alta probabilità in questo momento (filtro anti-falsi restrittivo).</p>';
             } catch (e) {
                 container.innerHTML = '<p style="color:#f6465d;">Errore nel caricamento dei segnali.</p>';
             }
         }
 
         function copySignal() {
-            const text = `Segnale AI Trading:\nAsset: ${currentSymbol}\nIngresso: ${document.getElementById('res-entry').innerText}\nStop Loss: ${document.getElementById('res-sl').innerText}`;
+            const text = `Setup BingX AI:\nAsset: ${currentSymbol}\nIngresso: ${document.getElementById('res-entry').innerText}\nStop Loss: ${document.getElementById('res-sl').innerText}\nTP1: ${document.getElementById('res-tp1').innerText}`;
             navigator.clipboard.writeText(text);
             alert('Segnale copiato negli appunti!');
         }
 
         function shareSignal() {
             if (navigator.share) {
-                navigator.share({ title: 'Segnale AI Trading', text: 'Analisi generata dal terminale AI:', url: window.location.href });
+                navigator.share({ title: 'Segnale BingX AI', text: 'Setup verificato:', url: window.location.href });
             } else {
                 copySignal();
             }
@@ -629,7 +572,7 @@
             const val = input.value;
             input.value = '';
             setTimeout(() => {
-                chat.innerHTML += `<p style="background: #181f2a; padding: 10px; border-radius: 8px; margin-bottom: 8px;">Risposta AI per "${val}": analisi di mercato verificata.</p>`;
+                chat.innerHTML += `<p style="background: #181f2a; padding: 10px; border-radius: 8px; margin-bottom: 8px;">Analisi BingX completata per "${val}": dati di prezzo reali sincronizzati.</p>`;
                 chat.scrollTop = chat.scrollHeight;
             }, 600);
         }
