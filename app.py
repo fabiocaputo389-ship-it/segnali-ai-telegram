@@ -28,7 +28,6 @@ def fetch_all_markets():
     return markets
 
 def safe_float(val, default=0.0):
-    """Filtro di sicurezza per evitare crash JSON di Flask con NaN o Inf"""
     try:
         f = float(val)
         if np.isnan(f) or not np.isfinite(f):
@@ -86,7 +85,7 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
     vol = df['Volume']
     vol_sma = safe_float(vol.rolling(20).mean().iloc[-1], 1000.0)
     current_vol = safe_float(vol.iloc[-1], 1000.0)
-    low_volume_flag = current_vol < (vol_sma * 0.8)
+    low_volume_flag = bool(current_vol < (vol_sma * 0.8))
 
     o_last = safe_float(df['Open'].iloc[-1], current_price)
     c_last = safe_float(df['Close'].iloc[-1], current_price)
@@ -94,8 +93,8 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
     l_last = safe_float(df['Low'].iloc[-1], current_price)
     body = abs(c_last - o_last)
     rng = h_last - l_last
-    is_pin_bar = (rng > 0) and ((body / rng) < 0.3)
-    whipsaw_detected = low_volume_flag or is_pin_bar
+    is_pin_bar = bool((rng > 0) and ((body / rng) < 0.3))
+    whipsaw_detected = bool(low_volume_flag or is_pin_bar)
 
     ema_val_12 = safe_float(ema12.iloc[-1], current_price)
     ema_val_26 = safe_float(ema26.iloc[-1], current_price)
@@ -108,8 +107,8 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
     macd_bearish = current_macd < 0.0
     rsi_bearish_perfect = 28 <= rsi <= 48
 
-    is_perfect_buy = ema_bullish and macd_bullish and rsi_bullish_perfect and not whipsaw_detected
-    is_perfect_sell = ema_bearish and macd_bearish and rsi_bearish_perfect and not whipsaw_detected
+    is_perfect_buy = bool(ema_bullish and macd_bullish and rsi_bullish_perfect and not whipsaw_detected)
+    is_perfect_sell = bool(ema_bearish and macd_bearish and rsi_bearish_perfect and not whipsaw_detected)
 
     if is_perfect_buy:
         action = "BUY"
@@ -199,7 +198,7 @@ def analyze_chart():
             "entry_zone": res["entry_zone"], "stop_loss": res["sl"],
             "take_profit_1": res["tp1"], "take_profit_2": res["tp2"], "take_profit_3": res["tp3"],
             "risk_amount": res["risk_amount"], "position_size": res["position_size"], "rrr": res["rrr"],
-            "whipsaw_detected": res["whipsaw_detected"], "status_msg": res["status_msg"],
+            "whipsaw_detected": bool(res["whipsaw_detected"]), "status_msg": res["status_msg"],
             "ai_recommendation": res["ai_recommendation"]
         })
     except Exception as e:
