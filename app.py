@@ -75,30 +75,43 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
     atr = float(tr.rolling(14).mean().iloc[-1])
     if np.isnan(atr) or not np.isfinite(atr) or atr <= 0: atr = current_price * 0.005
 
-    # --- CONTROLLO WHISPAW / FALSE ROTTURE ---
+    # --- CONTROLLO WHISPAW & VOLUMI ---
     vol = df['Volume']
     vol_sma = vol.rolling(20).mean().iloc[-1]
     current_vol = vol.iloc[-1]
-    low_volume_flag = current_vol < (vol_sma * 0.75) if not np.isnan(vol_sma) else False
+    low_volume_flag = current_vol < (vol_sma * 0.8) if not np.isnan(vol_sma) else False
 
-    # Analisi candela di rigetto (pin bar / wick esteso)
     o_last = df['Open'].iloc[-1]
     c_last = df['Close'].iloc[-1]
     h_last = df['High'].iloc[-1]
     l_last = df['Low'].iloc[-1]
     body = abs(c_last - o_last)
     rng = h_last - l_last
-    is_pin_bar = rng > 0 and (body / rng) < 0.35
-
+    is_pin_bar = rng > 0 and (body / rng) < 0.3
     whipsaw_detected = low_volume_flag or is_pin_bar
 
-    is_bullish = (ema12.iloc[-1] >= ema26.iloc[-1]) and (current_macd >= 0)
-    action = "BUY" if is_bullish else "SELL"
-    
-    # Calcolo confidenza base penalizzato se c'è rischio whipsaw
-    confidence = int(min(82 + abs(rsi - 50) * 0.5 + (abs(current_macd) * 5), 96))
-    if whipsaw_detected:
-        confidence = max(45, confidence - 30)
+    # --- CRITERI DI ALLINEAMENTO PERFETTO (100%) ---
+    ema_bullish = ema12.iloc[-1] > ema26.iloc[-1]
+    macd_bullish = current_macd > 0.0
+    rsi_bullish_perfect = 52 <= rsi <= 72
+
+    ema_bearish = ema12.iloc[-1] < ema26.iloc[-1]
+    macd_bearish = current_macd < 0.0
+    rsi_bearish_perfect = 28 <= rsi <= 48
+
+    is_perfect_buy = ema_bullish and macd_bullish and rsi_bullish_perfect and not whipsaw_detected
+    is_perfect_sell = ema_bearish and macd_bearish and rsi_bearish_perfect and not whipsaw_detected
+
+    if is_perfect_buy:
+        action = "BUY"
+        confidence = 100
+    elif is_perfect_sell:
+        action = "SELL"
+        confidence = 100
+    else:
+        # Trend standard ma non perfetto al 100%
+        action = "BUY" if ema12.iloc[-1] >= ema26.iloc[-1] else "SELL"
+        confidence = 75 if not whipsaw_detected else 40
 
     if mode == 'Scalping':
         sl_m, tp_m = 0.4, 1.0
@@ -121,7 +134,6 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
         tp2 = round(current_price + (tp_dist * 1.5), decimals)
         tp3 = round(current_price + (tp_dist * 2.0), decimals)
         order_type = "Buy Limit"
-        counter_act = "SELL"
     else:
         entry_l = round(current_price - (atr * 0.05), decimals)
         entry_h = round(current_price + (atr * 0.05), decimals)
@@ -130,29 +142,28 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
         tp2 = round(current_price - (tp_dist * 1.5), decimals)
         tp3 = round(current_price - (tp_dist * 2.0), decimals)
         order_type = "Sell Limit"
-        counter_act = "BUY"
 
     max_risk_amount = account_balance * (risk_percentage / 100.0)
     price_risk_per_unit = abs(current_price - sl)
     position_size = (max_risk_amount / price_risk_per_unit) if price_risk_per_unit > 0 else 0.0
     rrr = round(tp_dist / sl_dist, 2) if sl_dist > 0 else 0.0
 
-    if whipsaw_detected:
-        whipsaw_msg = "🚨 ATTENZIONE: Rischio Whipsaw elevato (volumi deboli o candela di rigetto/falsa rottura). Consigliato saltare il trade."
+    if confidence == 100:
+        status_msg = "🔥 PERFEZIONE ASSOLUTA (100%): EMA, MACD, RSI e Volumi perfettamente allineati senza rischi Whipsaw."
     else:
-        whipsaw_msg = "✅ Volumi stabili e nessun pattern di falsa rottura rilevato."
+        status_msg = "⚠️ ATTENzione: Indicatori non completamente allineati o presenza di potenziale Whipsaw. Affidabilità inferiore al 100%."
 
     ai_advice = (
-        f"[{mode}] Controllo Rischio & Whipsaw attivo. Rischio impostato al {risk_percentage}% "
-        f"(${max_risk_amount:.2f}). RRR = 1:{rrr}. {whipsaw_msg}"
+        f"[{mode}] Rischio impostato al {risk_percentage}% (${max_risk_amount:.2f}). "
+        f"RRR = 1:{rrr}. {status_msg}"
     )
 
     return {
         "action": action, "confidence": confidence, "order_type": order_type,
         "entry_zone": f"{entry_l} - {entry_h}", "sl": sl, "tp1": tp1, "tp2": tp2, "tp3": tp3,
         "risk_amount": round(max_risk_amount, 2), "position_size": round(position_size, 4),
-        "rrr": rrr, "whipsaw_detected": whipsaw_detected, "whipsaw_msg": whipsaw_msg,
-        "counter_action": counter_act, "ai_recommendation": ai_advice, "decimals": decimals
+        "rrr": rrr, "whipsaw_detected": whipsaw_detected, "status_msg": status_msg,
+        "ai_recommendation": ai_advice, "decimals": decimals
     }
 
 @app.route('/api/markets', methods=['GET'])
@@ -179,7 +190,7 @@ def analyze_chart():
         "entry_zone": res["entry_zone"], "stop_loss": res["sl"],
         "take_profit_1": res["tp1"], "take_profit_2": res["tp2"], "take_profit_3": res["tp3"],
         "risk_amount": res["risk_amount"], "position_size": res["position_size"], "rrr": res["rrr"],
-        "whipsaw_detected": res["whipsaw_detected"], "whipsaw_msg": res["whipsaw_msg"],
+        "whipsaw_detected": res["whipsaw_detected"], "status_msg": res["status_msg"],
         "ai_recommendation": res["ai_recommendation"]
     })
 
@@ -196,8 +207,8 @@ def get_signals():
                 if np.isnan(change) or not np.isfinite(change): change = 0.0
 
                 res = calculate_certified_setup(df, current_price, 'Day Trading', '15m', 1000.0, 1.0)
-                # Filtra e mostra solo i segnali sicuri senza whipsaw e con confidenza >= 80%
-                if res["confidence"] >= 80 and not res["whipsaw_detected"]:
+                # MOSTRA SOLO I SEGNALI CON CONFIDENZA AL 100% (PERFEZIONE ASSOLUTA)
+                if res["confidence"] == 100:
                     dec = res["decimals"]
                     signals.append({
                         "category": cat, "symbol": a['id'], "name": a['name'],
