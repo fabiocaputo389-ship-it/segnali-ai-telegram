@@ -2,6 +2,7 @@ from flask import Flask, render_template, jsonify, request
 import requests
 import pandas as pd
 import numpy as np
+from datetime import datetime
 
 app = Flask(__name__)
 
@@ -15,9 +16,7 @@ def fetch_all_bingx_markets():
         "Materie Prime": [
             {'id': 'XAUUSD', 'name': '🥇 Oro (GOLD)', 'bx': 'GOLD-USDT', 'base': 2680.0},
             {'id': 'XAGUSD', 'name': '🥈 Argento (SILVER)', 'bx': 'SILVER-USDT', 'base': 31.5},
-            {'id': 'USOIL', 'name': '🛢️ Petrolio WTI', 'bx': 'USOIL-USDT', 'base': 70.2},
-            {'id': 'UKOIL', 'name': '🛢️ Petrolio Brent', 'bx': 'UKOIL-USDT', 'base': 74.0},
-            {'id': 'NGAS', 'name': '🔥 Gas Naturale', 'bx': 'NGAS-USDT', 'base': 3.1}
+            {'id': 'USOIL', 'name': '🛢️ Petrolio WTI', 'bx': 'USOIL-USDT', 'base': 70.2}
         ],
         "Forex": [
             {'id': 'EURUSD', 'name': '💶 EUR/USD', 'bx': 'EUR-USDT', 'base': 1.055},
@@ -44,7 +43,7 @@ def fetch_all_bingx_markets():
                 sym = t.get('symbol', '')
                 if sym.endswith('-USDT'):
                     base_name = sym.replace('-USDT', '')
-                    excluded = ['GOLD', 'SILVER', 'USOIL', 'UKOIL', 'NGAS', 'EUR', 'GBP', 'JPY', 'AUD', 'SP500', 'NAS100']
+                    excluded = ['GOLD', 'SILVER', 'USOIL', 'EUR', 'GBP', 'JPY', 'AUD', 'SP500', 'NAS100']
                     if base_name not in excluded:
                         crypto_list.append({
                             'id': sym.replace('-', ''),
@@ -62,7 +61,6 @@ def fetch_all_bingx_markets():
             {'id': 'BTCUSDT', 'name': '₿ Bitcoin', 'bx': 'BTC-USDT', 'base': 91200.0},
             {'id': 'ETHUSDT', 'name': 'Ξ Ethereum', 'bx': 'ETH-USDT', 'base': 1898.5},
             {'id': 'SOLUSDT', 'name': '🟣 Solana', 'bx': 'SOL-USDT', 'base': 210.0},
-            {'id': 'BNBUSDT', 'name': '🟡 BNB', 'bx': 'BNB-USDT', 'base': 640.0},
             {'id': 'XRPUSDT', 'name': '✕ Ripple', 'bx': 'XRP-USDT', 'base': 1.15}
         ]
         
@@ -103,7 +101,6 @@ def get_market_data(symbol):
     except Exception:
         pass
 
-    # Fallback matematico proporzionato al prezzo reale dell'asset (evita lo stallo a 100)
     p = base_price_fallback
     np.random.seed(len(symbol) + 7)
     closes = p + np.cumsum(np.random.randn(60) * (p * 0.0005))
@@ -120,17 +117,17 @@ def calculate_certified_setup(df, current_price, mode, timeframe):
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
     rs = gain / loss
     rsi = float((100 - (100 / (1 + rs))).iloc[-1])
-    if np.isnan(rsi): rsi = 50.0
+    if np.isnan(rsi) or not np.isfinite(rsi): rsi = 50.0
 
     ema12 = close.ewm(span=12, adjust=False).mean()
     ema26 = close.ewm(span=26, adjust=False).mean()
     macd_hist = (ema12 - ema26) - (ema12 - ema26).ewm(span=9, adjust=False).mean()
     current_macd = float(macd_hist.iloc[-1])
-    if np.isnan(current_macd): current_macd = 0.0
+    if np.isnan(current_macd) or not np.isfinite(current_macd): current_macd = 0.0
 
     tr = pd.concat([df['High'] - df['Low'], np.abs(df['High'] - close.shift()), np.abs(df['Low'] - close.shift())], axis=1).max(axis=1)
     atr = float(tr.rolling(14).mean().iloc[-1])
-    if np.isnan(atr) or atr <= 0: atr = current_price * 0.004
+    if np.isnan(atr) or not np.isfinite(atr) or atr <= 0: atr = current_price * 0.004
 
     is_bullish = (ema12.iloc[-1] >= ema26.iloc[-1]) and (current_macd >= 0) and (rsi >= 45)
     action = "BUY" if is_bullish else "SELL"
@@ -153,7 +150,6 @@ def calculate_certified_setup(df, current_price, mode, timeframe):
 
     decimals = 6 if current_price < 0.01 else (4 if current_price < 5 else (3 if current_price < 50 else 2))
 
-    # Calcolo rigoroso e sicuro dei livelli in base al prezzo live esatto
     if action == "BUY":
         entry_l = round(current_price - (atr * 0.1), decimals)
         entry_h = round(current_price + (atr * 0.15), decimals)
@@ -176,8 +172,16 @@ def calculate_certified_setup(df, current_price, mode, timeframe):
     counter_sl = round(current_price + (atr * 1.5) if counter_act == "SELL" else current_price - (atr * 1.5), decimals)
     counter_tp = round(current_price - (atr * 1.2) if counter_act == "SELL" else current_price + (atr * 1.2), decimals)
 
-    ai_advice = f"In questa situazione [{mode}], aprirei solo una posizione {action.lower()} intraday con gestione prudente del rischio, evitando il setup {counter_act.lower()} contro-movimento."
-    counter_warning = f"La {counter_act.lower()} sarebbe contro il movimento {action.lower()} principale in corso e quindi un setup a bassa probabilità e più rischioso."
+    current_hour = datetime.now().hour
+    if 8 <= current_hour <= 17:
+        session_str = "Londra / New York (Massima volatilità e volumi istituzionali)."
+    elif 1 <= current_hour <= 7:
+        session_str = "Sessione Asiatica (Ideale per breakout tecnici)."
+    else:
+        session_str = "Sessione Globale 24/7."
+
+    ai_advice = f"[{mode}] Sessione ideale: {session_str} Trend confermato ({action}). Gestione rigorosa del rischio ATR."
+    counter_warning = f"La {counter_act.lower()} è contro il flusso matematico principale in corso ({action}). Rischio elevato."
 
     return {
         "action": action, "confidence": confidence, "order_type": order_type,
@@ -218,21 +222,23 @@ def analyze_chart():
 def get_signals():
     markets = fetch_all_bingx_markets()
     signals = []
-    sample_symbols = ['ETHUSDT', 'BTCUSDT', 'SOLUSDT', 'XAUUSD', 'EURUSD', 'XRPUSDT']
+    sample_symbols = ['ETHUSDT', 'BTCUSDT', 'SOLUSDT', 'XAUUSD', 'EURUSD', 'GBPUSD', 'XRPUSDT', 'DOGEUSDT']
     for cat, assets in markets.items():
         for a in assets:
             if a['id'] in sample_symbols:
                 df, current_price, source = get_market_data(a['id'])
-                if df is not None:
-                    p_prev = float(df['Close'].iloc[0])
-                    change = ((current_price - p_prev) / p_prev) * 100
+                if df is not None and not df.empty:
+                    p_prev = float(df['Open'].iloc[0]) if 'Open' in df.columns and df['Open'].iloc[0] > 0 else current_price
+                    change = float(((current_price - p_prev) / p_prev) * 100)
+                    if np.isnan(change) or not np.isfinite(change): change = 0.0
+                    
                     res = calculate_certified_setup(df, current_price, 'Day Trading', '15m')
                     if res["confidence"] >= 80:
                         dec = res["decimals"]
                         signals.append({
                             "category": cat, "symbol": a['id'], "name": a['name'],
                             "action": res["action"], "order_type": res["order_type"],
-                            "change": f"Var: {change:+.2f}%", "price": f"{current_price:.{dec}f}",
+                            "change": f"{change:+.2f}%", "price": f"{current_price:.{dec}f}",
                             "prob": f"{res['confidence']}%", "entry": res["entry_zone"],
                             "sl": res["sl"], "tp1": res["tp1"]
                         })
