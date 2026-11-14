@@ -2,6 +2,7 @@ from flask import Flask, render_template, jsonify, request
 import requests
 import pandas as pd
 import numpy as np
+from datetime import datetime, timezone
 
 app = Flask(__name__)
 
@@ -10,7 +11,6 @@ def home():
     return render_template('index.html')
 
 def fetch_all_markets():
-    # Database globale completo di tutti i mercati
     markets = {
         "Criptovalute": [
             {'id': 'BTCUSDT', 'name': '₿ Bitcoin', 'symbol': 'BTCUSDT'},
@@ -22,12 +22,7 @@ def fetch_all_markets():
             {'id': 'DOGEUSDT', 'name': '🐕 Dogecoin', 'symbol': 'DOGEUSDT'},
             {'id': 'AVAXUSDT', 'name': '🔺 Avalanche', 'symbol': 'AVAXUSDT'},
             {'id': 'LINKUSDT', 'name': '🔗 Chainlink', 'symbol': 'LINKUSDT'},
-            {'id': 'DOTUSDT', 'name': '🔵 Polkadot', 'symbol': 'DOTUSDT'},
-            {'id': 'NEARUSDT', 'name': '🌊 Near Protocol', 'symbol': 'NEARUSDT'},
-            {'id': 'MATICUSDT', 'name': '🟣 Polygon', 'symbol': 'MATICUSDT'},
-            {'id': 'UNIUSDT', 'name': '🦄 Uniswap', 'symbol': 'UNIUSDT'},
-            {'id': 'ATOMUSDT', 'name': '⚛️ Cosmos', 'symbol': 'ATOMUSDT'},
-            {'id': 'LTCUSDT', 'name': 'Ł Litecoin', 'symbol': 'LTCUSDT'}
+            {'id': 'DOTUSDT', 'name': '🔵 Polkadot', 'symbol': 'DOTUSDT'}
         ],
         "Materie Prime & Forex": [
             {'id': 'XAUUSD', 'name': '🥇 Oro (Gold)', 'symbol': 'PAXGUSDT'},
@@ -45,6 +40,19 @@ def fetch_all_markets():
         ]
     }
     return markets
+
+def get_market_status(category):
+    # Le cripto sono sempre aperte (24/7), Forex/Azioni chiudono nel weekend
+    if category == "Criptovalute":
+        return {"status": "Aperto", "text": "🟢 Aperto 24/7", "countdown": ""}
+    
+    now = datetime.now(timezone.utc)
+    weekday = now.weekday() # 5 = Sabato, 6 = Domenica
+    
+    if weekday >= 5: # Weekend
+        return {"status": "Chiuso", "text": "🔴 Mercato Chiuso", "countdown": "Riapre lunedì 00:00 UTC"}
+    else:
+        return {"status": "Aperto", "text": "🟢 Aperto", "countdown": ""}
 
 def safe_float(val, default=0.0):
     try:
@@ -82,7 +90,6 @@ def get_market_data(symbol):
     except Exception:
         pass
 
-    # Fallback matematico se offline
     p = 200.0 if symbol in ['AAPL', 'TSLA', 'NVDA'] else (3000.0 if symbol == 'XAUUSD' else 65000.0)
     df = pd.DataFrame({
         'Open': [p]*70, 'High': [p*1.002]*70, 'Low': [p*0.998]*70,
@@ -93,14 +100,14 @@ def get_market_data(symbol):
 def calculate_certified_setup(df, current_price, mode, timeframe, account_balance, risk_percentage):
     close = df['Close']
     
-    # 1. Calcolo Impeccabile RSI (14 periodi)
+    # RSI 14 periodi
     delta = close.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
     rs = gain / loss
     rsi = safe_float((100 - (100 / (1 + rs))).iloc[-1], 50.0)
 
-    # 2. Calcolo Impeccabile EMA (12 e 26) e MACD
+    # EMA & MACD
     ema12 = close.ewm(span=12, adjust=False).mean()
     ema26 = close.ewm(span=26, adjust=False).mean()
     macd_line = ema12 - ema26
@@ -108,13 +115,12 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
     macd_hist = macd_line - macd_signal
     current_macd = safe_float(macd_hist.iloc[-1], 0.0)
 
-    # 3. Calcolo ATR per Stop Loss e Take Profit dinamici
+    # ATR
     tr = pd.concat([df['High'] - df['Low'], np.abs(df['High'] - close.shift()), np.abs(df['Low'] - close.shift())], axis=1).max(axis=1)
     atr = safe_float(tr.rolling(14).mean().iloc[-1], current_price * 0.005)
-    if atr <= 0:
-        atr = current_price * 0.005
+    if atr <= 0: atr = current_price * 0.005
 
-    # 4. Filtri Anti-Whipsaw e Pin-Bar (Anti falsi segnali)
+    # Filtri Whipsaw
     vol = df['Volume']
     vol_sma = safe_float(vol.rolling(20).mean().iloc[-1], 1000.0)
     current_vol = safe_float(vol.iloc[-1], 1000.0)
@@ -127,13 +133,11 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
     body = abs(c_last - o_last)
     rng = h_last - l_last
     is_pin_bar = bool((rng > 0) and ((body / rng) < 0.25))
-    
     whipsaw_detected = "Sì" if (low_volume_flag or is_pin_bar) else "No"
 
     ema_val_12 = safe_float(ema12.iloc[-1], current_price)
     ema_val_26 = safe_float(ema26.iloc[-1], current_price)
 
-    # Condizioni di perfezione assoluta
     ema_bullish = ema_val_12 > ema_val_26
     macd_bullish = current_macd > 0.0
     rsi_bullish_perfect = 52 <= rsi <= 72
@@ -145,6 +149,7 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
     is_perfect_buy = ema_bullish and macd_bullish and rsi_bullish_perfect and (whipsaw_detected == "No")
     is_perfect_sell = ema_bearish and macd_bearish and rsi_bearish_perfect and (whipsaw_detected == "No")
 
+    # STRICT 100% LOGIC: Se non è perfetto al 100%, confidenza base inferiore
     if is_perfect_buy:
         action = "BUY"
         confidence = 100
@@ -153,9 +158,8 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
         confidence = 100
     else:
         action = "BUY" if ema_val_12 >= ema_val_26 else "SELL"
-        confidence = 85 if whipsaw_detected == "No" else 60
+        confidence = 45 # Sotto la soglia del 100% per non essere esposto nei segnali certi
 
-    # Moltiplicatori in base alla modalità di trading
     if mode == 'Scalping':
         sl_m, tp_m = 0.4, 1.0
     elif mode == 'Day Trading':
@@ -192,14 +196,11 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
     rrr = round(tp_dist / sl_dist, 2) if sl_dist > 0 else 0.0
 
     if confidence == 100:
-        status_msg = f"🔥 Segnale Certificato al 100%: RSI ({rsi:.1f}), MACD e filtri anti-whipsaw perfettamente allineati."
+        status_msg = f"🔥 Segnale Certificato al 100%: RSI ({rsi:.1f}), MACD e filtri allineati."
     else:
-        status_msg = f"📊 Analisi in corso: RSI ({rsi:.1f}) | Anti-Whipsaw: {whipsaw_detected}."
+        status_msg = f"⏳ In attesa di perfezione assoluta (RSI: {rsi:.1f})."
 
-    ai_advice = (
-        f"[{mode}] Rischio: {risk_percentage}% (${max_risk_amount:.2f}). "
-        f"RSI: {rsi:.1f} | MACD: {current_macd:.4f} | RRR = 1:{rrr}. {status_msg}"
-    )
+    ai_advice = f"[{mode}] Rischio: {risk_percentage}% (${max_risk_amount:.2f}). RRR = 1:{rrr}. {status_msg}"
 
     return {
         "action": action, "confidence": int(confidence), "order_type": order_type,
@@ -243,7 +244,6 @@ def analyze_chart():
             "ai_recommendation": res["ai_recommendation"]
         })
     except Exception as e:
-        print("Errore in /api/analyze:", e)
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/signals', methods=['GET'])
@@ -252,28 +252,30 @@ def get_signals():
         markets = fetch_all_markets()
         signals = []
         for cat, assets in markets.items():
+            m_status = get_market_status(cat)
             for a in assets:
                 df, current_price, source = get_market_data(a['id'])
                 if df is not None and not df.empty:
                     p_open = float(df['Open'].iloc[0]) if df['Open'].iloc[0] > 0 else current_price
                     change = float(((current_price - p_open) / p_open) * 100)
-                    if np.isnan(change) or not np.isfinite(change):
-                        change = 0.0
+                    if np.isnan(change) or not np.isfinite(change): change = 0.0
 
                     res = calculate_certified_setup(df, current_price, 'Day Trading', '15m', 1000.0, 1.0)
-                    dec = res["decimals"]
-                    signals.append({
-                        "category": cat, "symbol": a['id'], "name": a['name'],
-                        "action": res["action"], "order_type": res["order_type"],
-                        "change": f"{change:+.2f}%", "price": f"{current_price:.{dec}f}",
-                        "prob": f"{res['confidence']}%", "entry": res["entry_zone"],
-                        "sl": res["sl"], "tp1": res["tp1"], "rrr": res["rrr"],
-                        "raw_conf": res["confidence"]
-                    })
-        signals = sorted(signals, key=lambda x: x['raw_conf'], reverse=True)
+                    
+                    # FILTRO RIGIDO: Mostriamo SOLO i segnali esatti con confidenza al 100%
+                    if res['confidence'] == 100:
+                        dec = res["decimals"]
+                        signals.append({
+                            "category": cat, "symbol": a['id'], "name": a['name'],
+                            "action": res["action"], "order_type": res["order_type"],
+                            "change": f"{change:+.2f}%", "price": f"{current_price:.{dec}f}",
+                            "prob": f"{res['confidence']}%", "entry": res["entry_zone"],
+                            "sl": res["sl"], "tp1": res["tp1"], "rrr": res["rrr"],
+                            "market_status": m_status["text"], "countdown": m_status["countdown"]
+                        })
         return jsonify(signals)
     except Exception as e:
-        print("Errore in /api/signals:", e)
+        print("Errore signals:", e)
         return jsonify([])
 
 if __name__ == '__main__':
