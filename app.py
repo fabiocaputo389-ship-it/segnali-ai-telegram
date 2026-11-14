@@ -25,8 +25,7 @@ def fetch_all_markets():
                         'name': f"🪙 {base}/USDT",
                         'symbol': sym
                     })
-    except Exception as e:
-        print("Errore fetch dynamic crypto:", e)
+    except Exception:
         crypto_list = [
             {'id': 'BTCUSDT', 'name': '₿ Bitcoin', 'symbol': 'BTCUSDT'},
             {'id': 'ETHUSDT', 'name': 'Ξ Ethereum', 'symbol': 'ETHUSDT'},
@@ -34,7 +33,7 @@ def fetch_all_markets():
         ]
 
     markets = {
-        "Criptovalute (Tutte Live)": crypto_list,
+        "Criptovalute": crypto_list,
         "Materie Prime & Forex": [
             {'id': 'XAUUSD', 'name': '🥇 Oro (Gold)', 'symbol': 'PAXGUSDT'},
             {'id': 'XAGUSD', 'name': '🥈 Argento (Silver)', 'symbol': 'XAGUSDT'},
@@ -45,7 +44,7 @@ def fetch_all_markets():
             {'id': 'USDCAD', 'name': '🇨🇦 USD/CAD', 'symbol': 'USDCAD'},
             {'id': 'NZDUSD', 'name': '🇳🇿 NZD/USD', 'symbol': 'NZDUSD'}
         ],
-        "Azioni & Indici Globali": [
+        "Azioni & Indici": [
             {'id': 'AAPL', 'name': '🍏 Apple Inc.', 'symbol': 'AAPLUSDT'},
             {'id': 'TSLA', 'name': '🚗 Tesla Inc.', 'symbol': 'TSLAUSDT'},
             {'id': 'NVDA', 'name': '💻 Nvidia Corp.', 'symbol': 'NVDAUSDT'},
@@ -60,7 +59,7 @@ def fetch_all_markets():
     return markets
 
 def get_market_status(category):
-    if "Criptovalute" in category:
+    if category == "Criptovalute":
         return {"status": "Aperto", "text": "🟢 Operativo 24/7", "countdown": "Mercato Continuo"}
     
     now = datetime.now(timezone.utc)
@@ -80,7 +79,7 @@ def safe_float(val, default=0.0):
     except Exception:
         return default
 
-def get_market_data(symbol):
+def get_market_data(symbol, interval="15m"):
     headers = {"User-Agent": "Mozilla/5.0"}
     clean_sym = symbol
     if symbol in ['AAPL', 'TSLA', 'NVDA', 'AMZN', 'MSFT', 'GOOGL', 'META', 'NFLX', 'SPX500']:
@@ -90,7 +89,7 @@ def get_market_data(symbol):
 
     try:
         url = "https://api.binance.com/api/v3/klines"
-        res = requests.get(url, params={"symbol": clean_sym, "interval": "15m", "limit": 70}, headers=headers, timeout=2).json()
+        res = requests.get(url, params={"symbol": clean_sym, "interval": interval, "limit": 70}, headers=headers, timeout=2).json()
         
         if isinstance(res, list) and len(res) > 0:
             df = pd.DataFrame(res, columns=['Open_time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Close_time', 'Quote_av', 'Trades', 'Tbbav', 'Tbav', 'Ignore'])
@@ -114,15 +113,17 @@ def get_market_data(symbol):
     })
     return df, p, "Smart Sync Protocol"
 
-def calculate_certified_setup(df, current_price, mode, timeframe, account_balance, risk_percentage):
+def calculate_certified_setup(df, current_price, mode, account_balance, risk_percentage):
     close = df['Close']
     
+    # RSI 14
     delta = close.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
     rs = gain / loss
     rsi = safe_float((100 - (100 / (1 + rs))).iloc[-1], 50.0)
 
+    # EMA 12 / 26 & MACD
     ema12 = close.ewm(span=12, adjust=False).mean()
     ema26 = close.ewm(span=26, adjust=False).mean()
     macd_line = ema12 - ema26
@@ -130,10 +131,12 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
     macd_hist = macd_line - macd_signal
     current_macd = safe_float(macd_hist.iloc[-1], 0.0)
 
+    # ATR
     tr = pd.concat([df['High'] - df['Low'], np.abs(df['High'] - close.shift()), np.abs(df['Low'] - close.shift())], axis=1).max(axis=1)
     atr = safe_float(tr.rolling(14).mean().iloc[-1], current_price * 0.005)
     if atr <= 0: atr = current_price * 0.005
 
+    # Filtri Anti-Whipsaw (Volume e Pin-Bar)
     vol = df['Volume']
     vol_sma = safe_float(vol.rolling(20).mean().iloc[-1], 1000.0)
     current_vol = safe_float(vol.iloc[-1], 1000.0)
@@ -164,7 +167,13 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
         action = "BUY" if ema_val_12 >= ema_val_26 else "SELL"
         confidence = 50
 
-    sl_m, tp_m = 0.9, 2.0
+    if mode == 'Scalping':
+        sl_m, tp_m = 0.5, 1.2
+    elif mode == 'Swing Trading':
+        sl_m, tp_m = 2.0, 4.5
+    else: # Day Trading
+        sl_m, tp_m = 0.9, 2.0
+
     sl_dist = atr * sl_m
     tp_dist = atr * tp_m
     decimals = 6 if current_price < 0.01 else (4 if current_price < 5 else 2)
@@ -175,78 +184,62 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
         sl = round(current_price - sl_dist, decimals)
         tp1 = round(current_price + tp_dist, decimals)
         tp2 = round(current_price + (tp_dist * 1.5), decimals)
-        tp3 = round(current_price + (tp_dist * 2.0), decimals)
+        tp3 = round(current_price + (tp_dist * 2.2), decimals)
     else:
         entry_l = round(current_price - (atr * 0.05), decimals)
         entry_h = round(current_price + (atr * 0.05), decimals)
         sl = round(current_price + sl_dist, decimals)
         tp1 = round(current_price - tp_dist, decimals)
         tp2 = round(current_price - (tp_dist * 1.5), decimals)
-        tp3 = round(current_price - (tp_dist * 2.0), decimals)
+        tp3 = round(current_price - (tp_dist * 2.2), decimals)
 
+    # Calcolo Position Size, Rischio e Leva Consigliata
     max_risk_amount = account_balance * (risk_percentage / 100.0)
     price_risk_per_unit = abs(current_price - sl)
     position_size = (max_risk_amount / price_risk_per_unit) if price_risk_per_unit > 0 else 0.0
+    
+    sl_pct = (price_risk_per_unit / current_price) * 100 if current_price > 0 else 1.0
+    recommended_leverage = min(20, max(3, int(round(15.0 / max(sl_pct, 0.5)))))
+    margin_required = round((position_size * current_price) / recommended_leverage, 2)
     rrr = round(tp_dist / sl_dist, 2) if sl_dist > 0 else 0.0
 
     return {
         "action": action, "confidence": int(confidence),
         "entry_zone": f"{entry_l} - {entry_h}", "sl": sl, "tp1": tp1, "tp2": tp2, "tp3": tp3,
-        "rrr": rrr, "decimals": decimals
+        "rrr": rrr, "decimals": decimals, "rsi": round(rsi, 1),
+        "risk_amount": round(max_risk_amount, 2), "position_size": round(position_size, 4),
+        "leverage": f"Isolata {recommended_leverage}x", "margin": margin_required
     }
 
 @app.route('/api/markets', methods=['GET'])
 def get_markets():
     return jsonify(fetch_all_markets())
 
-@app.route('/api/analyze', methods=['POST'])
-def analyze_chart():
+def process_single_asset(cat, a, m_status, mode, balance, risk_pct, timeframe):
     try:
-        data = request.json or {}
-        symbol = data.get('symbol', 'BTCUSDT')
-        timeframe = data.get('timeframe', '15m')
-        mode = data.get('mode', 'Day Trading')
-        account_balance = float(data.get('account_balance', 1000.0))
-        risk_percentage = float(data.get('risk_percentage', 1.0))
-
-        df, current_price, source = get_market_data(symbol)
-        p_open = float(df['Open'].iloc[0]) if df['Open'].iloc[0] > 0 else current_price
-        change = float(((current_price - p_open) / p_open) * 100)
-        if np.isnan(change) or not np.isfinite(change): change = 0.0
-
-        res = calculate_certified_setup(df, current_price, mode, timeframe, account_balance, risk_percentage)
-        dec = res["decimals"]
-
-        return jsonify({
-            "status": "success", "symbol": symbol, "source": source,
-            "current_price": round(current_price, dec), "price_change": f"{change:+.2f}%",
-            "action": res["action"], "favorability": res["confidence"],
-            "entry_zone": res["entry_zone"], "stop_loss": res["sl"],
-            "take_profit_1": res["tp1"], "take_profit_2": res["tp2"], "take_profit_3": res["tp3"],
-            "rrr": res["rrr"]
-        })
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-def process_single_asset(cat, a, vol_map, m_status):
-    try:
-        df, current_price, source = get_market_data(a['id'])
+        df, current_price, source = get_market_data(a['id'], interval=timeframe)
         if df is not None and not df.empty:
             p_open = float(df['Open'].iloc[0]) if df['Open'].iloc[0] > 0 else current_price
             change = float(((current_price - p_open) / p_open) * 100)
             if np.isnan(change) or not np.isfinite(change): change = 0.0
 
-            res = calculate_certified_setup(df, current_price, 'Day Trading', '15m', 1000.0, 1.0)
+            res = calculate_certified_setup(df, current_price, mode, balance, risk_pct)
             
             if res['confidence'] == 100:
                 dec = res["decimals"]
                 return {
+                    "id": f"{a['id']}_{res['action']}_{timeframe}",
                     "category": cat, "symbol": a['id'], "name": a['name'],
                     "action": res["action"], "change": f"{change:+.2f}%", 
                     "price": f"{current_price:.{dec}f}", "prob": f"{res['confidence']}%", 
                     "entry": res["entry_zone"], "sl": res["sl"], 
                     "tp1": res["tp1"], "tp2": res["tp2"], "tp3": res["tp3"],
-                    "rrr": res["rrr"], "market_status": m_status["text"], "countdown": m_status["countdown"]
+                    "rrr": res["rrr"], "rsi": res["rsi"],
+                    "risk_amount": res["risk_amount"], "position_size": res["position_size"],
+                    "leverage": res["leverage"], "margin": res["margin"],
+                    "market_status": m_status["text"], "countdown": m_status["countdown"],
+                    "is_open": m_status["status"] == "Aperto",
+                    "timestamp": datetime.now().strftime("%H:%M")
                 }
     except Exception:
         pass
@@ -255,6 +248,11 @@ def process_single_asset(cat, a, vol_map, m_status):
 @app.route('/api/signals', methods=['GET'])
 def get_signals():
     try:
+        mode = request.args.get('mode', 'Day Trading')
+        timeframe = request.args.get('timeframe', '15m')
+        balance = safe_float(request.args.get('balance', 1000.0), 1000.0)
+        risk_pct = safe_float(request.args.get('risk', 1.0), 1.0)
+
         markets = fetch_all_markets()
         signals = []
         
@@ -265,27 +263,27 @@ def get_signals():
         except Exception:
             vol_map = {}
 
-        crypto_assets = markets.get("Criptovalute (Tutte Live)", [])
+        crypto_assets = markets.get("Criptovalute", [])
         crypto_assets = sorted(crypto_assets, key=lambda x: vol_map.get(x['symbol'], 0), reverse=True)
         
-        # Scansiona le top 40 cripto più scambiate + tutte le materie prime, forex e azioni in parallelo
         target_assets = []
-        for a in crypto_assets[:40]:
-            target_assets.append(("Criptovalute (Tutte Live)", a, get_market_status("Criptovalute (Tutte Live)")))
+        for a in crypto_assets[:45]:
+            target_assets.append(("Criptovalute", a, get_market_status("Criptovalute")))
             
-        for cat in ["Materie Prime & Forex", "Azioni & Indici Globali"]:
+        for cat in ["Materie Prime & Forex", "Azioni & Indici"]:
             m_status = get_market_status(cat)
             for a in markets.get(cat, []):
                 target_assets.append((cat, a, m_status))
 
-        # Esecuzione parallela con ThreadPoolExecutor (velocità massima, zero timeout)
         with ThreadPoolExecutor(max_workers=15) as executor:
-            futures = [executor.submit(process_single_asset, cat, a, vol_map, m_status) for cat, a, m_status in target_assets]
+            futures = [executor.submit(process_single_asset, cat, a, m_status, mode, balance, risk_pct, timeframe) for cat, a, m_status in target_assets]
             for future in as_completed(futures):
                 res = future.result()
                 if res:
                     signals.append(res)
 
+        # Ordina mettendo prima i mercati aperti e operativi
+        signals.sort(key=lambda x: (not x['is_open'], x['category']))
         return jsonify(signals)
     except Exception as e:
         print("Errore signals:", e)
