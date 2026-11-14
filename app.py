@@ -95,8 +95,8 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
     rng = h_last - l_last
     is_pin_bar = bool((rng > 0) and ((body / rng) < 0.3))
     
-    # Trasformiamo in intero (1 o 0) per evitare qualsiasi errore JSON
-    whipsaw_detected = 1 if (low_volume_flag or is_pin_bar) else 0
+    # Trasformiamo in stringa per evitare qualsiasi errore JSON di Flask
+    whipsaw_detected = "Sì" if (low_volume_flag or is_pin_bar) else "No"
 
     ema_val_12 = safe_float(ema12.iloc[-1], current_price)
     ema_val_26 = safe_float(ema26.iloc[-1], current_price)
@@ -109,8 +109,8 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
     macd_bearish = current_macd < 0.0
     rsi_bearish_perfect = 28 <= rsi <= 48
 
-    is_perfect_buy = ema_bullish and macd_bullish and rsi_bullish_perfect and (whipsaw_detected == 0)
-    is_perfect_sell = ema_bearish and macd_bearish and rsi_bearish_perfect and (whipsaw_detected == 0)
+    is_perfect_buy = ema_bullish and macd_bullish and rsi_bullish_perfect and (whipsaw_detected == "No")
+    is_perfect_sell = ema_bearish and macd_bearish and rsi_bearish_perfect and (whipsaw_detected == "No")
 
     if is_perfect_buy:
         action = "BUY"
@@ -120,7 +120,7 @@ def calculate_certified_setup(df, current_price, mode, timeframe, account_balanc
         confidence = 100
     else:
         action = "BUY" if ema_val_12 >= ema_val_26 else "SELL"
-        confidence = 75 if whipsaw_detected == 0 else 40
+        confidence = 75 if whipsaw_detected == "No" else 40
 
     if mode == 'Scalping':
         sl_m, tp_m = 0.4, 1.0
@@ -200,7 +200,7 @@ def analyze_chart():
             "entry_zone": res["entry_zone"], "stop_loss": res["sl"],
             "take_profit_1": res["tp1"], "take_profit_2": res["tp2"], "take_profit_3": res["tp3"],
             "risk_amount": res["risk_amount"], "position_size": res["position_size"], "rrr": res["rrr"],
-            "whipsaw_detected": int(res["whipsaw_detected"]), "status_msg": res["status_msg"],
+            "whipsaw_detected": str(res["whipsaw_detected"]), "status_msg": res["status_msg"],
             "ai_recommendation": res["ai_recommendation"]
         })
     except Exception as e:
