@@ -21,7 +21,14 @@
         .cat-btn.active { background: #00b8d9; color: #000; }
         .search-box { margin-bottom: 10px; }
         .search-input { width: 100%; background: #181f2a; border: 1px solid #2a3447; border-radius: 10px; padding: 10px 14px; color: #fff; font-size: 13px; outline: none; }
-        .chart-container { background: #121620; border-radius: 12px; border: 1px solid #1f2633; margin-bottom: 15px; height: 300px; overflow: hidden; }
+        
+        /* Grafico con Scanner Laser Effetto */
+        .chart-container { position: relative; background: #121620; border-radius: 12px; border: 1px solid #1f2633; margin-bottom: 15px; height: 300px; overflow: hidden; }
+        .scanner-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 184, 217, 0.08); display: none; z-index: 50; pointer-events: none; }
+        .scanner-line { position: absolute; top: 0; left: 0; width: 100%; height: 3px; background: #00b8d9; box-shadow: 0 0 15px #00b8d9, 0 0 30px #00b8d9; animation: scanMove 1.2s ease-in-out infinite alternate; }
+        @keyframes scanMove { 0% { top: 0%; } 100% { top: 98%; } }
+        .scanner-text { position: absolute; top: 10px; right: 10px; background: rgba(0, 0, 0, 0.8); color: #00b8d9; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: bold; z-index: 51; display: none; border: 1px solid #00b8d9; }
+
         .btn-primary { width: 100%; background: #00b8d9; color: #000; border: none; padding: 14px; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; margin-bottom: 15px; }
         .live-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: #0ecb81; background: rgba(14, 203, 129, 0.12); padding: 3px 8px; border-radius: 6px; }
         .dot-live { width: 7px; height: 7px; background: #0ecb81; border-radius: 50%; animation: blink 1s infinite; }
@@ -61,10 +68,10 @@
         <div class="top-stats">
             <span>Modo: <span id="mode-display" style="color:#0ecb81;">Day Trading</span></span>
         </div>
-        <div class="live-badge"><div class="dot-live"></div> AI MASTERMIND LIVE</div>
+        <div class="live-badge"><div class="dot-live"></div> SCANNER LASER LIVE</div>
     </header>
 
-    <!-- TAB 1: ANALIZZA & SCANNER TP/SL -->
+    <!-- TAB 1: ANALIZZA & SCANNER GRAFICO -->
     <div id="tab-analizza" class="tab-content active">
         <div class="selector-row" id="mode-selector">
             <div class="chip" onclick="setMode(this, 'Scalping')">⚡ Scalping</div>
@@ -86,7 +93,11 @@
 
         <div class="selector-row" id="symbol-selector"></div>
 
-        <div class="chart-container">
+        <div class="chart-container" id="chart-box">
+            <div class="scanner-overlay" id="scanner-overlay">
+                <div class="scanner-line"></div>
+            </div>
+            <div class="scanner-text" id="scanner-text">🔍 AI Scanner in esecuzione...</div>
             <div class="tradingview-widget-container" style="height:100%;width:100%">
                 <div id="tradingview_widget" style="height:100%;width:100%"></div>
                 <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
@@ -100,20 +111,19 @@
             <div class="chip" onclick="setTimeframe(this, '1h')">1h</div>
         </div>
 
-        <button class="btn-primary" onclick="fetchLiveAnalysis()">Scannerizza Grafico & Calcola TP/SL</button>
+        <button class="btn-primary" onclick="triggerChartScanner()">⚡ Avvia Scanner Grafico & Calcola TP/SL</button>
 
         <div id="analysis-result" style="display:block;">
-            <!-- AI MASTERMIND ADVICE & ORARI -->
             <div class="ai-master-box">
-                <div style="font-size: 14px; font-weight: bold; color: #00b8d9; margin-bottom: 6px;">🧠 AI Mastermind — Orari e Strategia</div>
-                <p id="res-ai-advice" style="font-size: 13px; color: #cbd5e1; line-height: 1.4;">Analisi sessione e timing in corso...</p>
+                <div style="font-size: 14px; font-weight: bold; color: #00b8d9; margin-bottom: 6px;">🧠 AI Mastermind — Orari e Sessioni</div>
+                <p id="res-ai-advice" style="font-size: 13px; color: #cbd5e1; line-height: 1.4;">Pronto per la scansione...</p>
             </div>
 
             <div class="result-card">
                 <div class="result-header">
                     <div>
-                        <div class="asset-title" id="res-symbol">Caricamento...</div>
-                        <span id="res-source" style="font-size:11px; color:#848e9c;">Scanner TP/SL Live</span>
+                        <div class="asset-title" id="res-symbol">Pronto alla Scansione</div>
+                        <span id="res-source" style="font-size:11px; color:#848e9c;">In attesa di input</span>
                     </div>
                     <div id="res-action" class="badge-action BUY">--</div>
                 </div>
@@ -166,7 +176,7 @@
         </div>
     </div>
 
-    <!-- TAB 2: SEGNALI CERTI & TOP ASSET -->
+    <!-- TAB 2: SEGNALI CERTI -->
     <div id="tab-segnali" class="tab-content">
         <h3 style="font-size: 16px; margin-bottom: 12px;">Top Cripto e Valute Consigliate dall'AI (≥ 80%)</h3>
         <div id="signals-container">
@@ -192,7 +202,6 @@
         let currentSymbol = 'ETHUSDT';
         let currentTimeframe = '15m';
         let currentMode = 'Day Trading';
-        let liveInterval = null;
 
         async function loadMarketsData() {
             try {
@@ -273,7 +282,7 @@
             el.classList.add('active');
             currentMode = mode;
             document.getElementById('mode-display').innerText = mode;
-            fetchLiveAnalysis();
+            triggerChartScanner();
         }
 
         function setSymbol(el, symbol) {
@@ -281,7 +290,7 @@
             if(el) el.classList.add('active');
             currentSymbol = symbol;
             initTradingView(currentSymbol, currentTimeframe);
-            fetchLiveAnalysis();
+            triggerChartScanner();
         }
 
         function setTimeframe(el, tf) {
@@ -289,10 +298,17 @@
             el.classList.add('active');
             currentTimeframe = tf;
             initTradingView(currentSymbol, currentTimeframe);
-            fetchLiveAnalysis();
+            triggerChartScanner();
         }
 
-        async function fetchLiveAnalysis() {
+        async function triggerChartScanner() {
+            const overlay = document.getElementById('scanner-overlay');
+            const scanText = document.getElementById('scanner-text');
+            
+            // Attiva l'animazione visiva dello scanner sul grafico
+            overlay.style.display = 'block';
+            scanText.style.display = 'block';
+
             try {
                 const response = await fetch('/api/analyze', {
                     method: 'POST',
@@ -300,6 +316,10 @@
                     body: JSON.stringify({ symbol: currentSymbol, timeframe: currentTimeframe, mode: currentMode })
                 });
                 const data = await response.json();
+                
+                // Simula il tempo di scansione visiva per apprezzare l'effetto grafico
+                await new Promise(r => setTimeout(r, 800));
+
                 if (data.status === 'success') {
                     document.getElementById('res-symbol').innerText = `${data.symbol} — ${data.current_price}`;
                     document.getElementById('res-source').innerText = `Fonte: ${data.source}`;
@@ -329,7 +349,11 @@
                     document.getElementById('res-ai-advice').innerText = data.ai_recommendation;
                 }
             } catch (err) {
-                console.log("Scanner in aggiornamento...");
+                console.log("Errore scanner");
+            } finally {
+                // Disattiva l'animazione scanner
+                overlay.style.display = 'none';
+                scanText.style.display = 'none';
             }
         }
 
@@ -353,7 +377,7 @@
                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
                                 <div>
                                     <h4 style="font-size: 15px;">${s.name}</h4>
-                                    <p style="font-size: 12px; color: #848e9c;">Prezzo: <strong style="color:#fff;">${s.price}</strong> • ${s.change}</p>
+                                    <p style="font-size: 12px; color: #848e9c;">Prezzo: <strong style="color:#fff;">${s.price}</strong> • Var: <span style="color:${s.change.startsWith('+') ? '#0ecb81' : '#f6465d'}">${s.change}</span></p>
                                 </div>
                                 <div class="badge-action ${s.action}">${s.action}</div>
                             </div>
@@ -391,11 +415,6 @@
 
         window.onload = () => {
             loadMarketsData();
-            liveInterval = setInterval(() => {
-                if (document.getElementById('tab-analizza').classList.contains('active')) {
-                    fetchLiveAnalysis();
-                }
-            }, 4000);
         };
     </script>
 </body>
