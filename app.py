@@ -48,7 +48,7 @@ def get_market_status(category):
     minute = now.minute
 
     if category == "Criptovalute":
-        return {"status": "Aperto", "text": "🟢 Operativo 24/7 (Tier-5 Live)", "schedule": "Mercato Continuo • H24"}
+        return {"status": "Aperto", "text": "🟢 Operativo 24/7 (Tier-5 Neon)", "schedule": "Mercato Continuo • H24"}
     elif category == "Materie Prime & Forex":
         if weekday == 5 or (weekday == 6 and hour < 22):
             return {"status": "Chiuso", "text": "🔴 Chiuso (Weekend)", "schedule": "Riapertura: Domenica 22:00 UTC"}
@@ -160,7 +160,7 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
         action = "BUY"
         ai_score = 99.9
         sentiment = "TIER-5 BULLISH (Accumulo Prop-Desk)"
-        sentiment_color = "#059669"
+        sentiment_color = "#00ff66"
         sentiment_pct = 98
         regime = "Espansione Risk-On Istituzionale"
         bid_pressure = round(np.random.uniform(85.0, 98.0), 1)
@@ -185,7 +185,7 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
         action = "SELL"
         ai_score = 99.9
         sentiment = "TIER-5 BEARISH (Distribuzione Prop-Desk)"
-        sentiment_color = "#dc2626"
+        sentiment_color = "#ff1e42"
         sentiment_pct = 98
         regime = "Difensivo Risk-Off Istituzionale"
         ask_pressure = round(np.random.uniform(85.0, 98.0), 1)
@@ -210,7 +210,7 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
         action = "NEUTRAL"
         ai_score = 45.0
         sentiment = "CONSOLIDAMENTO / ATTESA TIER-5"
-        sentiment_color = "#b45309"
+        sentiment_color = "#ffffff"
         sentiment_pct = 50
         regime = "Compressione di Range Istituzionale"
         bid_pressure = 50.0
