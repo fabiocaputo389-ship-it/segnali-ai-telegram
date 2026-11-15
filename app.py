@@ -21,11 +21,12 @@ BINGX_SECRET_KEY = os.environ.get('BINGX_SECRET_KEY', '')
 BINGX_USE_TESTNET = False  # FORZATO A FALSE PER OPERARE CON FONDI REALI
 BINGX_BASE_URL = "https://open-api.bingx.com"
 
-# Stato Globale Auto-Trading & Posizioni
+# Stato Globale Auto-Trading & Telemetria
 auto_trade_active = False
 active_positions = {}  
 execution_history = []
 sent_telegram_signals = set()
+scans_telemetry = {}  # Tabella log di ciò che viene monitorato in tempo reale
 
 def get_exchange_mode():
     if not BINGX_API_KEY or not BINGX_SECRET_KEY:
@@ -235,6 +236,10 @@ def get_autotrade_status():
         "positions": list(active_positions.values()),
         "history": execution_history[:30]
     })
+
+@app.route('/api/telemetry/scans', methods=['GET'])
+def get_telemetry_scans():
+    return jsonify(list(scans_telemetry.values()))
 
 @app.route('/api/autotrade/close', methods=['POST'])
 def manual_close_position():
@@ -514,9 +519,7 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
     price_risk_per_unit = abs(current_price - sl)
     raw_position_size = (max_risk_amount / price_risk_per_unit) if price_risk_per_unit > 0 else 0.0
     
-    # -------------------------------------------------------------
-    # BYPASS UNIVERSALE MICRO-CAPITALI ($2): Lotto minimo per asset
-    # -------------------------------------------------------------
+    # Bypass Universale Micro-Capitali ($2)
     if "BTC" in symbol or "ETH" in symbol or "XAU" in symbol:
         min_exchange_size = 0.001
     elif "SOL" in symbol or "BNB" in symbol or "AVAX" in symbol or "LINK" in symbol:
@@ -575,6 +578,18 @@ def process_asset(cat, a, m_status, mode, balance, risk_pct, timeframe):
 
             res = calculate_ai_neural_setup(df, current_price, mode, balance, risk_pct, symbol=a['id'])
             dec = res["decimals"]
+
+            # Aggiorna il log globale di telemetria per la tabella di monitoraggio
+            scans_telemetry[a['id']] = {
+                "symbol": a['id'],
+                "name": a['name'],
+                "category": cat,
+                "price": f"{current_price:.{dec}f}",
+                "action": res['action'],
+                "ai_score": f"{res['ai_score']}%",
+                "whipsaw": "🚨 Whipsaw Bloccato" if res["whipsaw_blocked"] else "🟢 Flusso Pulito",
+                "timestamp": datetime.now().strftime("%H:%M:%S")
+            }
 
             signal_obj = {
                 "id": f"{a['id']}_{res['action']}",
