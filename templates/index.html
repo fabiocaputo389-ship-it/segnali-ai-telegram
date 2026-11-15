@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tier-5 Prop Desk — Auto-Execution Terminal</title>
+    <title>Institutional Trading Floor — Tier-5 Terminal</title>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -23,7 +23,7 @@
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
         body { background-color: var(--bg-base); color: var(--white); padding-bottom: 90px; min-height: 100vh; }
 
-        header { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; background: #000000; border-bottom: 1px solid var(--border-white); font-size: 11px; color: var(--white-dim); box-shadow: 0 2px 15px rgba(0, 255, 102, 0.08); }
+        header { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; background: #000000; border-bottom: 1px solid var(--border-white); font-size: 11px; color: var(--white-dim); }
         .terminal-badge { display: inline-flex; align-items: center; gap: 6px; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--neon-green); background: rgba(0, 255, 102, 0.08); padding: 4px 10px; border-radius: 4px; border: 1px solid var(--neon-green); font-weight: 800; text-transform: uppercase; box-shadow: var(--glow-green); }
         .dot-live { width: 6px; height: 6px; background: var(--neon-green); border-radius: 50%; box-shadow: 0 0 10px var(--neon-green); animation: pulse 1.2s infinite; }
         @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(1.4); } }
@@ -32,7 +32,7 @@
         .ticker-tape span { display: inline-block; padding-left: 100%; animation: ticker 45s linear infinite; font-weight: 700; text-shadow: var(--glow-white); }
         @keyframes ticker { 0% { transform: translate(0, 0); } 100% { transform: translate(-100%, 0); } }
 
-        .desk-bar { background: #050508; border-bottom: 1px solid var(--border-white); padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+        .desk-bar { background: #050508; border-bottom: 1px solid var(--border-white); padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
         .desk-title { font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 800; color: var(--white); letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px; }
         .desk-title span { color: var(--neon-green); text-shadow: var(--glow-green); }
         .clock-box { background: #000000; padding: 4px 10px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--white); border: 1px solid var(--white); box-shadow: var(--glow-white); font-weight: 700; }
@@ -122,16 +122,16 @@
 <body>
 
     <header>
-        <div>TIER-5 NEON DESK // AUTO-EXECUTION ENGINE</div>
-        <div class="terminal-badge"><div class="dot-live"></div> <span id="exec-mode-label">PAPER PROP-DESK</span></div>
+        <div>INSTITUTIONAL TRADING FLOOR // PROPHET DESK HFT</div>
+        <div class="terminal-badge"><div class="dot-live"></div> <span id="exec-mode-label">LIVE SYNC ACTIVE</span></div>
     </header>
 
     <div class="ticker-tape">
-        <span>⚡ [AUTO-TRADING ENGINE] Apertura automatica a mercato su segnale Tier-5 • Spostamento Break-Even automatico al TP1 • Chiusura su SL/TP3 o inversione trend.</span>
+        <span>⚡ [PROPRIETARY TRADING DESK] Smart Order Routing (SOR) • Auto Break-Even & SL Management • Real-Time Exchange Execution Active.</span>
     </div>
 
     <div class="desk-bar">
-        <div class="desk-title">⚡ SALA SEGNALI <span>AUTO-PRO</span></div>
+        <div class="desk-title">⚡ TRADING FLOOR <span>PRO TERMINAL</span></div>
         <div style="display:flex; gap:6px; align-items:center;">
             <button onclick="toggleAutoTrade()" id="autotrade-btn" class="auto-btn">🤖 AUTO-TRADE: OFF</button>
             <button onclick="toggleAudio()" id="audio-btn" style="background:#000000; border:1px solid var(--neon-green); color:var(--neon-green); padding:5px 8px; border-radius:6px; font-family:'JetBrains Mono',monospace; font-size:10px; cursor:pointer; font-weight:800;">🔊</button>
@@ -143,8 +143,8 @@
     <div id="tab-segnali" class="tab-content active">
         <div class="risk-panel">
             <div class="risk-header">
-                <span>🛡️ Parametri Auto-Sizing & Rischio</span>
-                <span style="color:var(--neon-green); text-shadow:var(--glow-green);">SL/TP & Break-Even Auto</span>
+                <span>🛡️ Kelly Criterion & Risk Controller</span>
+                <span style="color:var(--neon-green); text-shadow:var(--glow-green);">Live Execution Mode</span>
             </div>
             <div class="risk-grid">
                 <div class="risk-field">
@@ -177,18 +177,18 @@
 
         <div id="signals-container">
             <div style="text-align:center; padding:30px; color:var(--neon-green); font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:800; text-shadow:var(--glow-green);">
-                ⚡ Scansione flussi istituzionali in corso...
+                ⚡ Sincronizzazione flussi di borsa in corso...
             </div>
         </div>
     </div>
 
-    <!-- TAB 2: POSIZIONI APERTE & STORICO CHIUSURE -->
+    <!-- TAB 2: POSIZIONI APERTE & STORICO -->
     <div id="tab-storico" class="tab-content">
-        <div style="font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--white); margin-bottom:10px; font-weight:800; text-transform:uppercase; text-shadow:var(--glow-white);">🤖 Posizioni Aperte & Storico Auto-Trade</div>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--white); margin-bottom:10px; font-weight:800; text-transform:uppercase; text-shadow:var(--glow-white);">🤖 Posizioni Live & Registro Audit Esecuzioni</div>
         
         <div class="risk-panel" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; text-align:center;">
             <div>
-                <span style="font-size:9px; color:var(--white-dim); font-family:'JetBrains Mono',monospace;">POSIZIONI IN CORSO</span>
+                <span style="font-size:9px; color:var(--white-dim); font-family:'JetBrains Mono',monospace;">POSIZIONI APERTE</span>
                 <strong id="open-pos-count" style="font-size:16px; color:var(--neon-green); font-family:'JetBrains Mono',monospace; text-shadow:var(--glow-green);">0</strong>
             </div>
             <div>
@@ -198,16 +198,16 @@
         </div>
 
         <div class="telemetry-box">
-            <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--neon-green); margin-bottom:8px; font-weight:800;">🟢 POSIZIONI ATTIVE (MONITORAGGIO LIVE SL/TP)</div>
+            <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--neon-green); margin-bottom:8px; font-weight:800;">🟢 POSIZIONI ATTIVE (MONITORAGGIO PNL & BREAK-EVEN)</div>
             <div id="open-positions-container">
-                <p style="text-align:center; padding:15px; font-size:11px; color:var(--white-dim); font-family:'JetBrains Mono',monospace;">Nessuna posizione aperta. Attiva AUTO-TRADE per operare in automatico.</p>
+                <p style="text-align:center; padding:15px; font-size:11px; color:var(--white-dim); font-family:'JetBrains Mono',monospace;">Nessuna posizione aperta. Attiva AUTO-TRADE per operare sui mercati.</p>
             </div>
         </div>
 
         <div class="telemetry-box">
-            <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--white); margin-bottom:8px; font-weight:800;">📜 STORICO POSIZIONI CHIUSE AUTOMATICAMENTE</div>
+            <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--white); margin-bottom:8px; font-weight:800;">📜 STORICO POSIZIONI CHIUSE</div>
             <div id="closed-history-container">
-                <p style="text-align:center; padding:15px; font-size:11px; color:var(--white-dim); font-family:'JetBrains Mono',monospace;">Nessuna chiusura registrata nella sessione corrente.</p>
+                <p style="text-align:center; padding:15px; font-size:11px; color:var(--white-dim); font-family:'JetBrains Mono',monospace;">Nessuna chiusura registrata.</p>
             </div>
         </div>
     </div>
@@ -273,7 +273,7 @@
                 const res = await fetch('/api/autotrade/toggle', { method: 'POST' });
                 const data = await res.json();
                 updateAutoTradeUI(data);
-                speakAlert(data.auto_trade ? "Esecuzione automatica attivata." : "Esecuzione automatica disattivata.");
+                speakAlert(data.auto_trade ? "Esecuzione automatica su exchange attivata." : "Esecuzione automatica disattivata.");
                 loadSignals();
             } catch (e) {}
         }
@@ -306,7 +306,7 @@
 
                 const openContainer = document.getElementById('open-positions-container');
                 if (openList.length === 0) {
-                    openContainer.innerHTML = `<p style="text-align:center; padding:15px; font-size:11px; color:var(--white-dim); font-family:'JetBrains Mono',monospace;">Nessuna posizione aperta. Attiva AUTO-TRADE per operare in automatico.</p>`;
+                    openContainer.innerHTML = `<p style="text-align:center; padding:15px; font-size:11px; color:var(--white-dim); font-family:'JetBrains Mono',monospace;">Nessuna posizione aperta. Attiva AUTO-TRADE per operare sui mercati.</p>`;
                 } else {
                     openContainer.innerHTML = openList.map(p => {
                         const pnlColor = p.unrealized_pnl >= 0 ? 'var(--neon-green)' : 'var(--neon-red)';
@@ -322,7 +322,7 @@
                                     <span>PnL: <strong style="color:${pnlColor};">${p.unrealized_pnl >= 0 ? '+' : ''}$${p.unrealized_pnl}</strong></span>
                                 </div>
                                 <div style="display:flex; justify-content:space-between; font-size:9px; color:var(--white-dim);">
-                                    <span>SL: <strong style="color:var(--neon-red);">${p.sl}</strong> ${p.be_moved ? '(BE ATTIVO)' : ''}</span>
+                                    <span>SL: <strong style="color:var(--neon-red);">${p.sl}</strong> ${p.be_moved ? '(BREAK-EVEN ATTIVO)' : ''}</span>
                                     <span>TP1: <strong style="color:var(--neon-green);">${p.tp1}</strong> | TP3: <strong style="color:var(--neon-green);">${p.tp3}</strong></span>
                                 </div>
                             </div>
@@ -355,7 +355,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ symbol })
                 });
-                speakAlert("Posizione chiusa manualmente.");
+                speakAlert("Posizione chiusa manualmente dall'operatore.");
                 refreshPositions();
             } catch (e) {}
         }
@@ -391,7 +391,7 @@
                 const newSignals = await res.json();
                 
                 if (newSignals.length > currentSignals.length && currentSignals.length >= 0) {
-                    speakAlert("Nuovo segnale Tier-5 rilevato.");
+                    speakAlert("Nuovo setup istituzionale validato.");
                 }
 
                 currentSignals = newSignals;
@@ -400,7 +400,7 @@
             } catch (e) {
                 document.getElementById('signals-container').innerHTML = `
                     <div style="background:var(--bg-card); border:1px solid var(--neon-red); border-radius:8px; padding:20px; text-align:center; box-shadow:var(--glow-red);">
-                        <p style="color:var(--neon-red); font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:bold;">Errore di sincronizzazione flussi Tier-5...</p>
+                        <p style="color:var(--neon-red); font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:bold;">Errore di sincronizzazione flussi...</p>
                     </div>`;
             }
         }
@@ -418,7 +418,7 @@
             if (!filtered || filtered.length === 0) {
                 container.innerHTML = `
                     <div style="background:var(--bg-card); border:1px solid var(--white); border-radius:10px; padding:25px; text-align:center; box-shadow:var(--glow-white);">
-                        <p style="color:var(--white); font-family:'JetBrains Mono',monospace; font-weight:800; font-size:12px; margin-bottom:4px; text-shadow:var(--glow-white);">⚡ TIER-5 AUTO-DESK IN ATTESA DI SETUP</p>
+                        <p style="color:var(--white); font-family:'JetBrains Mono',monospace; font-weight:800; font-size:12px; margin-bottom:4px; text-shadow:var(--glow-white);">⚡ DESK IN ATTESA DI CONFLUENZA ISTITUZIONALE</p>
                         <p style="color:var(--white-dim); font-size:10px; font-family:'JetBrains Mono',monospace;">Filtri anti-whipsaw, SOR e CVD attivi su tutti i mercati.</p>
                     </div>`;
                 return;
@@ -478,21 +478,21 @@
                     <table class="vip-table" style="margin-bottom:8px;">
                         <thead>
                             <tr>
-                                <th>Livelli Operativi</th>
+                                <th>Livelli Operativi Desk</th>
                                 <th>Prezzo Target</th>
-                                <th>Azione Automatica</th>
+                                <th>Automazione</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
                                 <td style="color:var(--white); font-weight:bold;">INGRESSO LIVE</td>
                                 <td style="color:var(--white); font-weight:bold;">${s.entry}</td>
-                                <td>Auto-Market Entry</td>
+                                <td>Market Execution</td>
                             </tr>
                             <tr>
                                 <td style="color:var(--neon-red);">STOP LOSS (SL)</td>
                                 <td style="color:var(--neon-red); font-weight:bold;">${s.sl}</td>
-                                <td>Chiusura Auto</td>
+                                <td>Protezione Rischio</td>
                             </tr>
                             <tr>
                                 <td style="color:var(--neon-green);">TAKE PROFIT 1</td>
@@ -502,28 +502,28 @@
                             <tr>
                                 <td style="color:var(--neon-green);">TAKE PROFIT 2 & 3</td>
                                 <td style="color:var(--neon-green); font-weight:bold;">${s.tp2} / ${s.tp3}</td>
-                                <td>Chiusura Totale Auto</td>
+                                <td>Trailing Profit</td>
                             </tr>
                         </tbody>
                     </table>
 
                     <div class="sizing-box">
                         <div><span>QUANTITÀ SIZE</span><strong>${s.position_size}</strong></div>
-                        <div><span>LEVA BINGX</span><strong>${s.leverage}</strong></div>
+                        <div><span>LEVA EXCHANGE</span><strong>${s.leverage}</strong></div>
                         <div><span>RISCHIO ($)</span><strong>$${s.risk_amount}</strong></div>
                     </div>
 
                     <button class="btn-bingx" onclick="copyBingX('${s.name}', '${s.action}', '${s.entry}', '${s.sl}', '${s.tp1}', '${s.tp2}', '${s.tp3}', '${s.max_target}', '${s.timestamp}', '${s.leverage}', '${s.position_size}', '${s.breakeven}')">
-                        ⚡ COPIA ORDINE TIER-5 BINGX PRO
+                        ⚡ COPIA ORDINE INSTITUTIONAL DESK
                     </button>
                 </div>
             `).join('');
         }
 
         function copyBingX(name, action, entry, sl, tp1, tp2, tp3, maxTarget, timestamp, lev, size, be) {
-            const text = `⚡ SEGNALE TIER-5 AUTO-DESK - BINGX\nOrario: ${timestamp}\nAsset: ${name}\nDirezione: ${action}\nTarget Massimo: ${maxTarget}\nBreak-Even a: ${be}\nLeva: ${lev}\nSize: ${size}\nIngresso: ${entry}\nStop Loss: ${sl}\nTP1: ${tp1}\nTP2: ${tp2}\nTP3: ${tp3}`;
+            const text = `⚡ SEGNALE INSTITUTIONAL DESK\nOrario: ${timestamp}\nAsset: ${name}\nDirezione: ${action}\nTarget Massimo: ${maxTarget}\nBreak-Even a: ${be}\nLeva: ${lev}\nSize: ${size}\nIngresso: ${entry}\nStop Loss: ${sl}\nTP1: ${tp1}\nTP2: ${tp2}\nTP3: ${tp3}`;
             navigator.clipboard.writeText(text);
-            alert('✅ Ordine copiato negli appunti!');
+            alert('✅ Ordine institutional copiato negli appunti!');
         }
 
         function renderSymbols(filteredAssets = null) {
