@@ -30,7 +30,7 @@ sent_telegram_signals = set()
 def get_exchange_mode():
     if not BINGX_API_KEY or not BINGX_SECRET_KEY:
         return "PAPER PROP-DESK (API KEY MANCANTI)"
-    return "🔴 BINGX LIVE REALE (FONDI REALI ATTIVI)"
+    return "🔴 BINGX LIVE REALE (MERCATO GLOBALE ATTIVO)"
 
 def sign_bingx_request(params_str):
     return hmac.new(
@@ -53,7 +53,7 @@ def send_telegram_alert(signal):
     if sig_id in sent_telegram_signals:
         return
     msg = (
-        f"🚨 *SEGNALE INSTITUTIONAL DESK (REALE)* 🚨\n\n"
+        f"🚨 *SEGNALE MERCATO GLOBALE (REALE)* 🚨\n\n"
         f"🟢 *Asset*: `{signal['name']}` ({signal['category']})\n"
         f"📊 *Direzione*: *{signal['action']}*\n"
         f"💰 *Ingresso Live*: `{signal['entry']}`\n"
@@ -137,7 +137,7 @@ def close_position_logic(symbol, current_price, reason="Chiusura Automatica Desk
 
     emoji = "✅" if pnl_usdt >= 0 else "🛑"
     send_telegram_message(
-        f"{emoji} *CHIUSURA POSIZIONE REALE*\n\n"
+        f"{emoji} *CHIUSURA POSIZIONE MERCATO REALE*\n\n"
         f"Asset: `{pos['name']}` ({direction})\n"
         f"Ingresso: `{entry}` -> Uscita: `{record['exit']}`\n"
         f"PnL Netto: *${record['pnl']:+.2f}* ({record['pnl_pct']:+.2f}%)\n"
@@ -202,7 +202,7 @@ def manage_auto_execution(signal, current_price):
                 "opened_at": datetime.now().strftime("%H:%M:%S")
             }
             send_telegram_message(
-                f"🔴 *ORDINE REALE ESEGUITO SU BINGX* 🔴\n\n"
+                f"🔴 *ORDINE GLOBALE ESEGUITO SU BINGX* 🔴\n\n"
                 f"Asset: `{signal['name']}`\n"
                 f"Segnale: *{action}* ({signal['leverage']})\n"
                 f"Size: `{qty}` | Margine: `${signal['margin']}`\n"
@@ -515,9 +515,17 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
     raw_position_size = (max_risk_amount / price_risk_per_unit) if price_risk_per_unit > 0 else 0.0
     
     # -------------------------------------------------------------
-    # BYPASS MICRO-CAPITALI ($2): Forza il lotto minimo di BingX
+    # BYPASS UNIVERSALE MICRO-CAPITALI ($2): Lotto minimo per asset
     # -------------------------------------------------------------
-    min_exchange_size = 0.001 if "BTC" in symbol or "ETH" in symbol else (0.01 if "SOL" in symbol or "BNB" in symbol else 1.0)
+    if "BTC" in symbol or "ETH" in symbol or "XAU" in symbol:
+        min_exchange_size = 0.001
+    elif "SOL" in symbol or "BNB" in symbol or "AVAX" in symbol or "LINK" in symbol:
+        min_exchange_size = 0.01
+    elif "AAPL" in symbol or "TSLA" in symbol or "NVDA" in symbol or "AMZN" in symbol:
+        min_exchange_size = 0.1
+    else:
+        min_exchange_size = 1.0
+
     if raw_position_size < min_exchange_size:
         raw_position_size = min_exchange_size
 
@@ -623,7 +631,7 @@ def get_signals():
             for a in assets:
                 target_assets.append((cat, a, m_status))
 
-        with ThreadPoolExecutor(max_workers=10) as executor:
+        with ThreadPoolExecutor(max_workers=15) as executor:
             futures = [executor.submit(process_asset, cat, a, m_status, mode, balance, risk_pct, timeframe) for cat, a, m_status in target_assets]
             for future in as_completed(futures):
                 res = future.result()
