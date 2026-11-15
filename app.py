@@ -18,15 +18,14 @@ TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '')
 # Configurazione Exchange BingX (MODALITÀ REALE FORZATA)
 BINGX_API_KEY = os.environ.get('BINGX_API_KEY', '')
 BINGX_SECRET_KEY = os.environ.get('BINGX_SECRET_KEY', '')
-BINGX_USE_TESTNET = False  # FORZATO A FALSE PER OPERARE CON FONDI REALI
+BINGX_USE_TESTNET = False  
 BINGX_BASE_URL = "https://open-api.bingx.com"
 
-# Stato Globale Auto-Trading & Telemetria
+# Stato Globale
 auto_trade_active = False
-active_positions = {}  
 execution_history = []
 sent_telegram_signals = set()
-scans_telemetry = {}  # Tabella log di ciò che viene monitorato in tempo reale
+scans_telemetry = {}
 
 def get_exchange_mode():
     if not BINGX_API_KEY or not BINGX_SECRET_KEY:
@@ -49,30 +48,54 @@ def send_telegram_message(text):
     except Exception as e:
         print(f"Errore Telegram: {e}")
 
-def send_telegram_alert(signal):
-    sig_id = signal['id']
-    if sig_id in sent_telegram_signals:
-        return
-    msg = (
-        f"🚨 *SEGNALE MERCATO GLOBALE (REALE)* 🚨\n\n"
-        f"🟢 *Asset*: `{signal['name']}` ({signal['category']})\n"
-        f"📊 *Direzione*: *{signal['action']}*\n"
-        f"💰 *Ingresso Live*: `{signal['entry']}`\n"
-        f"🎯 *Target Max*: `{signal['max_target']}`\n"
-        f"🛑 *Stop Loss*: `{signal['sl']}`\n"
-        f"📉 *TP1 (Break-Even)*: `{signal['tp1']}`\n"
-        f"⚡ *Convinzione AI*: `{signal['ai_score']}`\n"
-        f"🔴 *Modalità*: `BINGX LIVE REALE`\n"
-        f"🕒 *Orario*: `{signal['timestamp']}`"
-    )
-    send_telegram_message(msg)
-    sent_telegram_signals.add(sig_id)
-
 def format_bingx_symbol(symbol):
     if symbol.endswith("USDT"):
         base = symbol.replace("USDT", "")
         return f"{base}-USDT"
     return f"{symbol}-USDT"
+
+def fetch_bingx_real_positions():
+    if not BINGX_API_KEY or not BINGX_SECRET_KEY:
+        return []
+
+    timestamp = int(time.time() * 1000)
+    query_string = f"timestamp={timestamp}"
+    signature = sign_bingx_request(query_string)
+    url = f"{BINGX_BASE_URL}/openApi/swap/v2/user/positions?{query_string}&signature={signature}"
+    headers = {"X-BX-APIKEY": BINGX_API_KEY}
+
+    try:
+        res = requests.get(url, headers=headers, timeout=4.0).json()
+        if res.get("code") == 0 and "data" in res:
+            real_pos_list = []
+            for p in res["data"]:
+                amt = float(p.get("positionAmt", 0))
+                if amt != 0:
+                    sym = p.get("symbol", "").replace("-", "")
+                    side = "BUY" if p.get("positionSide") == "LONG" else ("SELL" if p.get("positionSide") == "SHORT" else ("BUY" if amt > 0 else "SELL"))
+                    real_pos_list.append({
+                        "symbol": sym,
+                        "name": p.get("symbol", ""),
+                        "action": side,
+                        "entry": float(p.get("avgPrice", 0)),
+                        "current_price": float(p.get("avgPrice", 0)),
+                        "sl": 0.0,
+                        "tp1": 0.0,
+                        "tp3": 0.0,
+                        "breakeven": 0.0,
+                        "be_moved": False,
+                        "size": abs(amt),
+                        "leverage": f"Isolata {p.get('leverage', 5)}x",
+                        "margin": float(p.get("initialMargin", 0)),
+                        "unrealized_pnl": round(float(p.get("unrealizedProfit", 0)), 2),
+                        "order_id": p.get("positionId", "LIVE"),
+                        "exec_mode": "LIVE_BINGX",
+                        "opened_at": "Reale"
+                    })
+            return real_pos_list
+    except Exception as e:
+        print(f"Errore recupero posizioni BingX: {e}")
+    return []
 
 def execute_bingx_order(symbol, side, position_side, quantity, stop_loss=None, take_profit=None):
     if not BINGX_API_KEY or not BINGX_SECRET_KEY:
@@ -106,111 +129,6 @@ def execute_bingx_order(symbol, side, position_side, quantity, stop_loss=None, t
     except Exception as e:
         return {"status": "ERROR", "msg": str(e)}
 
-def close_position_logic(symbol, current_price, reason="Chiusura Automatica Desk"):
-    if symbol not in active_positions:
-        return None
-
-    pos = active_positions.pop(symbol)
-    entry = float(pos['entry'])
-    qty = float(pos['size'])
-    direction = pos['action']
-
-    if direction == "BUY":
-        pnl_usdt = (current_price - entry) * qty
-        close_side = "SELL"
-        pos_side = "LONG"
-    else:
-        pnl_usdt = (entry - current_price) * qty
-        close_side = "BUY"
-        pos_side = "SHORT"
-
-    pnl_pct = ((pnl_usdt / pos['margin']) * 100) if pos['margin'] > 0 else 0.0
-    exec_res = execute_bingx_order(symbol, close_side, pos_side, qty)
-
-    record = {
-        "symbol": symbol, "name": pos['name'], "action": direction,
-        "entry": entry, "exit": round(current_price, 4), "size": qty,
-        "pnl": round(pnl_usdt, 2), "pnl_pct": round(pnl_pct, 2),
-        "reason": reason, "mode": exec_res["status"],
-        "closed_at": datetime.now().strftime("%H:%M:%S")
-    }
-    execution_history.insert(0, record)
-
-    emoji = "✅" if pnl_usdt >= 0 else "🛑"
-    send_telegram_message(
-        f"{emoji} *CHIUSURA POSIZIONE MERCATO REALE*\n\n"
-        f"Asset: `{pos['name']}` ({direction})\n"
-        f"Ingresso: `{entry}` -> Uscita: `{record['exit']}`\n"
-        f"PnL Netto: *${record['pnl']:+.2f}* ({record['pnl_pct']:+.2f}%)\n"
-        f"Causa: _{reason}_"
-    )
-    return record
-
-def manage_auto_execution(signal, current_price):
-    symbol = signal['symbol']
-    action = signal['action']
-
-    if symbol in active_positions:
-        pos = active_positions[symbol]
-        pos['current_price'] = current_price
-        entry = float(pos['entry'])
-        sl = float(pos['sl'])
-        tp1 = float(pos['tp1'])
-        tp3 = float(pos['tp3'])
-        qty = float(pos['size'])
-
-        if pos['action'] == "BUY":
-            pos['unrealized_pnl'] = round((current_price - entry) * qty, 2)
-            if current_price >= tp1 and not pos.get('be_moved'):
-                pos['sl'] = pos['breakeven']
-                pos['be_moved'] = True
-            if current_price <= float(pos['sl']):
-                close_position_logic(symbol, current_price, "Stop Loss / Break-Even Toccato")
-            elif current_price >= tp3:
-                close_position_logic(symbol, current_price, "Take Profit Finale (TP3) Raggiunto")
-        else:
-            pos['unrealized_pnl'] = round((entry - current_price) * qty, 2)
-            if current_price <= tp1 and not pos.get('be_moved'):
-                pos['sl'] = pos['breakeven']
-                pos['be_moved'] = True
-            if current_price >= float(pos['sl']):
-                close_position_logic(symbol, current_price, "Stop Loss / Break-Even Toccato")
-            elif current_price <= tp3:
-                close_position_logic(symbol, current_price, "Take Profit Finale (TP3) Raggiunto")
-
-        if symbol in active_positions and auto_trade_active and action in ["BUY", "SELL"]:
-            if active_positions[symbol]['action'] != action:
-                close_position_logic(symbol, current_price, f"Inversione di Trend ({active_positions[symbol]['action']} -> {action})")
-
-    if auto_trade_active and action in ["BUY", "SELL"] and symbol not in active_positions:
-        qty = float(signal['position_size'])
-        if qty > 0:
-            pos_side = "LONG" if action == "BUY" else "SHORT"
-            exec_res = execute_bingx_order(
-                symbol=symbol, side=action, position_side=pos_side,
-                quantity=qty, stop_loss=signal['sl'], take_profit=signal['tp1']
-            )
-            lev_num = int(''.join(filter(str.isdigit, signal['leverage'])) or 5)
-            active_positions[symbol] = {
-                "symbol": symbol, "name": signal['name'], "action": action,
-                "entry": float(signal['entry']), "current_price": current_price,
-                "sl": float(signal['sl']), "tp1": float(signal['tp1']), "tp3": float(signal['tp3']),
-                "breakeven": float(signal['breakeven']), "be_moved": False,
-                "size": qty, "leverage": signal['leverage'], "leverage_num": lev_num,
-                "margin": float(signal['margin']), "unrealized_pnl": 0.0,
-                "order_id": exec_res.get("orderId", "N/A"),
-                "exec_mode": exec_res.get("status", "PAPER_FILLED"),
-                "opened_at": datetime.now().strftime("%H:%M:%S")
-            }
-            send_telegram_message(
-                f"🔴 *ORDINE GLOBALE ESEGUITO SU BINGX* 🔴\n\n"
-                f"Asset: `{signal['name']}`\n"
-                f"Segnale: *{action}* ({signal['leverage']})\n"
-                f"Size: `{qty}` | Margine: `${signal['margin']}`\n"
-                f"Ingresso: `{signal['entry']}`\n"
-                f"SL: `{signal['sl']}` | TP1: `{signal['tp1']}`"
-            )
-
 @app.route('/')
 def home():
     return render_template('index.html')
@@ -230,10 +148,11 @@ def toggle_autotrade():
 
 @app.route('/api/autotrade/status', methods=['GET'])
 def get_autotrade_status():
+    real_positions = fetch_bingx_real_positions()
     return jsonify({
         "auto_trade": auto_trade_active,
         "mode": get_exchange_mode(),
-        "positions": list(active_positions.values()),
+        "positions": real_positions,
         "history": execution_history[:30]
     })
 
@@ -245,10 +164,23 @@ def get_telemetry_scans():
 def manual_close_position():
     data = request.get_json(silent=True) or {}
     symbol = data.get('symbol')
-    if symbol and symbol in active_positions:
-        curr_p = active_positions[symbol]['current_price']
-        rec = close_position_logic(symbol, curr_p, "Chiusura Manuale Operatore")
-        return jsonify({"closed": True, "record": rec})
+    if symbol:
+        real_pos = fetch_bingx_real_positions()
+        target = next((p for p in real_pos if p['symbol'] == symbol), None)
+        if target:
+            close_side = "SELL" if target['action'] == "BUY" else "BUY"
+            pos_side = "LONG" if target['action'] == "BUY" else "SHORT"
+            exec_res = execute_bingx_order(symbol, close_side, pos_side, target['size'])
+            
+            record = {
+                "symbol": symbol, "name": target['name'], "action": target['action'],
+                "entry": target['entry'], "exit": target['current_price'], "size": target['size'],
+                "pnl": target['unrealized_pnl'], "pnl_pct": 0.0,
+                "reason": "Chiusura Manuale Operatore da Desk", "mode": exec_res["status"],
+                "closed_at": datetime.now().strftime("%H:%M:%S")
+            }
+            execution_history.insert(0, record)
+            return jsonify({"closed": True, "record": record})
     return jsonify({"closed": False}), 404
 
 def fetch_all_markets():
@@ -519,7 +451,6 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
     price_risk_per_unit = abs(current_price - sl)
     raw_position_size = (max_risk_amount / price_risk_per_unit) if price_risk_per_unit > 0 else 0.0
     
-    # Bypass Universale Micro-Capitali ($2)
     if "BTC" in symbol or "ETH" in symbol or "XAU" in symbol:
         min_exchange_size = 0.001
     elif "SOL" in symbol or "BNB" in symbol or "AVAX" in symbol or "LINK" in symbol:
@@ -570,6 +501,20 @@ def get_markets():
 
 def process_asset(cat, a, m_status, mode, balance, risk_pct, timeframe):
     try:
+        # BLOCCO RIGIDO: Se il mercato non è aperto, non calcola né restituisce alcun segnale
+        if m_status["status"] != "Aperto":
+            scans_telemetry[a['id']] = {
+                "symbol": a['id'],
+                "name": a['name'],
+                "category": cat,
+                "price": "N/D",
+                "action": "CHIUSO",
+                "ai_score": "0%",
+                "whipsaw": "🔴 Sessione Chiusa",
+                "timestamp": datetime.now().strftime("%H:%M:%S")
+            }
+            return None
+
         df, current_price, source = get_market_data(a['id'], interval=timeframe)
         if df is not None and not df.empty:
             p_open = float(df['Open'].iloc[0]) if df['Open'].iloc[0] > 0 else current_price
@@ -579,7 +524,6 @@ def process_asset(cat, a, m_status, mode, balance, risk_pct, timeframe):
             res = calculate_ai_neural_setup(df, current_price, mode, balance, risk_pct, symbol=a['id'])
             dec = res["decimals"]
 
-            # Aggiorna il log globale di telemetria per la tabella di monitoraggio
             scans_telemetry[a['id']] = {
                 "symbol": a['id'],
                 "name": a['name'],
@@ -619,8 +563,6 @@ def process_asset(cat, a, m_status, mode, balance, risk_pct, timeframe):
                 "is_open": m_status["status"] == "Aperto",
                 "timestamp": datetime.now().strftime("%H:%M:%S")
             }
-
-            manage_auto_execution(signal_obj, current_price)
 
             if res['action'] != "NEUTRAL" and not res["whipsaw_blocked"]:
                 send_telegram_alert(signal_obj)
