@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Institutional Trading Floor — Tier-5 Terminal</title>
+    <title>Institutional Trading Floor — Live Terminal</title>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -122,16 +122,16 @@
 <body>
 
     <header>
-        <div>INSTITUTIONAL TRADING FLOOR // PROPHET DESK HFT</div>
-        <div class="terminal-badge"><div class="dot-live"></div> <span id="exec-mode-label">LIVE SYNC ACTIVE</span></div>
+        <div>INSTITUTIONAL TRADING FLOOR // LIVE REAL MODE</div>
+        <div class="terminal-badge"><div class="dot-live"></div> <span id="exec-mode-label">BINGX LIVE REALE</span></div>
     </header>
 
     <div class="ticker-tape">
-        <span>⚡ [PROPRIETARY TRADING DESK] Smart Order Routing (SOR) • Auto Break-Even & SL Management • Real-Time Exchange Execution Active.</span>
+        <span>⚡ [LIVE REAL EXECUTION] Micro-lot bypass attivo ($2 compatible) • Smart Order Routing (SOR) • Auto Break-Even & SL Management.</span>
     </div>
 
     <div class="desk-bar">
-        <div class="desk-title">⚡ TRADING FLOOR <span>PRO TERMINAL</span></div>
+        <div class="desk-title">⚡ TRADING FLOOR <span>LIVE TERMINAL</span></div>
         <div style="display:flex; gap:6px; align-items:center;">
             <button onclick="toggleAutoTrade()" id="autotrade-btn" class="auto-btn">🤖 AUTO-TRADE: OFF</button>
             <button onclick="toggleAudio()" id="audio-btn" style="background:#000000; border:1px solid var(--neon-green); color:var(--neon-green); padding:5px 8px; border-radius:6px; font-family:'JetBrains Mono',monospace; font-size:10px; cursor:pointer; font-weight:800;">🔊</button>
@@ -143,13 +143,13 @@
     <div id="tab-segnali" class="tab-content active">
         <div class="risk-panel">
             <div class="risk-header">
-                <span>🛡️ Kelly Criterion & Risk Controller</span>
-                <span style="color:var(--neon-green); text-shadow:var(--glow-green);">Live Execution Mode</span>
+                <span>🛡️ Micro-Size & Capital Controller ($2 Bypass)</span>
+                <span style="color:var(--neon-green); text-shadow:var(--glow-green);">Live Execution Active</span>
             </div>
             <div class="risk-grid">
                 <div class="risk-field">
                     <label>Capitale ($)</label>
-                    <input type="number" id="user-balance" value="1000" onchange="loadSignals()">
+                    <input type="number" id="user-balance" value="2" onchange="loadSignals()">
                 </div>
                 <div class="risk-field">
                     <label>Rischio (%)</label>
@@ -273,7 +273,7 @@
                 const res = await fetch('/api/autotrade/toggle', { method: 'POST' });
                 const data = await res.json();
                 updateAutoTradeUI(data);
-                speakAlert(data.auto_trade ? "Esecuzione automatica su exchange attivata." : "Esecuzione automatica disattivata.");
+                speakAlert(data.auto_trade ? "Esecuzione automatica reale attivata." : "Esecuzione automatica disattivata.");
                 loadSignals();
             } catch (e) {}
         }
@@ -382,7 +382,7 @@
         }
 
         async function loadSignals() {
-            const balance = document.getElementById('user-balance').value || 1000;
+            const balance = document.getElementById('user-balance').value || 2;
             const risk = document.getElementById('user-risk').value || 1.0;
             const tf = document.getElementById('user-tf').value || '15m';
 
