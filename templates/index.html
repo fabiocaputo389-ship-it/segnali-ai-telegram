@@ -137,7 +137,7 @@
         </div>
     </div>
 
-    <!-- TAB 1: SALA SEGNALI LIVE -->
+    <!-- TAB 1: SALA SEGNALI LIVE + TABELLA LOG DI MONITORAGGIO -->
     <div id="tab-segnali" class="tab-content active">
         <div class="risk-panel">
             <div class="risk-header">
@@ -161,6 +161,31 @@
                         <option value="1h">1h (Swing)</option>
                     </select>
                 </div>
+            </div>
+        </div>
+
+        <!-- TABELLA LOG DI TELEMETRIA SCANNER IN TEMPO REALE -->
+        <div class="risk-panel">
+            <div class="risk-header" style="margin-bottom:6px;">
+                <span>📡 Tabella Log • Monitoraggio Scanner Globale HFT</span>
+                <span style="color:var(--neon-green); text-shadow:var(--glow-green);">Live Feed Attivo</span>
+            </div>
+            <div style="max-height: 180px; overflow-y: auto;">
+                <table class="vip-table" style="margin-bottom:0;">
+                    <thead>
+                        <tr>
+                            <th>Asset / Mercato</th>
+                            <th>Prezzo Live</th>
+                            <th>Stato Filtri (Whipsaw)</th>
+                            <th>Ultimo Scan</th>
+                        </tr>
+                    </thead>
+                    <tbody id="telemetry-log-container">
+                        <tr>
+                            <td colspan="4" style="text-align:center; color:var(--white-dim); padding:10px;">Caricamento flussi di monitoraggio...</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
 
@@ -289,6 +314,26 @@
             if (data.mode) modeLbl.innerText = data.mode;
         }
 
+        async function refreshTelemetryLog() {
+            try {
+                const res = await fetch('/api/telemetry/scans');
+                const scans = await res.json();
+                const container = document.getElementById('telemetry-log-container');
+                if (!scans || scans.length === 0) {
+                    container.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--white-dim); padding:10px;">In attesa di scansione mercati...</td></tr>`;
+                    return;
+                }
+                container.innerHTML = scans.map(s => `
+                    <tr>
+                        <td><strong>${s.name}</strong> <span style="color:var(--white-dim); font-size:8px;">(${s.category})</span></td>
+                        <td style="font-family:'JetBrains Mono',monospace; color:var(--white);">${s.price}</td>
+                        <td style="color:${s.whipsaw.includes('Bloccato') ? 'var(--neon-red)' : 'var(--neon-green)'};">${s.whipsaw}</td>
+                        <td style="color:var(--white-dim);">${s.timestamp}</td>
+                    </tr>
+                `).join('');
+            } catch (e) {}
+        }
+
         async function refreshPositions() {
             try {
                 const res = await fetch('/api/autotrade/status');
@@ -365,9 +410,11 @@
                 renderSymbols();
                 loadSignals();
                 refreshPositions();
+                refreshTelemetryLog();
                 setInterval(() => {
                     loadSignals();
                     refreshPositions();
+                    refreshTelemetryLog();
                 }, 15000);
             } catch (e) {}
         }
@@ -395,6 +442,7 @@
                 currentSignals = newSignals;
                 renderSignals();
                 refreshPositions();
+                refreshTelemetryLog();
             } catch (e) {
                 document.getElementById('signals-container').innerHTML = `
                     <div style="background:var(--bg-card); border:1px solid var(--neon-red); border-radius:8px; padding:20px; text-align:center; box-shadow:var(--glow-red);">
