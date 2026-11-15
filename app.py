@@ -11,22 +11,26 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 app = Flask(__name__)
 
-# Variabili d'ambiente Telegram
+# Configurazione Telegram Bot
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
 TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '')
 
-# Variabili d'ambiente Exchange BingX (Perpetual Swap API)
+# Configurazione Exchange BingX (Modalità Reale o VST Testnet)
 BINGX_API_KEY = os.environ.get('BINGX_API_KEY', '')
 BINGX_SECRET_KEY = os.environ.get('BINGX_SECRET_KEY', '')
-BINGX_USE_TESTNET = os.environ.get('BINGX_USE_TESTNET', 'true').lower() == 'true'
+BINGX_USE_TESTNET = os.environ.get('BINGX_USE_TESTNET', 'false').lower() == 'true'
 BINGX_BASE_URL = "https://open-api-vst.bingx.com" if BINGX_USE_TESTNET else "https://open-api.bingx.com"
 
-# Stato Globale Auto-Trading & Registro Posizioni
+# Stato Globale Auto-Trading & Registro Posizioni Institutional
 auto_trade_active = False
-active_positions = {}  # Chiave: symbol -> dict posizione attiva
+active_positions = {}  
 execution_history = []
 sent_telegram_signals = set()
 
+def get_exchange_mode():
+    if not BINGX_API_KEY or not BINGX_SECRET_KEY:
+        return "PAPER PROP-DESK (SIMULAZIONE)"
+    return "BINGX TESTNET (VST)" if BINGX_USE_TESTNET else "🔴 BINGX LIVE REALE (Fondi Reali)"
 
 def sign_bingx_request(params_str):
     return hmac.new(
@@ -34,7 +38,6 @@ def sign_bingx_request(params_str):
         params_str.encode('utf-8'),
         hashlib.sha256
     ).hexdigest()
-
 
 def send_telegram_message(text):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
@@ -45,26 +48,25 @@ def send_telegram_message(text):
     except Exception as e:
         print(f"Errore Telegram: {e}")
 
-
 def send_telegram_alert(signal):
     sig_id = signal['id']
     if sig_id in sent_telegram_signals:
         return
+    mode_str = get_exchange_mode()
     msg = (
-        f"🚨 *SEGNALE TIER-5 PROP DESK* 🚨\n\n"
+        f"🚨 *SEGNALE INSTITUTIONAL DESK* 🚨\n\n"
         f"🟢 *Asset*: `{signal['name']}` ({signal['category']})\n"
         f"📊 *Direzione*: *{signal['action']}*\n"
-        f"💰 *Ingresso*: `{signal['entry']}`\n"
+        f"💰 *Ingresso Live*: `{signal['entry']}`\n"
         f"🎯 *Target Max*: `{signal['max_target']}`\n"
         f"🛑 *Stop Loss*: `{signal['sl']}`\n"
         f"📉 *TP1 (Break-Even)*: `{signal['tp1']}`\n"
         f"⚡ *Convinzione AI*: `{signal['ai_score']}`\n"
-        f"🤖 *Auto-Execution*: `{'ATTIVA' if auto_trade_active else 'MANUALE'}`\n"
+        f"🛡️ *Modalità*: `{mode_str}`\n"
         f"🕒 *Orario*: `{signal['timestamp']}`"
     )
     send_telegram_message(msg)
     sent_telegram_signals.add(sig_id)
-
 
 def format_bingx_symbol(symbol):
     if symbol.endswith("USDT"):
@@ -72,18 +74,16 @@ def format_bingx_symbol(symbol):
         return f"{base}-USDT"
     return f"{symbol}-USDT"
 
-
 def execute_bingx_order(symbol, side, position_side, quantity, stop_loss=None, take_profit=None):
-    """Invia ordine reale/VST a BingX se le chiavi API sono configurate, altrimenti esegue sul Desk Paper Istituzionale."""
     if not BINGX_API_KEY or not BINGX_SECRET_KEY:
-        return {"status": "PAPER_FILLED", "orderId": f"SIM-{int(time.time()*1000)}"}
+        return {"status": "PAPER_FILLED", "orderId": f"PROP-{int(time.time()*1000)}"}
 
     timestamp = int(time.time() * 1000)
     bx_symbol = format_bingx_symbol(symbol)
     params = {
         "symbol": bx_symbol,
-        "side": side,                 # BUY o SELL
-        "positionSide": position_side,# LONG o SHORT
+        "side": side,
+        "positionSide": position_side,
         "type": "MARKET",
         "quantity": quantity,
         "timestamp": timestamp
@@ -102,20 +102,17 @@ def execute_bingx_order(symbol, side, position_side, quantity, stop_loss=None, t
         res = requests.post(url, headers=headers, timeout=4.0).json()
         if res.get("code") == 0:
             return {"status": "LIVE_FILLED", "orderId": res["data"]["order"]["orderId"]}
-        return {"status": "ERROR", "msg": res.get("msg", "Errore API BingX")}
+        return {"status": "ERROR", "msg": res.get("msg", "Errore API Exchange")}
     except Exception as e:
         return {"status": "ERROR", "msg": str(e)}
 
-
-def close_position_logic(symbol, current_price, reason="Chiusura Automatica Segnale"):
-    """Chiude una posizione aperta calcolando il PnL e inviando ordine di chiusura."""
+def close_position_logic(symbol, current_price, reason="Chiusura Automatica Desk"):
     if symbol not in active_positions:
         return None
 
     pos = active_positions.pop(symbol)
     entry = float(pos['entry'])
     qty = float(pos['size'])
-    lev = int(pos['leverage_num'])
     direction = pos['action']
 
     if direction == "BUY":
@@ -131,37 +128,28 @@ def close_position_logic(symbol, current_price, reason="Chiusura Automatica Segn
     exec_res = execute_bingx_order(symbol, close_side, pos_side, qty)
 
     record = {
-        "symbol": symbol,
-        "name": pos['name'],
-        "action": direction,
-        "entry": entry,
-        "exit": round(current_price, 4),
-        "size": qty,
-        "pnl": round(pnl_usdt, 2),
-        "pnl_pct": round(pnl_pct, 2),
-        "reason": reason,
-        "mode": exec_res["status"],
+        "symbol": symbol, "name": pos['name'], "action": direction,
+        "entry": entry, "exit": round(current_price, 4), "size": qty,
+        "pnl": round(pnl_usdt, 2), "pnl_pct": round(pnl_pct, 2),
+        "reason": reason, "mode": exec_res["status"],
         "closed_at": datetime.now().strftime("%H:%M:%S")
     }
     execution_history.insert(0, record)
 
     emoji = "✅" if pnl_usdt >= 0 else "🛑"
     send_telegram_message(
-        f"{emoji} *POSIZIONE CHIUSA AUTO-DESK*\n\n"
+        f"{emoji} *CHIUSURA POSIZIONE ISTITUZIONALE*\n\n"
         f"Asset: `{pos['name']}` ({direction})\n"
         f"Ingresso: `{entry}` -> Uscita: `{record['exit']}`\n"
         f"PnL Netto: *${record['pnl']:+.2f}* ({record['pnl_pct']:+.2f}%)\n"
-        f"Motivo: _{reason}_"
+        f"Causa: _{reason}_"
     )
     return record
 
-
 def manage_auto_execution(signal, current_price):
-    """Gestisce apertura, monitoraggio SL/TP/Break-Even e inversione automatica."""
     symbol = signal['symbol']
     action = signal['action']
 
-    # 1. Monitoraggio posizioni già aperte su questo simbolo
     if symbol in active_positions:
         pos = active_positions[symbol]
         pos['current_price'] = current_price
@@ -171,82 +159,61 @@ def manage_auto_execution(signal, current_price):
         tp3 = float(pos['tp3'])
         qty = float(pos['size'])
 
-        # Aggiornamento PnL live
         if pos['action'] == "BUY":
             pos['unrealized_pnl'] = round((current_price - entry) * qty, 2)
-            # Spostamento automatico Break-Even al raggiungimento di TP1
             if current_price >= tp1 and not pos.get('be_moved'):
                 pos['sl'] = pos['breakeven']
                 pos['be_moved'] = True
-            # Verifica Stop Loss o Target Finale
             if current_price <= float(pos['sl']):
-                close_position_logic(symbol, current_price, "Stop Loss / Break-Even Raggiunto")
+                close_position_logic(symbol, current_price, "Stop Loss / Break-Even Toccato")
             elif current_price >= tp3:
-                close_position_logic(symbol, current_price, "Take Profit Massimo (TP3) Raggiunto")
+                close_position_logic(symbol, current_price, "Take Profit Finale (TP3) Raggiunto")
         else:
             pos['unrealized_pnl'] = round((entry - current_price) * qty, 2)
             if current_price <= tp1 and not pos.get('be_moved'):
                 pos['sl'] = pos['breakeven']
                 pos['be_moved'] = True
             if current_price >= float(pos['sl']):
-                close_position_logic(symbol, current_price, "Stop Loss / Break-Even Raggiunto")
+                close_position_logic(symbol, current_price, "Stop Loss / Break-Even Toccato")
             elif current_price <= tp3:
-                close_position_logic(symbol, current_price, "Take Profit Massimo (TP3) Raggiunto")
+                close_position_logic(symbol, current_price, "Take Profit Finale (TP3) Raggiunto")
 
-        # 2. Inversione automatica se arriva un segnale valido opposto
         if symbol in active_positions and auto_trade_active and action in ["BUY", "SELL"]:
             if active_positions[symbol]['action'] != action:
-                close_position_logic(symbol, current_price, f"Inversione Segnale ({active_positions[symbol]['action']} -> {action})")
+                close_position_logic(symbol, current_price, f"Inversione di Trend ({active_positions[symbol]['action']} -> {action})")
 
-    # 3. Apertura nuova posizione se Auto-Trade è attivo e non c'è già posizione aperta
     if auto_trade_active and action in ["BUY", "SELL"] and symbol not in active_positions:
         qty = float(signal['position_size'])
         if qty > 0:
             pos_side = "LONG" if action == "BUY" else "SHORT"
             exec_res = execute_bingx_order(
-                symbol=symbol,
-                side=action,
-                position_side=pos_side,
-                quantity=qty,
-                stop_loss=signal['sl'],
-                take_profit=signal['tp1']
+                symbol=symbol, side=action, position_side=pos_side,
+                quantity=qty, stop_loss=signal['sl'], take_profit=signal['tp1']
             )
             lev_num = int(''.join(filter(str.isdigit, signal['leverage'])) or 5)
             active_positions[symbol] = {
-                "symbol": symbol,
-                "name": signal['name'],
-                "action": action,
-                "entry": float(signal['entry']),
-                "current_price": current_price,
-                "sl": float(signal['sl']),
-                "tp1": float(signal['tp1']),
-                "tp3": float(signal['tp3']),
-                "breakeven": float(signal['breakeven']),
-                "be_moved": False,
-                "size": qty,
-                "leverage": signal['leverage'],
-                "leverage_num": lev_num,
-                "margin": float(signal['margin']),
-                "unrealized_pnl": 0.0,
+                "symbol": symbol, "name": signal['name'], "action": action,
+                "entry": float(signal['entry']), "current_price": current_price,
+                "sl": float(signal['sl']), "tp1": float(signal['tp1']), "tp3": float(signal['tp3']),
+                "breakeven": float(signal['breakeven']), "be_moved": False,
+                "size": qty, "leverage": signal['leverage'], "leverage_num": lev_num,
+                "margin": float(signal['margin']), "unrealized_pnl": 0.0,
                 "order_id": exec_res.get("orderId", "N/A"),
                 "exec_mode": exec_res.get("status", "PAPER_FILLED"),
                 "opened_at": datetime.now().strftime("%H:%M:%S")
             }
             send_telegram_message(
-                f"⚡ *ORDINE APERTO AUTOMATICAMENTE* ⚡\n\n"
+                f"⚡ *ORDINE ESEGUITO SU EXCHANGE* ⚡\n\n"
                 f"Asset: `{signal['name']}`\n"
-                f"Direzione: *{action}* ({signal['leverage']})\n"
+                f"Segnale: *{action}* ({signal['leverage']})\n"
                 f"Size: `{qty}` | Margine: `${signal['margin']}`\n"
                 f"Ingresso: `{signal['entry']}`\n"
-                f"SL: `{signal['sl']}` | TP1: `{signal['tp1']}`\n"
-                f"Stato: `{exec_res.get('status')}`"
+                f"SL: `{signal['sl']}` | TP1: `{signal['tp1']}`"
             )
-
 
 @app.route('/')
 def home():
     return render_template('index.html')
-
 
 @app.route('/api/autotrade/toggle', methods=['POST'])
 def toggle_autotrade():
@@ -258,21 +225,17 @@ def toggle_autotrade():
         auto_trade_active = not auto_trade_active
     return jsonify({
         "auto_trade": auto_trade_active,
-        "api_connected": bool(BINGX_API_KEY and BINGX_SECRET_KEY),
-        "mode": "BINGX LIVE/VST" if (BINGX_API_KEY and BINGX_SECRET_KEY) else "PAPER PROP-DESK"
+        "mode": get_exchange_mode()
     })
-
 
 @app.route('/api/autotrade/status', methods=['GET'])
 def get_autotrade_status():
     return jsonify({
         "auto_trade": auto_trade_active,
-        "api_connected": bool(BINGX_API_KEY and BINGX_SECRET_KEY),
-        "mode": "BINGX LIVE/VST" if (BINGX_API_KEY and BINGX_SECRET_KEY) else "PAPER PROP-DESK",
+        "mode": get_exchange_mode(),
         "positions": list(active_positions.values()),
         "history": execution_history[:30]
     })
-
 
 @app.route('/api/autotrade/close', methods=['POST'])
 def manual_close_position():
@@ -280,10 +243,9 @@ def manual_close_position():
     symbol = data.get('symbol')
     if symbol and symbol in active_positions:
         curr_p = active_positions[symbol]['current_price']
-        rec = close_position_logic(symbol, curr_p, "Chiusura Manuale da Terminale")
+        rec = close_position_logic(symbol, curr_p, "Chiusura Manuale Operatore")
         return jsonify({"closed": True, "record": rec})
     return jsonify({"closed": False}), 404
-
 
 def fetch_all_markets():
     return {
@@ -315,7 +277,6 @@ def fetch_all_markets():
         ]
     }
 
-
 def get_market_status(category):
     now = datetime.now(timezone.utc)
     weekday = now.weekday()
@@ -323,23 +284,22 @@ def get_market_status(category):
     minute = now.minute
 
     if category == "Criptovalute":
-        return {"status": "Aperto", "text": "🟢 Operativo 24/7 (Tier-5 Neon)", "schedule": "Mercato Continuo • H24"}
+        return {"status": "Aperto", "text": "🟢 H24 Institutional Feed", "schedule": "Mercato Continuo"}
     elif category == "Materie Prime & Forex":
         if weekday == 5 or (weekday == 6 and hour < 22):
-            return {"status": "Chiuso", "text": "🔴 Chiuso (Weekend)", "schedule": "Riapertura: Domenica 22:00 UTC"}
+            return {"status": "Chiuso", "text": "🔴 Chiuso (Weekend)", "schedule": "Riapertura Dom 22:00 UTC"}
         elif weekday == 4 and hour >= 21:
-            return {"status": "Chiuso", "text": "🔴 Chiusura Settimanale", "schedule": "Riapertura: Domenica 22:00 UTC"}
+            return {"status": "Chiuso", "text": "🔴 Chiusura Settimanale", "schedule": "Riapertura Dom 22:00 UTC"}
         else:
-            return {"status": "Aperto", "text": "🟢 Forex & Oro Live", "schedule": "Sessione Attiva (Mon-Fri)"}
+            return {"status": "Aperto", "text": "🟢 Forex & Gold Live", "schedule": "ECN Pool Attivo"}
     elif category == "Azioni & Indici":
         if weekday >= 5:
-            return {"status": "Chiuso", "text": "🔴 Chiuso (Weekend)", "schedule": "Riapertura Wall Street: Lun 14:30 UTC"}
+            return {"status": "Chiuso", "text": "🔴 Chiuso (Weekend)", "schedule": "Wall Street Chiusa"}
         elif hour < 14 or (hour == 14 and minute < 30) or hour >= 21:
-            return {"status": "Chiuso", "text": "🔴 Fuori Orario", "schedule": "Orario Wall Street: 14:30 - 21:00 UTC"}
+            return {"status": "Chiuso", "text": "🔴 Fuori Orario Wall St", "schedule": "Sessione: 14:30 - 21:00 UTC"}
         else:
-            return {"status": "Aperto", "text": "🟢 Wall Street Aperta", "schedule": "Chiusura oggi alle 21:00 UTC"}
-    return {"status": "Aperto", "text": "🟢 Desk Live", "schedule": "Sessione Operativa"}
-
+            return {"status": "Aperto", "text": "🟢 Wall Street Live ECN", "schedule": "Aperto fino alle 21:00"}
+    return {"status": "Aperto", "text": "🟢 Desk Live", "schedule": "Operativo"}
 
 def safe_float(val, default=0.0):
     try:
@@ -349,7 +309,6 @@ def safe_float(val, default=0.0):
         return f
     except Exception:
         return default
-
 
 def get_market_data(symbol, interval="15m"):
     headers = {"User-Agent": "Mozilla/5.0"}
@@ -376,7 +335,7 @@ def get_market_data(symbol, interval="15m"):
                 live_price = float(p_res['price'])
                 df.loc[df.index[-1], 'Close'] = live_price
 
-            return df, live_price, "Binance Live Feed"
+            return df, live_price, "Live Feed"
     except Exception:
         pass
 
@@ -385,8 +344,7 @@ def get_market_data(symbol, interval="15m"):
         'Open': [p]*60, 'High': [p*1.002]*60, 'Low': [p*0.998]*60,
         'Close': [p]*60, 'Volume': [30000]*60
     })
-    return df, p, "AI Neural Sync"
-
+    return df, p, "Neural Sync"
 
 def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_percentage):
     close = df['Close']
@@ -428,7 +386,7 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
 
     recent_highs = df['High'].iloc[-10:-2].max()
     recent_lows = df['Low'].iloc[-10:-2].min()
-    liquidity_sweep = "Rilevata (Stop Retail Spazzati)" if (h_last > recent_highs or l_last < recent_lows) else "Nessuna Caccia Recente"
+    liquidity_sweep = "Rilevata (Stop Hunt Institutional)" if (h_last > recent_highs or l_last < recent_lows) else "Nessuna Caccia Recente"
 
     ema_val_12 = safe_float(ema12.iloc[-1], current_price)
     ema_val_26 = safe_float(ema26.iloc[-1], current_price)
@@ -589,11 +547,9 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
         "progress_pct": round(progress_pct, 1), "whipsaw_blocked": whipsaw_detected
     }
 
-
 @app.route('/api/markets', methods=['GET'])
 def get_markets():
     return jsonify(fetch_all_markets())
-
 
 def process_asset(cat, a, m_status, mode, balance, risk_pct, timeframe):
     try:
@@ -635,7 +591,6 @@ def process_asset(cat, a, m_status, mode, balance, risk_pct, timeframe):
                 "timestamp": datetime.now().strftime("%H:%M:%S")
             }
 
-            # Esecuzione automatica apertura/chiusura posizioni
             manage_auto_execution(signal_obj, current_price)
 
             if res['action'] != "NEUTRAL" and not res["whipsaw_blocked"]:
@@ -644,7 +599,6 @@ def process_asset(cat, a, m_status, mode, balance, risk_pct, timeframe):
     except Exception:
         pass
     return None
-
 
 @app.route('/api/signals', methods=['GET'])
 def get_signals():
@@ -672,9 +626,8 @@ def get_signals():
 
         signals.sort(key=lambda x: float(x['ai_score'].replace('%','')), reverse=True)
         return jsonify(signals)
-    except Exception:
+    except Exception as e:
         return jsonify([])
-
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
