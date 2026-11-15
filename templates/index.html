@@ -3,128 +3,131 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tier-5 Prop Desk — Institutional Signal Terminal</title>
+    <title>Tier-5 Neon Desk — Cyber Institutional Terminal</title>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-base: #f4f6f9;        /* Sfondo bianco pulito */
-            --bg-card: #ffffff;        /* Card bianche */
-            --bg-panel: #f8fafc;       /* Pannelli interni chiari */
-            --border-gold: rgba(180, 130, 10, 0.35); /* Bordi oro */
-            --gold: #b45309;           /* Oro ambrato */
-            --green: #059669;          /* Verde smeraldo */
-            --red: #dc2626;            /* Rosso fuoco */
-            --blue: #0284c7;           /* Blu istituzionale */
-            --purple: #7c3aed;
-            --text-main: #0f172a;      /* Testo nero / carbone */
-            --text-dim: #64748b;       /* Testo secondario */
+            --bg-base: #030305;         /* Nero Assoluto */
+            --bg-card: #09090d;         /* Card Nero Profondo */
+            --bg-panel: #101016;        /* Pannelli Nero Carbone */
+            --white: #ffffff;           /* Bianco Puro Neon */
+            --white-dim: #a1a1aa;       /* Bianco Attenuato */
+            --neon-green: #00ff66;      /* Verde Neon */
+            --neon-red: #ff1e42;        /* Rosso Neon */
+            --border-white: rgba(255, 255, 255, 0.22);
+            --glow-green: 0 0 12px rgba(0, 255, 102, 0.45);
+            --glow-red: 0 0 12px rgba(255, 30, 66, 0.45);
+            --glow-white: 0 0 10px rgba(255, 255, 255, 0.25);
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
-        body { background-color: var(--bg-base); color: var(--text-main); padding-bottom: 90px; min-height: 100vh; }
+        body { background-color: var(--bg-base); color: var(--white); padding-bottom: 90px; min-height: 100vh; }
 
-        header { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; background: #ffffff; border-bottom: 1px solid var(--border-gold); font-size: 11px; color: var(--text-dim); box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-        .terminal-badge { display: inline-flex; align-items: center; gap: 6px; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--gold); background: rgba(180, 83, 9, 0.08); padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border-gold); font-weight: 700; text-transform: uppercase; }
-        .dot-live { width: 6px; height: 6px; background: var(--green); border-radius: 50%; box-shadow: 0 0 8px var(--green); animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(1.3); } }
+        header { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; background: #000000; border-bottom: 1px solid var(--border-white); font-size: 11px; color: var(--white-dim); box-shadow: 0 2px 15px rgba(0, 255, 102, 0.08); }
+        .terminal-badge { display: inline-flex; align-items: center; gap: 6px; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--neon-green); background: rgba(0, 255, 102, 0.08); padding: 4px 10px; border-radius: 4px; border: 1px solid var(--neon-green); font-weight: 800; text-transform: uppercase; box-shadow: var(--glow-green); }
+        .dot-live { width: 6px; height: 6px; background: var(--neon-green); border-radius: 50%; box-shadow: 0 0 10px var(--neon-green); animation: pulse 1.2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(1.4); } }
 
-        .ticker-tape { background: #0f172a; border-bottom: 1px solid rgba(180, 130, 10, 0.2); padding: 5px 12px; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #38bdf8; white-space: nowrap; overflow: hidden; }
-        .ticker-tape span { display: inline-block; padding-left: 100%; animation: ticker 45s linear infinite; font-weight: 600; }
+        .ticker-tape { background: #000000; border-bottom: 1px solid var(--border-white); padding: 5px 12px; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--white); white-space: nowrap; overflow: hidden; }
+        .ticker-tape span { display: inline-block; padding-left: 100%; animation: ticker 45s linear infinite; font-weight: 700; text-shadow: var(--glow-white); }
         @keyframes ticker { 0% { transform: translate(0, 0); } 100% { transform: translate(-100%, 0); } }
 
-        .desk-bar { background: #ffffff; border-bottom: 1px solid #e2e8f0; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
-        .desk-title { font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 800; color: var(--text-main); letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px; }
-        .desk-title span { color: var(--gold); }
-        .clock-box { background: var(--bg-panel); padding: 4px 10px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--gold); border: 1px solid var(--border-gold); }
+        .desk-bar { background: #050508; border-bottom: 1px solid var(--border-white); padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; }
+        .desk-title { font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 800; color: var(--white); letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px; }
+        .desk-title span { color: var(--neon-green); text-shadow: var(--glow-green); }
+        .clock-box { background: #000000; padding: 4px 10px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--white); border: 1px solid var(--white); box-shadow: var(--glow-white); font-weight: 700; }
 
         .tab-content { display: none; padding: 14px; }
         .tab-content.active { display: block; animation: fadeIn 0.2s ease; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
-        .risk-panel { background: var(--bg-card); border: 1px solid var(--border-gold); border-radius: 8px; padding: 12px; margin-bottom: 14px; box-shadow: 0 4px 15px rgba(0,0,0,0.04); }
-        .risk-header { font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 800; color: var(--gold); text-transform: uppercase; margin-bottom: 8px; display: flex; justify-content: space-between; }
+        .risk-panel { background: var(--bg-card); border: 1px solid var(--border-white); border-radius: 8px; padding: 12px; margin-bottom: 14px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8); }
+        .risk-header { font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 800; color: var(--white); text-transform: uppercase; margin-bottom: 8px; display: flex; justify-content: space-between; text-shadow: var(--glow-white); }
         .risk-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
-        .risk-field label { display: block; font-size: 9px; color: var(--text-dim); margin-bottom: 3px; font-weight: 600; text-transform: uppercase; }
-        .risk-field input, .risk-field select { width: 100%; background: var(--bg-panel); border: 1px solid var(--border-gold); border-radius: 6px; padding: 6px; color: var(--text-main); font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: bold; text-align: center; outline: none; }
+        .risk-field label { display: block; font-size: 9px; color: var(--white-dim); margin-bottom: 3px; font-weight: 700; text-transform: uppercase; }
+        .risk-field input, .risk-field select { width: 100%; background: #000000; border: 1px solid var(--white); border-radius: 6px; padding: 6px; color: var(--neon-green); font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 800; text-align: center; outline: none; box-shadow: inset 0 0 8px rgba(0, 255, 102, 0.15); }
 
         .filter-row { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 14px; padding-bottom: 2px; scrollbar-width: none; }
         .filter-row::-webkit-scrollbar { display: none; }
-        .filter-chip { background: #ffffff; border: 1px solid #cbd5e1; color: var(--text-dim); padding: 6px 12px; border-radius: 6px; font-size: 11px; cursor: pointer; white-space: nowrap; font-weight: 600; transition: 0.2s; font-family: 'JetBrains Mono', monospace; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
-        .filter-chip.active { background: var(--gold); color: #ffffff; border-color: var(--gold); font-weight: 800; box-shadow: 0 0 10px rgba(180, 83, 9, 0.25); }
+        .filter-chip { background: #000000; border: 1px solid var(--border-white); color: var(--white-dim); padding: 6px 12px; border-radius: 6px; font-size: 11px; cursor: pointer; white-space: nowrap; font-weight: 700; transition: 0.2s; font-family: 'JetBrains Mono', monospace; }
+        .filter-chip.active { background: var(--white); color: #000000; border-color: var(--white); font-weight: 800; box-shadow: 0 0 14px rgba(255, 255, 255, 0.6); }
 
-        .signal-card { background: var(--bg-card); border: 1px solid var(--border-gold); border-radius: 10px; padding: 14px; margin-bottom: 14px; box-shadow: 0 10px 25px rgba(0,0,0,0.06); position: relative; overflow: hidden; }
-        .signal-card::before { content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--green); }
-        .signal-card.SELL::before { background: var(--red); }
+        .signal-card { background: var(--bg-card); border: 1px solid var(--neon-green); border-radius: 10px; padding: 14px; margin-bottom: 16px; box-shadow: 0 0 22px rgba(0, 255, 102, 0.14); position: relative; overflow: hidden; }
+        .signal-card::before { content: ''; position: absolute; top: 0; left: 0; width: 5px; height: 100%; background: var(--neon-green); box-shadow: 0 0 15px var(--neon-green); }
+        .signal-card.SELL { border-color: var(--neon-red); box-shadow: 0 0 22px rgba(255, 30, 66, 0.16); }
+        .signal-card.SELL::before { background: var(--neon-red); box-shadow: 0 0 15px var(--neon-red); }
 
         .card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
-        .asset-name { font-size: 16px; font-weight: 800; color: var(--text-main); display: flex; align-items: center; gap: 8px; font-family: 'JetBrains Mono', monospace; }
-        .ai-score-pill { font-size: 9px; background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-gold); font-family: 'JetBrains Mono', monospace; font-weight: bold; }
-        .card-meta { font-size: 10px; color: var(--text-dim); margin-top: 2px; font-family: 'JetBrains Mono', monospace; }
+        .asset-name { font-size: 16px; font-weight: 800; color: var(--white); display: flex; align-items: center; gap: 8px; font-family: 'JetBrains Mono', monospace; text-shadow: var(--glow-white); }
+        .ai-score-pill { font-size: 9px; background: #000000; color: var(--neon-green); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--neon-green); font-family: 'JetBrains Mono', monospace; font-weight: 800; box-shadow: var(--glow-green); }
+        .signal-card.SELL .ai-score-pill { color: var(--neon-red); border-color: var(--neon-red); box-shadow: var(--glow-red); }
+        .card-meta { font-size: 10px; color: var(--white-dim); margin-top: 3px; font-family: 'JetBrains Mono', monospace; }
         
-        .action-badge { padding: 5px 12px; border-radius: 6px; font-weight: 800; font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase; font-family: 'JetBrains Mono', monospace; }
-        .action-badge.BUY { background: #d1fae5; color: #065f46; border: 1px solid #10b981; }
-        .action-badge.SELL { background: #fee2e2; color: #991b1b; border: 1px solid #ef4444; }
+        .action-badge { padding: 5px 14px; border-radius: 6px; font-weight: 800; font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase; font-family: 'JetBrains Mono', monospace; }
+        .action-badge.BUY { background: rgba(0, 255, 102, 0.14); color: var(--neon-green); border: 1px solid var(--neon-green); box-shadow: var(--glow-green); text-shadow: 0 0 6px var(--neon-green); }
+        .action-badge.SELL { background: rgba(255, 30, 66, 0.14); color: var(--neon-red); border: 1px solid var(--neon-red); box-shadow: var(--glow-red); text-shadow: 0 0 6px var(--neon-red); }
 
-        .market-status-strip { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 6px 8px; margin-bottom: 8px; font-family: 'JetBrains Mono', monospace; font-size: 10px; display: flex; justify-content: space-between; align-items: center; color: var(--blue); font-weight: bold; }
+        .market-status-strip { background: #000000; border: 1px solid var(--border-white); border-radius: 6px; padding: 6px 8px; margin-bottom: 8px; font-family: 'JetBrains Mono', monospace; font-size: 10px; display: flex; justify-content: space-between; align-items: center; color: var(--white); font-weight: 700; }
 
-        .sentiment-banner { background: var(--bg-panel); border: 2px solid var(--border-gold); border-radius: 8px; padding: 10px; margin-bottom: 10px; font-family: 'JetBrains Mono', monospace; }
-        .sentiment-title { font-size: 9px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 4px; display: flex; justify-content: space-between; font-weight: bold; }
+        .sentiment-banner { background: #000000; border: 2px solid var(--neon-green); border-radius: 8px; padding: 10px; margin-bottom: 10px; font-family: 'JetBrains Mono', monospace; }
+        .sentiment-title { font-size: 9px; color: var(--white-dim); text-transform: uppercase; margin-bottom: 4px; display: flex; justify-content: space-between; font-weight: 800; }
         .sentiment-value-box { font-size: 13px; font-weight: 800; display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
-        .sentiment-meter { height: 8px; width: 100%; background: #e2e8f0; border-radius: 4px; overflow: hidden; }
+        .sentiment-meter { height: 8px; width: 100%; background: #18181f; border-radius: 4px; overflow: hidden; border: 1px solid var(--border-white); }
         .sentiment-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
 
-        .vip-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-family: 'JetBrains Mono', monospace; font-size: 10px; background: var(--bg-panel); border-radius: 6px; overflow: hidden; border: 1px solid #cbd5e1; }
-        .vip-table th { background: #0f172a; color: var(--gold); padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border-gold); font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; }
-        .vip-table td { padding: 6px 8px; border-bottom: 1px solid #e2e8f0; color: var(--text-main); }
+        .vip-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-family: 'JetBrains Mono', monospace; font-size: 10px; background: #000000; border-radius: 6px; overflow: hidden; border: 1px solid var(--border-white); }
+        .vip-table th { background: #0d0d12; color: var(--white); padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--white); font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; text-shadow: var(--glow-white); }
+        .vip-table td { padding: 6px 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); color: var(--white); }
         .vip-table tr:last-child td { border-bottom: none; }
 
         .mod-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
-        .mod-box { background: var(--bg-panel); border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 8px; font-size: 10px; font-family: 'JetBrains Mono', monospace; }
-        .mod-box span { display: block; color: var(--text-dim); font-size: 8px; text-transform: uppercase; margin-bottom: 2px; }
-        .mod-box strong { font-size: 10px; color: var(--text-main); }
+        .mod-box { background: var(--bg-panel); border: 1px solid var(--border-white); border-radius: 6px; padding: 6px 8px; font-size: 10px; font-family: 'JetBrains Mono', monospace; }
+        .mod-box span { display: block; color: var(--white-dim); font-size: 8px; text-transform: uppercase; margin-bottom: 2px; }
+        .mod-box strong { font-size: 10px; color: var(--white); }
 
-        .orderbook-box { background: var(--bg-panel); border-radius: 6px; padding: 8px; margin-bottom: 8px; border: 1px solid #e2e8f0; font-family: 'JetBrains Mono', monospace; font-size: 10px; }
-        .ob-header-desc { font-size: 8px; color: var(--text-dim); margin-bottom: 4px; text-transform: uppercase; }
-        .ob-bars { display: flex; height: 6px; width: 100%; border-radius: 3px; overflow: hidden; margin-top: 4px; background: #e2e8f0; }
-        .ob-bid { background: var(--green); height: 100%; }
-        .ob-ask { background: var(--red); height: 100%; }
+        .orderbook-box { background: #000000; border-radius: 6px; padding: 8px; margin-bottom: 8px; border: 1px solid var(--border-white); font-family: 'JetBrains Mono', monospace; font-size: 10px; }
+        .ob-header-desc { font-size: 8px; color: var(--white-dim); margin-bottom: 4px; text-transform: uppercase; }
+        .ob-bars { display: flex; height: 7px; width: 100%; border-radius: 3px; overflow: hidden; margin-top: 4px; background: #14141a; }
+        .ob-bid { background: var(--neon-green); height: 100%; box-shadow: 0 0 10px var(--neon-green); }
+        .ob-ask { background: var(--neon-red); height: 100%; box-shadow: 0 0 10px var(--neon-red); }
 
-        .full-strip { background: var(--bg-panel); border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 8px; margin-bottom: 8px; font-size: 10px; font-family: 'JetBrains Mono', monospace; display: flex; justify-content: space-between; align-items: center; }
+        .full-strip { background: var(--bg-panel); border: 1px solid var(--border-white); border-radius: 6px; padding: 6px 8px; margin-bottom: 8px; font-size: 10px; font-family: 'JetBrains Mono', monospace; display: flex; justify-content: space-between; align-items: center; }
 
-        .sizing-box { background: #fffbeb; border: 1px solid var(--border-gold); border-radius: 6px; padding: 8px; margin-bottom: 10px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; text-align: center; font-family: 'JetBrains Mono', monospace; font-size: 10px; }
-        .sizing-box span { display: block; color: var(--text-dim); font-size: 8px; text-transform: uppercase; margin-bottom: 2px; }
-        .sizing-box strong { color: var(--gold); }
+        .sizing-box { background: #000000; border: 1px solid var(--white); border-radius: 6px; padding: 8px; margin-bottom: 10px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; text-align: center; font-family: 'JetBrains Mono', monospace; font-size: 10px; box-shadow: var(--glow-white); }
+        .sizing-box span { display: block; color: var(--white-dim); font-size: 8px; text-transform: uppercase; margin-bottom: 2px; }
+        .sizing-box strong { color: var(--neon-green); text-shadow: 0 0 6px rgba(0, 255, 102, 0.5); }
 
-        .btn-bingx { width: 100%; background: linear-gradient(135deg, var(--gold), #92400e); border: none; color: #ffffff; padding: 10px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-weight: 800; font-size: 11px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 4px 12px rgba(180, 83, 9, 0.25); transition: 0.2s; }
-        .btn-bingx:hover { filter: brightness(1.1); }
+        .btn-bingx { width: 100%; background: var(--neon-green); border: 1px solid var(--white); color: #000000; padding: 11px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-weight: 800; font-size: 11px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 0 18px rgba(0, 255, 102, 0.55); transition: 0.2s; }
+        .signal-card.SELL .btn-bingx { background: var(--neon-red); color: var(--white); box-shadow: 0 0 18px rgba(255, 30, 66, 0.55); }
+        .btn-bingx:hover { filter: brightness(1.15); transform: translateY(-1px); }
 
-        .telemetry-box { background: var(--bg-card); border: 1px solid var(--border-gold); border-radius: 8px; padding: 12px; margin-bottom: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.04); }
-        .audit-row { display: flex; justify-content: space-between; background: var(--bg-panel); padding: 6px 10px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 10px; margin-bottom: 6px; border-left: 3px solid var(--gold); border: 1px solid #e2e8f0; }
+        .telemetry-box { background: var(--bg-card); border: 1px solid var(--border-white); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+        .audit-row { display: flex; justify-content: space-between; background: #000000; padding: 6px 10px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 10px; margin-bottom: 6px; border-left: 3px solid var(--neon-green); border: 1px solid var(--border-white); }
 
-        .search-input { width: 100%; background: #ffffff; border: 1px solid var(--border-gold); border-radius: 8px; padding: 10px 14px; color: var(--text-main); font-family: 'JetBrains Mono', monospace; font-size: 12px; outline: none; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
-        .chart-frame { background: #ffffff; border: 1px solid var(--border-gold); border-radius: 8px; height: 380px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.04); }
+        .search-input { width: 100%; background: #000000; border: 1px solid var(--white); border-radius: 8px; padding: 10px 14px; color: var(--white); font-family: 'JetBrains Mono', monospace; font-size: 12px; outline: none; margin-bottom: 10px; box-shadow: var(--glow-white); }
+        .chart-frame { background: #000000; border: 1px solid var(--white); border-radius: 8px; height: 380px; overflow: hidden; box-shadow: var(--glow-white); }
 
-        nav { position: fixed; bottom: 0; left: 0; width: 100%; background: #ffffff; backdrop-filter: blur(12px); border-top: 1px solid var(--border-gold); display: flex; justify-content: space-around; padding: 10px 0; z-index: 1000; box-shadow: 0 -4px 15px rgba(0,0,0,0.05); }
-        nav button { background: none; border: none; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; font-size: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; font-weight: 700; text-transform: uppercase; }
-        nav button.active { color: var(--gold); text-shadow: 0 0 8px rgba(180, 83, 9, 0.3); }
+        nav { position: fixed; bottom: 0; left: 0; width: 100%; background: #000000; border-top: 1px solid var(--white); display: flex; justify-content: space-around; padding: 10px 0; z-index: 1000; box-shadow: 0 -4px 20px rgba(0, 255, 102, 0.12); }
+        nav button { background: none; border: none; color: var(--white-dim); font-family: 'JetBrains Mono', monospace; font-size: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; font-weight: 800; text-transform: uppercase; }
+        nav button.active { color: var(--neon-green); text-shadow: var(--glow-green); }
         nav button svg { width: 20px; height: 20px; fill: currentColor; }
     </style>
 </head>
 <body>
 
     <header>
-        <div>TIER-5 PROP DESK // INSTITUTIONAL SIGNAL TERMINAL</div>
-        <div class="terminal-badge"><div class="dot-live"></div> TIER-5 ALPHA ATTIVO</div>
+        <div>TIER-5 NEON DESK // CYBER INSTITUTIONAL TERMINAL</div>
+        <div class="terminal-badge"><div class="dot-live"></div> NEON ALPHA ATTIVO</div>
     </header>
 
     <div class="ticker-tape">
-        <span>👑 [TIER-5 PROP FEED] Smart Order Routing (SOR) • CVD Divergence & Spoofing Detector • Kelly Criterion Sizing & IV Smile online.</span>
+        <span>⚡ [TIER-5 NEON FEED] Smart Order Routing (SOR) • CVD Divergence & Spoofing Detector • Kelly Criterion Sizing & IV Smile online.</span>
     </div>
 
     <div class="desk-bar">
-        <div class="desk-title">⚡ TIER-5 SALA SEGNALI <span>PROP DESK PRO</span></div>
+        <div class="desk-title">⚡ TIER-5 SALA SEGNALI <span>NEON PRO</span></div>
         <div style="display:flex; gap:8px; align-items:center;">
-            <button onclick="toggleAudio()" id="audio-btn" style="background:var(--bg-panel); border:1px solid var(--border-gold); color:var(--green); padding:4px 8px; border-radius:6px; font-family:'JetBrains Mono',monospace; font-size:10px; cursor:pointer; font-weight:bold;">🔊 AUDIO ON</button>
+            <button onclick="toggleAudio()" id="audio-btn" style="background:#000000; border:1px solid var(--neon-green); color:var(--neon-green); padding:4px 8px; border-radius:6px; font-family:'JetBrains Mono',monospace; font-size:10px; cursor:pointer; font-weight:800; box-shadow:var(--glow-green);">🔊 AUDIO ON</button>
             <div class="clock-box" id="live-clock">--:--:--</div>
         </div>
     </div>
@@ -134,7 +137,7 @@
         <div class="risk-panel">
             <div class="risk-header">
                 <span>🛡️ Kelly Criterion & Drawdown Controller</span>
-                <span style="color:var(--green);">Tier-5 Prop Standard</span>
+                <span style="color:var(--neon-green); text-shadow:var(--glow-green);">Tier-5 Neon Standard</span>
             </div>
             <div class="risk-grid">
                 <div class="risk-field">
@@ -166,29 +169,29 @@
         </div>
 
         <div id="signals-container">
-            <div style="text-align:center; padding:30px; color:var(--gold); font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:bold;">
-                ⚡ Connessione ai flussi Tier-5 Prop Desk in corso...
+            <div style="text-align:center; padding:30px; color:var(--neon-green); font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:800; text-shadow:var(--glow-green);">
+                ⚡ Connessione ai flussi Tier-5 Neon Desk in corso...
             </div>
         </div>
     </div>
 
     <!-- TAB 2: TELEMETRIA & AUDIT -->
     <div id="tab-storico" class="tab-content">
-        <div style="font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--gold); margin-bottom:10px; font-weight:800; text-transform:uppercase;">🏆 Tier-5 Telemetria & Registro Audit</div>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--white); margin-bottom:10px; font-weight:800; text-transform:uppercase; text-shadow:var(--glow-white);">⚡ Tier-5 Telemetria & Registro Audit</div>
         <div class="risk-panel" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; text-align:center;">
             <div>
-                <span style="font-size:9px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">SEGNALI ATTIVI</span>
-                <strong id="active-count" style="font-size:16px; color:var(--text-main); font-family:'JetBrains Mono',monospace;">0</strong>
+                <span style="font-size:9px; color:var(--white-dim); font-family:'JetBrains Mono',monospace;">SEGNALI ATTIVI</span>
+                <strong id="active-count" style="font-size:16px; color:var(--white); font-family:'JetBrains Mono',monospace; text-shadow:var(--glow-white);">0</strong>
             </div>
             <div>
-                <span style="font-size:9px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">STATO FIREWALL</span>
-                <strong style="font-size:13px; color:var(--green); font-family:'JetBrains Mono',monospace;">ATTIVO (0 FAKE)</strong>
+                <span style="font-size:9px; color:var(--white-dim); font-family:'JetBrains Mono',monospace;">STATO FIREWALL</span>
+                <strong style="font-size:13px; color:var(--neon-green); font-family:'JetBrains Mono',monospace; text-shadow:var(--glow-green);">ATTIVO (0 FAKE)</strong>
             </div>
         </div>
         <div class="telemetry-box">
-            <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--gold); margin-bottom:8px; font-weight:bold;">REGISTRO ESECUZIONE MULTI-ASSET TIER-5</div>
+            <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--white); margin-bottom:8px; font-weight:800;">REGISTRO ESECUZIONE MULTI-ASSET TIER-5</div>
             <div id="audit-log-container">
-                <p style="text-align:center; padding:20px; font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">In attesa di eventi di esecuzione...</p>
+                <p style="text-align:center; padding:20px; font-size:11px; color:var(--white-dim); font-family:'JetBrains Mono',monospace;">In attesa di eventi di esecuzione...</p>
             </div>
         </div>
     </div>
@@ -234,7 +237,9 @@
             audioEnabled = !audioEnabled;
             const btn = document.getElementById('audio-btn');
             btn.innerText = audioEnabled ? '🔊 AUDIO ON' : '🔇 MUTO';
-            btn.style.color = audioEnabled ? 'var(--green)' : 'var(--red)';
+            btn.style.color = audioEnabled ? 'var(--neon-green)' : 'var(--neon-red)';
+            btn.style.borderColor = audioEnabled ? 'var(--neon-green)' : 'var(--neon-red)';
+            btn.style.boxShadow = audioEnabled ? 'var(--glow-green)' : 'var(--glow-red)';
         }
 
         function speakAlert(text) {
@@ -283,9 +288,9 @@
                 const auditContainer = document.getElementById('audit-log-container');
                 if (currentSignals.length > 0) {
                     auditContainer.innerHTML = currentSignals.map(s => `
-                        <div class="audit-row">
-                            <span><strong>${s.name}</strong> • ${s.action} (${s.execution_algo.split(' ')[0]})</span>
-                            <span style="color:var(--gold);">${s.timestamp}</span>
+                        <div class="audit-row" style="border-left-color: ${s.action === 'BUY' ? 'var(--neon-green)' : 'var(--neon-red)'};">
+                            <span><strong>${s.name}</strong> • <strong style="color:${s.action === 'BUY' ? 'var(--neon-green)' : 'var(--neon-red)'};">${s.action}</strong> (${s.execution_algo.split(' ')[0]})</span>
+                            <span style="color:var(--white);">${s.timestamp}</span>
                         </div>
                     `).join('');
                 }
@@ -293,8 +298,8 @@
                 renderSignals();
             } catch (e) {
                 document.getElementById('signals-container').innerHTML = `
-                    <div style="background:var(--bg-card); border:1px solid var(--red); border-radius:8px; padding:20px; text-align:center;">
-                        <p style="color:var(--red); font-family:'JetBrains Mono',monospace; font-size:11px;">Errore di sincronizzazione flussi Tier-5...</p>
+                    <div style="background:var(--bg-card); border:1px solid var(--neon-red); border-radius:8px; padding:20px; text-align:center; box-shadow:var(--glow-red);">
+                        <p style="color:var(--neon-red); font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:bold;">Errore di sincronizzazione flussi Tier-5...</p>
                     </div>`;
             }
         }
@@ -311,9 +316,9 @@
 
             if (!filtered || filtered.length === 0) {
                 container.innerHTML = `
-                    <div style="background:var(--bg-card); border:1px solid var(--border-gold); border-radius:10px; padding:25px; text-align:center;">
-                        <p style="color:var(--gold); font-family:'JetBrains Mono',monospace; font-weight:800; font-size:12px; margin-bottom:4px;">👑 TIER-5 PROP DESK IN ATTESA DI SETUP</p>
-                        <p style="color:var(--text-dim); font-size:10px; font-family:'JetBrains Mono',monospace;">Filtri anti-whipsaw, SOR e CVD attivi su tutti i mercati.</p>
+                    <div style="background:var(--bg-card); border:1px solid var(--white); border-radius:10px; padding:25px; text-align:center; box-shadow:var(--glow-white);">
+                        <p style="color:var(--white); font-family:'JetBrains Mono',monospace; font-weight:800; font-size:12px; margin-bottom:4px; text-shadow:var(--glow-white);">⚡ TIER-5 NEON DESK IN ATTESA DI SETUP</p>
+                        <p style="color:var(--white-dim); font-size:10px; font-family:'JetBrains Mono',monospace;">Filtri anti-whipsaw, SOR e CVD attivi su tutti i mercati.</p>
                     </div>`;
                 return;
             }
@@ -323,26 +328,26 @@
                     <div class="card-top">
                         <div>
                             <div class="asset-name">${s.name} <span class="ai-score-pill">AI ${s.ai_score}</span></div>
-                            <div class="card-meta">MERCATO: <strong style="color:var(--gold);">${s.category}</strong> | PREZZO: <strong style="color:var(--text-main); font-family:'JetBrains Mono',monospace;">${s.price}</strong></div>
+                            <div class="card-meta">MERCATO: <strong style="color:var(--white);">${s.category}</strong> | PREZZO: <strong style="color:var(--white); font-family:'JetBrains Mono',monospace;">${s.price}</strong></div>
                         </div>
                         <div class="action-badge ${s.action}">${s.action}</div>
                     </div>
 
                     <div class="market-status-strip">
                         <span>🕒 SESSIONE: <strong>${s.market_status}</strong></span>
-                        <span style="color:var(--text-dim); font-size:9px;">${s.market_schedule}</span>
+                        <span style="color:var(--white-dim); font-size:9px;">${s.market_schedule}</span>
                     </div>
 
-                    <div class="sentiment-banner" style="border-color: ${s.sentiment_color};">
+                    <div class="sentiment-banner" style="border-color: ${s.sentiment_color}; box-shadow: 0 0 12px ${s.sentiment_color}40;">
                         <div class="sentiment-title">
                             <span>📊 SENTIMENT PROP-DESK</span>
-                            <span style="color: ${s.sentiment_color}; font-weight: 800;">${s.sentiment_pct}% CONVINZIONE</span>
+                            <span style="color: ${s.sentiment_color}; font-weight: 800; text-shadow: 0 0 8px ${s.sentiment_color};">${s.sentiment_pct}% CONVINZIONE</span>
                         </div>
                         <div class="sentiment-value-box">
-                            <span style="color: ${s.sentiment_color};">${s.sentiment}</span>
+                            <span style="color: ${s.sentiment_color}; text-shadow: 0 0 8px ${s.sentiment_color};">${s.sentiment}</span>
                         </div>
                         <div class="sentiment-meter">
-                            <div class="sentiment-fill" style="width: ${s.sentiment_pct}%; background: ${s.sentiment_color};"></div>
+                            <div class="sentiment-fill" style="width: ${s.sentiment_pct}%; background: ${s.sentiment_color}; box-shadow: 0 0 10px ${s.sentiment_color};"></div>
                         </div>
                     </div>
 
@@ -353,35 +358,35 @@
                         </div>
                         <div class="mod-box">
                             <span>Smart Order Routing (SOR)</span>
-                            <strong style="color:var(--blue);">${s.execution_algo}</strong>
+                            <strong style="color:var(--neon-green);">${s.execution_algo}</strong>
                         </div>
                     </div>
 
                     <div class="mod-row">
                         <div class="mod-box">
                             <span>CVD Divergence (Volume)</span>
-                            <strong style="color:var(--gold);">${s.cvd_divergence}</strong>
+                            <strong style="color:var(--white);">${s.cvd_divergence}</strong>
                         </div>
                         <div class="mod-box">
                             <span>HFT Spoofing Detector</span>
-                            <strong style="color:var(--green);">${s.spoofing_detector}</strong>
+                            <strong style="color:var(--neon-green);">${s.spoofing_detector}</strong>
                         </div>
                     </div>
 
                     <div class="mod-row">
                         <div class="mod-box">
                             <span>IV Smile (Volatilità)</span>
-                            <strong style="color:var(--purple);">${s.iv_smile}</strong>
+                            <strong style="color:var(--white);">${s.iv_smile}</strong>
                         </div>
                         <div class="mod-box">
                             <span>Kelly Criterion Sizing</span>
-                            <strong style="color:var(--gold);">${s.kelly_criterion}</strong>
+                            <strong style="color:var(--neon-green);">${s.kelly_criterion}</strong>
                         </div>
                     </div>
 
                     <div class="full-strip">
-                        <span style="color:var(--blue);">📈 Confluenza Multi-TF (MTC):</span>
-                        <strong>${s.mtc_matrix}</strong>
+                        <span style="color:var(--white);">📈 Confluenza Multi-TF (MTC):</span>
+                        <strong style="color:var(--neon-green);">${s.mtc_matrix}</strong>
                     </div>
 
                     <table class="vip-table">
@@ -395,32 +400,32 @@
                         <tbody>
                             <tr>
                                 <td>Market Profile (POC)</td>
-                                <td style="color:var(--gold); font-weight:bold;">${s.poc_price}</td>
-                                <td>Value Area Active</td>
+                                <td style="color:var(--white); font-weight:bold;">${s.poc_price}</td>
+                                <td style="color:var(--neon-green);">Value Area Active</td>
                             </tr>
                             <tr>
                                 <td>Order Book DOM</td>
-                                <td style="color:var(--blue);">${s.dom_status}</td>
-                                <td>Sbilanciato</td>
+                                <td style="color:var(--white);">${s.dom_status}</td>
+                                <td style="color:var(--neon-green);">Sbilanciato</td>
                             </tr>
                             <tr>
                                 <td>Footprint Delta</td>
-                                <td style="color:var(--gold); font-weight:bold;">${s.footprint_delta}</td>
-                                <td>Confermato</td>
+                                <td style="color:${s.action === 'BUY' ? 'var(--neon-green)' : 'var(--neon-red)'}; font-weight:bold;">${s.footprint_delta}</td>
+                                <td style="color:var(--white);">Confermato</td>
                             </tr>
                             <tr>
                                 <td>Fear & Greed Index</td>
-                                <td style="color:var(--gold);">${s.fear_greed}</td>
-                                <td>Estremo</td>
+                                <td style="color:var(--white);">${s.fear_greed}</td>
+                                <td style="color:var(--neon-red);">Estremo</td>
                             </tr>
                         </tbody>
                     </table>
 
                     <div class="orderbook-box">
                         <div class="ob-header-desc">📊 Sbilanciamento Order Book (Pressione Denaro / Lettera)</div>
-                        <div style="display:flex; justify-content:space-between; margin-bottom:3px; font-weight:600;">
-                            <span style="color:var(--green);">BID (Acquisto): ${s.bid_pressure}%</span>
-                            <span style="color:var(--red);">ASK (Vendita): ${s.ask_pressure}%</span>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:3px; font-weight:800;">
+                            <span style="color:var(--neon-green); text-shadow:0 0 6px rgba(0,255,102,0.5);">BID (Acquisto): ${s.bid_pressure}%</span>
+                            <span style="color:var(--neon-red); text-shadow:0 0 6px rgba(255,30,66,0.5);">ASK (Vendita): ${s.ask_pressure}%</span>
                         </div>
                         <div class="ob-bars">
                             <div class="ob-bid" style="width: ${s.bid_pressure}%;"></div>
@@ -428,40 +433,40 @@
                         </div>
                     </div>
 
-                    <div class="full-strip" style="border-color:rgba(220,38,38,0.2);">
-                        <span style="color:var(--red);">🪤 Caccia agli Stop (Liquidity Sweep):</span>
-                        <strong>${s.liquidity_sweep}</strong>
+                    <div class="full-strip" style="border-color:rgba(255,30,66,0.45);">
+                        <span style="color:var(--neon-red);">🪤 Caccia agli Stop (Liquidity Sweep):</span>
+                        <strong style="color:var(--white);">${s.liquidity_sweep}</strong>
                     </div>
 
-                    <div class="full-strip" style="border-color:rgba(220,38,38,0.4);">
-                        <span style="color:var(--red);">⚡ Mappa Cascate Liquidazioni:</span>
-                        <strong>${s.liquidation_cascade}</strong>
+                    <div class="full-strip" style="border-color:rgba(255,30,66,0.65);">
+                        <span style="color:var(--neon-red);">⚡ Mappa Cascate Liquidazioni:</span>
+                        <strong style="color:var(--white);">${s.liquidation_cascade}</strong>
                     </div>
 
-                    <div class="full-strip" style="border-color:rgba(124,58,237,0.2);">
-                        <span style="color:var(--purple);">🐋 Rilevatore Iceberg / Ordini Nascosti:</span>
-                        <strong>${s.iceberg_tracker}</strong>
+                    <div class="full-strip" style="border-color:rgba(255,255,255,0.3);">
+                        <span style="color:var(--white);">🐋 Rilevatore Iceberg / Ordini Nascosti:</span>
+                        <strong style="color:var(--neon-green);">${s.iceberg_tracker}</strong>
                     </div>
 
-                    <div class="full-strip" style="border-color:rgba(2,132,199,0.2);">
-                        <span style="color:var(--blue);">🤖 Tier-5 ASB Agent (Analisi AI):</span>
-                        <strong>${s.ai_agent_note}</strong>
+                    <div class="full-strip" style="border-color:rgba(0,255,102,0.35);">
+                        <span style="color:var(--neon-green);">🤖 Tier-5 ASB Agent (Analisi AI):</span>
+                        <strong style="color:var(--white);">${s.ai_agent_note}</strong>
                     </div>
 
-                    <div class="projection-box" style="background:var(--bg-panel); border:1px solid rgba(180,83,9,0.2); border-radius:6px; padding:8px; margin-bottom:8px; display:flex; justify-content:space-between; font-family:'JetBrains Mono',monospace; font-size:10px;">
+                    <div class="projection-box" style="background:#000000; border:1px solid var(--white); border-radius:6px; padding:8px; margin-bottom:8px; display:flex; justify-content:space-between; font-family:'JetBrains Mono',monospace; font-size:10px;">
                         <div>
-                            <span style="color:var(--text-dim); font-size:8px; display:block;">TARGET MASSIMO</span>
-                            <strong style="color:var(--gold);">${s.max_target}</strong>
+                            <span style="color:var(--white-dim); font-size:8px; display:block;">TARGET MASSIMO</span>
+                            <strong style="color:var(--neon-green); text-shadow:0 0 6px rgba(0,255,102,0.5);">${s.max_target}</strong>
                         </div>
                         <div style="text-align:right;">
-                            <span style="color:var(--text-dim); font-size:8px; display:block;">STOP INVALIDAZIONE</span>
-                            <strong style="color:var(--red);">${s.max_invalidation}</strong>
+                            <span style="color:var(--white-dim); font-size:8px; display:block;">STOP INVALIDAZIONE</span>
+                            <strong style="color:var(--neon-red); text-shadow:0 0 6px rgba(255,30,66,0.5);">${s.max_invalidation}</strong>
                         </div>
                     </div>
 
-                    <div class="full-strip" style="border-color:rgba(2,132,199,0.2);">
-                        <span style="color:var(--blue);">📊 Monitoraggio Progresso verso Target:</span>
-                        <strong style="color:var(--gold);">${s.progress_pct}% Completato</strong>
+                    <div class="full-strip" style="border-color:rgba(255,255,255,0.3);">
+                        <span style="color:var(--white);">📊 Monitoraggio Progresso verso Target:</span>
+                        <strong style="color:var(--neon-green);">${s.progress_pct}% Completato</strong>
                     </div>
 
                     <table class="vip-table" style="margin-bottom:8px;">
@@ -474,23 +479,23 @@
                         </thead>
                         <tbody>
                             <tr>
-                                <td style="color:var(--gold); font-weight:bold;">INGRESSO LIVE</td>
-                                <td style="color:var(--gold); font-weight:bold;">${s.entry}</td>
+                                <td style="color:var(--white); font-weight:bold;">INGRESSO LIVE</td>
+                                <td style="color:var(--white); font-weight:bold; text-shadow:var(--glow-white);">${s.entry}</td>
                                 <td>Market Entry</td>
                             </tr>
                             <tr>
-                                <td style="color:var(--red);">STOP LOSS (SL)</td>
-                                <td style="color:var(--red); font-weight:bold;">${s.sl}</td>
+                                <td style="color:var(--neon-red);">STOP LOSS (SL)</td>
+                                <td style="color:var(--neon-red); font-weight:bold;">${s.sl}</td>
                                 <td>Rischio Controllato</td>
                             </tr>
                             <tr>
-                                <td style="color:var(--green);">TAKE PROFIT 1</td>
-                                <td style="color:var(--green);">${s.tp1}</td>
+                                <td style="color:var(--neon-green);">TAKE PROFIT 1</td>
+                                <td style="color:var(--neon-green); font-weight:bold;">${s.tp1}</td>
                                 <td>Sposta SL a Break-Even (${s.breakeven})</td>
                             </tr>
                             <tr>
-                                <td style="color:var(--green);">TAKE PROFIT 2 & 3</td>
-                                <td style="color:var(--green);">${s.tp2} / ${s.tp3}</td>
+                                <td style="color:var(--neon-green);">TAKE PROFIT 2 & 3</td>
+                                <td style="color:var(--neon-green); font-weight:bold;">${s.tp2} / ${s.tp3}</td>
                                 <td>Trailing Profit</td>
                             </tr>
                         </tbody>
@@ -503,14 +508,14 @@
                     </div>
 
                     <button class="btn-bingx" onclick="copyBingX('${s.name}', '${s.action}', '${s.entry}', '${s.sl}', '${s.tp1}', '${s.tp2}', '${s.tp3}', '${s.max_target}', '${s.timestamp}', '${s.leverage}', '${s.position_size}', '${s.breakeven}')">
-                        👑 COPIA ORDINE TIER-5 BINGX PRO
+                        ⚡ COPIA ORDINE TIER-5 BINGX PRO
                     </button>
                 </div>
             `).join('');
         }
 
         function copyBingX(name, action, entry, sl, tp1, tp2, tp3, maxTarget, timestamp, lev, size, be) {
-            const text = `👑 SEGNALE TIER-5 PROP DESK - BINGX\nOrario: ${timestamp}\nAsset: ${name}\nDirezione: ${action}\nTarget Massimo: ${maxTarget}\nSposta SL in Break-Even a: ${be}\nLeva: ${lev}\nSize: ${size}\nIngresso: ${entry}\nStop Loss: ${sl}\nTP1: ${tp1}\nTP2: ${tp2}\nTP3: ${tp3}`;
+            const text = `⚡ SEGNALE TIER-5 NEON DESK - BINGX\nOrario: ${timestamp}\nAsset: ${name}\nDirezione: ${action}\nTarget Massimo: ${maxTarget}\nSposta SL in Break-Even a: ${be}\nLeva: ${lev}\nSize: ${size}\nIngresso: ${entry}\nStop Loss: ${sl}\nTP1: ${tp1}\nTP2: ${tp2}\nTP3: ${tp3}`;
             navigator.clipboard.writeText(text);
             alert('✅ Ordine institutional Tier-5 copiato negli appunti per BingX!');
         }
@@ -555,8 +560,8 @@
 
             new TradingView.widget({
                 "autosize": true, "symbol": tvSymbol, "interval": "15",
-                "timezone": "Europe/Rome", "theme": "light", "style": "1", "locale": "it",
-                "toolbar_bg": "#f8fafc", "enable_publishing": false, "container_id": "tradingview_widget"
+                "timezone": "Europe/Rome", "theme": "dark", "style": "1", "locale": "it",
+                "toolbar_bg": "#030305", "enable_publishing": false, "container_id": "tradingview_widget"
             });
         }
 
