@@ -129,6 +129,40 @@ def execute_bingx_order(symbol, side, position_side, quantity, stop_loss=None, t
     except Exception as e:
         return {"status": "ERROR", "msg": str(e)}
 
+def manage_auto_execution(signal):
+    """Esegue l'ordine su BingX se AUTO-TRADE è attivo e non ci sono posizioni aperte su quel simbolo."""
+    if not auto_trade_active:
+        return
+
+    symbol = signal['symbol']
+    action = signal['action']
+    
+    if action in ["BUY", "SELL"]:
+        try:
+            real_positions = fetch_bingx_real_positions()
+            already_open = any(p['symbol'] == symbol for p in real_positions)
+            
+            if not already_open:
+                qty = float(signal['position_size'])
+                pos_side = "LONG" if action == "BUY" else "SHORT"
+                
+                exec_res = execute_bingx_order(
+                    symbol=symbol, side=action, position_side=pos_side,
+                    quantity=qty, stop_loss=signal['sl'], take_profit=signal['tp1']
+                )
+                
+                if exec_res.get("status") in ["LIVE_FILLED", "PAPER_FILLED"]:
+                    send_telegram_message(
+                        f"🔴 *ORDINE GLOBALE ESEGUITO SU BINGX* 🔴\n\n"
+                        f"Asset: `{signal['name']}`\n"
+                        f"Segnale: *{action}* ({signal['leverage']})\n"
+                        f"Size: `{qty}` | Margine: `${signal['margin']}`\n"
+                        f"Ingresso: `{signal['entry']}`\n"
+                        f"SL: `{signal['sl']}` | TP1: `{signal['tp1']}`"
+                    )
+        except Exception as e:
+            print(f"Errore esecuzione automatica: {e}")
+
 @app.route('/')
 def home():
     return render_template('index.html')
@@ -501,7 +535,6 @@ def get_markets():
 
 def process_asset(cat, a, m_status, mode, balance, risk_pct, timeframe):
     try:
-        # BLOCCO RIGIDO: Se il mercato non è aperto, non calcola né restituisce alcun segnale
         if m_status["status"] != "Aperto":
             scans_telemetry[a['id']] = {
                 "symbol": a['id'],
@@ -564,7 +597,9 @@ def process_asset(cat, a, m_status, mode, balance, risk_pct, timeframe):
                 "timestamp": datetime.now().strftime("%H:%M:%S")
             }
 
+            # RIPRISTINATO: Gestione ed esecuzione automatica ordini su BingX
             if res['action'] != "NEUTRAL" and not res["whipsaw_blocked"]:
+                manage_auto_execution(signal_obj)
                 send_telegram_alert(signal_obj)
                 return signal_obj
     except Exception:
