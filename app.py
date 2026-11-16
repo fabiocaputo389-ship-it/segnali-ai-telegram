@@ -20,7 +20,7 @@ def load_render_environment():
     TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '').strip()
     
     print("========================================")
-    print("⚡ SALA SEGNALI PRO • BINGX SYNC ACTIVE ⚡")
+    print("⚡ SALA SEGNALI PRO • BINGX LIVE SYNC ⚡")
     print(f"🔹 BingX API Key: {'CONFIGURATA ✅' if BINGX_API_KEY else 'NON RILEVATA (Paper Mode)'}")
     print("========================================")
 
@@ -120,6 +120,7 @@ def fetch_bingx_real_positions():
     except Exception: pass
     return [h for h in execution_history if h.get("status") == "OPEN"]
 
+# SINCRONIZZAZIONE AUTOMATICA PROFITTI CHIUSI (ENDPOINT V2 BINGX)
 def sync_bingx_closed_history():
     global execution_history
     if not BINGX_API_KEY or not BINGX_SECRET_KEY:
@@ -128,7 +129,7 @@ def sync_bingx_closed_history():
     query_string = f"incomeType=REALIZED_PNL&limit=50&timestamp={timestamp}"
     signature = sign_bingx_request(query_string)
     try:
-        res = requests.get(f"{BINGX_BASE_URL}/openApi/swap/v1/user/income?{query_string}&signature={signature}", headers={"X-BX-APIKEY": BINGX_API_KEY}, timeout=4.0).json()
+        res = requests.get(f"{BINGX_BASE_URL}/openApi/swap/v2/user/income?{query_string}&signature={signature}", headers={"X-BX-APIKEY": BINGX_API_KEY}, timeout=4.0).json()
         if res.get("code") == 0 and "data" in res:
             for inc in res["data"]:
                 pnl_val = float(inc.get("income", 0.0))
