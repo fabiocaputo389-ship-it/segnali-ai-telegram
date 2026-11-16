@@ -73,8 +73,8 @@ def get_market_session_status(category):
 
 def get_exchange_mode():
     if not BINGX_API_KEY or not BINGX_SECRET_KEY:
-        return "PAPER PROP-DESK (ANALYTICS ACTIVE)"
-    return "🔴 BINGX LIVE REALE (ANALYTICS ACTIVE)"
+        return "PAPER PROP-DESK (ULTRA-FAST LIVE ACTIVE)"
+    return "🔴 BINGX LIVE REALE (ULTRA-FAST LIVE ACTIVE)"
 
 def sign_bingx_request(params_str):
     return hmac.new(BINGX_SECRET_KEY.encode('utf-8'), params_str.encode('utf-8'), hashlib.sha256).hexdigest()
@@ -150,8 +150,7 @@ def home():
 @app.route('/api/autotrade/toggle', methods=['POST'])
 def toggle_autotrade():
     global auto_trade_active
-    data = request.get_json(silent=True) or {}
-    auto_trade_active = bool(data.get('enabled', not auto_trade_active)) if 'enabled' in data else not auto_trade_active
+    auto_trade_active = not auto_trade_active if not request.json or 'enabled' not in request.json else bool(request.json['enabled'])
     save_autotrade(auto_trade_active)
     return jsonify({"auto_trade": auto_trade_active, "mode": get_exchange_mode()})
 
@@ -175,58 +174,44 @@ def close_position():
             return jsonify({"success": True})
     return jsonify({"success": False}), 404
 
+# --- ENDPOINT VELOCE PER PREZZI LIVE IN TEMPO REALE (Ogni 2s) ---
+@app.route('/api/live-prices', methods=['GET'])
+def get_live_prices():
+    try:
+        p_res = requests.get("https://api.binance.com/api/v3/ticker/price", timeout=1.5).json()
+        if isinstance(p_res, list):
+            prices = {item['symbol']: float(item['price']) for item in p_res}
+            return jsonify(prices)
+    except Exception:
+        pass
+    return jsonify({})
+
 @app.route('/api/analytics/performance', methods=['GET'])
 def get_performance_analytics():
     global execution_history
     today_str = datetime.now().strftime("%Y-%m-%d")
     current_month_str = datetime.now().strftime("%Y-%m")
     
-    closed_trades = [h for h in execution_history if h.get("status") == "CLOSED"]
-    
-    # Statistiche Giornaliere
+    closed_trades = [h for h in execution_history if h.get("status"] == "CLOSED")
     today_trades = [h for h in closed_trades if h.get("date") == today_str]
-    today_total = len(today_trades)
-    today_wins = [t for t in today_trades if t.get("realized_pnl", 0) > 0]
-    today_losses = [t for t in today_trades if t.get("realized_pnl", 0) <= 0]
-    today_win_pct = round((len(today_wins) / today_total * 100), 1) if today_total > 0 else 0.0
-    today_loss_pct = round((len(today_losses) / today_total * 100), 1) if today_total > 0 else 0.0
-    today_won_amt = sum(t.get("realized_pnl", 0) for t in today_wins)
-    today_lost_amt = sum(t.get("realized_pnl", 0) for t in today_losses)
-    
-    # Statistiche Mensili (Report per il mese)
     month_trades = [h for h in closed_trades if h.get("month") == current_month_str]
-    month_total = len(month_trades)
-    month_wins = [t for t in month_trades if t.get("realized_pnl", 0) > 0]
-    month_losses = [t for t in month_trades if t.get("realized_pnl", 0) <= 0]
-    month_win_pct = round((len(month_wins) / month_total * 100), 1) if month_total > 0 else 0.0
-    month_loss_pct = round((len(month_losses) / month_total * 100), 1) if month_total > 0 else 0.0
-    month_won_amt = sum(t.get("realized_pnl", 0) for t in month_wins)
-    month_lost_amt = sum(t.get("realized_pnl", 0) for t in month_losses)
-    month_net = sum(t.get("realized_pnl", 0) for t in month_trades)
     
+    def calc_stats(trades):
+        total = len(trades)
+        wins = [t for t in trades if t.get("realized_pnl", 0) > 0]
+        losses = [t for t in trades if t.get("realized_pnl", 0) <= 0]
+        win_pct = round((len(wins) / total * 100), 1) if total > 0 else 0.0
+        loss_pct = round((len(losses) / total * 100), 1) if total > 0 else 0.0
+        won_amt = sum(t.get("realized_pnl", 0) for t in wins)
+        lost_amt = sum(t.get("realized_pnl", 0) for t in losses)
+        return total, len(wins), len(losses), win_pct, loss_pct, round(won_amt, 2), round(lost_amt, 2), round(won_amt + lost_amt, 2)
+
+    t_tot, t_w, t_l, t_wp, t_lp, t_won, t_lost, t_net = calc_stats(today_trades)
+    m_tot, m_w, m_l, m_wp, m_lp, m_won, m_lost, m_net = calc_stats(month_trades)
+
     return jsonify({
-        "daily": {
-            "date": today_str,
-            "total_trades": today_total,
-            "wins": len(today_wins),
-            "losses": len(today_losses),
-            "win_pct": today_win_pct,
-            "loss_pct": today_loss_pct,
-            "won_amount": round(today_won_amt, 2),
-            "lost_amount": round(today_lost_amt, 2),
-            "net_pnl": round(today_won_amt + today_lost_amt, 2)
-        },
-        "monthly": {
-            "month": current_month_str,
-            "total_trades": month_total,
-            "wins": len(month_wins),
-            "losses": len(month_losses),
-            "win_pct": month_win_pct,
-            "loss_pct": month_loss_pct,
-            "won_amount": round(month_won_amt, 2),
-            "lost_amount": round(month_lost_amt, 2),
-            "net_pnl": round(month_net, 2)
-        }
+        "daily": {"date": today_str, "total_trades": t_tot, "wins": t_w, "losses": t_l, "win_pct": t_wp, "loss_pct": t_lp, "won_amount": t_won, "lost_amount": t_lost, "net_pnl": t_net},
+        "monthly": {"month": current_month_str, "total_trades": m_tot, "wins": m_w, "losses": m_l, "win_pct": m_wp, "loss_pct": m_lp, "won_amount": m_won, "lost_amount": m_lost, "net_pnl": m_net}
     })
 
 @app.route('/api/telemetry', methods=['GET'])
@@ -411,7 +396,7 @@ def get_signals():
 
         scans_telemetry[time.time()] = {
             "timestamp": datetime.now().strftime("%H:%M:%S"),
-            "scanned": len(signals), "status": "ANALYTICS_ACTIVE"
+            "scanned": len(signals), "status": "ULTRA_FAST_LIVE_SYNC"
         }
 
         return jsonify({"sessions": session_info, "signals": signals})
