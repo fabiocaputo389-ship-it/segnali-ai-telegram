@@ -21,11 +21,15 @@ BINGX_SECRET_KEY = os.environ.get('BINGX_SECRET_KEY', '')
 BINGX_USE_TESTNET = False  
 BINGX_BASE_URL = "https://open-api.bingx.com"
 
-# Stato Globale
+# Stato Globale Prop-Desk & Protezione Istituzionale
 auto_trade_active = False
 execution_history = []
 sent_telegram_signals = set()
 scans_telemetry = {}
+
+# Parametri Circuit Breaker Prop-Desk
+DAILY_MAX_DRAWDOWN_USD = 10.0  # Blocco automatico di emergenza in caso di drawdown critico
+session_realized_pnl = 0.0
 
 def get_exchange_mode():
     if not BINGX_API_KEY or not BINGX_SECRET_KEY:
@@ -55,6 +59,7 @@ def format_bingx_symbol(symbol):
     return f"{symbol}-USDT"
 
 def fetch_bingx_real_positions():
+    """Interroga direttamente le API BingX per estrarre le posizioni aperte reali."""
     if not BINGX_API_KEY or not BINGX_SECRET_KEY:
         return []
 
@@ -85,7 +90,7 @@ def fetch_bingx_real_positions():
                         "breakeven": 0.0,
                         "be_moved": False,
                         "size": abs(amt),
-                        "leverage": f"Isolata {p.get('leverage', 5)}x",
+                        "leverage": f"Isolata {p.get('leverage', 10)}x",
                         "margin": float(p.get("initialMargin", 0)),
                         "unrealized_pnl": round(float(p.get("unrealizedProfit", 0)), 2),
                         "order_id": p.get("positionId", "LIVE"),
@@ -129,8 +134,21 @@ def execute_bingx_order(symbol, side, position_side, quantity, stop_loss=None, t
     except Exception as e:
         return {"status": "ERROR", "msg": str(e)}
 
+def check_circuit_breaker():
+    """Controlla se il limite di drawdown giornaliero è stato superato."""
+    global auto_trade_active, session_realized_pnl
+    if session_realized_pnl <= -DAILY_MAX_DRAWDOWN_USD:
+        auto_trade_active = False
+        send_telegram_message("🚨 *CIRCUIT BREAKER ATTIVATO* 🚨\nSoglia di perdita giornaliera raggiunta. Auto-Trade disattivato per protezione capitale.")
+        return True
+    return False
+
 def manage_auto_execution(signal):
+    global auto_trade_active
     if not auto_trade_active:
+        return
+
+    if check_circuit_breaker():
         return
 
     symbol = signal['symbol']
@@ -152,9 +170,10 @@ def manage_auto_execution(signal):
                 
                 if exec_res.get("status") in ["LIVE_FILLED", "PAPER_FILLED"]:
                     send_telegram_message(
-                        f"🔴 *ORDINE GLOBALE ESEGUITO SU BINGX* 🔴\n\n"
+                        f"🏛 *SALA SEGNALI PRO • ESECUZIONE LIVE* 🏛\n\n"
                         f"Asset: `{signal['name']}`\n"
                         f"Segnale: *{action}* ({signal['leverage']})\n"
+                        f"Previsione Inversione: `{signal['inversion_prediction']}`\n"
                         f"Size: `{qty}` | Margine: `${signal['margin']}`\n"
                         f"Ingresso: `{signal['entry']}`\n"
                         f"SL: `{signal['sl']}` | TP1: `{signal['tp1']}`"
@@ -195,6 +214,7 @@ def get_telemetry_scans():
 
 @app.route('/api/autotrade/close', methods=['POST'])
 def manual_close_position():
+    global session_realized_pnl
     data = request.get_json(silent=True) or {}
     symbol = data.get('symbol')
     if symbol:
@@ -205,10 +225,13 @@ def manual_close_position():
             pos_side = "LONG" if target['action'] == "BUY" else "SHORT"
             exec_res = execute_bingx_order(symbol, close_side, pos_side, target['size'])
             
+            pnl = target['unrealized_pnl']
+            session_realized_pnl += pnl
+
             record = {
                 "symbol": symbol, "name": target['name'], "action": target['action'],
                 "entry": target['entry'], "exit": target['current_price'], "size": target['size'],
-                "pnl": target['unrealized_pnl'], "pnl_pct": 0.0,
+                "pnl": pnl, "pnl_pct": 0.0,
                 "reason": "Chiusura Manuale Operatore da Desk", "mode": exec_res["status"],
                 "closed_at": datetime.now().strftime("%H:%M:%S")
             }
@@ -248,33 +271,26 @@ def fetch_all_markets():
 
 def get_market_status(category):
     now = datetime.now(timezone.utc)
-    weekday = now.weekday()  # 0=Lunedì, 5=Sabato, 6=Domenica
+    weekday = now.weekday()
     hour = now.hour
     minute = now.minute
 
     if category == "Criptovalute":
         return {"status": "Aperto", "text": "🟢 H24 Institutional Feed", "schedule": "Mercato Continuo • H24"}
-    
     elif category == "Materie Prime & Forex":
-        # Forex e Oro: Aperto da Domenica 22:00 UTC a Venerdì 21:00 UTC
-        if weekday == 5:  # Sabato
+        if weekday == 5 or (weekday == 6 and hour < 22):
             return {"status": "Chiuso", "text": "🔴 Chiuso (Weekend Sabato)", "schedule": "Riapertura Dom 22:00 UTC"}
-        elif weekday == 6 and hour < 22:  # Domenica prima delle 22:00 UTC
-            return {"status": "Chiuso", "text": "🔴 Chiuso (Weekend Domenica)", "schedule": "Riapertura Dom 22:00 UTC"}
-        elif weekday == 4 and hour >= 21:  # Venerdì dopo le 21:00 UTC
+        elif weekday == 4 and hour >= 21:
             return {"status": "Chiuso", "text": "🔴 Chiuso (Chiusura Weekend)", "schedule": "Riapertura Dom 22:00 UTC"}
         else:
             return {"status": "Aperto", "text": "🟢 Forex & Gold Live ECN", "schedule": "Sessione Globale Attiva"}
-            
     elif category == "Azioni & Indici":
-        # Wall Street: Lunedì - Venerdì, dalle 14:30 UTC alle 21:00 UTC
-        if weekday >= 5:  # Sabato o Domenica
+        if weekday >= 5:
             return {"status": "Chiuso", "text": "🔴 Chiuso (Weekend Wall St)", "schedule": "Riapertura Lunedì 14:30 UTC"}
         elif hour < 14 or (hour == 14 and minute < 30) or hour >= 21:
             return {"status": "Chiuso", "text": "🔴 Fuori Orario Wall Street", "schedule": "Sessione: 14:30 - 21:00 UTC"}
         else:
             return {"status": "Aperto", "text": "🟢 Wall Street Live ECN", "schedule": "Aperto fino alle 21:00 UTC"}
-            
     return {"status": "Aperto", "text": "🟢 Desk Live", "schedule": "Operativo"}
 
 def safe_float(val, default=0.0):
@@ -337,6 +353,7 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
     macd_signal = macd_line.ewm(span=9, adjust=False).mean()
     macd_hist = macd_line - macd_signal
     current_macd = safe_float(macd_hist.iloc[-1], 0.0)
+    prev_macd = safe_float(macd_hist.iloc[-2], 0.0)
 
     tr = pd.concat([df['High'] - df['Low'], np.abs(df['High'] - close.shift()), np.abs(df['Low'] - close.shift())], axis=1).max(axis=1)
     atr = safe_float(tr.rolling(14).mean().iloc[-1], current_price * 0.005)
@@ -366,6 +383,18 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
 
     ema_val_12 = safe_float(ema12.iloc[-1], current_price)
     ema_val_26 = safe_float(ema26.iloc[-1], current_price)
+
+    # --- ALGORITMO DI PREVISIONE INVERSIONE (REVERSAL PREDICTION ENGINE) ---
+    if rsi >= 74 and current_macd < prev_macd:
+        inversion_prediction = "⚠️ Imminente Inversione RIBASSISTA (Esaurimento Buyer)"
+    elif rsi <= 26 and current_macd > prev_macd:
+        inversion_prediction = "🚀 Imminente Inversione RIALZISTA (Esaurimento Seller)"
+    elif rsi > 68:
+        inversion_prediction = "⚡ Zona di Resistenza / Possibile Rimbalzo Inverso"
+    elif rsi < 32:
+        inversion_prediction = "⚡ Zona di Supporto / Possibile Rimbalzo Inverso"
+    else:
+        inversion_prediction = "🛡️ Trend Istituzionale Stabile (Nessuna Inversione)"
 
     is_buy = (ema_val_12 > ema_val_26) and (current_macd > 0.0) and (50 <= rsi <= 72) and not whipsaw_detected
     is_sell = (ema_val_12 < ema_val_26) and (current_macd < 0.0) and (28 <= rsi <= 50) and not whipsaw_detected
@@ -527,6 +556,7 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
         "macro_watchdog": macro_watchdog, "cvd_divergence": cvd_divergence,
         "spoofing_detector": spoofing_detector, "iv_smile": iv_smile, "kelly_criterion": kelly_criterion,
         "tape_speed": tape_speed, "ai_agent_note": ai_agent_note,
+        "inversion_prediction": inversion_prediction,
         "entry": round(entry, decimals), "sl": sl, "tp1": tp1, "tp2": tp2, "tp3": tp3,
         "max_target": max_target, "max_invalidation": max_invalidation,
         "rrr": rrr, "decimals": decimals, "rsi": round(rsi, 1),
@@ -570,7 +600,7 @@ def process_asset(cat, a, m_status, mode, balance, risk_pct, timeframe):
                 "price": f"{current_price:.{dec}f}",
                 "action": res['action'],
                 "ai_score": f"{res['ai_score']}%",
-                "whipsaw": "🚨 Whipsaw Bloccato" if res["whipsaw_blocked"] else "🟢 Flusso Pulito",
+                "whipsaw": res['inversion_prediction'],
                 "timestamp": datetime.now().strftime("%H:%M:%S")
             }
 
@@ -590,6 +620,7 @@ def process_asset(cat, a, m_status, mode, balance, risk_pct, timeframe):
                 "spoofing_detector": res["spoofing_detector"], "iv_smile": res["iv_smile"],
                 "kelly_criterion": res["kelly_criterion"], "tape_speed": res["tape_speed"],
                 "ai_agent_note": res["ai_agent_note"],
+                "inversion_prediction": res["inversion_prediction"],
                 "change": f"{change:+.2f}%", "price": f"{current_price:.{dec}f}", 
                 "ai_score": f"{res['ai_score']}%", "entry": f"{res['entry']}", "sl": res["sl"], 
                 "tp1": res["tp1"], "tp2": res["tp2"], "tp3": res["tp3"],
@@ -606,9 +637,10 @@ def process_asset(cat, a, m_status, mode, balance, risk_pct, timeframe):
             if res['action'] != "NEUTRAL" and not res["whipsaw_blocked"]:
                 manage_auto_execution(signal_obj)
                 send_telegram_message(
-                    f"🚨 *SEGNALE MERCATO GLOBALE (REALE)* 🚨\n\n"
+                    f"🏛 *SALA SEGNALI PRO • SEGNALE ELITE* 🏛\n\n"
                     f"🟢 *Asset*: `{signal_obj['name']}` ({signal_obj['category']})\n"
                     f"📊 *Direzione*: *{signal_obj['action']}*\n"
+                    f"🔄 *Previsione Inversione*: `{signal_obj['inversion_prediction']}`\n"
                     f"💰 *Ingresso Live*: `{signal_obj['entry']}`\n"
                     f"🎯 *Target Max*: `{signal_obj['max_target']}`\n"
                     f"🛑 *Stop Loss*: `{signal_obj['sl']}`\n"
