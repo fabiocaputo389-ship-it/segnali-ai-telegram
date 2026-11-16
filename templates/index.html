@@ -36,13 +36,16 @@
         .tab-content { display: none; }
         .tab-content.active { display: block; }
 
-        /* INTESTAZIONI CATEGORIE BORSE */
+        /* TABELLA PARAMETRI ISTITUZIONALI */
+        .institutional-table { width: 100%; border-collapse: collapse; background: var(--bg-panel); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); margin-bottom: 25px; }
+        .institutional-table th, .institutional-table td { padding: 12px 16px; text-align: left; font-size: 0.85rem; font-family: 'JetBrains Mono', monospace; border-bottom: 1px solid var(--border-color); }
+        .institutional-table th { background: rgba(255,255,255,0.03); color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; }
+        .status-badge { padding: 4px 10px; border-radius: 4px; font-weight: 800; font-size: 0.75rem; }
+
         .category-block { margin-bottom: 30px; }
         .category-header { background: var(--bg-panel); border: 1px solid var(--border-color); border-left: 4px solid var(--accent-green); border-radius: 8px; padding: 12px 16px; margin-bottom: 15px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; }
         .category-name { font-size: 1rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: var(--text-main); }
-        .session-badges { display: flex; align-items: center; gap: 10px; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; }
-        .status-pill { padding: 3px 10px; border-radius: 12px; font-weight: 800; }
-
+        
         .signals-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 15px; }
         .signal-card { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 10px; padding: 16px; transition: transform 0.2s; }
         .signal-card:hover { border-color: #2a3650; transform: translateY(-2px); }
@@ -52,9 +55,10 @@
         .badge-buy { background: rgba(0,255,102,0.15); color: var(--accent-green); border: 1px solid var(--accent-green); }
         .badge-sell { background: rgba(255,30,66,0.15); color: var(--accent-red); border: 1px solid var(--accent-red); }
         .badge-neutral { background: rgba(255,255,255,0.08); color: var(--text-muted); border: 1px solid var(--border-color); }
-        .metrics-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 12px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; }
+        .metrics-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 10px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; }
         .metric-box label { font-size: 0.65rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; display: block; }
         .metric-box span { font-size: 0.85rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+        
         .positions-table { width: 100%; border-collapse: collapse; background: var(--bg-panel); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); }
         .positions-table th, .positions-table td { padding: 10px 14px; text-align: left; font-size: 0.85rem; font-family: 'JetBrains Mono', monospace; border-bottom: 1px solid var(--border-color); }
         .positions-table th { background: rgba(255,255,255,0.02); color: var(--text-muted); font-size: 0.75rem; }
@@ -66,7 +70,7 @@
 </head>
 <body>
     <header>
-        <div class="logo">⚡ SALA SEGNALI PRO <span style="font-size:0.6rem; background:rgba(0,255,102,0.1); color:var(--accent-green); padding:2px 6px; border-radius:3px;">LIVE EXCHANGE HOURS</span></div>
+        <div class="logo">⚡ SALA SEGNALI PRO <span style="font-size:0.6rem; background:rgba(0,255,102,0.1); color:var(--accent-green); padding:2px 6px; border-radius:3px;">BINGX API + TP/SL</span></div>
         <div class="terminal-clock" id="clock">00:00:00 UTC</div>
     </header>
 
@@ -132,12 +136,32 @@
     <div class="container">
         <div id="tab-signals" class="tab-content active">
             <div class="section-title">
-                <span>📡 Borse Mondiali & Sessioni Live</span>
+                <span>📋 Tabella Parametri e Stato Borse Mondiali</span>
                 <span id="exchangeModeIndicator" style="color:var(--accent-green)">Connessione in corso...</span>
+            </div>
+
+            <div style="overflow-x: auto;">
+                <table class="institutional-table">
+                    <thead>
+                        <tr>
+                            <th>Categoria Borsa</th>
+                            <th>Stato Live</th>
+                            <th>Orari Ufficiali (UTC)</th>
+                            <th>Modalità Esecuzione</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sessionsTableBody">
+                        <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Caricamento parametri sessioni...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="section-title" style="margin-top: 25px;">
+                <span>📡 Scanner Globale Universale con TP/SL & ROI</span>
             </div>
             <div id="categorizedMarketsContainer">
                 <div style="text-align:center; padding: 40px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">
-                    Verifica orari e sessioni di apertura delle borse globali...
+                    Scansione in corso su tutte le borse globali...
                 </div>
             </div>
         </div>
@@ -168,7 +192,7 @@
         <div id="tab-telemetry" class="tab-content">
             <div class="section-title"><span>⚡ Telemetria Istituzionale & Log</span></div>
             <div id="telemetryContainer" style="background:var(--bg-panel); border:1px solid var(--border-color); border-radius:8px; padding:15px; font-family:'JetBrains Mono',monospace; font-size:0.8rem;">
-                Caricamento dati telemetria in corso...
+                Caricamento dati telemetria...
             </div>
         </div>
 
@@ -297,9 +321,26 @@
                 const data = await res.json();
                 const signals = data.signals || [];
                 const sessions = data.sessions || {};
-                const container = document.getElementById('categorizedMarketsContainer');
+                
+                const sessionsTbody = document.getElementById('sessionsTableBody');
+                const categories = Object.keys(sessions);
+                if (categories.length > 0) {
+                    sessionsTbody.innerHTML = categories.map(cat => {
+                        const sess = sessions[cat];
+                        const badgeStyle = sess.is_open 
+                            ? 'background:rgba(0,255,102,0.15); color:#00ff66; border:1px solid #00ff66;' 
+                            : 'background:rgba(255,30,66,0.15); color:#ff1e42; border:1px solid #ff1e42;';
+                        return `
+                            <tr>
+                                <td><strong>🏛️ ${cat}</strong></td>
+                                <td><span class="status-badge" style="${badgeStyle}">${sess.is_open ? '🟢' : '🔴'} ${sess.status}</span></td>
+                                <td>${sess.hours}</td>
+                                <td><span style="color:var(--accent-green);">Auto-Routing & TP/SL Attivi</span></td>
+                            </tr>
+                        `;
+                    }).join('');
+                }
 
-                // Calcolo forza media reale dei segnali
                 if (signals.length > 0) {
                     const avg = signals.reduce((acc, s) => acc + parseFloat(s.ai_score), 0) / signals.length;
                     updateTachometers(profile, avg);
@@ -307,7 +348,7 @@
                     updateTachometers(profile, 50.0);
                 }
 
-                const categories = Object.keys(sessions);
+                const container = document.getElementById('categorizedMarketsContainer');
                 if (categories.length === 0) {
                     container.innerHTML = `<div style="text-align:center; padding: 40px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">Nessun dato di borsa disponibile.</div>`;
                     return;
@@ -324,9 +365,9 @@
                         <div class="category-block">
                             <div class="category-header" style="border-left-color: ${sess.badge_color};">
                                 <div class="category-name">🏛️ ${cat}</div>
-                                <div class="session-badges">
+                                <div style="display:flex; align-items:center; gap:10px; font-family:'JetBrains Mono',monospace; font-size:0.75rem;">
                                     <span style="color:var(--text-muted);">🕒 Orari: <strong>${sess.hours}</strong></span>
-                                    <span class="status-pill" style="${badgeStyle}">${sess.is_open ? '🟢' : '🔴'} ${sess.status}</span>
+                                    <span class="status-badge" style="${badgeStyle}">${sess.is_open ? '🟢' : '🔴'} ${sess.status}</span>
                                 </div>
                             </div>
                             <div class="signals-grid">
@@ -342,13 +383,22 @@
                                         </div>
                                         <div style="font-size:0.75rem; color:${s.sentiment_color}; font-weight:700; margin-bottom:8px; font-family:'JetBrains Mono',monospace;">${s.sentiment}</div>
                                         
+                                        <!-- GRIGLIA ESPLICITA TP, SL E TARGET -->
                                         <div class="metrics-grid">
+                                            <div class="metric-box"><label>🎯 TAKE PROFIT (TP1)</label><span style="color:var(--accent-green);">${s.tp1}</span></div>
+                                            <div class="metric-box"><label>🛡️ STOP LOSS (SL)</label><span style="color:var(--accent-red);">${s.sl}</span></div>
                                             <div class="metric-box"><label>📈 TARGET RIALZISTA</label><span style="color:var(--accent-green);">${s.target_rialzista}</span></div>
                                             <div class="metric-box"><label>📉 TARGET RIBASSISTA</label><span style="color:var(--accent-red);">${s.target_ribassista}</span></div>
                                         </div>
 
+                                        <!-- BOX ROI STIMATO & LEVA -->
+                                        <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; background:rgba(0,255,102,0.06); border:1px solid rgba(0,255,102,0.2); padding:6px 10px; border-radius:6px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+                                            <span>🚀 ROI Stimato: <strong style="color:var(--accent-green); font-size:0.85rem;">${s.roi_pct}</strong></span>
+                                            <span>Leva: <strong style="color:var(--text-main);">${s.leverage}</strong></span>
+                                        </div>
+
                                         <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; color:var(--text-muted); margin-bottom:6px; display:flex; justify-content:space-between;">
-                                            <span>⏱️ Durata (Candele): <strong style="color:var(--accent-green);">${s.duration}</strong></span>
+                                            <span>⏱️ Durata: <strong style="color:var(--accent-green);">${s.duration}</strong></span>
                                             <span>RSI: <strong>${s.rsi}</strong></span>
                                         </div>
                                         <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; color:var(--text-muted);">
