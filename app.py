@@ -18,6 +18,11 @@ def load_render_environment():
     BINGX_SECRET_KEY = os.environ.get('BINGX_SECRET_KEY', '').strip()
     TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
     TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '').strip()
+    
+    print("========================================")
+    print("⚡ SALA SEGNALI PRO • BINGX LIVE SYNC ⚡")
+    print(f"🔹 BingX API Key: {'CONFIGURATA ✅' if BINGX_API_KEY else 'NON RILEVATA (Paper Mode)'}")
+    print("========================================")
 
 load_render_environment()
 
@@ -67,21 +72,11 @@ def get_market_session_status(category):
 
 def get_exchange_mode():
     if not BINGX_API_KEY or not BINGX_SECRET_KEY:
-        return "PAPER PROP-DESK (ADVISOR ACTIVE)"
-    return "🔴 BINGX LIVE REALE (ADVISOR ACTIVE)"
+        return "PAPER PROP-DESK (BINGX SYNC ACTIVE)"
+    return "🔴 BINGX LIVE REALE (BINGX SYNC ACTIVE)"
 
 def sign_bingx_request(params_str):
     return hmac.new(BINGX_SECRET_KEY.encode('utf-8'), params_str.encode('utf-8'), hashlib.sha256).hexdigest()
-
-def send_telegram_message_cooldown(symbol, text):
-    global sent_telegram_signals
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID: return
-    now = time.time()
-    if symbol in sent_telegram_signals and now - sent_telegram_signals[symbol] < 900: return
-    sent_telegram_signals[symbol] = now
-    try:
-        requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage", json={"chat_id": TELEGRAM_CHAT_ID, "text": text, "parse_mode": "Markdown"}, timeout=3.0)
-    except Exception: pass
 
 def fetch_bingx_real_positions():
     global execution_history
@@ -152,7 +147,6 @@ def execute_verified_order(symbol, name, action, entry, size, leverage, margin, 
             "sl": sl, "tp1": tp1, "fee": est_fee, "unrealized_pnl": 0.0, "status": "OPEN", "opened_at": datetime.now().strftime("%H:%M:%S")
         }
         execution_history.insert(0, order_record)
-        send_telegram_message_cooldown(symbol, f"🏛 *SALA SEGNALI PRO • GLOBAL ORDER* 🏛\nAsset: `{name}`\nSegnale: *{action}* ({leverage})\nIngresso: `{entry}`\nSL: `{sl}` | TP1: `{tp1}`")
 
 @app.route('/')
 def home():
@@ -185,12 +179,21 @@ def close_position():
             return jsonify({"success": True})
     return jsonify({"success": False}), 404
 
+# PRELIEVO PREZZI LIVE DIRETTAMENTE DA BINGX SWAP API
 @app.route('/api/live-prices', methods=['GET'])
 def get_live_prices():
     try:
-        p_res = requests.get("https://api.binance.com/api/v3/ticker/price", timeout=1.5).json()
-        if isinstance(p_res, list):
-            prices = {item['symbol']: float(item['price']) for item in p_res}
+        res = requests.get(f"{BINGX_BASE_URL}/openApi/swap/v2/quote/ticker", timeout=2.5).json()
+        if res.get("code") == 0 and "data" in res:
+            prices = {}
+            data = res["data"]
+            if isinstance(data, list):
+                for item in data:
+                    sym = item.get("symbol", "").replace("-", "")
+                    prices[sym] = float(item.get("lastPrice", 0))
+            elif isinstance(data, dict):
+                sym = data.get("symbol", "").replace("-", "")
+                prices[sym] = float(data.get("lastPrice", 0))
             return jsonify(prices)
     except Exception:
         pass
@@ -245,13 +248,13 @@ def fetch_all_markets():
         ],
         "Materie Prime & Forex": [
             {'id': 'PAXGUSDT', 'name': '🥇 Oro (Gold)'}, {'id': 'XAGUSDT', 'name': '🥈 Argento (Silver)'},
-            {'id': 'EURUSDT', 'name': '💶 EUR/USD'}, {'id': 'GBPUSDT', 'name': '🇬🇧 GBP/USD'},
+            {'id': 'GBPUSDT', 'name': '💷 GBP/USD'}, {'id': 'EURUSDT', 'name': '💶 EUR/USD'},
             {'id': 'USDJPY', 'name': '🇯🇵 USD/JPY'}
         ],
         "Azioni & Indici Globali": [
-            {'id': 'AAPL', 'name': '🍏 Apple Inc.'}, {'id': 'TSLA', 'name': '🚗 Tesla Inc.'},
-            {'id': 'NVDA', 'name': '💻 Nvidia Corp.'}, {'id': 'AMZN', 'name': '📦 Amazon'},
-            {'id': 'MSFT', 'name': '🪟 Microsoft'}, {'id': 'GOOGL', 'name': '🔍 Alphabet (Google)'}
+            {'id': 'AAPLUSDT', 'name': '🍏 Apple Inc.'}, {'id': 'TSLAUSDT', 'name': '🚗 Tesla Inc.'},
+            {'id': 'NVDAUSDT', 'name': '💻 Nvidia Corp.'}, {'id': 'AMZNUSDT', 'name': '📦 Amazon'},
+            {'id': 'MSFTUSDT', 'name': '🪟 Microsoft'}, {'id': 'GOOGLUSDT', 'name': '🔍 Alphabet (Google)'}
         ]
     }
 
@@ -262,17 +265,24 @@ def safe_float(val, default=0.0):
     except Exception:
         return default
 
+# PRELIEVO KLINES DIRETTAMENTE DA BINGX SWAP API
 def fetch_market_bundle(symbol, interval):
-    headers = {"User-Agent": "Mozilla/5.0"}
-    clean_sym = symbol + 'USDT' if symbol in ['AAPL', 'TSLA', 'NVDA', 'AMZN', 'MSFT', 'GOOGL'] else symbol
+    bx_symbol = f"{symbol.replace('USDT','')}-USDT"
     try:
-        url = "https://api.binance.com/api/v3/klines"
-        res = requests.get(url, params={"symbol": clean_sym, "interval": interval, "limit": 60}, headers=headers, timeout=2.0).json()
-        if isinstance(res, list) and len(res) > 30:
-            df = pd.DataFrame(res, columns=['Open_time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Close_time', 'Quote_av', 'Trades', 'Tbbav', 'Tbav', 'Ignore'])
-            for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
-                df[col] = df[col].astype(float)
-            return df, df['Close'].iloc[-1]
+        url = f"{BINGX_BASE_URL}/openApi/swap/v3/quote/klines"
+        res = requests.get(url, params={"symbol": bx_symbol, "interval": interval, "limit": 60}, timeout=3.0).json()
+        if res.get("code") == 0 and "data" in res:
+            klines = res["data"]
+            if isinstance(klines, list) and len(klines) > 20:
+                # BingX kline format: [time, open, high, low, close, volume] o dizionario
+                rows = []
+                for k in klines:
+                    if isinstance(k, list):
+                        rows.append([k[0], float(k[1]), float(k[2]), float(k[3]), float(k[4]), float(k[5])])
+                    elif isinstance(k, dict):
+                        rows.append([k.get('time', 0), float(k.get('open', 0)), float(k.get('high', 0)), float(k.get('low', 0)), float(k.get('close', 0)), float(k.get('volume', 0))])
+                df = pd.DataFrame(rows, columns=['Open_time', 'Open', 'High', 'Low', 'Close', 'Volume'])
+                return df, df['Close'].iloc[-1]
     except Exception:
         pass
     return None, 0.0
@@ -303,22 +313,22 @@ def calculate_setup(df, current_price, balance, risk_pct, rsi_buy_min, rsi_buy_m
     is_buy = (safe_float(ema12.iloc[-1], current_price) >= safe_float(ema26.iloc[-1], current_price)) and (rsi_buy_min <= rsi <= rsi_buy_max) and not whipsaw
     is_sell = (safe_float(ema12.iloc[-1], current_price) <= safe_float(ema26.iloc[-1], current_price)) and (rsi_sell_min <= rsi <= rsi_sell_max) and not whipsaw
 
-    if is_buy: action, score, sent, col = "BUY", 99.9, "BULLISH (Global Cert)", "#00ff66"
-    elif is_sell: action, score, sent, col = "SELL", 99.9, "BEARISH (Global Cert)", "#ff1e42"
+    if is_buy: action, score, sent, col = "BUY", 99.9, "BULLISH (BingX Cert)", "#00ff66"
+    elif is_sell: action, score, sent, col = "SELL", 99.9, "BEARISH (BingX Cert)", "#ff1e42"
     else: action, score, sent, col = "NEUTRAL", 50.0, "ATTESA / RANGE", "#ffffff"
 
     sl_dist = atr * sl_m
     tp_dist = atr * tp_m
-    decimals = 2 if current_price > 5 else 6
+    decimals = 2 if current_price > 5 else 5
 
-    # CORREZIONE RIGOROSA: SEPARAZIONE BUY, SELL E NEUTRAL PER EVITARE INVERSIONI ERRATE SU BINGX
+    # FORMULE RIGOROSE BINGX PER LONG E SHORT (EVITA QUALSIASI ERRORE DI SL/TP)
     if action == "BUY":
         entry, sl, tp1 = current_price, round(current_price - sl_dist, decimals), round(current_price + tp_dist, decimals)
         target_rialzista, target_ribassista = round(current_price + (tp_dist * 2.5), decimals), sl
     elif action == "SELL":
         entry, sl, tp1 = current_price, round(current_price + sl_dist, decimals), round(current_price - tp_dist, decimals)
         target_rialzista, target_ribassista = sl, round(current_price - (tp_dist * 2.5), decimals)
-    else:  # NEUTRAL: Nessun target short rovesciato, valori neutri coerenti con Long di default
+    else:
         entry, sl, tp1 = current_price, round(current_price - sl_dist, decimals), round(current_price + tp_dist, decimals)
         target_rialzista, target_ribassista = round(current_price + tp_dist, decimals), round(current_price - sl_dist, decimals)
 
@@ -361,7 +371,7 @@ def calculate_setup(df, current_price, balance, risk_pct, rsi_buy_min, rsi_buy_m
     elif action == "NEUTRAL":
         advisor_status = "ATTENDI"
         advisor_color = "#8a99ad"
-        advisor_msg = f"Asset in range neutro. Evita l'inserimento manuale o l'auto-trade."
+        advisor_msg = f"Asset in range neutro. Nessun trade consigliato."
     elif expected_net_profit <= 0:
         advisor_status = "SCONSIGLIATO (FEE)"
         advisor_color = "#ff1e42"
@@ -369,7 +379,7 @@ def calculate_setup(df, current_price, balance, risk_pct, rsi_buy_min, rsi_buy_m
     else:
         advisor_status = "ESEGUI IN REALE"
         advisor_color = "#00ff66"
-        advisor_msg = f"Capitale ${balance} con Leva {lev_int}x: profitto netto stimato +${expected_net_profit} (fee -${roundtrip_fee})."
+        advisor_msg = f"Capitale ${balance} con Leva {lev_int}x: profitto netto stimato +${expected_net_profit} (fee -${roundtrip_fee} incluse)."
 
     return {
         "action": action, "ai_score": f"{score}%", "sentiment": sent, "sentiment_color": col,
@@ -397,11 +407,14 @@ def get_signals():
         markets = fetch_all_markets()
         session_info = {cat: get_market_session_status(cat) for cat in markets.keys()}
         
+        # PRELIEVO PREZZI BINGX IN BULK
         all_prices = {}
         try:
-            p_res = requests.get("https://api.binance.com/api/v3/ticker/price", timeout=2.0).json()
-            if isinstance(p_res, list):
-                all_prices = {item['symbol']: float(item['price']) for item in p_res}
+            res = requests.get(f"{BINGX_BASE_URL}/openApi/swap/v2/quote/ticker", timeout=2.5).json()
+            if res.get("code") == 0 and "data" in res:
+                for item in res["data"]:
+                    sym = item.get("symbol", "").replace("-", "")
+                    all_prices[sym] = float(item.get("lastPrice", 0))
         except Exception: pass
 
         raw_signals = []
@@ -413,9 +426,8 @@ def get_signals():
                 cat, a = futures[future]
                 df, live_price = future.result()
                 
-                clean_sym = a['id'] + 'USDT' if a['id'] in ['AAPL', 'TSLA', 'NVDA', 'AMZN', 'MSFT', 'GOOGL'] else a['id']
-                if clean_sym in all_prices:
-                    live_price = all_prices[clean_sym]
+                if a['id'] in all_prices and all_prices[a['id']] > 0:
+                    live_price = all_prices[a['id']]
                     if df is not None and not df.empty:
                         df.loc[df.index[-1], 'Close'] = live_price
 
@@ -442,7 +454,7 @@ def get_signals():
 
         scans_telemetry[time.time()] = {
             "timestamp": datetime.now().strftime("%H:%M:%S"),
-            "scanned": len(signals), "status": "ADVISOR_DASHBOARD_ACTIVE"
+            "scanned": len(signals), "status": "BINGX_SYNC_ACTIVE"
         }
 
         return jsonify({"sessions": session_info, "signals": signals})
