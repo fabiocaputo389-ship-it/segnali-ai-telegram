@@ -120,7 +120,6 @@ def fetch_bingx_real_positions():
     except Exception: pass
     return [h for h in execution_history if h.get("status") == "OPEN"]
 
-# SINCRONIZZAZIONE AUTOMATICA PROFITTI CHIUSI DIRETTAMENTE DA BINGX
 def sync_bingx_closed_history():
     global execution_history
     if not BINGX_API_KEY or not BINGX_SECRET_KEY:
@@ -138,7 +137,6 @@ def sync_bingx_closed_history():
                 month_str = datetime.fromtimestamp(trade_time).strftime("%Y-%m")
                 trade_id = f"BINGX-{inc.get('tranId', int(trade_time))}"
                 
-                # Verifica se esiste già nello storico locale
                 if not any(h.get('id') == trade_id for h in execution_history):
                     execution_history.append({
                         "id": trade_id,
@@ -240,13 +238,13 @@ def get_live_prices():
 @app.route('/api/analytics/performance', methods=['GET'])
 def get_performance_analytics():
     global execution_history
-    sync_bingx_closed_history()  # Sincronizza i profitti chiusi da BingX in tempo reale
+    sync_bingx_closed_history()
     today_str = datetime.now().strftime("%Y-%m-%d")
     current_month_str = datetime.now().strftime("%Y-%m")
     
     closed_trades = [h for h in execution_history if h.get("status") == "CLOSED"]
-    today_trades = [h for h in closed_trades if h.get("date"] == today_str]
-    month_trades = [h for h in closed_trades if h.get("month"] == current_month_str]
+    today_trades = [h for h in closed_trades if h.get("date") == today_str]
+    month_trades = [h for h in closed_trades if h.get("month") == current_month_str]
     
     def calc_stats(trades):
         total = len(trades)
@@ -432,8 +430,8 @@ def get_signals():
     global auto_trade_active, scans_telemetry
     try:
         timeframe = request.args.get('timeframe', '15m')
-        balance = safe_float(request.args.get('balance', 2.0), 2.0)
-        risk = safe_float(request.args.get('risk', 1.0), 1.0)
+        balance = safe_float(request.args.get('balance', 2.0).replace(',', '.'), 2.0)
+        risk = safe_float(request.args.get('risk', 1.0).replace(',', '.'), 1.0)
         profile = request.args.get('profile', 'balanced')
 
         if profile == 'conservative': r_b_min, r_b_max, r_s_min, r_s_max, sl_m, tp_m = 30.0, 75.0, 25.0, 70.0, 1.2, 3.0
