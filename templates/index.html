@@ -3,708 +3,195 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SALA SEGNALI PRO • Institutional Terminal</title>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <title>Sala Segnali Pro • Institutional HFT Terminal</title>
+    <!-- Bootstrap CSS per una grafica pulita e responsiva -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        :root {
-            --bg-base: #07090e; --bg-panel: #0d121d; --border-color: #1e2638;
-            --accent-green: #00ff66; --accent-red: #ff1e42; --accent-gold: #ffd166;
-            --text-main: #f0f4f8; --text-muted: #8a99ad;
-        }
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
-        body { background: var(--bg-base); color: var(--text-main); min-height: 100vh; padding-bottom: 80px; }
-        header { background: var(--bg-panel); border-bottom: 1px solid var(--border-color); padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 1000; }
-        .logo { font-family: 'JetBrains Mono', monospace; font-weight: 800; font-size: 1.1rem; color: var(--accent-green); }
-        .terminal-clock { font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; color: var(--text-muted); background: rgba(255,255,255,0.03); padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border-color); }
-        
-        .controls-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; padding: 15px 20px; background: var(--bg-panel); border-bottom: 1px solid var(--border-color); }
-        .control-group label { display: block; font-size: 0.7rem; font-family: 'JetBrains Mono', monospace; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; }
-        .control-group input, .control-group select { width: 100%; background: var(--bg-base); border: 1px solid var(--border-color); color: var(--text-main); padding: 8px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; }
-        
-        .gauge-card { background: var(--bg-base); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; align-items: center; text-align: center; }
-        .gauge-title { font-size: 0.65rem; font-family: 'JetBrains Mono', monospace; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
-        .gauge-container { position: relative; width: 110px; height: 65px; margin: 4px auto 0 auto; }
-        .gauge-svg { width: 100%; height: 100%; overflow: visible; }
-        .gauge-needle { transition: transform 0.5s cubic-bezier(0.4, 2.08, 0.55, 0.44); transform-origin: 55px 55px; }
-        .gauge-value-text { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; font-weight: 700; fill: var(--text-main); }
-
-        .autotrade-btn { background: rgba(255,30,66,0.1); border: 1px solid var(--accent-red); color: var(--accent-red); font-weight: 800; border-radius: 6px; padding: 8px 12px; cursor: pointer; font-family: 'JetBrains Mono', monospace; height: 40px; }
-        .autotrade-btn.active { background: rgba(0,255,102,0.1); border-color: var(--accent-green); color: var(--accent-green); }
-        
-        .container { padding: 20px; max-width: 1400px; margin: 0 auto; }
-        .section-title { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; text-transform: uppercase; }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-
-        /* PANNELLO CONSULENZA STRATEGICA DINAMICA */
-        .advisor-panel {
-            background: linear-gradient(135deg, rgba(13,18,29,0.95), rgba(20,28,45,0.95));
-            border: 1px solid var(--accent-gold);
-            border-left: 4px solid var(--accent-gold);
-            border-radius: 8px;
-            padding: 16px;
-            margin-bottom: 25px;
-        }
-        .advisor-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.85rem;
-            color: var(--accent-gold);
-            font-weight: 800;
-        }
-        .advisor-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 12px;
-        }
-        .advisor-box {
-            background: rgba(0,0,0,0.3);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            padding: 10px 12px;
-            font-size: 0.8rem;
-            line-height: 1.4;
-        }
-        .advisor-box strong { color: var(--accent-green); font-family: 'JetBrains Mono', monospace; display: block; margin-bottom: 4px; font-size: 0.75rem; text-transform: uppercase; }
-
-        .institutional-table { width: 100%; border-collapse: collapse; background: var(--bg-panel); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); margin-bottom: 25px; }
-        .institutional-table th, .institutional-table td { padding: 12px 16px; text-align: left; font-size: 0.85rem; font-family: 'JetBrains Mono', monospace; border-bottom: 1px solid var(--border-color); }
-        .institutional-table th { background: rgba(255,255,255,0.03); color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; }
-        .status-badge { padding: 4px 10px; border-radius: 4px; font-weight: 800; font-size: 0.75rem; }
-
-        .market-selector-table { width: 100%; border-collapse: collapse; background: var(--bg-panel); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); margin-bottom: 25px; }
-        .market-selector-table th, .market-selector-table td { padding: 10px 14px; text-align: left; font-size: 0.85rem; font-family: 'JetBrains Mono', monospace; border-bottom: 1px solid var(--border-color); }
-        .market-selector-table th { background: rgba(0,255,102,0.05); color: var(--accent-green); font-size: 0.75rem; text-transform: uppercase; }
-        .market-row { cursor: pointer; transition: background 0.2s; }
-        .market-row:hover { background: rgba(255,255,255,0.02); }
-        .market-row.selected { background: rgba(0,255,102,0.08); border-left: 3px solid var(--accent-green); }
-
-        .category-block { margin-bottom: 30px; }
-        .category-header { background: var(--bg-panel); border: 1px solid var(--border-color); border-left: 4px solid var(--accent-green); border-radius: 8px; padding: 12px 16px; margin-bottom: 15px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; }
-        .category-name { font-size: 1rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: var(--text-main); }
-        
-        .signals-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 15px; }
-        .signal-card { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 10px; padding: 16px; transition: transform 0.2s; }
-        .signal-card:hover { border-color: #2a3650; transform: translateY(-2px); }
-        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-        .asset-title { font-size: 1.1rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
-        .badge-action { padding: 4px 10px; border-radius: 4px; font-weight: 800; font-size: 0.8rem; font-family: 'JetBrains Mono', monospace; }
-        .badge-buy { background: rgba(0,255,102,0.15); color: var(--accent-green); border: 1px solid var(--accent-green); }
-        .badge-sell { background: rgba(255,30,66,0.15); color: var(--accent-red); border: 1px solid var(--accent-red); }
-        .badge-neutral { background: rgba(255,255,255,0.08); color: var(--text-muted); border: 1px solid var(--border-color); }
-        .metrics-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 10px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; }
-        .metric-box label { font-size: 0.65rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; display: block; }
-        .metric-box span { font-size: 0.85rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
-        
-        .card-advisor-box {
-            margin-top: 10px;
-            padding: 8px 10px;
-            border-radius: 6px;
-            background: rgba(0,0,0,0.35);
-            border-left: 3px solid var(--accent-gold);
-            font-size: 0.75rem;
-            line-height: 1.35;
-        }
-        
-        .positions-table { width: 100%; border-collapse: collapse; background: var(--bg-panel); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); }
-        .positions-table th, .positions-table td { padding: 10px 14px; text-align: left; font-size: 0.85rem; font-family: 'JetBrains Mono', monospace; border-bottom: 1px solid var(--border-color); }
-        .positions-table th { background: rgba(255,255,255,0.02); color: var(--text-muted); font-size: 0.75rem; }
-        .btn-close { background: rgba(255,30,66,0.2); color: var(--accent-red); border: 1px solid var(--accent-red); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; font-weight: 700; }
-        
-        .footer-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: var(--bg-panel); border-top: 1px solid var(--border-color); display: flex; justify-content: space-around; padding: 12px; z-index: 1000; }
-        .nav-item { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-muted); text-decoration: none; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
-        .nav-item.active { color: var(--accent-green); }
+        body { background-color: #0b0e11; color: #eaecef; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        .card { background-color: #181a20; border: 1px solid #2b313a; color: #eaecef; }
+        .text-success { color: #0ecb81 !important; }
+        .text-danger { color: #f6465d !important; }
+        .table { color: #eaecef; }
+        .table-dark { background-color: #181a20; }
     </style>
 </head>
-<body>
-    <header>
-        <div class="logo">⚡ SALA SEGNALI PRO <span style="font-size:0.6rem; background:rgba(0,255,102,0.1); color:var(--accent-green); padding:2px 6px; border-radius:3px;">REAL ACCOUNT ADVISOR</span></div>
-        <div class="terminal-clock" id="clock">00:00:00 UTC</div>
-    </header>
+<body class="p-3">
 
-    <div class="controls-bar">
-        <div class="control-group">
-            <label>Profilo Operativo</label>
-            <select id="profileSelect">
-                <option value="conservative">Conservativo</option>
-                <option value="balanced" selected>Bilanciato</option>
-                <option value="aggressive">Aggressivo / HFT</option>
-            </select>
-            <div class="gauge-card" style="margin-top:6px;">
-                <div class="gauge-title">RPM Profilo</div>
-                <div class="gauge-container">
-                    <svg class="gauge-svg" viewBox="0 0 110 65">
-                        <path d="M 15 55 A 40 40 0 0 1 95 55" fill="none" stroke="#1e2638" stroke-width="7" stroke-linecap="round"/>
-                        <path id="gaugePath1" d="M 15 55 A 40 40 0 0 1 95 55" fill="none" stroke="#00ff66" stroke-width="7" stroke-dasharray="125.6" stroke-dashoffset="50" stroke-linecap="round"/>
-                        <circle cx="55" cy="55" r="4" fill="#f0f4f8"/>
-                        <line id="gaugeNeedle1" class="gauge-needle" x1="55" y1="55" x2="55" y2="20" stroke="#ff1e42" stroke-width="2.5" stroke-linecap="round"/>
-                        <text id="gaugeText1" x="55" y="45" text-anchor="middle" class="gauge-value-text">65%</text>
-                    </svg>
+    <div class="container my-3">
+        <!-- HEADER -->
+        <div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom border-secondary">
+            <div>
+                <h4 class="m-0 fw-bold">⚡ SALA SEGNALI PRO</h4>
+                <small class="text-success">● REAL ACCOUNT ADVISOR ATTIVO</small>
+            </div>
+            <div class="text-end">
+                <span id="utc-clock" class="text-muted small">Caricamento orario...</span>
+            </div>
+        </div>
+
+        <!-- WIDGET SALDO REALE -->
+        <div class="row mb-4">
+            <div class="col-md-6 mb-3">
+                <div class="card p-3 shadow-sm">
+                    <span class="text-muted small">SALDO CONTO BINGX (USDT)</span>
+                    <h2 id="real-balance" class="fw-bold m-0">$0.00</h2>
+                </div>
+            </div>
+            <div class="col-md-6 mb-3">
+                <div class="card p-3 shadow-sm">
+                    <span class="text-muted small">EQUITY TOTALE</span>
+                    <h2 id="real-equity" class="fw-bold m-0">$0.00</h2>
                 </div>
             </div>
         </div>
 
-        <div class="control-group">
-            <label>Forza Segnali Rilevati</label>
-            <div class="gauge-card" style="margin-top:6px;">
-                <div class="gauge-title">Power Index</div>
-                <div class="gauge-container">
-                    <svg class="gauge-svg" viewBox="0 0 110 65">
-                        <path d="M 15 55 A 40 40 0 0 1 95 55" fill="none" stroke="#1e2638" stroke-width="7" stroke-linecap="round"/>
-                        <path id="gaugePath2" d="M 15 55 A 40 40 0 0 1 95 55" fill="none" stroke="#00ff66" stroke-width="7" stroke-dasharray="125.6" stroke-dashoffset="0" stroke-linecap="round"/>
-                        <circle cx="55" cy="55" r="4" fill="#f0f4f8"/>
-                        <line id="gaugeNeedle2" class="gauge-needle" x1="55" y1="55" x2="90" y2="35" stroke="#00ff66" stroke-width="2.5" stroke-linecap="round"/>
-                        <text id="gaugeText2" x="55" y="45" text-anchor="middle" class="gauge-value-text">99.9%</text>
-                    </svg>
-                </div>
-            </div>
-        </div>
-
-        <div class="control-group">
-            <label>Timeframe</label>
-            <select id="tfSelect">
-                <option value="5m">5m (Scalp)</option>
-                <option value="15m" selected>15m (Standard)</option>
-                <option value="1h">1h (Trend)</option>
-            </select>
-        </div>
-        <div class="control-group">
-            <label>Capitale ($)</label>
-            <input type="number" id="balanceInput" value="2.0" step="0.5">
-        </div>
-        <div class="control-group">
-            <label>Rischio (%)</label>
-            <input type="number" id="riskInput" value="1.0" step="0.1">
-        </div>
-        <div class="control-group" style="display:flex; align-items:flex-end;">
-            <button id="autotradeToggle" class="autotrade-btn" style="width:100%;">AUTO-TRADE: OFF</button>
-        </div>
-    </div>
-
-    <div class="container">
-        <!-- TAB SEGNALI -->
-        <div id="tab-signals" class="tab-content active">
-            
-            <!-- MODULO CONSULENZA DINAMICA IN DASHBOARD -->
-            <div class="advisor-panel" id="dashboardAdvisorPanel">
-                <div class="advisor-header">
-                    <span>🧠 CONSULENZA LIVE CONTO REALE (Strategia, Mercato & Commissioni)</span>
-                    <span id="advisorTag" style="background:rgba(255,209,102,0.15); padding:2px 8px; border-radius:4px;">MODALITÀ REALE BINGX</span>
-                </div>
-                <div class="advisor-grid" id="dynamicAdvisorContent">
-                    <!-- Popolato dinamicamente via JS -->
-                </div>
-            </div>
-
-            <div class="section-title">
-                <span>📋 Tabella Parametri e Stato Borse Mondiali</span>
-                <span id="exchangeModeIndicator" style="color:var(--accent-green)">Connessione in corso...</span>
-            </div>
-
-            <div style="overflow-x: auto;">
-                <table class="institutional-table">
+        <!-- POSIZIONI APERTE -->
+        <div class="card mb-4 p-3 shadow-sm">
+            <h5 class="mb-3">📊 Posizioni Attive su BingX</h5>
+            <div class="table-responsive">
+                <table class="table table-dark table-hover align-middle m-0">
                     <thead>
                         <tr>
-                            <th>Categoria Borsa</th>
-                            <th>Stato Live</th>
-                            <th>Orari Ufficiali (UTC)</th>
-                            <th>Modalità Esecuzione</th>
-                        </tr>
-                    </thead>
-                    <tbody id="sessionsTableBody">
-                        <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Caricamento parametri sessioni...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- SELETTORE MERCATO -->
-            <div class="section-title" style="margin-top: 25px;">
-                <span>🎯 Seleziona Tipo di Mercato da Eseguire / Monitorare</span>
-            </div>
-            <div style="overflow-x: auto;">
-                <table class="market-selector-table">
-                    <thead>
-                        <tr>
-                            <th>Seleziona Vista</th>
-                            <th>Categoria di Mercato</th>
-                            <th>Asset Inclusi</th>
-                            <th>Frequenza Scan</th>
-                            <th>Stato Attuale</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr class="market-row selected" onclick="filterMarket('ALL', this)">
-                            <td>⭐ <strong>TUTTI</strong></td>
-                            <td>Tutti i Mercati Globali</td>
-                            <td>Crypto, Forex, Materie Prime, Azioni</td>
-                            <td>Live (2s/10s)</td>
-                            <td><span style="color:var(--accent-green)">Attivo (Default)</span></td>
-                        </tr>
-                        <tr class="market-row" onclick="filterMarket('Criptovalute Globali', this)">
-                            <td>🪙 <strong>CRYPTO</strong></td>
-                            <td>Criptovalute Globali</td>
-                            <td>BTC, ETH, SOL, XRP, BNB, ADA, DOGE, AVAX, LINK, SUI</td>
-                            <td>24/7 Continuo</td>
-                            <td><span style="color:var(--accent-green)">🟢 Aperto</span></td>
-                        </tr>
-                        <tr class="market-row" onclick="filterMarket('Materie Prime & Forex', this)">
-                            <td>💱 <strong>FOREX & COMMODITIES</strong></td>
-                            <td>Materie Prime & Forex</td>
-                            <td>Oro (PAXG), Argento (XAG), EUR/USD, GBP/USD, USD/JPY</td>
-                            <td>24h (Lun-Ven)</td>
-                            <td><span style="color:var(--accent-green)">🟢 Operativo</span></td>
-                        </tr>
-                        <tr class="market-row" onclick="filterMarket('Azioni & Indici Globali', this)">
-                            <td>🍏 <strong>EQUITIES & INDICES</strong></td>
-                            <td>Azioni & Indici Globali</td>
-                            <td>Apple, Tesla, Nvidia, Amazon, Microsoft, Google</td>
-                            <td>NYSE/NASDAQ</td>
-                            <td><span style="color:var(--text-muted)">⏰ Orari Borsini</span></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="section-title" style="margin-top: 25px;">
-                <span>📡 Scanner Globale con Consulenza Reale per Singolo Segnale</span>
-            </div>
-            <div id="categorizedMarketsContainer">
-                <div style="text-align:center; padding: 40px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">
-                    Sincronizzazione live in corso...
-                </div>
-            </div>
-        </div>
-
-        <!-- TAB POSIZIONI -->
-        <div id="tab-positions" class="tab-content">
-            <div class="section-title"><span>📊 Posizioni Aperte, Commissioni & Esecuzioni</span></div>
-            <div style="overflow-x: auto;">
-                <table class="positions-table">
-                    <thead>
-                        <tr>
-                            <th>Asset</th>
-                            <th>Azione</th>
-                            <th>Ingresso</th>
-                            <th>Size</th>
+                            <th>Simbolo</th>
+                            <th>Side</th>
+                            <th>Qtà</th>
+                            <th>Prezzo Medio</th>
+                            <th>PnL non realizzato</th>
                             <th>Leva</th>
-                            <th>Margine</th>
-                            <th>Commissioni</th>
-                            <th>PnL</th>
-                            <th>Azione</th>
                         </tr>
                     </thead>
-                    <tbody id="positionsTableBody">
-                        <tr><td colspan="9" style="text-align:center; color:var(--text-muted);">Nessuna posizione attiva.</td></tr>
+                    <tbody id="active-positions-list">
+                        <tr><td colspan="6" class="text-center text-muted">Sincronizzazione posizioni in corso...</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
 
-        <!-- TAB TELEMETRIA E REPORT PERFORMANCE -->
-        <div id="tab-telemetry" class="tab-content">
-            <div class="section-title"><span>📊 Report Performance Giornaliero & Mensile</span></div>
+        <!-- REPORT PERFORMANCE GIORNALIERO & MENSILE -->
+        <div class="card p-3 shadow-sm">
+            <h5 class="mb-3">📈 Report Performance Giornaliero & Mensile</h5>
             
-            <div style="margin-bottom: 20px;">
-                <div style="font-family:'JetBrains Mono',monospace; font-size:0.8rem; color:var(--text-muted); margin-bottom:8px;">🟢 REPORT GIORNALIERO (Oggi)</div>
-                <div style="overflow-x: auto;">
-                    <table class="institutional-table">
-                        <thead>
-                            <tr>
-                                <th>Operazioni Totali</th>
-                                <th>% Vittorie (Win Rate)</th>
-                                <th>% Perdite (Loss Rate)</th>
-                                <th>Importo Guadagnato</th>
-                                <th>Importo Perso</th>
-                                <th>Netto PnL Giornaliero</th>
-                            </tr>
-                        </thead>
-                        <tbody id="dailyPerfBody">
-                            <tr><td colspan="6" style="text-align:center; color:var(--text-muted);">Nessun dato registrato oggi.</td></tr>
-                        </tbody>
-                    </table>
+            <!-- GIORNALIERO -->
+            <div class="mb-4">
+                <span class="text-success fw-bold small">● REPORT GIORNALIERO (Ultime 24h)</span>
+                <div class="row text-center mt-2">
+                    <div class="col-3 border-end border-secondary">
+                        <small class="text-muted d-block">OPERAZIONI</small>
+                        <span id="daily-trades-count" class="fs-5 fw-bold">0</span>
+                    </div>
+                    <div class="col-3 border-end border-secondary">
+                        <small class="text-muted d-block">% VITTORIE</small>
+                        <span id="daily-win-rate" class="fs-5 fw-bold text-success">0%</span>
+                    </div>
+                    <div class="col-3 border-end border-secondary">
+                        <small class="text-muted d-block">% PERDITE</small>
+                        <span id="daily-loss-rate" class="fs-5 fw-bold text-danger">0%</span>
+                    </div>
+                    <div class="col-3">
+                        <small class="text-muted d-block">PNL NETTO</small>
+                        <span id="daily-pnl" class="fs-5 fw-bold">$0.00</span>
+                    </div>
                 </div>
             </div>
 
-            <div style="margin-bottom: 25px;">
-                <div style="font-family:'JetBrains Mono',monospace; font-size:0.8rem; color:var(--text-muted); margin-bottom:8px;">📅 REPORT MENSILE (Mese Corrente)</div>
-                <div style="overflow-x: auto;">
-                    <table class="institutional-table">
-                        <thead>
-                            <tr>
-                                <th>Mese</th>
-                                <th>Operazioni Totali</th>
-                                <th>% Vittorie</th>
-                                <th>% Perdite</th>
-                                <th>Totale Guadagnato</th>
-                                <th>Totale Perso</th>
-                                <th>Netto Mensile</th>
-                            </tr>
-                        </thead>
-                        <tbody id="monthlyPerfBody">
-                            <tr><td colspan="7" style="text-align:center; color:var(--text-muted);">Nessun dato registrato questo mese.</td></tr>
-                        </tbody>
-                    </table>
+            <!-- MENSILE -->
+            <div>
+                <span class="text-info fw-bold small">📅 REPORT MENSILE (Mese Corrente)</span>
+                <div class="row text-center mt-2">
+                    <div class="col-6 border-end border-secondary">
+                        <small class="text-muted d-block">OPERAZIONI TOTALI</small>
+                        <span id="monthly-trades-count" class="fs-5 fw-bold">0</span>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted d-block">PNL MENSILE NETTO</small>
+                        <span id="monthly-pnl" class="fs-5 fw-bold">$0.00</span>
+                    </div>
                 </div>
-            </div>
-
-            <div class="section-title"><span>⚡ Telemetria Istituzionale & Log</span></div>
-            <div id="telemetryContainer" style="background:var(--bg-panel); border:1px solid var(--border-color); border-radius:8px; padding:15px; font-family:'JetBrains Mono',monospace; font-size:0.8rem;">
-                Caricamento dati telemetria...
-            </div>
-        </div>
-
-        <!-- TAB GRAFICI -->
-        <div id="tab-charts" class="tab-content">
-            <div class="section-title"><span>📈 Grafici Multi-Timeframe Sincronizzati</span></div>
-            <div style="background:var(--bg-panel); border:1px solid var(--border-color); border-radius:8px; padding:30px; text-align:center; font-family:'JetBrains Mono',monospace; color:var(--text-muted);">
-                Modulo di charting integrato per tutte le borse globali sincronizzato in tempo reale.
             </div>
         </div>
     </div>
 
-    <div class="footer-nav">
-        <a class="nav-item active" onclick="switchTab('signals', this)"><span>📊</span> Segnali</a>
-        <a class="nav-item" onclick="switchTab('positions', this)"><span>💼</span> Posizioni</a>
-        <a class="nav-item" onclick="switchTab('telemetry', this)"><span>⚡</span> Telemetria</a>
-        <a class="nav-item" onclick="switchTab('charts', this)"><span>📈</span> Grafici</a>
-    </div>
-
+    <!-- JAVASCRIPT DI AGGIORNAMENTO LIVE -->
     <script>
-        setInterval(() => { 
+        // Orologio UTC in tempo reale
+        setInterval(() => {
             const now = new Date();
-            document.getElementById('clock').innerText = now.toLocaleTimeString('it-IT') + ' | ' + now.toISOString().substr(11, 8) + ' UTC'; 
+            document.getElementById('utc-clock').innerText = now.toUTCString().replace('GMT', 'UTC');
         }, 1000);
-        
-        let autoTradeState = false;
-        let selectedMarketFilter = 'ALL';
-        let cachedSignalData = { sessions: {}, signals: [] };
 
-        function updateDynamicDashboardAdvisor() {
-            const profile = document.getElementById('profileSelect').value;
-            const tf = document.getElementById('tfSelect').value;
-            const balance = parseFloat(document.getElementById('balanceInput').value) || 2.0;
-
-            let stratAdvice = "";
-            if (profile === 'aggressive') {
-                stratAdvice = `⚠️ <strong>Strategia Aggressiva:</strong> Target stretti (TP 1.0x ATR). Con $${balance}, fai attenzione: le commissioni A/R rischiano di assorbire i piccoli profitti. Consigliato <strong>Bilanciato</strong>.`;
-            } else if (profile === 'conservative') {
-                stratAdvice = `🛡️ <strong>Strategia Conservativa:</strong> Target ampi (TP 3.0x ATR, RRR 2.5:1). Ideale per conto reale: pochi segnali ma con profitti netti che battono ampiamente le fee.`;
-            } else {
-                stratAdvice = `⚖️ <strong>Strategia Bilanciata (Ottimale):</strong> Equilibrio ideale tra frequenza e ampiezza TP (1.8x ATR). Lascia correre l'operazione fino a TP1 senza chiudere manualmente.`;
-            }
-
-            let tfAdvice = "";
-            if (tf === '5m') {
-                tfAdvice = `⏱️ <strong>Timeframe 5m (Rischio Fee):</strong> Candele molto corte. I movimenti potrebbero non coprire i -$0.008 di commissioni totali. Passa a <strong>15m o 1h</strong> in reale.`;
-            } else {
-                tfAdvice = `⏱️ <strong>Timeframe ${tf} (Approvato):</strong> Ampiezza candele sufficiente a generare movimenti netti superiori al costo commissioni dell'exchange.`;
-            }
-
-            let marketAdvice = "";
-            if (selectedMarketFilter === 'ALL') {
-                marketAdvice = `🌍 <strong>Filtro Mercato: Tutti</strong> — L'algoritmo filtra automaticamente solo i setup con <strong>Profitto Netto Atteso > $0.00</strong> dopo le commissioni.`;
-            } else if (selectedMarketFilter === 'Criptovalute Globali') {
-                marketAdvice = `🪙 <strong>Mercato Crypto (24/7):</strong> Alta liquidità e volatilità costante. Ottimo per raggiungere TP1 rapidamente senza gap di chiusura.`;
-            } else if (selectedMarketFilter === 'Materie Prime & Forex') {
-                marketAdvice = `💱 <strong>Forex & Oro:</strong> Trend più lineari e puliti rispetto alle crypto. Evita di aprire ordini a ridosso della chiusura del venerdì (22:00 UTC).`;
-            } else {
-                marketAdvice = `🍏 <strong>Azioni USA:</strong> Opera esclusivamente durante l'apertura NYSE/NASDAQ (14:30 - 21:00 UTC) per evitare spread allargati.`;
-            }
-
-            const container = document.getElementById('dynamicAdvisorContent');
-            if (container) {
-                container.innerHTML = `
-                    <div class="advisor-box">${stratAdvice}</div>
-                    <div class="advisor-box">${tfAdvice}</div>
-                    <div class="advisor-box">${marketAdvice}</div>
-                `;
-            }
-        }
-
-        function filterMarket(category, rowElement) {
-            selectedMarketFilter = category;
-            document.querySelectorAll('.market-row').forEach(r => r.classList.remove('selected'));
-            rowElement.classList.add('selected');
-            updateDynamicDashboardAdvisor();
-            renderSignalsUI();
-        }
-
-        function updateGauge(needleId, textId, pathId, percent) {
-            const angle = (percent / 100) * 180 - 90;
-            const needle = document.getElementById(needleId);
-            if (needle) needle.style.transform = `rotate(${angle}deg)`;
-            const text = document.getElementById(textId);
-            if (text) text.textContent = `${percent.toFixed(1)}%`;
-            const path = document.getElementById(pathId);
-            if (path) path.style.strokeDashoffset = 125.6 - (125.6 * percent) / 100;
-        }
-
-        function updateTachometers(profile, avgScore) {
-            let pPercent = profile === 'conservative' ? 35 : (profile === 'aggressive' ? 95 : 65);
-            updateGauge('gaugeNeedle1', 'gaugeText1', 'gaugePath1', pPercent);
-            updateGauge('gaugeNeedle2', 'gaugeText2', 'gaugePath2', avgScore);
-        }
-
-        function switchTab(tabName, element) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-            document.getElementById(`tab-${tabName}`).classList.add('active');
-            element.classList.add('active');
-            if(tabName === 'telemetry') {
-                loadTelemetry();
-                loadPerformanceAnalytics();
-            }
-            if(tabName === 'positions') loadStatus();
-        }
-
-        document.getElementById('autotradeToggle').addEventListener('click', async () => {
-            const res = await fetch('/api/autotrade/toggle', { method: 'POST' });
-            const data = await res.json();
-            autoTradeState = data.auto_trade;
-            document.getElementById('autotradeToggle').innerText = autoTradeState ? "AUTO-TRADE: ON" : "AUTO-TRADE: OFF";
-            document.getElementById('autotradeToggle').className = `autotrade-btn ${autoTradeState ? 'active' : ''}`;
-            document.getElementById('exchangeModeIndicator').innerText = data.mode;
-        });
-
-        async function loadStatus() {
+        // Funzione per aggiornare Bilancio e Posizioni Attive
+        async function fetchLiveAccountData() {
             try {
-                const res = await fetch('/api/autotrade/status');
-                const data = await res.json();
-                autoTradeState = data.auto_trade;
-                document.getElementById('autotradeToggle').innerText = autoTradeState ? "AUTO-TRADE: ON" : "AUTO-TRADE: OFF";
-                document.getElementById('autotradeToggle').className = `autotrade-btn ${autoTradeState ? 'active' : ''}`;
-                document.getElementById('exchangeModeIndicator').innerText = data.mode;
-                renderPositions(data.positions);
-            } catch (e) { console.error(e); }
-        }
-
-        function renderPositions(positions) {
-            const tbody = document.getElementById('positionsTableBody');
-            if (!positions || positions.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:var(--text-muted);">Nessuna posizione attiva.</td></tr>`;
-                return;
-            }
-            tbody.innerHTML = positions.map(p => `
-                <tr>
-                    <td><strong>${p.name}</strong></td>
-                    <td><span style="color:${p.action === 'BUY' ? 'var(--accent-green)' : 'var(--accent-red)'}; font-weight:800;">${p.action}</span></td>
-                    <td>${p.entry}</td>
-                    <td>${p.size}</td>
-                    <td>${p.leverage}</td>
-                    <td>$${p.margin}</td>
-                    <td style="color:var(--accent-red); font-weight:700;">-$${p.fee || '0.00'}</td>
-                    <td style="color:${p.unrealized_pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}; font-weight:700;">$${p.unrealized_pnl}</td>
-                    <td><button class="btn-close" onclick="closePosition('${p.symbol}')">CHIUDI</button></td>
-                </tr>
-            `).join('');
-        }
-
-        async function closePosition(symbol) {
-            await fetch('/api/autotrade/close', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ symbol })
-            });
-            loadStatus();
-            loadPerformanceAnalytics();
-        }
-
-        async function loadPerformanceAnalytics() {
-            try {
-                const res = await fetch('/api/analytics/performance');
+                const res = await fetch('/api/bingx/live-account');
                 const data = await res.json();
                 
-                const daily = data.daily;
-                document.getElementById('dailyPerfBody').innerHTML = `
-                    <tr>
-                        <td><strong>${daily.total_trades}</strong></td>
-                        <td><span style="color:var(--accent-green); font-weight:700;">${daily.win_pct}%</span> (${daily.wins} win)</td>
-                        <td><span style="color:var(--accent-red); font-weight:700;">${daily.loss_pct}%</span> (${daily.losses} loss)</td>
-                        <td style="color:var(--accent-green); font-weight:700;">+$${daily.won_amount}</td>
-                        <td style="color:var(--accent-red); font-weight:700;">-$${Math.abs(daily.lost_amount)}</td>
-                        <td style="color:${daily.net_pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}; font-weight:800;">$${daily.net_pnl}</td>
-                    </tr>
-                `;
+                if (data.success) {
+                    const balance = data.balance?.balance || {};
+                    if (balance.balance !== undefined) {
+                        document.getElementById('real-balance').innerText = `$${parseFloat(balance.balance).toFixed(2)}`;
+                        document.getElementById('real-equity').innerText = `$${parseFloat(balance.equity || balance.balance).toFixed(2)}`;
+                    }
 
-                const monthly = data.monthly;
-                document.getElementById('monthlyPerfBody').innerHTML = `
-                    <tr>
-                        <td><strong>${monthly.month}</strong></td>
-                        <td><strong>${monthly.total_trades}</strong></td>
-                        <td><span style="color:var(--accent-green); font-weight:700;">${monthly.win_pct}%</span> (${monthly.wins} win)</td>
-                        <td><span style="color:var(--accent-red); font-weight:700;">${monthly.loss_pct}%</span> (${monthly.losses} loss)</td>
-                        <td style="color:var(--accent-green); font-weight:700;">+$${monthly.won_amount}</td>
-                        <td style="color:var(--accent-red); font-weight:700;">-$${Math.abs(monthly.lost_amount)}</td>
-                        <td style="color:${monthly.net_pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}; font-weight:800;">$${monthly.net_pnl}</td>
-                    </tr>
-                `;
-            } catch(e) { console.error(e); }
-        }
-
-        async function loadTelemetry() {
-            try {
-                const res = await fetch('/api/telemetry');
-                const data = await res.json();
-                document.getElementById('telemetryContainer').innerHTML = `
-                    <p>Scansioni Globali: <strong>${data.scans_count}</strong></p>
-                    <p>Ordini Attivi Totali: <strong>${data.total_executions}</strong></p>
-                    <p>PnL di Sessione: <strong style="color:${data.session_pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}">$${data.session_pnl}</strong></p>
-                    <hr style="border-color:var(--border-color); margin:10px 0;">
-                    <p style="color:var(--text-muted);">Ultimi Log delle Borse:</p>
-                    ${data.telemetry_logs.map(l => `<div>[${l.timestamp}] - Asset Scansionati: ${l.scanned} - Stato: ${l.status}</div>`).join('')}
-                `;
-            } catch(e) { console.error(e); }
-        }
-
-        async function updateLivePricesOnly() {
-            try {
-                const res = await fetch('/api/live-prices');
-                const prices = await res.json();
-                for (const [symbol, price] of Object.entries(prices)) {
-                    const priceEl = document.getElementById(`price-${symbol}`);
-                    if (priceEl) {
-                        priceEl.innerText = price.toFixed(price > 5 ? 2 : 6);
+                    const tbody = document.getElementById('active-positions-list');
+                    const positions = data.positions || [];
+                    
+                    if (positions.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Nessuna posizione aperta al momento</td></tr>';
+                    } else {
+                        tbody.innerHTML = '';
+                        positions.forEach(pos => {
+                            const pnl = parseFloat(pos.unrealizedProfit || 0);
+                            const pnlClass = pnl >= 0 ? 'text-success' : 'text-danger';
+                            tbody.innerHTML += `
+                                <tr>
+                                    <td><b>${pos.symbol}</b></td>
+                                    <td><span class="badge ${pos.positionSide === 'LONG' || pos.side === 'BUY' ? 'bg-success' : 'bg-danger'}">${pos.positionSide || pos.side}</span></td>
+                                    <td>${pos.positionAmt}</td>
+                                    <td>$${parseFloat(pos.avgPrice || 0).toFixed(2)}</td>
+                                    <td class="${pnlClass}">$${pnl.toFixed(4)}</td>
+                                    <td>${pos.leverage}x</td>
+                                </tr>
+                            `;
+                        });
                     }
                 }
-            } catch (e) { }
+            } catch (err) {
+                console.error("Errore recupero conto live:", err);
+            }
         }
 
-        async function loadSignals() {
-            updateDynamicDashboardAdvisor();
-            const profile = document.getElementById('profileSelect').value;
-            const timeframe = document.getElementById('tfSelect').value;
-            const balance = document.getElementById('balanceInput').value;
-            const risk = document.getElementById('riskInput').value;
-
+        // Funzione per aggiornare i report di performance (Giornaliero e Mensile)
+        async function fetchPerformanceReports() {
             try {
-                const res = await fetch(`/api/signals?profile=${profile}&timeframe=${timeframe}&balance=${balance}&risk=${risk}`);
+                const res = await fetch('/api/bingx/sync-performance');
                 const data = await res.json();
-                cachedSignalData = data;
-                renderSignalsUI();
-            } catch (e) { console.error(e); }
+                
+                if (data.success) {
+                    const daily = data.daily;
+                    document.getElementById('daily-trades-count').innerText = daily.totalTrades;
+                    document.getElementById('daily-win-rate').innerText = `${daily.winRate}%`;
+                    document.getElementById('daily-loss-rate').innerText = `${daily.totalTrades > 0 ? (100 - daily.winRate).toFixed(1) : 0}%`;
+                    const dailyPnlEl = document.getElementById('daily-pnl');
+                    dailyPnlEl.innerText = `${daily.totalPnl >= 0 ? '+' : ''}$${daily.totalPnl.toFixed(4)}`;
+                    dailyPnlEl.className = `fs-5 fw-bold ${daily.totalPnl >= 0 ? 'text-success' : 'text-danger'}`;
+
+                    const monthly = data.monthly;
+                    document.getElementById('monthly-trades-count').innerText = monthly.totalTrades;
+                    const monthlyPnlEl = document.getElementById('monthly-pnl');
+                    monthlyPnlEl.innerText = `${monthly.totalPnl >= 0 ? '+' : ''}$${monthly.totalPnl.toFixed(4)}`;
+                    monthlyPnlEl.className = `fs-5 fw-bold ${monthly.totalPnl >= 0 ? 'text-success' : 'text-danger'}`;
+                }
+            } catch (err) {
+                console.error("Errore sincronizzazione report performance:", err);
+            }
         }
 
-        function renderSignalsUI() {
-            const signals = cachedSignalData.signals || [];
-            const sessions = cachedSignalData.sessions || {};
-            const profile = document.getElementById('profileSelect').value;
-            
-            const sessionsTbody = document.getElementById('sessionsTableBody');
-            const categories = Object.keys(sessions);
-            if (categories.length > 0) {
-                sessionsTbody.innerHTML = categories.map(cat => {
-                    const sess = sessions[cat];
-                    const badgeStyle = sess.is_open 
-                        ? 'background:rgba(0,255,102,0.15); color:#00ff66; border:1px solid #00ff66;' 
-                        : 'background:rgba(255,30,66,0.15); color:#ff1e42; border:1px solid #ff1e42;';
-                    return `
-                        <tr>
-                            <td><strong>🏛️ ${cat}</strong></td>
-                            <td><span class="status-badge" style="${badgeStyle}">${sess.is_open ? '🟢' : '🔴'} ${sess.status}</span></td>
-                            <td>${sess.hours}</td>
-                            <td><span style="color:var(--accent-green);">Real Advisor & Fee Filter</span></td>
-                        </tr>
-                    `;
-                }).join('');
-            }
-
-            if (signals.length > 0) {
-                const avg = signals.reduce((acc, s) => acc + parseFloat(s.ai_score), 0) / signals.length;
-                updateTachometers(profile, avg);
-            } else {
-                updateTachometers(profile, 50.0);
-            }
-
-            const container = document.getElementById('categorizedMarketsContainer');
-            const filteredCategories = selectedMarketFilter === 'ALL' 
-                ? categories 
-                : categories.filter(cat => cat === selectedMarketFilter);
-
-            if (filteredCategories.length === 0) {
-                container.innerHTML = `<div style="text-align:center; padding: 40px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">Nessun dato per questa categoria.</div>`;
-                return;
-            }
-
-            container.innerHTML = filteredCategories.map(cat => {
-                const sess = sessions[cat];
-                const catSignals = signals.filter(s => s.category === cat);
-                const badgeStyle = sess.is_open 
-                    ? 'background:rgba(0,255,102,0.15); color:#00ff66; border:1px solid #00ff66;' 
-                    : 'background:rgba(255,30,66,0.15); color:#ff1e42; border:1px solid #ff1e42;';
-
-                return `
-                    <div class="category-block">
-                        <div class="category-header" style="border-left-color: ${sess.badge_color};">
-                            <div class="category-name">🏛️ ${cat}</div>
-                            <div style="display:flex; align-items:center; gap:10px; font-family:'JetBrains Mono',monospace; font-size:0.75rem;">
-                                <span style="color:var(--text-muted);">🕒 Orari: <strong>${sess.hours}</strong></span>
-                                <span class="status-badge" style="${badgeStyle}">${sess.is_open ? '🟢' : '🔴'} ${sess.status}</span>
-                            </div>
-                        </div>
-                        <div class="signals-grid">
-                            ${catSignals.length === 0 ? `<div style="color:var(--text-muted); font-family:'JetBrains Mono',monospace; font-size:0.8rem;">In attesa di dati validi per questa borsa...</div>` : 
-                            catSignals.map(s => {
-                                const cleanSym = ['AAPL', 'TSLA', 'NVDA', 'AMZN', 'MSFT', 'GOOGL'].includes(s.symbol) ? s.symbol + 'USDT' : s.symbol;
-                                return `
-                                <div class="signal-card">
-                                    <div class="card-header">
-                                        <div>
-                                            <div class="asset-title">${s.name}</div>
-                                            <div style="font-size:0.75rem; color:var(--text-muted);">Prezzo Live: <strong id="price-${cleanSym}">${s.price}</strong></div>
-                                        </div>
-                                        <span class="badge-action ${s.action === 'BUY' ? 'badge-buy' : (s.action === 'SELL' ? 'badge-sell' : 'badge-neutral')}">${s.action}</span>
-                                    </div>
-                                    <div style="font-size:0.75rem; color:${s.sentiment_color}; font-weight:700; margin-bottom:8px; font-family:'JetBrains Mono',monospace;">${s.sentiment}</div>
-                                    
-                                    <div class="metrics-grid">
-                                        <div class="metric-box"><label>🎯 TAKE PROFIT (TP1)</label><span style="color:var(--accent-green);">${s.tp1}</span></div>
-                                        <div class="metric-box"><label>🛡️ STOP LOSS (SL)</label><span style="color:var(--accent-red);">${s.sl}</span></div>
-                                        <div class="metric-box"><label>📈 TARGET RIALZISTA</label><span style="color:var(--accent-green);">${s.target_rialzista}</span></div>
-                                        <div class="metric-box"><label>📉 TARGET RIBASSISTA</label><span style="color:var(--accent-red);">${s.target_ribassista}</span></div>
-                                    </div>
-
-                                    <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; background:rgba(0,255,102,0.06); border:1px solid rgba(0,255,102,0.2); padding:6px 10px; border-radius:6px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
-                                        <span>🚀 ROI Stimato: <strong style="color:var(--accent-green); font-size:0.85rem;">${s.roi_pct}</strong></span>
-                                        <span>Leva: <strong style="color:var(--text-main);">${s.leverage}</strong></span>
-                                    </div>
-
-                                    <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; color:var(--text-muted); margin-bottom:6px; display:flex; justify-content:space-between;">
-                                        <span>⏱️ Durata: <strong style="color:var(--accent-green);">${s.duration}</strong></span>
-                                        <span>RSI: <strong>${s.rsi}</strong></span>
-                                    </div>
-                                    <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; color:var(--text-muted);">
-                                        ⚡ Convinzione: <strong style="color:var(--accent-green);">${s.ai_score}</strong> | Trend: <strong>${s.inversion}</strong>
-                                    </div>
-
-                                    <!-- CONSULENZA ISTANTANEA SUL SEGNALE IN REALE -->
-                                    <div class="card-advisor-box" style="border-left-color: ${s.advisor_color};">
-                                        <div style="font-family:'JetBrains Mono',monospace; font-weight:800; color:${s.advisor_color}; margin-bottom:3px;">
-                                            💡 CONSIGLIO REALE: ${s.advisor_status}
-                                        </div>
-                                        <div style="color:var(--text-main);">${s.advisor_msg}</div>
-                                    </div>
-                                </div>
-                            `}).join('')}
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        updateDynamicDashboardAdvisor();
-        loadStatus();
-        loadSignals();
-
-        setInterval(updateLivePricesOnly, 2000);
-        setInterval(loadSignals, 10000);
-        setInterval(loadStatus, 4000);
-
-        ['profileSelect', 'tfSelect', 'balanceInput', 'riskInput'].forEach(id => {
-            document.getElementById(id).addEventListener('change', loadSignals);
-        });
+        // Avvio polling automatico ogni 6 secondi per i dati conto e ogni 15 secondi per i report
+        fetchLiveAccountData();
+        fetchPerformanceReports();
+        
+        setInterval(fetchLiveAccountData, 6000);
+        setInterval(fetchPerformanceReports, 15000);
     </script>
 </body>
 </html>
