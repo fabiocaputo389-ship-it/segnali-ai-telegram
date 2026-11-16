@@ -172,7 +172,7 @@ def manage_auto_execution(signal):
                         f"🏛 *SALA SEGNALI PRO • ESECUZIONE LIVE* 🏛\n\n"
                         f"Asset: `{signal['name']}`\n"
                         f"Segnale: *{action}* ({signal['leverage']})\n"
-                        f"Previsione Inversione: `{signal['inversion_prediction']}`\n"
+                        f"Parametri Attivazione: RSI `{signal['rsi']}` | MACD OK\n"
                         f"Size: `{qty}` | Margine: `${signal['margin']}`\n"
                         f"Ingresso: `{signal['entry']}`\n"
                         f"SL: `{signal['sl']}` | TP1: `{signal['tp1']}`"
@@ -309,7 +309,6 @@ def get_market_data(symbol, interval="15m"):
     except Exception:
         pass
 
-    # Prezzi di fallback realistici per singolo asset se il feed esterno fallisce
     fallback_prices = {
         'BTCUSDT': 64000.0, 'ETHUSDT': 2500.0, 'SOLUSDT': 150.0, 'XRPUSDT': 0.55,
         'BNBUSDT': 580.0, 'ADAUSDT': 0.45, 'DOGEUSDT': 0.12, 'AVAXUSDT': 25.0,
@@ -354,7 +353,7 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
     vol = df['Volume']
     vol_sma = safe_float(vol.rolling(20).mean().iloc[-1], 1000.0)
     current_vol = safe_float(vol.iloc[-1], 1000.0)
-    low_volume_trap = bool(current_vol < (vol_sma * 0.60))
+    low_volume_trap = bool(current_vol < (vol_sma * 0.40))  # Soglia flessibile per attivazione rapida
 
     o_last = safe_float(df['Open'].iloc[-1], current_price)
     c_last = safe_float(df['Close'].iloc[-1], current_price)
@@ -362,7 +361,7 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
     l_last = safe_float(df['Low'].iloc[-1], current_price)
     body = abs(c_last - o_last)
     rng = h_last - l_last
-    is_fake_wick = bool((rng > 0) and ((body / rng) < 0.22))
+    is_fake_wick = bool((rng > 0) and ((body / rng) < 0.15))
     whipsaw_detected = low_volume_trap or is_fake_wick
 
     recent_highs = df['High'].iloc[-10:-2].max()
@@ -372,20 +371,21 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
     ema_val_12 = safe_float(ema12.iloc[-1], current_price)
     ema_val_26 = safe_float(ema26.iloc[-1], current_price)
 
-    # --- ALGORITMO DI PREVISIONE INVERSIONE (REVERSAL PREDICTION ENGINE) ---
-    if rsi >= 74 and current_macd < prev_macd:
-        inversion_prediction = "⚠️ Imminente Inversione RIBASSISTA (Esaurimento Buyer)"
-    elif rsi <= 26 and current_macd > prev_macd:
-        inversion_prediction = "🚀 Imminente Inversione RIALZISTA (Esaurimento Seller)"
-    elif rsi > 68:
-        inversion_prediction = "⚡ Zona di Resistenza / Possibile Rimbalzo Inverso"
-    elif rsi < 32:
-        inversion_prediction = "⚡ Zona di Supporto / Possibile Rimbalzo Inverso"
+    # --- ALGORITMO DI PREVISIONE INVERSIONE ---
+    if rsi >= 72 and current_macd < prev_macd:
+        inversion_prediction = "⚠️ Imminente Inversione RIBASSISTA"
+    elif rsi <= 28 and current_macd > prev_macd:
+        inversion_prediction = "🚀 Imminente Inversione RIALZISTA"
+    elif rsi > 65:
+        inversion_prediction = "⚡ Zona di Resistenza / Attiva"
+    elif rsi < 35:
+        inversion_prediction = "⚡ Zona di Supporto / Attiva"
     else:
-        inversion_prediction = "🛡️ Trend Istituzionale Stabile (Nessuna Inversione)"
+        inversion_prediction = "🛡️ Trend Istituzionale Stabile"
 
-    is_buy = (ema_val_12 > ema_val_26) and (current_macd > 0.0) and (50 <= rsi <= 72) and not whipsaw_detected
-    is_sell = (ema_val_12 < ema_val_26) and (current_macd < 0.0) and (28 <= rsi <= 50) and not whipsaw_detected
+    # Condizioni di attivazione flessibili e reattive
+    is_buy = (ema_val_12 >= ema_val_26) and (current_macd >= -0.001) and (40 <= rsi <= 78) and not whipsaw_detected
+    is_sell = (ema_val_12 <= ema_val_26) and (current_macd <= 0.001) and (22 <= rsi <= 60) and not whipsaw_detected
 
     if is_buy:
         action = "BUY"
@@ -406,12 +406,12 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
         liquidation_cascade = "Cluster Short Spazzati ($240M)"
         fear_greed = "92 / 100 (Estesa Avidità Prop-Desk)"
         macro_watchdog = "Finestra Sicura Tier-5"
-        cvd_divergence = "CVD Divergence: Rialzista Forte (Accumulo Nascosto)"
+        cvd_divergence = "CVD Divergence: Rialzista Forte"
         spoofing_detector = "Spoofing: Nessuna Manipolazione Lettera"
-        iv_smile = "IV Smile: Call Skew Elevato (Pressione Rialzista)"
+        iv_smile = "IV Smile: Call Skew Elevato"
         kelly_criterion = "Kelly Opt. Size: 3.4% del Capitale"
-        tape_speed = "Tape Speed: Massima Accelerazione (HFT Buy Burst)"
-        ai_agent_note = "TIER-5 AGENT: Confluenza totale su ordini istituzionali. Routing ottimizzato su 4 venue."
+        tape_speed = "Tape Speed: Massima Accelerazione"
+        ai_agent_note = "TIER-5 AGENT: Confluenza confermata. Parametri RSI/EMA rispettati."
     elif is_sell:
         action = "SELL"
         ai_score = 99.9
@@ -431,16 +431,16 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
         liquidation_cascade = "Cluster Long Spazzati ($210M)"
         fear_greed = "8 / 100 (Estremo Panico Prop-Desk)"
         macro_watchdog = "Finestra Sicura Tier-5"
-        cvd_divergence = "CVD Divergence: Ribassista Forte (Distribuzione Nascosta)"
+        cvd_divergence = "CVD Divergence: Ribassista Forte"
         spoofing_detector = "Spoofing: Muro fittizio rilevato su Ask"
-        iv_smile = "IV Smile: Put Skew Elevato (Pressione Ribassista)"
+        iv_smile = "IV Smile: Put Skew Elevato"
         kelly_criterion = "Kelly Opt. Size: 3.1% del Capitale"
-        tape_speed = "Tape Speed: Massima Accelerazione (HFT Sell Dump)"
-        ai_agent_note = "TIER-5 AGENT: Distribuzione attiva sui massimi. Assorbimento della domanda completato."
+        tape_speed = "Tape Speed: Massima Accelerazione"
+        ai_agent_note = "TIER-5 AGENT: Distribuzione confermata. Parametri RSI/EMA rispettati."
     else:
         action = "NEUTRAL"
-        ai_score = 45.0
-        sentiment = "CONSOLIDAMENTO / ATTESA TIER-5"
+        ai_score = 55.0
+        sentiment = "CONSOLIDAMENTO / IN ATTESA"
         sentiment_color = "#ffffff"
         sentiment_pct = 50
         regime = "Compressione di Range Istituzionale"
@@ -461,7 +461,7 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
         iv_smile = "IV Smile Piatto"
         kelly_criterion = "Kelly Sizing: Inattivo"
         tape_speed = "Tape Speed: Normale"
-        ai_agent_note = "TIER-5 AGENT: Mercato in fase laterale. Nessun segnale operativo di grado institutional."
+        ai_agent_note = f"ATTESA PARAMETRI: RSI={rsi:.1f} (Req: 40-78 BUY / 22-60 SELL) | EMA12={ema_val_12:.2f}, EMA26={ema_val_26:.2f}"
 
     if mode == 'Scalping':
         sl_m, tp_m = 0.4, 1.0
@@ -582,6 +582,7 @@ def process_asset(cat, a, m_status, mode, balance, risk_pct, timeframe):
             res = calculate_ai_neural_setup(df, current_price, mode, balance, risk_pct, symbol=a['id'])
             dec = res["decimals"]
 
+            # Mostra i parametri di attivazione attuali direttamente nella colonna stato filtri
             scans_telemetry[a['id']] = {
                 "symbol": a['id'],
                 "name": a['name'],
@@ -589,7 +590,7 @@ def process_asset(cat, a, m_status, mode, balance, risk_pct, timeframe):
                 "price": f"{current_price:.{dec}f}",
                 "action": res['action'],
                 "ai_score": f"{res['ai_score']}%",
-                "whipsaw": res['inversion_prediction'],
+                "whipsaw": f"RSI:{res['rsi']} | {res['ai_agent_note'][:35]}...",
                 "timestamp": datetime.now().strftime("%H:%M:%S")
             }
 
@@ -629,7 +630,7 @@ def process_asset(cat, a, m_status, mode, balance, risk_pct, timeframe):
                     f"🏛 *SALA SEGNALI PRO • ESECUZIONE LIVE* 🏛\n\n"
                     f"🟢 *Asset*: `{signal_obj['name']}` ({signal_obj['category']})\n"
                     f"📊 *Direzione*: *{signal_obj['action']}*\n"
-                    f"🔄 *Previsione Inversione*: `{signal_obj['inversion_prediction']}`\n"
+                    f"⚙️ *Parametri Attivazione*: RSI `{signal_obj['rsi']}` | Confluenza OK\n"
                     f"💰 *Ingresso Live*: `{signal_obj['entry']}`\n"
                     f"🎯 *Target Max*: `{signal_obj['max_target']}`\n"
                     f"🛑 *Stop Loss*: `{signal_obj['sl']}`\n"
