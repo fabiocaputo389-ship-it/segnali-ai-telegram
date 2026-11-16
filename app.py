@@ -6,6 +6,7 @@ import os
 import time
 import hmac
 import hashlib
+import json
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -27,7 +28,25 @@ def load_render_environment():
 load_render_environment()
 
 BINGX_BASE_URL = "https://open-api.bingx.com"
-auto_trade_active = False
+STATE_FILE = "autotrade_state.json"
+
+def get_saved_autotrade():
+    if os.path.exists(STATE_FILE):
+        try:
+            with open(STATE_FILE, "r") as f:
+                return json.load(f).get("active", False)
+        except Exception:
+            pass
+    return False
+
+def save_autotrade(status):
+    try:
+        with open(STATE_FILE, "w") as f:
+            json.dump({"active": status}, f)
+    except Exception as e:
+        print(f"Errore salvataggio stato trade: {e}")
+
+auto_trade_active = get_saved_autotrade()
 execution_history = []
 sent_telegram_signals = {}
 scans_telemetry = {}
@@ -103,11 +122,30 @@ def execute_verified_order(symbol, name, action, entry, size, leverage, margin, 
         try:
             timestamp = int(time.time() * 1000)
             bx_symbol = f"{symbol.replace('USDT','')}-USDT"
-            params = {"symbol": bx_symbol, "side": action, "positionSide": "LONG" if action == "BUY" else "SHORT", "type": "MARKET", "quantity": size, "timestamp": timestamp}
+            pos_side = "LONG" if action == "BUY" else "SHORT"
+            
+            # Parametri di base per l'ordine Market
+            params = {
+                "symbol": bx_symbol, 
+                "side": action, 
+                "positionSide": pos_side,
+                "type": "MARKET", 
+                "quantity": size, 
+                "timestamp": timestamp,
+                # Inserimento automatico dei parametri di Take Profit e Stop Loss nelle API BingX v2
+                "takeProfit": json.dumps({"type": "TAKE_PROFIT_MARKET", "stopPrice": tp1}),
+                "stopLoss": json.dumps({"type": "STOP_MARKET", "stopPrice": sl})
+            }
+            
             query_string = "&".join([f"{k}={v}" for k, v in sorted(params.items())])
             signature = sign_bingx_request(query_string)
-            requests.post(f"{BINGX_BASE_URL}/openApi/swap/v2/trade/order?{query_string}&signature={signature}", headers={"X-BX-APIKEY": BINGX_API_KEY}, timeout=3.0)
-        except Exception: pass
+            headers = {"X-BX-APIKEY": BINGX_API_KEY}
+            
+            res = requests.post(f"{BINGX_BASE_URL}/openApi/swap/v2/trade/order?{query_string}&signature={signature}", headers=headers, timeout=3.0).json()
+            if res.get("code") != 0:
+                print(f"⚠️ Errore BingX TP/SL ({symbol}): {res.get('msg')}")
+        except Exception as e:
+            print(f"Errore esecuzione BingX con TP/SL: {e}")
 
     if not any(h['symbol'] == symbol and h['status'] == 'OPEN' for h in execution_history):
         order_record = {
@@ -116,7 +154,7 @@ def execute_verified_order(symbol, name, action, entry, size, leverage, margin, 
             "sl": sl, "tp1": tp1, "unrealized_pnl": 0.0, "status": "OPEN", "opened_at": datetime.now().strftime("%H:%M:%S")
         }
         execution_history.insert(0, order_record)
-        send_telegram_message_cooldown(symbol, f"🏛 *SALA SEGNALI PRO • GLOBAL ORDER* 🏛\nAsset: `{name}`\nSegnale: *{action}* ({leverage})\nIngresso: `{entry}`\nSL: `{sl}` | TP1: `{tp1}`")
+        send_telegram_message_cooldown(symbol, f"🏛 *SALA SEGNALI PRO • GLOBAL ORDER + TP/SL* 🏛\nAsset: `{name}`\nSegnale: *{action}* ({leverage})\nIngresso: `{entry}`\nSL: `{sl}` | TP1: `{tp1}`")
 
 @app.route('/')
 def home():
@@ -126,7 +164,11 @@ def home():
 def toggle_autotrade():
     global auto_trade_active
     data = request.get_json(silent=True) or {}
-    auto_trade_active = bool(data.get('enabled', not auto_trade_active))
+    if 'enabled' in data:
+        auto_trade_active = bool(data['enabled'])
+    else:
+        auto_trade_active = not auto_trade_active
+    save_autotrade(auto_trade_active)
     return jsonify({"auto_trade": auto_trade_active, "mode": get_exchange_mode()})
 
 @app.route('/api/autotrade/status', methods=['GET'])
@@ -279,7 +321,6 @@ def get_signals():
         markets = fetch_all_markets()
         session_info = {cat: get_market_session_status(cat) for cat in markets.keys()}
         
-        # Scarica prima tutti i prezzi live in un unico colpo batch per velocità istantanea
         all_prices = {}
         try:
             p_res = requests.get("https://api.binance.com/api/v3/ticker/price", timeout=2.0).json()
@@ -296,7 +337,6 @@ def get_signals():
                 cat, a = futures[future]
                 df, live_price = future.result()
                 
-                # Assegna il prezzo live batch se disponibile
                 clean_sym = a['id'] + 'USDT' if a['id'] in ['AAPL', 'TSLA', 'NVDA', 'AMZN', 'MSFT', 'GOOGL'] else a['id']
                 if clean_sym in all_prices:
                     live_price = all_prices[clean_sym]
@@ -326,7 +366,7 @@ def get_signals():
 
         scans_telemetry[time.time()] = {
             "timestamp": datetime.now().strftime("%H:%M:%S"),
-            "scanned": len(signals), "status": "LIVE_FAST_SYNC"
+            "scanned": len(signals), "status": "LIVE_FAST_SYNC_WITH_TPSL"
         }
 
         return jsonify({"sessions": session_info, "signals": signals})
