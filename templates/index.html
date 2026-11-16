@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SALA SEGNALI PRO • Institutional HFT Terminal</title>
+    <title>SALA SEGNALI PRO • Institutional All-Markets Terminal</title>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -35,15 +35,9 @@
         .badge-action { padding: 4px 10px; border-radius: 4px; font-weight: 800; font-size: 0.8rem; font-family: 'JetBrains Mono', monospace; }
         .badge-buy { background: rgba(0,255,102,0.15); color: var(--accent-green); border: 1px solid var(--accent-green); }
         .badge-sell { background: rgba(255,30,66,0.15); color: var(--accent-red); border: 1px solid var(--accent-red); }
-        .metrics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; }
+        .metrics-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 12px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; }
         .metric-box label { font-size: 0.65rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; display: block; }
-        .metric-box span { font-size: 0.9rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
-        .progress-bar-container { background: var(--bg-base); height: 6px; border-radius: 3px; margin: 12px 0; overflow: hidden; border: 1px solid var(--border-color); }
-        .progress-fill { background: var(--accent-green); height: 100%; width: 0%; transition: width 0.5s ease; }
-        .positions-table { width: 100%; border-collapse: collapse; background: var(--bg-panel); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); margin-top: 10px; }
-        .positions-table th, .positions-table td { padding: 10px 14px; text-align: left; font-size: 0.85rem; font-family: 'JetBrains Mono', monospace; border-bottom: 1px solid var(--border-color); }
-        .positions-table th { background: rgba(255,255,255,0.02); color: var(--text-muted); font-size: 0.75rem; }
-        .btn-close { background: rgba(255,30,66,0.2); color: var(--accent-red); border: 1px solid var(--accent-red); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; font-weight: 700; }
+        .metric-box span { font-size: 0.85rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
         .footer-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: var(--bg-panel); border-top: 1px solid var(--border-color); display: flex; justify-content: space-around; padding: 12px; z-index: 1000; }
         .nav-item { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-muted); text-decoration: none; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
         .nav-item.active { color: var(--accent-green); }
@@ -51,7 +45,7 @@
 </head>
 <body>
     <header>
-        <div class="logo">⚡ SALA SEGNALI PRO <span style="font-size:0.6rem; background:rgba(0,255,102,0.1); color:var(--accent-green); padding:2px 6px; border-radius:3px;">MANUAL CONFIG</span></div>
+        <div class="logo">⚡ SALA SEGNALI PRO <span style="font-size:0.6rem; background:rgba(0,255,102,0.1); color:var(--accent-green); padding:2px 6px; border-radius:3px;">DURATION & TARGET ENGINE</span></div>
         <div class="terminal-clock" id="clock">00:00:00</div>
     </header>
 
@@ -87,43 +81,20 @@
 
     <div class="container">
         <div class="section-title">
-            <span>📡 Feed Segnali Istituzionali in Tempo Reale</span>
+            <span>📡 Scanner Globale (Previsioni & Durata Target)</span>
             <span id="exchangeModeIndicator" style="color:var(--accent-green)">Connessione in corso...</span>
         </div>
         <div id="signalsContainer" class="signals-grid">
             <div style="grid-column: 1/-1; text-align:center; padding: 40px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">
-                Inizializzazione scanner globale HFT e sincronizzazione book...
-            </div>
-        </div>
-
-        <div style="margin-top: 40px;">
-            <div class="section-title"><span>📊 Posizioni Aperte Reali (BingX / Prop-Desk)</span></div>
-            <div style="overflow-x: auto;">
-                <table class="positions-table">
-                    <thead>
-                        <tr>
-                            <th>Asset</th>
-                            <th>Azione</th>
-                            <th>Ingresso</th>
-                            <th>Size</th>
-                            <th>Leva</th>
-                            <th>Margin ($)</th>
-                            <th>PnL (USDT)</th>
-                            <th>Azione Rapida</th>
-                        </tr>
-                    </thead>
-                    <tbody id="positionsTableBody">
-                        <tr><td colspan="8" style="text-align:center; color:var(--text-muted);">Nessuna posizione attiva sul desk.</td></tr>
-                    </tbody>
-                </table>
+                Analisi di volatilità e calcolo durata target in corso...
             </div>
         </div>
     </div>
 
     <div class="footer-nav">
-        <a class="nav-item active"><span>📊</span> Segnali</a>
-        <a class="nav-item" onclick="alert('Sistema di telemetria HFT attivo.')"><span>⚡</span> Telemetria</a>
-        <a class="nav-item" onclick="alert('Grafici multi-timeframe sincronizzati.')"><span>📈</span> Grafici</a>
+        <a class="nav-item active"><span>📊</span> Mercati & Durate</a>
+        <a class="nav-item" onclick="alert('Telemetria HFT attiva.')"><span>⚡</span> Telemetria</a>
+        <a class="nav-item" onclick="alert('Grafici sincronizzati.')"><span>📈</span> Grafici</a>
     </div>
 
     <script>
@@ -143,53 +114,9 @@
         function updateAutoTradeUI(data) {
             const btn = document.getElementById('autotradeToggle');
             const ind = document.getElementById('exchangeModeIndicator');
-            if (autoTradeState) {
-                btn.innerText = "AUTO-TRADE: ON";
-                btn.classList.add('active');
-            } else {
-                btn.innerText = "AUTO-TRADE: OFF";
-                btn.classList.remove('active');
-            }
+            btn.innerText = autoTradeState ? "AUTO-TRADE: ON" : "AUTO-TRADE: OFF";
+            btn.className = `autotrade-btn ${autoTradeState ? 'active' : ''}`;
             ind.innerText = data.mode;
-        }
-
-        async function loadStatus() {
-            try {
-                const res = await fetch('/api/autotrade/status');
-                const data = await res.json();
-                autoTradeState = data.auto_trade;
-                updateAutoTradeUI(data);
-                renderPositions(data.positions);
-            } catch (e) { console.error(e); }
-        }
-
-        function renderPositions(positions) {
-            const tbody = document.getElementById('positionsTableBody');
-            if (!positions || positions.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">Nessuna posizione attiva sul desk.</td></tr>`;
-                return;
-            }
-            tbody.innerHTML = positions.map(p => `
-                <tr>
-                    <td><strong>${p.name}</strong></td>
-                    <td><span style="color:${p.action === 'BUY' ? 'var(--accent-green)' : 'var(--accent-red)'}; font-weight:800;">${p.action}</span></td>
-                    <td>${p.entry}</td>
-                    <td>${p.size}</td>
-                    <td>${p.leverage}</td>
-                    <td>$${p.margin}</td>
-                    <td style="color:${p.unrealized_pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}; font-weight:700;">$${p.unrealized_pnl}</td>
-                    <td><button class="btn-close" onclick="closePosition('${p.symbol}')">CHIUDI</button></td>
-                </tr>
-            `).join('');
-        }
-
-        async function closePosition(symbol) {
-            await fetch('/api/autotrade/close', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ symbol })
-            });
-            loadStatus();
         }
 
         async function loadSignals() {
@@ -208,7 +135,7 @@
         function renderSignals(signals) {
             const container = document.getElementById('signalsContainer');
             if (!signals || signals.length === 0) {
-                container.innerHTML = `<div style="grid-column: 1/-1; text-align:center; padding: 40px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">Nessun segnale ad alta confluenza trovato in questo scan.</div>`;
+                container.innerHTML = `<div style="grid-column: 1/-1; text-align:center; padding: 40px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">Nessun asset disponibile al momento.</div>`;
                 return;
             }
 
@@ -217,42 +144,32 @@
                     <div class="card-header">
                         <div>
                             <div class="asset-title">${s.name}</div>
-                            <div style="font-size:0.75rem; color:var(--text-muted);">${s.category} • Prezzo: ${s.price}</div>
+                            <div style="font-size:0.75rem; color:var(--text-muted);">${s.category} • Prezzo: <strong>${s.price}</strong></div>
                         </div>
                         <span class="badge-action ${s.action === 'BUY' ? 'badge-buy' : 'badge-sell'}">${s.action}</span>
                     </div>
 
-                    <div style="font-size:0.8rem; color:${s.sentiment_color}; font-weight:700; margin-bottom:8px; font-family:'JetBrains Mono',monospace;">
+                    <div style="font-size:0.75rem; color:${s.sentiment_color}; font-weight:700; margin-bottom:8px; font-family:'JetBrains Mono',monospace;">
                         ${s.sentiment}
                     </div>
 
                     <div class="metrics-grid">
-                        <div class="metric-box"><label>INGRESSO</label><span>${s.entry}</span></div>
-                        <div class="metric-box"><label>STOP LOSS</label><span style="color:var(--accent-red);">${s.sl}</span></div>
-                        <div class="metric-box"><label>TARGET 1</label><span style="color:var(--accent-green);">${s.tp1}</span></div>
+                        <div class="metric-box"><label>📈 TARGET RIALZISTA</label><span style="color:var(--accent-green);">${s.target_rialzista}</span></div>
+                        <div class="metric-box"><label>📉 TARGET RIBASSISTA</label><span style="color:var(--accent-red);">${s.target_ribassista}</span></div>
                     </div>
 
-                    <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; color:var(--text-muted); margin-bottom:6px;">
-                        ⚙️ Inversione: <strong style="color:#fff;">${s.inversion_prediction}</strong>
+                    <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; color:var(--text-muted); margin-bottom:6px; display:flex; justify-content:space-between;">
+                        <span>⏱️ Durata Stimata TP: <strong style="color:var(--accent-green);">${s.duration_estimate}</strong></span>
+                        <span>RSI: <strong>${s.rsi}</strong></span>
                     </div>
                     <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; color:var(--text-muted);">
-                        ⚡ Convinzione AI: <strong style="color:var(--accent-green);">${s.ai_score}</strong> | RRR: <strong>1:${s.rrr}</strong>
-                    </div>
-
-                    <div class="progress-bar-container">
-                        <div class="progress-fill" style="width: ${s.progress_pct}%"></div>
-                    </div>
-                    <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">
-                        <span>Progress TP1: ${s.progress_pct}%</span>
-                        <span>Size: ${s.position_size} (${s.leverage})</span>
+                        ⚡ Convinzione: <strong style="color:var(--accent-green);">${s.ai_score}</strong> | Trend: <strong>${s.inversion_prediction}</strong>
                     </div>
                 </div>
             `).join('');
         }
 
-        loadStatus();
         loadSignals();
-        setInterval(loadStatus, 4000);
         setInterval(loadSignals, 8000);
 
         document.getElementById('modeSelect').addEventListener('change', loadSignals);
