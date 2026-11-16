@@ -20,11 +20,13 @@
         .control-group label { display: block; font-size: 0.7rem; font-family: 'JetBrains Mono', monospace; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; }
         .control-group input, .control-group select { width: 100%; background: var(--bg-base); border: 1px solid var(--border-color); color: var(--text-main); padding: 8px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; }
         
-        /* TACHIMETRO WIDGET STYLES */
-        .tachometer-box { background: var(--bg-base); border: 1px solid var(--border-color); border-radius: 6px; padding: 6px 10px; display: flex; flex-direction: column; justify-content: center; }
-        .tachometer-header { display: flex; justify-content: space-between; font-size: 0.65rem; font-family: 'JetBrains Mono', monospace; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
-        .tachometer-gauge { width: 100%; height: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden; position: relative; }
-        .tachometer-fill { height: 100%; width: 50%; background: var(--accent-green); transition: width 0.3s ease, background 0.3s ease; }
+        /* STILI VERO TACHIMETRO CIRCOLARE CON LANCETTA */
+        .gauge-card { background: var(--bg-base); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; align-items: center; text-align: center; }
+        .gauge-title { font-size: 0.65rem; font-family: 'JetBrains Mono', monospace; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
+        .gauge-container { position: relative; width: 110px; height: 65px; margin: 4px auto 0 auto; }
+        .gauge-svg { width: 100%; height: 100%; transform: rotate(0deg); overflow: visible; }
+        .gauge-needle { transition: transform 0.5s cubic-bezier(0.4, 2.08, 0.55, 0.44); transform-origin: 55px 55px; }
+        .gauge-value-text { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; font-weight: 700; fill: var(--text-main); }
 
         .autotrade-btn { background: rgba(255,30,66,0.1); border: 1px solid var(--accent-red); color: var(--accent-red); font-weight: 800; border-radius: 6px; padding: 8px 12px; cursor: pointer; font-family: 'JetBrains Mono', monospace; height: 40px; }
         .autotrade-btn.active { background: rgba(0,255,102,0.1); border-color: var(--accent-green); color: var(--accent-green); }
@@ -55,7 +57,7 @@
 </head>
 <body>
     <header>
-        <div class="logo">⚡ SALA SEGNALI PRO <span style="font-size:0.6rem; background:rgba(0,255,102,0.1); color:var(--accent-green); padding:2px 6px; border-radius:3px;">GLOBAL MARKETS UNLOCKED</span></div>
+        <div class="logo">⚡ SALA SEGNALI PRO <span style="font-size:0.6rem; background:rgba(0,255,102,0.1); color:var(--accent-green); padding:2px 6px; border-radius:3px;">ANALOG GAUGES ACTIVE</span></div>
         <div class="terminal-clock" id="clock">00:00:00</div>
     </header>
 
@@ -67,19 +69,35 @@
                 <option value="balanced" selected>Bilanciato</option>
                 <option value="aggressive">Aggressivo / HFT</option>
             </select>
-            <!-- Tachimetro Profilo -->
-            <div class="tachometer-box" style="margin-top:6px;">
-                <div class="tachometer-header"><span>RPM Profilo</span><span id="profileRpmVal">60%</span></div>
-                <div class="tachometer-gauge"><div id="profileTachFill" class="tachometer-fill" style="width:60%;"></div></div>
+            <!-- Tachimetro 1: Profilo Operativo con Lancetta -->
+            <div class="gauge-card" style="margin-top:6px;">
+                <div class="gauge-title">RPM Profilo</div>
+                <div class="gauge-container">
+                    <svg class="gauge-svg" viewBox="0 0 110 65">
+                        <path d="M 15 55 A 40 40 0 0 1 95 55" fill="none" stroke="#1e2638" stroke-width="7" stroke-linecap="round"/>
+                        <path id="gaugePath1" d="M 15 55 A 40 40 0 0 1 95 55" fill="none" stroke="#00ff66" stroke-width="7" stroke-dasharray="125.6" stroke-dashoffset="50" stroke-linecap="round"/>
+                        <circle cx="55" cy="55" r="4" fill="#f0f4f8"/>
+                        <line id="gaugeNeedle1" class="gauge-needle" x1="55" y1="55" x2="55" y2="20" stroke="#ff1e42" stroke-width="2.5" stroke-linecap="round"/>
+                        <text id="gaugeText1" x="55" y="45" text-anchor="middle" class="gauge-value-text">65%</text>
+                    </svg>
+                </div>
             </div>
         </div>
 
         <div class="control-group">
             <label>Forza Segnali Rilevati</label>
-            <!-- Tachimetro Forza Segnali -->
-            <div class="tachometer-box" style="height: calc(100% - 18px); margin-top: 18px;">
-                <div class="tachometer-header"><span>Power Index</span><span id="signalPowerVal">99.9%</span></div>
-                <div class="tachometer-gauge"><div id="signalTachFill" class="tachometer-fill" style="width:99.9%; background:var(--accent-green);"></div></div>
+            <!-- Tachimetro 2: Forza Segnali con Lancetta -->
+            <div class="gauge-card" style="margin-top:6px;">
+                <div class="gauge-title">Power Index</div>
+                <div class="gauge-container">
+                    <svg class="gauge-svg" viewBox="0 0 110 65">
+                        <path d="M 15 55 A 40 40 0 0 1 95 55" fill="none" stroke="#1e2638" stroke-width="7" stroke-linecap="round"/>
+                        <path id="gaugePath2" d="M 15 55 A 40 40 0 0 1 95 55" fill="none" stroke="#00ff66" stroke-width="7" stroke-dasharray="125.6" stroke-dashoffset="0" stroke-linecap="round"/>
+                        <circle cx="55" cy="55" r="4" fill="#f0f4f8"/>
+                        <line id="gaugeNeedle2" class="gauge-needle" x1="55" y1="55" x2="90" y2="35" stroke="#00ff66" stroke-width="2.5" stroke-linecap="round"/>
+                        <text id="gaugeText2" x="55" y="45" text-anchor="middle" class="gauge-value-text">99.9%</text>
+                    </svg>
+                </div>
             </div>
         </div>
 
@@ -170,27 +188,32 @@
         setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('it-IT'); }, 1000);
         let autoTradeState = false;
 
-        function updateTachometers(profile, avgScore) {
-            const profileFill = document.getElementById('profileTachFill');
-            const profileRpm = document.getElementById('profileRpmVal');
-            if (profile === 'conservative') {
-                profileFill.style.width = '35%';
-                profileFill.style.background = '#00ff66';
-                profileRpm.innerText = '35% (Safe)';
-            } else if (profile === 'balanced') {
-                profileFill.style.width = '65%';
-                profileFill.style.background = '#00f0ff';
-                profileRpm.innerText = '65% (Balanced)';
-            } else {
-                profileFill.style.width = '95%';
-                profileFill.style.background = '#ff1e42';
-                profileRpm.innerText = '95% (HFT Max)';
+        function updateGauge(needleId, textId, pathId, percent) {
+            // percent va da 0 a 100. L'arco va da -90° (0%) a +90° (100%)
+            const angle = (percent / 100) * 180 - 90;
+            const needle = document.getElementById(needleId);
+            if (needle) {
+                needle.style.transform = `rotate(${angle}deg)`;
             }
+            const text = document.getElementById(textId);
+            if (text) {
+                text.textContent = `${percent.toFixed(1)}%`;
+            }
+            const path = document.getElementById(pathId);
+            if (path) {
+                const dashoffset = 125.6 - (125.6 * percent) / 100;
+                path.style.strokeDashoffset = dashoffset;
+            }
+        }
 
-            const signalFill = document.getElementById('signalTachFill');
-            const signalVal = document.getElementById('signalPowerVal');
-            signalFill.style.width = `${avgScore}%`;
-            signalVal.innerText = `${avgScore}%`;
+        function updateTachometers(profile, avgScore) {
+            let pPercent = 65;
+            if (profile === 'conservative') pPercent = 35;
+            else if (profile === 'balanced') pPercent = 65;
+            else if (profile === 'aggressive') pPercent = 95;
+
+            updateGauge('gaugeNeedle1', 'gaugeText1', 'gaugePath1', pPercent);
+            updateGauge('gaugeNeedle2', 'gaugeText2', 'gaugePath2', avgScore);
         }
 
         function switchTab(tabName, element) {
