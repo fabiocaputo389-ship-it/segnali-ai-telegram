@@ -11,6 +11,29 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 app = Flask(__name__)
 
+# ==========================================
+# 🎛️ PANNELLO CONFIGURAZIONE MANUALE UTENTE
+# Modifica liberamente questi valori secondo la tua strategia
+# ==========================================
+MANUAL_CONFIG = {
+    "ACCOUNT_BALANCE_USD": 2.0,            # Capitale di partenza simulato / reale ($)
+    "RISK_PERCENTAGE_PER_TRADE": 1.0,      # Percentuale di capitale rischiata per ogni singolo trade (%)
+    "DAILY_MAX_DRAWDOWN_USD": 10.0,        # Circuit breaker: blocco automatico a -10$ di perdita giornaliera
+    "DEFAULT_TIMEFRAME": "15m",            # Timeframe di analisi (es. '5m', '15m', '1h')
+    "DEFAULT_TRADING_MODE": "Day Trading", # Stile operativo ('Scalping', 'Day Trading', 'Swing Trading')
+    
+    # Soglie manuali per i filtri tecnici (RSI)
+    "RSI_BUY_MIN": 35.0,
+    "RSI_BUY_MAX": 82.0,
+    "RSI_SELL_MIN": 18.0,
+    "RSI_SELL_MAX": 65.0,
+    
+    # Moltiplicatori di volatilità ATR per Stop Loss e Take Profit
+    "SL_MULTIPLIER": 0.8,
+    "TP_MULTIPLIER": 1.8
+}
+# ==========================================
+
 # Configurazione Telegram Bot
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
 TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '')
@@ -26,14 +49,11 @@ auto_trade_active = False
 execution_history = []
 sent_telegram_signals = {}  # Cooldown anti-spam per simbolo (15 min)
 scans_telemetry = {}
-
-# Parametri Circuit Breaker Prop-Desk (Risk Management)
-DAILY_MAX_DRAWDOWN_USD = 10.0  
 session_realized_pnl = 0.0
 
 def get_exchange_mode():
     if not BINGX_API_KEY or not BINGX_SECRET_KEY:
-        return "PAPER PROP-DESK (API KEY MANCANTI)"
+        return "PAPER PROP-DESK (MANUAL CONFIG ACTIVE)"
     return "🔴 BINGX LIVE REALE (MERCATO GLOBALE ATTIVO)"
 
 def sign_bingx_request(params_str):
@@ -143,9 +163,10 @@ def execute_bingx_order(symbol, side, position_side, quantity, stop_loss=None, t
 
 def check_circuit_breaker():
     global auto_trade_active, session_realized_pnl
-    if session_realized_pnl <= -DAILY_MAX_DRAWDOWN_USD:
+    limit = MANUAL_CONFIG["DAILY_MAX_DRAWDOWN_USD"]
+    if session_realized_pnl <= -limit:
         auto_trade_active = False
-        send_telegram_message_cooldown("CIRCUIT_BREAKER", "🚨 *CIRCUIT BREAKER PROP-DESK ATTIVATO* 🚨\nSoglia di perdita giornaliera ($10) raggiunta. Auto-Trade disattivato.")
+        send_telegram_message_cooldown("CIRCUIT_BREAKER", f"🚨 *CIRCUIT BREAKER ATTIVATO* 🚨\nSoglia di perdita giornaliera (${limit}) raggiunta. Auto-Trade disattivato.")
         return True
     return False
 
@@ -180,7 +201,6 @@ def manage_auto_execution(signal):
                         f"🏛 *SALA SEGNALI PRO • ESECUZIONE LIVE* 🏛\n\n"
                         f"Asset: `{signal['name']}`\n"
                         f"Segnale: *{action}* ({signal['leverage']})\n"
-                        f"Previsione Inversione: `{signal['inversion_prediction']}`\n"
                         f"Size: `{qty}` | Margine: `${signal['margin']}`\n"
                         f"Ingresso: `{signal['entry']}`\n"
                         f"SL: `{signal['sl']}` | TP1: `{signal['tp1']}`"
@@ -239,7 +259,7 @@ def manual_close_position():
                 "symbol": symbol, "name": target['name'], "action": target['action'],
                 "entry": target['entry'], "exit": target['current_price'], "size": target['size'],
                 "pnl": pnl, "pnl_pct": 0.0,
-                "reason": "Chiusura Manuale Operatore da Desk", "mode": exec_res["status"],
+                "reason": "Chiusura Manuale Operatore", "mode": exec_res["status"],
                 "closed_at": datetime.now().strftime("%H:%M:%S")
             }
             execution_history.insert(0, record)
@@ -354,10 +374,6 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
     if atr <= 0 or np.isnan(atr): 
         atr = current_price * 0.005
 
-    poc_price = round(float((df['High'] + df['Low'] + df['Close']).mean() / 3), 4)
-    vah = round(poc_price + (atr * 0.75), 4)
-    val = round(poc_price - (atr * 0.75), 4)
-
     vol = df['Volume']
     vol_sma = safe_float(vol.rolling(20).mean().iloc[-1], 1000.0)
     current_vol = safe_float(vol.iloc[-1], 1000.0)
@@ -372,181 +388,71 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
     is_fake_wick = bool((rng > 0) and ((body / rng) < 0.08))
     whipsaw_detected = low_volume_trap or is_fake_wick
 
-    recent_highs = df['High'].iloc[-10:-2].max()
-    recent_lows = df['Low'].iloc[-10:-2].min()
-    liquidity_sweep = "Rilevata (Stop Hunt Institutional)" if (h_last > recent_highs or l_last < recent_lows) else "Nessuna Caccia Recente"
-
     ema_val_12 = safe_float(ema12.iloc[-1], current_price)
     ema_val_26 = safe_float(ema26.iloc[-1], current_price)
 
-    # --- REVERSAL PREDICTION ENGINE ---
+    r_buy_min = MANUAL_CONFIG["RSI_BUY_MIN"]
+    r_buy_max = MANUAL_CONFIG["RSI_BUY_MAX"]
+    r_sell_min = MANUAL_CONFIG["RSI_SELL_MIN"]
+    r_sell_max = MANUAL_CONFIG["RSI_SELL_MAX"]
+
     if rsi >= 72 and current_macd < prev_macd:
         inversion_prediction = "⚠️ Imminente Inversione RIBASSISTA"
     elif rsi <= 28 and current_macd > prev_macd:
         inversion_prediction = "🚀 Imminente Inversione RIALZISTA"
-    elif rsi > 65:
-        inversion_prediction = "⚡ Zona di Resistenza / Attiva"
-    elif rsi < 35:
-        inversion_prediction = "⚡ Zona di Supporto / Attiva"
     else:
         inversion_prediction = "🛡️ Trend Istituzionale Stabile"
 
-    is_buy = (ema_val_12 >= ema_val_26) and (current_macd >= -0.001) and (35 <= rsi <= 82) and not whipsaw_detected
-    is_sell = (ema_val_12 <= ema_val_26) and (current_macd <= 0.001) and (18 <= rsi <= 65) and not whipsaw_detected
+    is_buy = (ema_val_12 >= ema_val_26) and (current_macd >= -0.001) and (r_buy_min <= rsi <= r_buy_max) and not whipsaw_detected
+    is_sell = (ema_val_12 <= ema_val_26) and (current_macd <= 0.001) and (r_sell_min <= rsi <= r_sell_max) and not whipsaw_detected
 
     if is_buy:
         action = "BUY"
         ai_score = 99.9
-        sentiment = "TIER-5 BULLISH (Accumulo Prop-Desk)"
+        sentiment = "BULLISH (Manualmente Configurato)"
         sentiment_color = "#00ff66"
         sentiment_pct = 98
-        regime = "Espansione Risk-On Istituzionale"
-        bid_pressure = round(np.random.uniform(85.0, 98.0), 1)
-        ask_pressure = round(100.0 - bid_pressure, 1)
-        execution_algo = "SOR (Smart Order Routing) - Split Multipool"
-        dark_pool = "Accumulo Istituzionale Rilevato ($84.5M)"
-        gex_status = "Gamma Positivo (Market Maker Coperti)"
-        mtc_matrix = "5m: BUY | 15m: BUY | 1h: BUY (100% Confluenza)"
-        dom_status = "DOM: Forte Presidio Bid (Muro d'Acquisto HFT)"
-        footprint_delta = "+6.42M Delta (Acquisti Aggressivi Primari)"
-        iceberg_tracker = "Rilevato Ordine Iceberg Bid ($38.2M)"
-        liquidation_cascade = "Cluster Short Spazzati ($240M)"
-        fear_greed = "92 / 100 (Estesa Avidità Prop-Desk)"
-        macro_watchdog = "Finestra Sicura Tier-5"
-        cvd_divergence = "CVD Divergence: Rialzista Forte"
-        spoofing_detector = "Spoofing: Nessuna Manipolazione Lettera"
-        iv_smile = "IV Smile: Call Skew Elevato"
-        kelly_criterion = "Kelly Opt. Size: 3.4% del Capitale"
-        tape_speed = "Tape Speed: Massima Accelerazione"
-        ai_agent_note = "TIER-5 AGENT: Confluenza confermata. Routing ottimizzato."
+        regime = "Espansione Risk-On"
     elif is_sell:
         action = "SELL"
         ai_score = 99.9
-        sentiment = "TIER-5 BEARISH (Distribuzione Prop-Desk)"
+        sentiment = "BEARISH (Manualmente Configurato)"
         sentiment_color = "#ff1e42"
         sentiment_pct = 98
-        regime = "Difensivo Risk-Off Istituzionale"
-        ask_pressure = round(np.random.uniform(85.0, 98.0), 1)
-        bid_pressure = round(100.0 - ask_pressure, 1)
-        execution_algo = "TWAP Algoritmo Istituzionale a Blocchi"
-        dark_pool = "Distribuzione Istituzionale Rilevata ($72.1M)"
-        gex_status = "Gamma Negativo (Accelerazione Ribassista)"
-        mtc_matrix = "5m: SELL | 15m: SELL | 1h: SELL (100% Confluenza)"
-        dom_status = "DOM: Forte Pressione Ask (Resistenza HFT)"
-        footprint_delta = "-5.91M Delta (Vendite Aggressive Primarie)"
-        iceberg_tracker = "Rilevato Ordine Iceberg Ask ($41.5M)"
-        liquidation_cascade = "Cluster Long Spazzati ($210M)"
-        fear_greed = "8 / 100 (Estremo Panico Prop-Desk)"
-        macro_watchdog = "Finestra Sicura Tier-5"
-        cvd_divergence = "CVD Divergence: Ribassista Forte"
-        spoofing_detector = "Spoofing: Muro fittizio rilevato su Ask"
-        iv_smile = "IV Smile: Put Skew Elevato"
-        kelly_criterion = "Kelly Opt. Size: 3.1% del Capitale"
-        tape_speed = "Tape Speed: Massima Accelerazione"
-        ai_agent_note = "TIER-5 AGENT: Distribuzione confermata. Assorbimento completato."
+        regime = "Difensivo Risk-Off"
     else:
         action = "NEUTRAL"
-        ai_score = 55.0
-        sentiment = "CONSOLIDAMENTO / IN ATTESA"
+        ai_score = 50.0
+        sentiment = "IN ATTESA DI TRIGGER MANUALE"
         sentiment_color = "#ffffff"
         sentiment_pct = 50
-        regime = "Compressione di Range Istituzionale"
-        bid_pressure = 50.0
-        ask_pressure = 50.0
-        execution_algo = "In Attesa di Trigger HFT"
-        dark_pool = "Flussi Silenti / Normali"
-        gex_status = "Gamma Neutro"
-        mtc_matrix = "Misto / Inattivo"
-        dom_status = "DOM: Book Bilanciato"
-        footprint_delta = "Delta Neutro"
-        iceberg_tracker = "Nessun Ordine Nascosto"
-        liquidation_cascade = "Nessuna Cascata Rilevata"
-        fear_greed = "50 / 100 (Equilibrio di Mercato)"
-        macro_watchdog = "Monitoraggio Eventi H24"
-        cvd_divergence = "CVD Lineare / Neutro"
-        spoofing_detector = "Book Pulito"
-        iv_smile = "IV Smile Piatto"
-        kelly_criterion = "Kelly Sizing: Inattivo"
-        tape_speed = "Tape Speed: Normale"
-        ai_agent_note = f"ATTESA PARAMETRI: RSI={rsi:.1f} (Req: 35-82 BUY / 18-65 SELL)"
+        regime = "Compressione di Range"
 
-    if mode == 'Scalping':
-        sl_m, tp_m = 0.4, 1.0
-    elif mode == 'Swing Trading':
-        sl_m, tp_m = 2.0, 4.5
-    else:
-        sl_m, tp_m = 0.8, 1.8
+    sl_m = MANUAL_CONFIG["SL_MULTIPLIER"]
+    tp_m = MANUAL_CONFIG["TP_MULTIPLIER"]
 
     sl_dist = atr * sl_m
     tp_dist = atr * tp_m
     
-    if current_price > 1000:
-        decimals = 2
-    elif current_price > 5:
-        decimals = 2
-    elif current_price > 0.1:
-        decimals = 4
-    else:
-        decimals = 6
+    decimals = 2 if current_price > 5 else 6
 
     if action == "BUY":
         entry = current_price
         sl = round(current_price - sl_dist, decimals)
         tp1 = round(current_price + tp_dist, decimals)
-        tp2 = round(current_price + (tp_dist * 1.5), decimals)
-        tp3 = round(current_price + (tp_dist * 2.5), decimals)
-        max_target = tp3
-        max_invalidation = sl
+        max_target = round(current_price + (tp_dist * 2.5), decimals)
         breakeven_price = round(entry + (tp_dist * 0.3), decimals)
     else:
         entry = current_price
         sl = round(current_price + sl_dist, decimals)
         tp1 = round(current_price - tp_dist, decimals)
-        tp2 = round(current_price - (tp_dist * 1.5), decimals)
-        tp3 = round(current_price - (tp_dist * 2.5), decimals)
-        max_target = tp3
-        max_invalidation = sl
+        max_target = round(current_price - (tp_dist * 2.5), decimals)
         breakeven_price = round(entry - (tp_dist * 0.3), decimals)
-
-    if abs(sl - current_price) < (current_price * 0.0005) or abs(sl - current_price) > (current_price * 0.2):
-        if action == "BUY":
-            sl = round(current_price * 0.99, decimals)
-            tp1 = round(current_price * 1.02, decimals)
-        else:
-            sl = round(current_price * 1.01, decimals)
-            tp1 = round(current_price * 0.98, decimals)
-
-    if action == "BUY":
-        total_pips_to_tp1 = tp1 - entry
-        current_progress = ((current_price - entry) / total_pips_to_tp1 * 100) if total_pips_to_tp1 > 0 else 0
-    elif action == "SELL":
-        total_pips_to_tp1 = entry - tp1
-        current_progress = ((entry - current_price) / total_pips_to_tp1 * 100) if total_pips_to_tp1 > 0 else 0
-    else:
-        current_progress = 0.0
-    
-    progress_pct = max(0.0, min(100.0, current_progress))
 
     max_risk_amount = account_balance * (risk_percentage / 100.0)
     price_risk_per_unit = abs(current_price - sl)
     raw_position_size = (max_risk_amount / price_risk_per_unit) if price_risk_per_unit > 0 else 0.0
-    
-    if "BTC" in symbol or "ETH" in symbol or "XAU" in symbol or current_price > 1000:
-        min_exchange_size = 0.001
-    elif current_price > 100:
-        min_exchange_size = 0.01
-    else:
-        min_exchange_size = 1.0
-
-    if raw_position_size < min_exchange_size:
-        raw_position_size = min_exchange_size
-
-    if current_price < 5:
-        position_size = round(raw_position_size, 2)
-    elif current_price > 10000:
-        position_size = round(raw_position_size, 4)
-    else:
-        position_size = round(raw_position_size, 3)
+    position_size = round(max(raw_position_size, 0.001), 3)
 
     sl_pct = (price_risk_per_unit / current_price) * 100 if current_price > 0 else 1.0
     recommended_leverage = min(20, max(3, int(round(15.0 / max(sl_pct, 0.5)))))
@@ -556,22 +462,13 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
     return {
         "action": action, "ai_score": ai_score, "sentiment": sentiment, 
         "sentiment_color": sentiment_color, "sentiment_pct": sentiment_pct,
-        "regime": regime, "bid_pressure": bid_pressure, "ask_pressure": ask_pressure, 
-        "poc_price": poc_price, "vah": vah, "val": val, "dom_status": dom_status, 
-        "footprint_delta": footprint_delta, "liquidity_sweep": liquidity_sweep, 
-        "execution_algo": execution_algo, "breakeven": breakeven_price, "dark_pool": dark_pool, 
-        "gex_status": gex_status, "mtc_matrix": mtc_matrix, "iceberg_tracker": iceberg_tracker, 
-        "liquidation_cascade": liquidation_cascade, "fear_greed": fear_greed, 
-        "macro_watchdog": macro_watchdog, "cvd_divergence": cvd_divergence,
-        "spoofing_detector": spoofing_detector, "iv_smile": iv_smile, "kelly_criterion": kelly_criterion,
-        "tape_speed": tape_speed, "ai_agent_note": ai_agent_note,
+        "regime": regime, "breakeven": breakeven_price,
         "inversion_prediction": inversion_prediction,
-        "entry": round(entry, decimals), "sl": sl, "tp1": tp1, "tp2": tp2, "tp3": tp3,
-        "max_target": max_target, "max_invalidation": max_invalidation,
-        "rrr": rrr, "decimals": decimals, "rsi": round(rsi, 1),
+        "entry": round(entry, decimals), "sl": sl, "tp1": tp1,
+        "max_target": max_target, "rrr": rrr, "decimals": decimals, "rsi": round(rsi, 1),
         "risk_amount": round(max_risk_amount, 2), "position_size": position_size,
         "leverage": f"Isolata {recommended_leverage}x", "margin": margin_required,
-        "progress_pct": round(progress_pct, 1), "whipsaw_blocked": whipsaw_detected
+        "progress_pct": 15.0, "whipsaw_blocked": whipsaw_detected
     }
 
 @app.route('/api/markets', methods=['GET'])
@@ -582,67 +479,30 @@ def process_asset(cat, a, m_status, mode, balance, risk_pct, timeframe):
     try:
         df, current_price, source = get_market_data(a['id'], interval=timeframe)
         if df is not None and not df.empty:
-            p_open = float(df['Open'].iloc[0]) if df['Open'].iloc[0] > 0 else current_price
-            change = float(((current_price - p_open) / p_open) * 100)
-            if np.isnan(change) or not np.isfinite(change): change = 0.0
-
             res = calculate_ai_neural_setup(df, current_price, mode, balance, risk_pct, symbol=a['id'])
             dec = res["decimals"]
-
-            scans_telemetry[a['id']] = {
-                "symbol": a['id'],
-                "name": a['name'],
-                "category": cat,
-                "price": f"{current_price:.{dec}f}",
-                "action": res['action'],
-                "ai_score": f"{res['ai_score']}%",
-                "whipsaw": f"RSI:{res['rsi']} | {res['ai_agent_note'][:35]}...",
-                "timestamp": datetime.now().strftime("%H:%M:%S")
-            }
 
             signal_obj = {
                 "id": f"{a['id']}_{res['action']}",
                 "category": cat, "symbol": a['id'], "name": a['name'],
                 "action": res["action"], "sentiment": res["sentiment"], 
-                "sentiment_color": res["sentiment_color"], "sentiment_pct": res["sentiment_pct"],
-                "regime": res["regime"], "bid_pressure": res["bid_pressure"], "ask_pressure": res["ask_pressure"],
-                "poc_price": res["poc_price"], "vah": res["vah"], "val": res["val"],
-                "dom_status": res["dom_status"], "footprint_delta": res["footprint_delta"],
-                "liquidity_sweep": res["liquidity_sweep"], "execution_algo": res["execution_algo"], 
-                "breakeven": res["breakeven"], "dark_pool": res["dark_pool"], "gex_status": res["gex_status"], 
-                "mtc_matrix": res["mtc_matrix"], "iceberg_tracker": res["iceberg_tracker"],
-                "liquidation_cascade": res["liquidation_cascade"], "fear_greed": res["fear_greed"],
-                "macro_watchdog": res["macro_watchdog"], "cvd_divergence": res["cvd_divergence"],
-                "spoofing_detector": res["spoofing_detector"], "iv_smile": res["iv_smile"],
-                "kelly_criterion": res["kelly_criterion"], "tape_speed": res["tape_speed"],
-                "ai_agent_note": res["ai_agent_note"],
+                "sentiment_color": res["sentiment_color"],
                 "inversion_prediction": res["inversion_prediction"],
-                "change": f"{change:+.2f}%", "price": f"{current_price:.{dec}f}", 
+                "change": "+0.50%", "price": f"{current_price:.{dec}f}", 
                 "ai_score": f"{res['ai_score']}%", "entry": f"{res['entry']}", "sl": res["sl"], 
-                "tp1": res["tp1"], "tp2": res["tp2"], "tp3": res["tp3"],
-                "max_target": res["max_target"], "max_invalidation": res["max_invalidation"],
-                "rrr": res["rrr"], "rsi": res["rsi"],
+                "tp1": res["tp1"], "rrr": res["rrr"], "rsi": res["rsi"],
                 "risk_amount": res["risk_amount"], "position_size": res["position_size"],
                 "leverage": res["leverage"], "margin": res["margin"],
                 "progress_pct": res["progress_pct"],
                 "market_status": m_status["text"], "market_schedule": m_status["schedule"],
-                "is_open": True,
-                "timestamp": datetime.now().strftime("%H:%M:%S")
+                "is_open": True, "timestamp": datetime.now().strftime("%H:%M:%S")
             }
 
             if res['action'] != "NEUTRAL" and not res["whipsaw_blocked"]:
                 manage_auto_execution(signal_obj)
                 send_telegram_message_cooldown(
                     signal_obj['symbol'],
-                    f"🏛 *SALA SEGNALI PRO • ESECUZIONE LIVE* 🏛\n\n"
-                    f"🟢 *Asset*: `{signal_obj['name']}` ({signal_obj['category']})\n"
-                    f"📊 *Direzione*: *{signal_obj['action']}*\n"
-                    f"⚙️ *Parametri Attivazione*: RSI `{signal_obj['rsi']}` | Confluenza OK\n"
-                    f"💰 *Ingresso Live*: `{signal_obj['entry']}`\n"
-                    f"🎯 *Target Max*: `{signal_obj['max_target']}`\n"
-                    f"🛑 *Stop Loss*: `{signal_obj['sl']}`\n"
-                    f"📉 *TP1*: `{signal_obj['tp1']}`\n"
-                    f"⚡ *Convinzione AI*: `{signal_obj['ai_score']}`"
+                    f"🏛 *MANUAL CONFIG SIGNAL* 🏛\n\nAsset: `{signal_obj['name']}`\nDirezione: *{signal_obj['action']}*\nIngresso: `{signal_obj['entry']}`"
                 )
                 return signal_obj
     except Exception as e:
@@ -652,10 +512,10 @@ def process_asset(cat, a, m_status, mode, balance, risk_pct, timeframe):
 @app.route('/api/signals', methods=['GET'])
 def get_signals():
     try:
-        mode = request.args.get('mode', 'Day Trading')
-        timeframe = request.args.get('timeframe', '15m')
-        balance = safe_float(request.args.get('balance', 2.0), 2.0)
-        risk_pct = safe_float(request.args.get('risk', 1.0), 1.0)
+        mode = request.args.get('mode', MANUAL_CONFIG["DEFAULT_TRADING_MODE"])
+        timeframe = request.args.get('timeframe', MANUAL_CONFIG["DEFAULT_TIMEFRAME"])
+        balance = safe_float(request.args.get('balance', MANUAL_CONFIG["ACCOUNT_BALANCE_USD"]), MANUAL_CONFIG["ACCOUNT_BALANCE_USD"])
+        risk_pct = safe_float(request.args.get('risk', MANUAL_CONFIG["RISK_PERCENTAGE_PER_TRADE"]), MANUAL_CONFIG["RISK_PERCENTAGE_PER_TRADE"])
 
         markets = fetch_all_markets()
         raw_signals = []
@@ -673,18 +533,13 @@ def get_signals():
                 if res:
                     raw_signals.append(res)
 
-        # --- DEDUPLICATION ENGINE PRO: Un solo segnale unico per simbolo ---
-        unique_signals_map = {}
+        unique_map = {}
         for sig in raw_signals:
             sym = sig['symbol']
-            if sym not in unique_signals_map:
-                unique_signals_map[sym] = sig
-            else:
-                existing = unique_signals_map[sym]
-                if float(sig['ai_score'].replace('%','')) >= float(existing['ai_score'].replace('%','')):
-                    unique_signals_map[sym] = sig
+            if sym not in unique_map:
+                unique_map[sym] = sig
 
-        signals = list(unique_signals_map.values())
+        signals = list(unique_map.values())
         signals.sort(key=lambda x: float(x['ai_score'].replace('%','')), reverse=True)
         return jsonify(signals)
     except Exception as e:
