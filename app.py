@@ -28,7 +28,7 @@ sent_telegram_signals = set()
 scans_telemetry = {}
 
 # Parametri Circuit Breaker Prop-Desk
-DAILY_MAX_DRAWDOWN_USD = 10.0  # Blocco automatico di emergenza in caso di drawdown critico
+DAILY_MAX_DRAWDOWN_USD = 10.0  
 session_realized_pnl = 0.0
 
 def get_exchange_mode():
@@ -135,7 +135,6 @@ def execute_bingx_order(symbol, side, position_side, quantity, stop_loss=None, t
         return {"status": "ERROR", "msg": str(e)}
 
 def check_circuit_breaker():
-    """Controlla se il limite di drawdown giornaliero è stato superato."""
     global auto_trade_active, session_realized_pnl
     if session_realized_pnl <= -DAILY_MAX_DRAWDOWN_USD:
         auto_trade_active = False
@@ -270,28 +269,7 @@ def fetch_all_markets():
     }
 
 def get_market_status(category):
-    now = datetime.now(timezone.utc)
-    weekday = now.weekday()
-    hour = now.hour
-    minute = now.minute
-
-    if category == "Criptovalute":
-        return {"status": "Aperto", "text": "🟢 H24 Institutional Feed", "schedule": "Mercato Continuo • H24"}
-    elif category == "Materie Prime & Forex":
-        if weekday == 5 or (weekday == 6 and hour < 22):
-            return {"status": "Chiuso", "text": "🔴 Chiuso (Weekend Sabato)", "schedule": "Riapertura Dom 22:00 UTC"}
-        elif weekday == 4 and hour >= 21:
-            return {"status": "Chiuso", "text": "🔴 Chiuso (Chiusura Weekend)", "schedule": "Riapertura Dom 22:00 UTC"}
-        else:
-            return {"status": "Aperto", "text": "🟢 Forex & Gold Live ECN", "schedule": "Sessione Globale Attiva"}
-    elif category == "Azioni & Indici":
-        if weekday >= 5:
-            return {"status": "Chiuso", "text": "🔴 Chiuso (Weekend Wall St)", "schedule": "Riapertura Lunedì 14:30 UTC"}
-        elif hour < 14 or (hour == 14 and minute < 30) or hour >= 21:
-            return {"status": "Chiuso", "text": "🔴 Fuori Orario Wall Street", "schedule": "Sessione: 14:30 - 21:00 UTC"}
-        else:
-            return {"status": "Aperto", "text": "🟢 Wall Street Live ECN", "schedule": "Aperto fino alle 21:00 UTC"}
-    return {"status": "Aperto", "text": "🟢 Desk Live", "schedule": "Operativo"}
+    return {"status": "Aperto", "text": "🟢 H24 Perpetual Feed (BingX)", "schedule": "Mercato Continuo • H24"}
 
 def safe_float(val, default=0.0):
     try:
@@ -331,7 +309,7 @@ def get_market_data(symbol, interval="15m"):
     except Exception:
         pass
 
-    p = 200.0 if symbol in ['AAPL', 'TSLA', 'NVDA'] else (3000.0 if symbol == 'XAUUSD' else 65000.0)
+    p = 200.0 if symbol in ['AAPL', 'TSLA', 'NVDA'] else (3000.0 if symbol == 'XAUUSD' else (1.10 if symbol == 'EURUSDT' else 65000.0))
     df = pd.DataFrame({
         'Open': [p]*60, 'High': [p*1.002]*60, 'Low': [p*0.998]*60,
         'Close': [p]*60, 'Volume': [30000]*60
@@ -357,7 +335,8 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
 
     tr = pd.concat([df['High'] - df['Low'], np.abs(df['High'] - close.shift()), np.abs(df['Low'] - close.shift())], axis=1).max(axis=1)
     atr = safe_float(tr.rolling(14).mean().iloc[-1], current_price * 0.005)
-    if atr <= 0: atr = current_price * 0.005
+    if atr <= 0 or np.isnan(atr): 
+        atr = current_price * 0.005
 
     poc_price = round(float((df['High'] + df['Low'] + df['Close']).mean() / 3), 4)
     vah = round(poc_price + (atr * 0.75), 4)
@@ -484,7 +463,16 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
 
     sl_dist = atr * sl_m
     tp_dist = atr * tp_m
-    decimals = 6 if current_price < 0.01 else (4 if current_price < 5 else 2)
+    
+    # --- CONTROLLO DI SCALA RIGOROSO PER EVITARE PREZZI ERRATI ---
+    if current_price > 1000:
+        decimals = 2
+    elif current_price > 5:
+        decimals = 2
+    elif current_price > 0.1:
+        decimals = 4
+    else:
+        decimals = 6
 
     if action == "BUY":
         entry = current_price
@@ -505,6 +493,15 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
         max_invalidation = sl
         breakeven_price = round(entry - (tp_dist * 0.3), decimals)
 
+    # Validazione di sicurezza: se per qualsiasi motivo lo SL o TP sono sballati rispetto al prezzo attuale, li ricalcoliamo in percentuale sicura (1% SL, 2% TP)
+    if abs(sl - current_price) < (current_price * 0.0005) or abs(sl - current_price) > (current_price * 0.2):
+        if action == "BUY":
+            sl = round(current_price * 0.99, decimals)
+            tp1 = round(current_price * 1.02, decimals)
+        else:
+            sl = round(current_price * 1.01, decimals)
+            tp1 = round(current_price * 0.98, decimals)
+
     if action == "BUY":
         total_pips_to_tp1 = tp1 - entry
         current_progress = ((current_price - entry) / total_pips_to_tp1 * 100) if total_pips_to_tp1 > 0 else 0
@@ -520,12 +517,10 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
     price_risk_per_unit = abs(current_price - sl)
     raw_position_size = (max_risk_amount / price_risk_per_unit) if price_risk_per_unit > 0 else 0.0
     
-    if "BTC" in symbol or "ETH" in symbol or "XAU" in symbol:
+    if "BTC" in symbol or "ETH" in symbol or "XAU" in symbol or current_price > 1000:
         min_exchange_size = 0.001
-    elif "SOL" in symbol or "BNB" in symbol or "AVAX" in symbol or "LINK" in symbol:
+    elif current_price > 100:
         min_exchange_size = 0.01
-    elif "AAPL" in symbol or "TSLA" in symbol or "NVDA" in symbol or "AMZN" in symbol:
-        min_exchange_size = 0.1
     else:
         min_exchange_size = 1.0
 
@@ -571,19 +566,6 @@ def get_markets():
 
 def process_asset(cat, a, m_status, mode, balance, risk_pct, timeframe):
     try:
-        if m_status["status"] != "Aperto":
-            scans_telemetry[a['id']] = {
-                "symbol": a['id'],
-                "name": a['name'],
-                "category": cat,
-                "price": "N/D",
-                "action": "CHIUSO",
-                "ai_score": "0%",
-                "whipsaw": "🔴 Sessione Chiusa",
-                "timestamp": datetime.now().strftime("%H:%M:%S")
-            }
-            return None
-
         df, current_price, source = get_market_data(a['id'], interval=timeframe)
         if df is not None and not df.empty:
             p_open = float(df['Open'].iloc[0]) if df['Open'].iloc[0] > 0 else current_price
@@ -630,14 +612,14 @@ def process_asset(cat, a, m_status, mode, balance, risk_pct, timeframe):
                 "leverage": res["leverage"], "margin": res["margin"],
                 "progress_pct": res["progress_pct"],
                 "market_status": m_status["text"], "market_schedule": m_status["schedule"],
-                "is_open": m_status["status"] == "Aperto",
+                "is_open": True,
                 "timestamp": datetime.now().strftime("%H:%M:%S")
             }
 
             if res['action'] != "NEUTRAL" and not res["whipsaw_blocked"]:
                 manage_auto_execution(signal_obj)
                 send_telegram_message(
-                    f"🏛 *SALA SEGNALI PRO • SEGNALE ELITE* 🏛\n\n"
+                    f"🏛 *SALA SEGNALI PRO • ESECUZIONE LIVE* 🏛\n\n"
                     f"🟢 *Asset*: `{signal_obj['name']}` ({signal_obj['category']})\n"
                     f"📊 *Direzione*: *{signal_obj['action']}*\n"
                     f"🔄 *Previsione Inversione*: `{signal_obj['inversion_prediction']}`\n"
@@ -648,8 +630,8 @@ def process_asset(cat, a, m_status, mode, balance, risk_pct, timeframe):
                     f"⚡ *Convinzione AI*: `{signal_obj['ai_score']}`"
                 )
                 return signal_obj
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Errore processo asset {a['id']}: {e}")
     return None
 
 @app.route('/api/signals', methods=['GET'])
