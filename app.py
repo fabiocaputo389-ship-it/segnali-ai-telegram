@@ -12,6 +12,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 app = Flask(__name__)
 
+# --- 1. LETTURA E DIAGNOSTICA VARIABILI DI RENDER ---
 def load_render_environment():
     global BINGX_API_KEY, BINGX_SECRET_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
     BINGX_API_KEY = os.environ.get('BINGX_API_KEY', '').strip()
@@ -22,7 +23,9 @@ def load_render_environment():
     print("========================================")
     print("⚡ SALA SEGNALI PRO • RENDER ENV CHECK ⚡")
     print(f"🔹 BingX API Key: {'CONFIGURATA ✅' if BINGX_API_KEY else 'NON RILEVATA (Paper Mode)'}")
+    print(f"🔹 BingX Secret Key: {'CONFIGURATA ✅' if BINGX_SECRET_KEY else 'NON RILEVATA'}")
     print(f"🔹 Telegram Token: {'CONFIGURATO ✅' if TELEGRAM_BOT_TOKEN else 'NON RILEVATO'}")
+    print(f"🔹 Telegram Chat ID: {'CONFIGURATO ✅' if TELEGRAM_CHAT_ID else 'NON RILEVATO'}")
     print("========================================")
 
 load_render_environment()
@@ -30,6 +33,7 @@ load_render_environment()
 BINGX_BASE_URL = "https://open-api.bingx.com"
 STATE_FILE = "autotrade_state.json"
 
+# --- 2. PERSISTENZA STATO AUTO-TRADE (Evita disattivazioni) ---
 def get_saved_autotrade():
     if os.path.exists(STATE_FILE):
         try:
@@ -52,6 +56,7 @@ sent_telegram_signals = {}
 scans_telemetry = {}
 session_realized_pnl = 0.0
 
+# --- 3. MOTORE ORARI E STATO DELLE BORSE (UTC) ---
 def get_market_session_status(category):
     now_utc = datetime.now(timezone.utc)
     weekday = now_utc.weekday()
@@ -116,6 +121,7 @@ def fetch_bingx_real_positions():
     except Exception: pass
     return [h for h in execution_history if h.get("status") == "OPEN"]
 
+# --- 4. ESECUZIONE ORDINI BINGX CON INVIO AUTOMATICO DI TP E SL ---
 def execute_verified_order(symbol, name, action, entry, size, leverage, margin, sl, tp1):
     global execution_history
     if BINGX_API_KEY and BINGX_SECRET_KEY:
@@ -124,7 +130,6 @@ def execute_verified_order(symbol, name, action, entry, size, leverage, margin, 
             bx_symbol = f"{symbol.replace('USDT','')}-USDT"
             pos_side = "LONG" if action == "BUY" else "SHORT"
             
-            # Parametri di base per l'ordine Market
             params = {
                 "symbol": bx_symbol, 
                 "side": action, 
@@ -132,7 +137,6 @@ def execute_verified_order(symbol, name, action, entry, size, leverage, margin, 
                 "type": "MARKET", 
                 "quantity": size, 
                 "timestamp": timestamp,
-                # Inserimento automatico dei parametri di Take Profit e Stop Loss nelle API BingX v2
                 "takeProfit": json.dumps({"type": "TAKE_PROFIT_MARKET", "stopPrice": tp1}),
                 "stopLoss": json.dumps({"type": "STOP_MARKET", "stopPrice": sl})
             }
@@ -294,15 +298,19 @@ def calculate_setup(df, current_price, balance, risk_pct, rsi_buy_min, rsi_buy_m
     max_risk = balance * (risk_pct / 100.0)
     risk_unit = abs(current_price - sl)
     pos_size = round(max((max_risk / risk_unit) if risk_unit > 0 else 0.0, 0.001), 3)
-    lev = min(20, max(3, int(round(15.0 / max((risk_unit / current_price) * 100, 0.5)))))
-    margin = round((pos_size * current_price) / lev, 2)
+    lev_int = min(20, max(3, int(round(15.0 / max((risk_unit / current_price) * 100, 0.5)))))
+    margin = round((pos_size * current_price) / lev_int, 2)
+    
+    # Calcolo ROI stimato con leva
+    roi_raw = round((tp_dist / current_price) * lev_int * 100, 1)
+    roi_pct = f"+{roi_raw}%" if action == "BUY" else f"-{roi_raw}%" if action == "SELL" else "0.0%"
 
     return {
         "action": action, "ai_score": f"{score}%", "sentiment": sent, "sentiment_color": col,
-        "inversion": inv, "entry": entry, "sl": sl, "tp1": tp1,
+        "inversion": inv, "entry": entry, "sl": sl, "tp1": tp1, "roi_pct": roi_pct,
         "target_rialzista": target_rialzista, "target_ribassista": target_ribassista, "duration": duration,
         "rrr": round(tp_dist / sl_dist, 2) if sl_dist > 0 else 0.0, "rsi": round(rsi, 1),
-        "size": pos_size, "leverage": f"Isolata {lev}x", "margin": margin, "decimals": decimals
+        "size": pos_size, "leverage": f"Isolata {lev_int}x", "margin": margin, "decimals": decimals
     }
 
 @app.route('/api/signals', methods=['GET'])
@@ -366,7 +374,7 @@ def get_signals():
 
         scans_telemetry[time.time()] = {
             "timestamp": datetime.now().strftime("%H:%M:%S"),
-            "scanned": len(signals), "status": "LIVE_FAST_SYNC_WITH_TPSL"
+            "scanned": len(signals), "status": "LIVE_FAST_SYNC_TPSL_ROI"
         }
 
         return jsonify({"sessions": session_info, "signals": signals})
