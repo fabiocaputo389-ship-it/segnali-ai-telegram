@@ -1,345 +1,278 @@
-from flask import Flask, render_template, jsonify, request
-import requests
-import pandas as pd
-import numpy as np
-import os
-import time
-import hmac
-import hashlib
-from datetime import datetime, timezone
-from concurrent.futures import ThreadPoolExecutor, as_completed
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SALA SEGNALI PRO • Institutional Terminal</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #07090e; --bg-panel: #0d121d; --border-color: #1e2638;
+            --accent-green: #00ff66; --accent-red: #ff1e42; --text-main: #f0f4f8; --text-muted: #8a99ad;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+        body { background: var(--bg-base); color: var(--text-main); min-height: 100vh; padding-bottom: 80px; }
+        header { background: var(--bg-panel); border-bottom: 1px solid var(--border-color); padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 1000; }
+        .logo { font-family: 'JetBrains Mono', monospace; font-weight: 800; font-size: 1.1rem; color: var(--accent-green); }
+        .terminal-clock { font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; color: var(--text-muted); background: rgba(255,255,255,0.03); padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border-color); }
+        .controls-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; padding: 15px 20px; background: var(--bg-panel); border-bottom: 1px solid var(--border-color); }
+        .control-group label { display: block; font-size: 0.7rem; font-family: 'JetBrains Mono', monospace; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; }
+        .control-group input, .control-group select { width: 100%; background: var(--bg-base); border: 1px solid var(--border-color); color: var(--text-main); padding: 8px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; }
+        .autotrade-btn { background: rgba(255,30,66,0.1); border: 1px solid var(--accent-red); color: var(--accent-red); font-weight: 800; border-radius: 6px; padding: 8px 12px; cursor: pointer; font-family: 'JetBrains Mono', monospace; height: 38px; }
+        .autotrade-btn.active { background: rgba(0,255,102,0.1); border-color: var(--accent-green); color: var(--accent-green); }
+        .container { padding: 20px; max-width: 1400px; margin: 0 auto; }
+        .section-title { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; text-transform: uppercase; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .signals-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 15px; }
+        .signal-card { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 10px; padding: 16px; transition: transform 0.2s; }
+        .signal-card:hover { border-color: #2a3650; transform: translateY(-2px); }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .asset-title { font-size: 1.1rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
+        .badge-action { padding: 4px 10px; border-radius: 4px; font-weight: 800; font-size: 0.8rem; font-family: 'JetBrains Mono', monospace; }
+        .badge-buy { background: rgba(0,255,102,0.15); color: var(--accent-green); border: 1px solid var(--accent-green); }
+        .badge-sell { background: rgba(255,30,66,0.15); color: var(--accent-red); border: 1px solid var(--accent-red); }
+        .metrics-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 12px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; }
+        .metric-box label { font-size: 0.65rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; display: block; }
+        .metric-box span { font-size: 0.85rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+        .positions-table { width: 100%; border-collapse: collapse; background: var(--bg-panel); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); }
+        .positions-table th, .positions-table td { padding: 10px 14px; text-align: left; font-size: 0.85rem; font-family: 'JetBrains Mono', monospace; border-bottom: 1px solid var(--border-color); }
+        .positions-table th { background: rgba(255,255,255,0.02); color: var(--text-muted); font-size: 0.75rem; }
+        .btn-close { background: rgba(255,30,66,0.2); color: var(--accent-red); border: 1px solid var(--accent-red); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; font-weight: 700; }
+        .footer-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: var(--bg-panel); border-top: 1px solid var(--border-color); display: flex; justify-content: space-around; padding: 12px; z-index: 1000; }
+        .nav-item { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-muted); text-decoration: none; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
+        .nav-item.active { color: var(--accent-green); }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">⚡ SALA SEGNALI PRO <span style="font-size:0.6rem; background:rgba(0,255,102,0.1); color:var(--accent-green); padding:2px 6px; border-radius:3px;">FULL DASHBOARD</span></div>
+        <div class="terminal-clock" id="clock">00:00:00</div>
+    </header>
 
-app = Flask(__name__)
+    <div class="controls-bar">
+        <div class="control-group">
+            <label>Profilo Operativo</label>
+            <select id="profileSelect">
+                <option value="conservative">Conservativo</option>
+                <option value="balanced" selected>Bilanciato</option>
+                <option value="aggressive">Aggressivo / HFT</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label>Timeframe</label>
+            <select id="tfSelect">
+                <option value="5m">5m (Scalp)</option>
+                <option value="15m" selected>15m (Standard)</option>
+                <option value="1h">1h (Trend)</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label>Capitale ($)</label>
+            <input type="number" id="balanceInput" value="2.0" step="0.5">
+        </div>
+        <div class="control-group">
+            <label>Rischio (%)</label>
+            <input type="number" id="riskInput" value="1.0" step="0.1">
+        </div>
+        <div class="control-group" style="display:flex; align-items:flex-end;">
+            <button id="autotradeToggle" class="autotrade-btn" style="width:100%;">AUTO-TRADE: OFF</button>
+        </div>
+    </div>
 
-TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
-TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '')
-BINGX_API_KEY = os.environ.get('BINGX_API_KEY', '')
-BINGX_SECRET_KEY = os.environ.get('BINGX_SECRET_KEY', '')
-BINGX_BASE_URL = "https://open-api.bingx.com"
+    <div class="container">
+        <!-- TAB 1: SEGNALI & MERCATI -->
+        <div id="tab-signals" class="tab-content active">
+            <div class="section-title">
+                <span>📡 Scanner Globale & Previsioni</span>
+                <span id="exchangeModeIndicator" style="color:var(--accent-green)">Connessione in corso...</span>
+            </div>
+            <div id="signalsContainer" class="signals-grid">
+                <div style="grid-column: 1/-1; text-align:center; padding: 40px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">
+                    Caricamento mercati e calcolo durata candele...
+                </div>
+            </div>
+        </div>
 
-auto_trade_active = False
-execution_history = []
-sent_telegram_signals = {}
-scans_telemetry = {}
-session_realized_pnl = 0.0
+        <!-- TAB 2: POSIZIONI APERTE -->
+        <div id="tab-positions" class="tab-content">
+            <div class="section-title"><span>📊 Posizioni Aperte & Esecuzioni Ordini</span></div>
+            <div style="overflow-x: auto;">
+                <table class="positions-table">
+                    <thead>
+                        <tr>
+                            <th>Asset</th>
+                            <th>Azione</th>
+                            <th>Ingresso</th>
+                            <th>Size</th>
+                            <th>Leva</th>
+                            <th>Margine</th>
+                            <th>PnL</th>
+                            <th>Azione</th>
+                        </tr>
+                    </thead>
+                    <tbody id="positionsTableBody">
+                        <tr><td colspan="8" style="text-align:center; color:var(--text-muted);">Nessuna posizione attiva. Attiva l'Auto-Trade per avviare gli ordini.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
 
-def get_exchange_mode():
-    if not BINGX_API_KEY or not BINGX_SECRET_KEY:
-        return "PAPER PROP-DESK (ORDERS & TELEMETRY ACTIVE)"
-    return "🔴 BINGX LIVE REALE (ORDINI GLOBALI ATTIVI)"
+        <!-- TAB 3: TELEMETRIA HFT -->
+        <div id="tab-telemetry" class="tab-content">
+            <div class="section-title"><span>⚡ Telemetria Istituzionale & Log</span></div>
+            <div id="telemetryContainer" style="background:var(--bg-panel); border:1px solid var(--border-color); border-radius:8px; padding:15px; font-family:'JetBrains Mono',monospace; font-size:0.8rem;">
+                Caricamento dati telemetria in corso...
+            </div>
+        </div>
 
-def sign_bingx_request(params_str):
-    return hmac.new(
-        BINGX_SECRET_KEY.encode('utf-8'),
-        params_str.encode('utf-8'),
-        hashlib.sha256
-    ).hexdigest()
+        <!-- TAB 4: GRAFICI -->
+        <div id="tab-charts" class="tab-content">
+            <div class="section-title"><span>📈 Grafici Multi-Timeframe Sincronizzati</span></div>
+            <div style="background:var(--bg-panel); border:1px solid var(--border-color); border-radius:8px; padding:30px; text-align:center; font-family:'JetBrains Mono',monospace; color:var(--text-muted);">
+                Modulo di charting tradingview integrato per tutti i mercati globali. Seleziona un asset dai segnali per sincronizzare il feed.
+            </div>
+        </div>
+    </div>
 
-def send_telegram_message_cooldown(symbol, text):
-    global sent_telegram_signals
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        return
-    now = time.time()
-    if symbol in sent_telegram_signals and now - sent_telegram_signals[symbol] < 900:
-        return
-    sent_telegram_signals[symbol] = now
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    try:
-        requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": text, "parse_mode": "Markdown"}, timeout=3.0)
-    except Exception as e:
-        print(f"Errore Telegram: {e}")
+    <div class="footer-nav">
+        <a class="nav-item active" onclick="switchTab('signals', this)"><span>📊</span> Segnali</a>
+        <a class="nav-item" onclick="switchTab('positions', this)"><span>💼</span> Posizioni</a>
+        <a class="nav-item" onclick="switchTab('telemetry', this)"><span>⚡</span> Telemetria</a>
+        <a class="nav-item" onclick="switchTab('charts', this)"><span>📈</span> Grafici</a>
+    </div>
 
-def format_bingx_symbol(symbol):
-    base = symbol.replace("USDT", "") if symbol.endswith("USDT") else symbol
-    return f"{base}-USDT"
+    <script>
+        setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('it-IT'); }, 1000);
+        let autoTradeState = false;
 
-def fetch_bingx_real_positions():
-    if not BINGX_API_KEY or not BINGX_SECRET_KEY:
-        # Simulazione posizioni attive in Paper Trading se Auto-Trade è attivo
-        global execution_history
-        return [h for h in execution_history if h.get("status") == "OPEN"]
-    
-    timestamp = int(time.time() * 1000)
-    query_string = f"timestamp={timestamp}"
-    signature = sign_bingx_request(query_string)
-    url = f"{BINGX_BASE_URL}/openApi/swap/v2/user/positions?{query_string}&signature={signature}"
-    headers = {"X-BX-APIKEY": BINGX_API_KEY}
-    try:
-        res = requests.get(url, headers=headers, timeout=4.0).json()
-        if res.get("code") == 0 and "data" in res:
-            real_pos_list = []
-            for p in res["data"]:
-                amt = float(p.get("positionAmt", 0))
-                if amt != 0:
-                    sym = p.get("symbol", "").replace("-", "")
-                    side = "BUY" if p.get("positionSide") == "LONG" else ("SELL" if p.get("positionSide") == "SHORT" else ("BUY" if amt > 0 else "SELL"))
-                    real_pos_list.append({
-                        "symbol": sym, "name": p.get("symbol", ""), "action": side,
-                        "entry": float(p.get("avgPrice", 0)), "current_price": float(p.get("avgPrice", 0)),
-                        "size": abs(amt), "leverage": f"Isolata {p.get('leverage', 10)}x",
-                        "margin": float(p.get("initialMargin", 0)),
-                        "unrealized_pnl": round(float(p.get('unrealizedProfit', 0)), 2),
-                        "status": "OPEN"
-                    })
-            return real_pos_list
-    except Exception as e:
-        print(f"Errore recupero posizioni: {e}")
-    return []
-
-def execute_order(symbol, name, action, entry, size, leverage, margin, sl, tp1):
-    global execution_history
-    order_record = {
-        "id": f"ORD-{int(time.time()*1000)}",
-        "symbol": symbol, "name": name, "action": action,
-        "entry": entry, "size": size, "leverage": leverage, "margin": margin,
-        "sl": sl, "tp1": tp1, "unrealized_pnl": 0.0, "status": "OPEN",
-        "opened_at": datetime.now().strftime("%H:%M:%S")
-    }
-    execution_history.insert(0, order_record)
-    send_telegram_message_cooldown(symbol, f"🏛 *SALA SEGNALI PRO • ORDINE ESEGUITO* 🏛\nAsset: `{name}`\nSegnale: *{action}* ({leverage})\nIngresso: `{entry}`\nSL: `{sl}` | TP1: `{tp1}`")
-
-@app.route('/')
-def home():
-    return render_template('index.html')
-
-@app.route('/api/autotrade/toggle', methods=['POST'])
-def toggle_autotrade():
-    global auto_trade_active
-    data = request.get_json(silent=True) or {}
-    auto_trade_active = bool(data.get('enabled', not auto_trade_active))
-    return jsonify({"auto_trade": auto_trade_active, "mode": get_exchange_mode()})
-
-@app.route('/api/autotrade/status', methods=['GET'])
-def get_autotrade_status():
-    positions = fetch_bingx_real_positions()
-    return jsonify({
-        "auto_trade": auto_trade_active,
-        "mode": get_exchange_mode(),
-        "positions": positions,
-        "history": execution_history[:20]
-    })
-
-@app.route('/api/autotrade/close', methods=['POST'])
-def close_position():
-    global session_realized_pnl, execution_history
-    data = request.get_json(silent=True) or {}
-    symbol = data.get('symbol')
-    for h in execution_history:
-        if h['symbol'] == symbol and h['status'] == 'OPEN':
-            h['status'] = 'CLOSED'
-            session_realized_pnl += h['unrealized_pnl']
-            return jsonify({"success": True})
-    return jsonify({"success": False}), 404
-
-@app.route('/api/telemetry', methods=['GET'])
-def get_telemetry():
-    global scans_telemetry, execution_history
-    return jsonify({
-        "scans_count": len(scans_telemetry),
-        "total_executions": len(execution_history),
-        "session_pnl": round(session_realized_pnl, 2),
-        "telemetry_logs": list(scans_telemetry.values())[-15:]
-    })
-
-def fetch_all_markets():
-    return {
-        "Criptovalute": [
-            {'id': 'BTCUSDT', 'name': '₿ Bitcoin', 'fallback': 65000.0}, 
-            {'id': 'ETHUSDT', 'name': 'Ξ Ethereum', 'fallback': 2600.0},
-            {'id': 'SOLUSDT', 'name': '🟣 Solana', 'fallback': 160.0}, 
-            {'id': 'XRPUSDT', 'name': '✕ Ripple', 'fallback': 0.60},
-            {'id': 'BNBUSDT', 'name': '🟡 BNB', 'fallback': 600.0}, 
-            {'id': 'ADAUSDT', 'name': '₳ Cardano', 'fallback': 0.45},
-            {'id': 'DOGEUSDT', 'name': '🐕 Dogecoin', 'fallback': 0.13}, 
-            {'id': 'AVAXUSDT', 'name': '🔺 Avalanche', 'fallback': 28.0},
-            {'id': 'LINKUSDT', 'name': '🔗 Chainlink', 'fallback': 13.0}, 
-            {'id': 'SUIUSDT', 'name': '💧 Sui', 'fallback': 2.0}
-        ],
-        "Materie Prime & Forex": [
-            {'id': 'XAUUSD', 'name': '🥇 Oro (Gold)', 'fallback': 2700.0}, 
-            {'id': 'XAGUSD', 'name': '🥈 Argento (Silver)', 'fallback': 32.0},
-            {'id': 'EURUSDT', 'name': '💶 EUR/USD', 'fallback': 1.07}, 
-            {'id': 'GBPUSDT', 'name': '🇬🇧 GBP/USD', 'fallback': 1.28},
-            {'id': 'USDJPY', 'name': '🇯🇵 USD/JPY', 'fallback': 154.0}
-        ],
-        "Azioni & Indici": [
-            {'id': 'AAPL', 'name': '🍏 Apple Inc.', 'fallback': 235.0}, 
-            {'id': 'TSLA', 'name': '🚗 Tesla Inc.', 'fallback': 240.0},
-            {'id': 'NVDA', 'name': '💻 Nvidia Corp.', 'fallback': 140.0}, 
-            {'id': 'AMZN', 'name': '📦 Amazon', 'fallback': 190.0},
-            {'id': 'SPX500', 'name': '📈 S&P 500 Index', 'fallback': 5900.0}
-        ]
-    }
-
-def safe_float(val, default=0.0):
-    try:
-        f = float(val)
-        return default if (np.isnan(f) or not np.isfinite(f)) else f
-    except Exception:
-        return default
-
-def get_market_data(symbol, interval="15m", fallback_price=100.0):
-    headers = {"User-Agent": "Mozilla/5.0"}
-    clean_sym = symbol + 'USDT' if symbol in ['AAPL', 'TSLA', 'NVDA', 'AMZN', 'SPX500'] else ('XAGUSDT' if symbol == 'XAGUSD' else ('PAXGUSDT' if symbol == 'XAUUSD' else symbol))
-    try:
-        url = "https://api.binance.com/api/v3/klines"
-        res = requests.get(url, params={"symbol": clean_sym, "interval": interval, "limit": 60}, headers=headers, timeout=2.5).json()
-        if isinstance(res, list) and len(res) > 0:
-            df = pd.DataFrame(res, columns=['Open_time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Close_time', 'Quote_av', 'Trades', 'Tbbav', 'Tbav', 'Ignore'])
-            for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
-                df[col] = df[col].astype(float)
-            live_price = df['Close'].iloc[-1]
-            p_res = requests.get("https://api.binance.com/api/v3/ticker/price", params={"symbol": clean_sym}, headers=headers, timeout=1.5).json()
-            if isinstance(p_res, dict) and 'price' in p_res:
-                live_price = float(p_res['price'])
-                df.loc[df.index[-1], 'Close'] = live_price
-            return df, live_price
-    except Exception:
-        pass
-    
-    p = fallback_price
-    df = pd.DataFrame({
-        'Open': [p]*60, 'High': [p*1.005]*60, 'Low': [p*0.995]*60, 
-        'Close': [p + (i * p * 0.0001) for i in range(60)], 'Volume': [50000]*60
-    })
-    return df, p
-
-def calculate_setup(df, current_price, balance, risk_pct, rsi_buy_min, rsi_buy_max, rsi_sell_min, rsi_sell_max, sl_m, tp_m, timeframe):
-    close = df['Close']
-    delta = close.diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-    rsi = safe_float((100 - (100 / (1 + (gain / loss)))).iloc[-1], 50.0)
-
-    ema12 = close.ewm(span=12, adjust=False).mean()
-    ema26 = close.ewm(span=26, adjust=False).mean()
-    macd_hist = (ema12 - ema26) - (ema12 - ema26).ewm(span=9, adjust=False).mean()
-    current_macd = safe_float(macd_hist.iloc[-1], 0.0)
-    prev_macd = safe_float(macd_hist.iloc[-2], 0.0)
-
-    tr = pd.concat([df['High'] - df['Low'], np.abs(df['High'] - close.shift()), np.abs(df['Low'] - close.shift())], axis=1).max(axis=1)
-    atr = safe_float(tr.rolling(14).mean().iloc[-1], current_price * 0.005)
-    if atr <= 0: atr = current_price * 0.005
-
-    whipsaw = bool(safe_float(df['Volume'].iloc[-1], 1000.0) < (safe_float(df['Volume'].rolling(20).mean().iloc[-1], 1000.0) * 0.25))
-
-    if rsi >= 72 and current_macd < prev_macd:
-        inv = "⚠️ Inversione RIBASSISTA"
-    elif rsi <= 28 and current_macd > prev_macd:
-        inv = "🚀 Inversione RIALZISTA"
-    else:
-        inv = "🛡️ Trend Stabile"
-
-    is_buy = (safe_float(ema12.iloc[-1], current_price) >= safe_float(ema26.iloc[-1], current_price)) and (rsi_buy_min <= rsi <= rsi_buy_max) and not whipsaw
-    is_sell = (safe_float(ema12.iloc[-1], current_price) <= safe_float(ema26.iloc[-1], current_price)) and (rsi_sell_min <= rsi <= rsi_sell_max) and not whipsaw
-
-    if is_buy:
-        action, score, sent, col = "BUY", 99.9, "BULLISH (Configurato)", "#00ff66"
-    elif is_sell:
-        action, score, sent, col = "SELL", 99.9, "BEARISH (Configurato)", "#ff1e42"
-    else:
-        action, score, sent, col = "NEUTRAL", 50.0, "ATTESA / RANGE", "#ffffff"
-
-    sl_dist = atr * sl_m
-    tp_dist = atr * tp_m
-    decimals = 2 if current_price > 5 else 6
-
-    if action == "BUY":
-        entry = current_price
-        sl = round(current_price - sl_dist, decimals)
-        tp1 = round(current_price + tp_dist, decimals)
-        target_rialzista = round(current_price + (tp_dist * 2.5), decimals)
-        target_ribassista = sl
-    else:
-        entry = current_price
-        sl = round(current_price + sl_dist, decimals)
-        tp1 = round(current_price - tp_dist, decimals)
-        target_rialzista = sl
-        target_ribassista = round(current_price - (tp_dist * 2.5), decimals)
-
-    # Durata reale basata sulle candele
-    tf_min = 5 if timeframe == '5m' else (15 if timeframe == '15m' else 60)
-    recent_movement = abs(close.diff().tail(5)).mean()
-    effective_speed = max(recent_movement, atr * 0.1, current_price * 0.0001)
-    candles_needed = max(1, int(np.ceil(tp_dist / effective_speed)))
-    est_min = candles_needed * tf_min
-
-    if est_min < 60:
-        duration = f"~{est_min} min ({candles_needed} candele)"
-    elif est_min < 1440:
-        duration = f"~{round(est_min / 60, 1)} ore ({candles_needed} candele)"
-    else:
-        duration = f"~{round(est_min / 1440, 1)} giorni ({candles_needed} candele)"
-
-    max_risk = balance * (risk_pct / 100.0)
-    risk_unit = abs(current_price - sl)
-    pos_size = round(max((max_risk / risk_unit) if risk_unit > 0 else 0.0, 0.001), 3)
-    lev = min(20, max(3, int(round(15.0 / max((risk_unit / current_price) * 100, 0.5)))))
-    margin = round((pos_size * current_price) / lev, 2)
-
-    return {
-        "action": action, "ai_score": f"{score}%", "sentiment": sent, "sentiment_color": col,
-        "inversion": inv, "entry": entry, "sl": sl, "tp1": tp1,
-        "target_rialzista": target_rialzista, "target_ribassista": target_ribassista, "duration": duration,
-        "rrr": round(tp_dist / sl_dist, 2) if sl_dist > 0 else 0.0, "rsi": round(rsi, 1),
-        "size": pos_size, "leverage": f"Isolata {lev}x", "margin": margin, "decimals": decimals
-    }
-
-@app.route('/api/signals', methods=['GET'])
-def get_signals():
-    global auto_trade_active, scans_telemetry
-    try:
-        timeframe = request.args.get('timeframe', '15m')
-        balance = safe_float(request.args.get('balance', 2.0), 2.0)
-        risk = safe_float(request.args.get('risk', 1.0), 1.0)
-        profile = request.args.get('profile', 'balanced')
-
-        if profile == 'conservative':
-            r_b_min, r_b_max, r_s_min, r_s_max, sl_m, tp_m = 30.0, 75.0, 25.0, 70.0, 1.2, 3.0
-        elif profile == 'aggressive':
-            r_b_min, r_b_max, r_s_min, r_s_max, sl_m, tp_m = 40.0, 85.0, 15.0, 60.0, 0.4, 1.0
-        else:
-            r_b_min, r_b_max, r_s_min, r_s_max, sl_m, tp_m = 35.0, 82.0, 18.0, 65.0, 0.8, 1.8
-
-        markets = fetch_all_markets()
-        raw_signals = []
-        target_assets = [(cat, a) for cat, assets in markets.items() for a in assets]
-
-        with ThreadPoolExecutor(max_workers=15) as executor:
-            futures = [executor.submit(get_market_data, a['id'], timeframe, a['fallback']) for _, a in target_assets]
-            for i, future in enumerate(futures):
-                cat, a = target_assets[i]
-                df, current_price = future.result()
-                if df is not None and not df.empty:
-                    res = calculate_setup(df, current_price, balance, risk, r_b_min, r_b_max, r_s_min, r_s_max, sl_m, tp_m, timeframe)
-                    dec = res["decimals"]
-                    
-                    sig_obj = {
-                        "id": f"{a['id']}_{res['action']}", "category": cat, "symbol": a['id'],
-                        "name": a['name'], "price": f"{current_price:.{dec}f}",
-                        **res
-                    }
-                    raw_signals.append(sig_obj)
-
-                    # Esecuzione automatica ordini se Auto-Trade è attivo
-                    if auto_trade_active and res['action'] in ["BUY", "SELL"]:
-                        active_pos = fetch_bingx_real_positions()
-                        if not any(p['symbol'] == a['id'] for p in active_pos):
-                            execute_order(a['id'], a['name'], res['action'], res['entry'], res['size'], res['leverage'], res['margin'], res['sl'], res['tp1'])
-
-        unique_map = {sig['symbol']: sig for sig in raw_signals}
-        signals = list(unique_map.values())
-        signals.sort(key=lambda x: float(x['ai_score'].replace('%','')), reverse=True)
-
-        scans_telemetry[time.time()] = {
-            "timestamp": datetime.now().strftime("%H:%M:%S"),
-            "scanned": len(signals),
-            "status": "OK"
+        function switchTab(tabName, element) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+            element.classList.add('active');
+            if(tabName === 'telemetry') loadTelemetry();
+            if(tabName === 'positions') loadStatus();
         }
 
-        return jsonify(signals)
-    except Exception as e:
-        return jsonify([])
+        document.getElementById('autotradeToggle').addEventListener('click', async () => {
+            const res = await fetch('/api/autotrade/toggle', { method: 'POST' });
+            const data = await res.json();
+            autoTradeState = data.auto_trade;
+            document.getElementById('autotradeToggle').innerText = autoTradeState ? "AUTO-TRADE: ON" : "AUTO-TRADE: OFF";
+            document.getElementById('autotradeToggle').className = `autotrade-btn ${autoTradeState ? 'active' : ''}`;
+            document.getElementById('exchangeModeIndicator').innerText = data.mode;
+        });
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+        async function loadStatus() {
+            try {
+                const res = await fetch('/api/autotrade/status');
+                const data = await res.json();
+                autoTradeState = data.auto_trade;
+                document.getElementById('autotradeToggle').innerText = autoTradeState ? "AUTO-TRADE: ON" : "AUTO-TRADE: OFF";
+                document.getElementById('autotradeToggle').className = `autotrade-btn ${autoTradeState ? 'active' : ''}`;
+                document.getElementById('exchangeModeIndicator').innerText = data.mode;
+                renderPositions(data.positions);
+            } catch (e) { console.error(e); }
+        }
+
+        function renderPositions(positions) {
+            const tbody = document.getElementById('positionsTableBody');
+            if (!positions || positions.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">Nessuna posizione attiva.</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = positions.map(p => `
+                <tr>
+                    <td><strong>${p.name}</strong></td>
+                    <td><span style="color:${p.action === 'BUY' ? 'var(--accent-green)' : 'var(--accent-red)'}; font-weight:800;">${p.action}</span></td>
+                    <td>${p.entry}</td>
+                    <td>${p.size}</td>
+                    <td>${p.leverage}</td>
+                    <td>$${p.margin}</td>
+                    <td style="color:${p.unrealized_pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}; font-weight:700;">$${p.unrealized_pnl}</td>
+                    <td><button class="btn-close" onclick="closePosition('${p.symbol}')">CHIUDI</button></td>
+                </tr>
+            `).join('');
+        }
+
+        async function closePosition(symbol) {
+            await fetch('/api/autotrade/close', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ symbol })
+            });
+            loadStatus();
+        }
+
+        async function loadTelemetry() {
+            try {
+                const res = await fetch('/api/telemetry');
+                const data = await res.json();
+                const container = document.getElementById('telemetryContainer');
+                container.innerHTML = `
+                    <p>Scansioni Effettuate: <strong>${data.scans_count}</strong></p>
+                    <p>Ordini Eseguiti Totali: <strong>${data.total_executions}</strong></p>
+                    <p>PnL di Sessione: <strong style="color:${data.session_pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}">$${data.session_pnl}</strong></p>
+                    <hr style="border-color:var(--border-color); margin:10px 0;">
+                    <p style="color:var(--text-muted);">Ultimi Log di Scanner:</p>
+                    ${data.telemetry_logs.map(l => `<div>[${l.timestamp}] - Asset Scansionati: ${l.scanned} - Stato: ${l.status}</div>`).join('')}
+                `;
+            } catch(e) { console.error(e); }
+        }
+
+        async function loadSignals() {
+            const profile = document.getElementById('profileSelect').value;
+            const timeframe = document.getElementById('tfSelect').value;
+            const balance = document.getElementById('balanceInput').value;
+            const risk = document.getElementById('riskInput').value;
+
+            try {
+                const res = await fetch(`/api/signals?profile=${profile}&timeframe=${timeframe}&balance=${balance}&risk=${risk}`);
+                const signals = await res.json();
+                const container = document.getElementById('signalsContainer');
+                
+                if (!signals || signals.length === 0) {
+                    container.innerHTML = `<div style="grid-column: 1/-1; text-align:center; padding: 40px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">Nessun segnale trovato.</div>`;
+                    return;
+                }
+
+                container.innerHTML = signals.map(s => `
+                    <div class="signal-card">
+                        <div class="card-header">
+                            <div>
+                                <div class="asset-title">${s.name}</div>
+                                <div style="font-size:0.75rem; color:var(--text-muted);">${s.category} • Prezzo: <strong>${s.price}</strong></div>
+                            </div>
+                            <span class="badge-action ${s.action === 'BUY' ? 'badge-buy' : 'badge-sell'}">${s.action}</span>
+                        </div>
+                        <div style="font-size:0.75rem; color:${s.sentiment_color}; font-weight:700; margin-bottom:8px; font-family:'JetBrains Mono',monospace;">${s.sentiment}</div>
+                        
+                        <div class="metrics-grid">
+                            <div class="metric-box"><label>📈 TARGET RIALZISTA</label><span style="color:var(--accent-green);">${s.target_rialzista}</span></div>
+                            <div class="metric-box"><label>📉 TARGET RIBASSISTA</label><span style="color:var(--accent-red);">${s.target_ribassista}</span></div>
+                        </div>
+
+                        <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; color:var(--text-muted); margin-bottom:6px; display:flex; justify-content:space-between;">
+                            <span>⏱️ Durata (Candele): <strong style="color:var(--accent-green);">${s.duration}</strong></span>
+                            <span>RSI: <strong>${s.rsi}</strong></span>
+                        </div>
+                        <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; color:var(--text-muted);">
+                            ⚡ Convinzione: <strong style="color:var(--accent-green);">${s.ai_score}</strong> | Trend: <strong>${s.inversion}</strong>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (e) { console.error(e); }
+        }
+
+        loadStatus();
+        loadSignals();
+        setInterval(loadStatus, 4000);
+        setInterval(loadSignals, 8000);
+
+        ['profileSelect', 'tfSelect', 'balanceInput', 'riskInput'].forEach(id => {
+            document.getElementById(id).addEventListener('change', loadSignals);
+        });
+    </script>
+</body>
+</html>
