@@ -73,8 +73,8 @@ def get_market_session_status(category):
 
 def get_exchange_mode():
     if not BINGX_API_KEY or not BINGX_SECRET_KEY:
-        return "PAPER PROP-DESK (UNIFIED TERMINAL ACTIVE)"
-    return "🔴 BINGX LIVE REALE (UNIFIED TERMINAL ACTIVE)"
+        return "PAPER PROP-DESK (ADVISOR ACTIVE)"
+    return "🔴 BINGX LIVE REALE (ADVISOR ACTIVE)"
 
 def sign_bingx_request(params_str):
     return hmac.new(BINGX_SECRET_KEY.encode('utf-8'), params_str.encode('utf-8'), hashlib.sha256).hexdigest()
@@ -97,7 +97,7 @@ def fetch_bingx_real_positions():
             if h.get("status") == "OPEN":
                 pos_copy = h.copy()
                 notional = pos_copy.get("size", 1) * pos_copy.get("entry", 1)
-                pos_copy["fee"] = round(notional * 0.0005, 3)
+                pos_copy["fee"] = round(notional * 0.0005, 4)
                 simulated_pos.append(pos_copy)
         return simulated_pos
 
@@ -117,7 +117,7 @@ def fetch_bingx_real_positions():
                     size_val = abs(amt)
                     fee_val = float(p.get("fee", 0.0))
                     if fee_val == 0.0:
-                        fee_val = round((size_val * entry_p) * 0.0005, 3)
+                        fee_val = round((size_val * entry_p) * 0.0005, 4)
                         
                     real_pos_list.append({
                         "symbol": sym, "name": p.get("symbol", ""), "action": side,
@@ -151,7 +151,7 @@ def execute_verified_order(symbol, name, action, entry, size, leverage, margin, 
 
     if not any(h['symbol'] == symbol and h['status'] == 'OPEN' for h in execution_history):
         notional = size * entry
-        est_fee = round(notional * 0.0005, 3)
+        est_fee = round(notional * 0.0005, 4)
         order_record = {
             "id": f"ORD-{int(time.time()*1000)}", "symbol": symbol, "name": name, "action": action,
             "entry": entry, "size": size, "leverage": leverage, "margin": margin,
@@ -283,7 +283,7 @@ def fetch_market_bundle(symbol, interval):
         pass
     return None, 0.0
 
-def calculate_setup(df, current_price, balance, risk_pct, rsi_buy_min, rsi_buy_max, rsi_sell_min, rsi_sell_max, sl_m, tp_m, timeframe):
+def calculate_setup(df, current_price, balance, risk_pct, rsi_buy_min, rsi_buy_max, rsi_sell_min, rsi_sell_max, sl_m, tp_m, timeframe, profile, category, is_open):
     close = df['Close']
     delta = close.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
@@ -343,12 +343,37 @@ def calculate_setup(df, current_price, balance, risk_pct, rsi_buy_min, rsi_buy_m
     roi_raw = round((tp_dist / current_price) * lev_int * 100, 1)
     roi_pct = f"+{roi_raw}%" if action == "BUY" else f"-{roi_raw}%" if action == "SELL" else "0.0%"
 
+    # CALCOLO CONSULENZA DINAMICA SUL SEGNALE, MERCATO E STRATEGIA
+    notional = pos_size * current_price
+    roundtrip_fee = round(notional * 0.001, 4)  # Apertura + Chiusura (0.05% x 2)
+    expected_gross_profit = round(pos_size * tp_dist, 4)
+    expected_net_profit = round(expected_gross_profit - roundtrip_fee, 4)
+
+    if not is_open:
+        advisor_status = "BLOCCATO"
+        advisor_color = "#ff1e42"
+        advisor_msg = f"Borsa chiusa ({category}): attendi la riapertura per evitare spread."
+    elif action == "NEUTRAL":
+        advisor_status = "ATTENDI"
+        advisor_color = "#8a99ad"
+        advisor_msg = f"Nessun trend direzionale su {timeframe}. Non aprire posizioni per non pagare fee inutili."
+    elif expected_net_profit <= 0:
+        advisor_status = "SCONSIGLIATO (FEE)"
+        advisor_color = "#ff1e42"
+        advisor_msg = f"Target troppo stretto: TP lordo (+${expected_gross_profit}) < Fee A/R (-${roundtrip_fee}). Usa TF 15m/1h o profilo Bilanciato."
+    else:
+        advisor_status = "ESEGUI IN REALE"
+        advisor_color = "#00ff66"
+        advisor_msg = f"Setup approvato ({profile.upper()}): profitto netto stimato +${expected_net_profit} al netto delle fee (-${roundtrip_fee}). Non chiudere prima di TP1."
+
     return {
         "action": action, "ai_score": f"{score}%", "sentiment": sent, "sentiment_color": col,
         "inversion": inv, "entry": entry, "sl": sl, "tp1": tp1, "roi_pct": roi_pct,
         "target_rialzista": target_rialzista, "target_ribassista": target_ribassista, "duration": duration,
         "rrr": round(tp_dist / sl_dist, 2) if sl_dist > 0 else 0.0, "rsi": round(rsi, 1),
-        "size": pos_size, "leverage": f"Isolata {lev_int}x", "margin": margin, "decimals": decimals
+        "size": pos_size, "leverage": f"Isolata {lev_int}x", "margin": margin, "decimals": decimals,
+        "roundtrip_fee": roundtrip_fee, "expected_net": expected_net_profit,
+        "advisor_status": advisor_status, "advisor_color": advisor_color, "advisor_msg": advisor_msg
     }
 
 @app.route('/api/signals', methods=['GET'])
@@ -390,9 +415,9 @@ def get_signals():
                         df.loc[df.index[-1], 'Close'] = live_price
 
                 if df is not None and not df.empty and live_price > 0:
-                    res = calculate_setup(df, live_price, balance, risk, r_b_min, r_b_max, r_s_min, r_s_max, sl_m, tp_m, timeframe)
-                    dec = res["decimals"]
                     sess = session_info[cat]
+                    res = calculate_setup(df, live_price, balance, risk, r_b_min, r_b_max, r_s_min, r_s_max, sl_m, tp_m, timeframe, profile, cat, sess["is_open"])
+                    dec = res["decimals"]
                     
                     sig_obj = {
                         "id": f"{a['id']}_{res['action']}", "category": cat, "symbol": a['id'],
@@ -403,7 +428,8 @@ def get_signals():
                     }
                     raw_signals.append(sig_obj)
 
-                    if auto_trade_active and sess["is_open"] and res['action'] in ["BUY", "SELL"]:
+                    # Esecuzione in reale solo se profitto netto atteso > 0 (batte le commissioni!)
+                    if auto_trade_active and sess["is_open"] and res['action'] in ["BUY", "SELL"] and res['expected_net'] > 0:
                         execute_verified_order(a['id'], a['name'], res['action'], res['entry'], res['size'], res['leverage'], res['margin'], res['sl'], res['tp1'])
 
         unique_map = {sig['symbol']: sig for sig in raw_signals}
@@ -412,7 +438,7 @@ def get_signals():
 
         scans_telemetry[time.time()] = {
             "timestamp": datetime.now().strftime("%H:%M:%S"),
-            "scanned": len(signals), "status": "UNIFIED_TERMINAL_ACTIVE"
+            "scanned": len(signals), "status": "ADVISOR_DASHBOARD_ACTIVE"
         }
 
         return jsonify({"sessions": session_info, "signals": signals})
