@@ -24,10 +24,10 @@ BINGX_BASE_URL = "https://open-api.bingx.com"
 # Stato Globale Prop-Desk & Protezione Istituzionale
 auto_trade_active = False
 execution_history = []
-sent_telegram_signals = {}  # Cooldown anti-spam per simbolo
+sent_telegram_signals = {}  # Cooldown anti-spam per simbolo (15 min)
 scans_telemetry = {}
 
-# Parametri Circuit Breaker Prop-Desk (Risk Management Istituzionale)
+# Parametri Circuit Breaker Prop-Desk (Risk Management)
 DAILY_MAX_DRAWDOWN_USD = 10.0  
 session_realized_pnl = 0.0
 
@@ -44,14 +44,13 @@ def sign_bingx_request(params_str):
     ).hexdigest()
 
 def send_telegram_message_cooldown(symbol, text):
-    """Invia notifiche istituzionali con cooldown anti-duplicazione rigoroso."""
     global sent_telegram_signals
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return
     
     now = time.time()
     if symbol in sent_telegram_signals:
-        if now - sent_telegram_signals[symbol] < 900:  # 15 minuti di cooldown per asset
+        if now - sent_telegram_signals[symbol] < 900:  # 15 minuti di cooldown
             return
             
     sent_telegram_signals[symbol] = now
@@ -68,7 +67,6 @@ def format_bingx_symbol(symbol):
     return f"{symbol}-USDT"
 
 def fetch_bingx_real_positions():
-    """Interroga direttamente le API BingX per estrarre le posizioni aperte reali."""
     if not BINGX_API_KEY or not BINGX_SECRET_KEY:
         return []
 
@@ -147,7 +145,7 @@ def check_circuit_breaker():
     global auto_trade_active, session_realized_pnl
     if session_realized_pnl <= -DAILY_MAX_DRAWDOWN_USD:
         auto_trade_active = False
-        send_telegram_message_cooldown("CIRCUIT_BREAKER", "🚨 *CIRCUIT BREAKER PROP-DESK ATTIVATO* 🚨\nSoglia di perdita giornaliera ($10) raggiunta. Auto-Trade disattivato per salvaguardia capitale.")
+        send_telegram_message_cooldown("CIRCUIT_BREAKER", "🚨 *CIRCUIT BREAKER PROP-DESK ATTIVATO* 🚨\nSoglia di perdita giornaliera ($10) raggiunta. Auto-Trade disattivato.")
         return True
     return False
 
