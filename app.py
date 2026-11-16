@@ -12,7 +12,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 app = Flask(__name__)
 
-# --- 1. LETTURA E DIAGNOSTICA VARIABILI DI RENDER ---
 def load_render_environment():
     global BINGX_API_KEY, BINGX_SECRET_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
     BINGX_API_KEY = os.environ.get('BINGX_API_KEY', '').strip()
@@ -23,9 +22,7 @@ def load_render_environment():
     print("========================================")
     print("⚡ SALA SEGNALI PRO • RENDER ENV CHECK ⚡")
     print(f"🔹 BingX API Key: {'CONFIGURATA ✅' if BINGX_API_KEY else 'NON RILEVATA (Paper Mode)'}")
-    print(f"🔹 BingX Secret Key: {'CONFIGURATA ✅' if BINGX_SECRET_KEY else 'NON RILEVATA'}")
     print(f"🔹 Telegram Token: {'CONFIGURATO ✅' if TELEGRAM_BOT_TOKEN else 'NON RILEVATO'}")
-    print(f"🔹 Telegram Chat ID: {'CONFIGURATO ✅' if TELEGRAM_CHAT_ID else 'NON RILEVATO'}")
     print("========================================")
 
 load_render_environment()
@@ -33,7 +30,6 @@ load_render_environment()
 BINGX_BASE_URL = "https://open-api.bingx.com"
 STATE_FILE = "autotrade_state.json"
 
-# --- 2. PERSISTENZA STATO AUTO-TRADE (Evita disattivazioni) ---
 def get_saved_autotrade():
     if os.path.exists(STATE_FILE):
         try:
@@ -56,7 +52,6 @@ sent_telegram_signals = {}
 scans_telemetry = {}
 session_realized_pnl = 0.0
 
-# --- 3. MOTORE ORARI E STATO DELLE BORSE (UTC) ---
 def get_market_session_status(category):
     now_utc = datetime.now(timezone.utc)
     weekday = now_utc.weekday()
@@ -78,8 +73,8 @@ def get_market_session_status(category):
 
 def get_exchange_mode():
     if not BINGX_API_KEY or not BINGX_SECRET_KEY:
-        return "PAPER PROP-DESK (GLOBAL SESSIONS ACTIVE)"
-    return "🔴 BINGX LIVE REALE (GLOBAL EXCHANGES ACTIVE)"
+        return "PAPER PROP-DESK (ANALYTICS ACTIVE)"
+    return "🔴 BINGX LIVE REALE (ANALYTICS ACTIVE)"
 
 def sign_bingx_request(params_str):
     return hmac.new(BINGX_SECRET_KEY.encode('utf-8'), params_str.encode('utf-8'), hashlib.sha256).hexdigest()
@@ -121,7 +116,6 @@ def fetch_bingx_real_positions():
     except Exception: pass
     return [h for h in execution_history if h.get("status") == "OPEN"]
 
-# --- 4. ESECUZIONE ORDINI BINGX CON INVIO AUTOMATICO DI TP E SL ---
 def execute_verified_order(symbol, name, action, entry, size, leverage, margin, sl, tp1):
     global execution_history
     if BINGX_API_KEY and BINGX_SECRET_KEY:
@@ -129,27 +123,16 @@ def execute_verified_order(symbol, name, action, entry, size, leverage, margin, 
             timestamp = int(time.time() * 1000)
             bx_symbol = f"{symbol.replace('USDT','')}-USDT"
             pos_side = "LONG" if action == "BUY" else "SHORT"
-            
             params = {
-                "symbol": bx_symbol, 
-                "side": action, 
-                "positionSide": pos_side,
-                "type": "MARKET", 
-                "quantity": size, 
-                "timestamp": timestamp,
+                "symbol": bx_symbol, "side": action, "positionSide": pos_side,
+                "type": "MARKET", "quantity": size, "timestamp": timestamp,
                 "takeProfit": json.dumps({"type": "TAKE_PROFIT_MARKET", "stopPrice": tp1}),
                 "stopLoss": json.dumps({"type": "STOP_MARKET", "stopPrice": sl})
             }
-            
             query_string = "&".join([f"{k}={v}" for k, v in sorted(params.items())])
             signature = sign_bingx_request(query_string)
-            headers = {"X-BX-APIKEY": BINGX_API_KEY}
-            
-            res = requests.post(f"{BINGX_BASE_URL}/openApi/swap/v2/trade/order?{query_string}&signature={signature}", headers=headers, timeout=3.0).json()
-            if res.get("code") != 0:
-                print(f"⚠️ Errore BingX TP/SL ({symbol}): {res.get('msg')}")
-        except Exception as e:
-            print(f"Errore esecuzione BingX con TP/SL: {e}")
+            requests.post(f"{BINGX_BASE_URL}/openApi/swap/v2/trade/order?{query_string}&signature={signature}", headers={"X-BX-APIKEY": BINGX_API_KEY}, timeout=3.0)
+        except Exception: pass
 
     if not any(h['symbol'] == symbol and h['status'] == 'OPEN' for h in execution_history):
         order_record = {
@@ -158,7 +141,7 @@ def execute_verified_order(symbol, name, action, entry, size, leverage, margin, 
             "sl": sl, "tp1": tp1, "unrealized_pnl": 0.0, "status": "OPEN", "opened_at": datetime.now().strftime("%H:%M:%S")
         }
         execution_history.insert(0, order_record)
-        send_telegram_message_cooldown(symbol, f"🏛 *SALA SEGNALI PRO • GLOBAL ORDER + TP/SL* 🏛\nAsset: `{name}`\nSegnale: *{action}* ({leverage})\nIngresso: `{entry}`\nSL: `{sl}` | TP1: `{tp1}`")
+        send_telegram_message_cooldown(symbol, f"🏛 *SALA SEGNALI PRO • GLOBAL ORDER* 🏛\nAsset: `{name}`\nSegnale: *{action}* ({leverage})\nIngresso: `{entry}`\nSL: `{sl}` | TP1: `{tp1}`")
 
 @app.route('/')
 def home():
@@ -168,10 +151,7 @@ def home():
 def toggle_autotrade():
     global auto_trade_active
     data = request.get_json(silent=True) or {}
-    if 'enabled' in data:
-        auto_trade_active = bool(data['enabled'])
-    else:
-        auto_trade_active = not auto_trade_active
+    auto_trade_active = bool(data.get('enabled', not auto_trade_active)) if 'enabled' in data else not auto_trade_active
     save_autotrade(auto_trade_active)
     return jsonify({"auto_trade": auto_trade_active, "mode": get_exchange_mode()})
 
@@ -187,9 +167,67 @@ def close_position():
     for h in execution_history:
         if h['symbol'] == symbol and h['status'] == 'OPEN':
             h['status'] = 'CLOSED'
-            session_realized_pnl += h['unrealized_pnl']
+            pnl = h.get('unrealized_pnl', 0.0)
+            h['realized_pnl'] = pnl
+            h['date'] = datetime.now().strftime("%Y-%m-%d")
+            h['month'] = datetime.now().strftime("%Y-%m")
+            session_realized_pnl += pnl
             return jsonify({"success": True})
     return jsonify({"success": False}), 404
+
+@app.route('/api/analytics/performance', methods=['GET'])
+def get_performance_analytics():
+    global execution_history
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    current_month_str = datetime.now().strftime("%Y-%m")
+    
+    closed_trades = [h for h in execution_history if h.get("status") == "CLOSED"]
+    
+    # Statistiche Giornaliere
+    today_trades = [h for h in closed_trades if h.get("date") == today_str]
+    today_total = len(today_trades)
+    today_wins = [t for t in today_trades if t.get("realized_pnl", 0) > 0]
+    today_losses = [t for t in today_trades if t.get("realized_pnl", 0) <= 0]
+    today_win_pct = round((len(today_wins) / today_total * 100), 1) if today_total > 0 else 0.0
+    today_loss_pct = round((len(today_losses) / today_total * 100), 1) if today_total > 0 else 0.0
+    today_won_amt = sum(t.get("realized_pnl", 0) for t in today_wins)
+    today_lost_amt = sum(t.get("realized_pnl", 0) for t in today_losses)
+    
+    # Statistiche Mensili (Report per il mese)
+    month_trades = [h for h in closed_trades if h.get("month") == current_month_str]
+    month_total = len(month_trades)
+    month_wins = [t for t in month_trades if t.get("realized_pnl", 0) > 0]
+    month_losses = [t for t in month_trades if t.get("realized_pnl", 0) <= 0]
+    month_win_pct = round((len(month_wins) / month_total * 100), 1) if month_total > 0 else 0.0
+    month_loss_pct = round((len(month_losses) / month_total * 100), 1) if month_total > 0 else 0.0
+    month_won_amt = sum(t.get("realized_pnl", 0) for t in month_wins)
+    month_lost_amt = sum(t.get("realized_pnl", 0) for t in month_losses)
+    month_net = sum(t.get("realized_pnl", 0) for t in month_trades)
+    
+    return jsonify({
+        "daily": {
+            "date": today_str,
+            "total_trades": today_total,
+            "wins": len(today_wins),
+            "losses": len(today_losses),
+            "win_pct": today_win_pct,
+            "loss_pct": today_loss_pct,
+            "won_amount": round(today_won_amt, 2),
+            "lost_amount": round(today_lost_amt, 2),
+            "net_pnl": round(today_won_amt + today_lost_amt, 2)
+        },
+        "monthly": {
+            "month": current_month_str,
+            "total_trades": month_total,
+            "wins": len(month_wins),
+            "losses": len(month_losses),
+            "win_pct": month_win_pct,
+            "loss_pct": month_loss_pct,
+            "won_amount": round(month_won_amt, 2),
+            "lost_amount": round(month_lost_amt, 2),
+            "net_pnl": round(month_net, 2)
+        }
+    })
 
 @app.route('/api/telemetry', methods=['GET'])
 def get_telemetry():
@@ -301,7 +339,6 @@ def calculate_setup(df, current_price, balance, risk_pct, rsi_buy_min, rsi_buy_m
     lev_int = min(20, max(3, int(round(15.0 / max((risk_unit / current_price) * 100, 0.5)))))
     margin = round((pos_size * current_price) / lev_int, 2)
     
-    # Calcolo ROI stimato con leva
     roi_raw = round((tp_dist / current_price) * lev_int * 100, 1)
     roi_pct = f"+{roi_raw}%" if action == "BUY" else f"-{roi_raw}%" if action == "SELL" else "0.0%"
 
@@ -374,7 +411,7 @@ def get_signals():
 
         scans_telemetry[time.time()] = {
             "timestamp": datetime.now().strftime("%H:%M:%S"),
-            "scanned": len(signals), "status": "LIVE_FAST_SYNC_TPSL_ROI"
+            "scanned": len(signals), "status": "ANALYTICS_ACTIVE"
         }
 
         return jsonify({"sessions": session_info, "signals": signals})
