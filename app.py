@@ -20,7 +20,7 @@ def load_render_environment():
     TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '').strip()
     
     print("========================================")
-    print("⚡ SALA SEGNALI PRO • BINGX LIVE SYNC ⚡")
+    print("⚡ SALA SEGNALI PRO • BINGX SYNC ACTIVE ⚡")
     print(f"🔹 BingX API Key: {'CONFIGURATA ✅' if BINGX_API_KEY else 'NON RILEVATA (Paper Mode)'}")
     print("========================================")
 
@@ -120,6 +120,44 @@ def fetch_bingx_real_positions():
     except Exception: pass
     return [h for h in execution_history if h.get("status") == "OPEN"]
 
+# SINCRONIZZAZIONE AUTOMATICA PROFITTI CHIUSI DIRETTAMENTE DA BINGX
+def sync_bingx_closed_history():
+    global execution_history
+    if not BINGX_API_KEY or not BINGX_SECRET_KEY:
+        return
+    timestamp = int(time.time() * 1000)
+    query_string = f"incomeType=REALIZED_PNL&limit=50&timestamp={timestamp}"
+    signature = sign_bingx_request(query_string)
+    try:
+        res = requests.get(f"{BINGX_BASE_URL}/openApi/swap/v1/user/income?{query_string}&signature={signature}", headers={"X-BX-APIKEY": BINGX_API_KEY}, timeout=4.0).json()
+        if res.get("code") == 0 and "data" in res:
+            for inc in res["data"]:
+                pnl_val = float(inc.get("income", 0.0))
+                trade_time = int(inc.get("time", time.time() * 1000)) / 1000.0
+                date_str = datetime.fromtimestamp(trade_time).strftime("%Y-%m-%d")
+                month_str = datetime.fromtimestamp(trade_time).strftime("%Y-%m")
+                trade_id = f"BINGX-{inc.get('tranId', int(trade_time))}"
+                
+                # Verifica se esiste già nello storico locale
+                if not any(h.get('id') == trade_id for h in execution_history):
+                    execution_history.append({
+                        "id": trade_id,
+                        "symbol": inc.get("symbol", "").replace("-", ""),
+                        "name": inc.get("symbol", ""),
+                        "action": "BUY" if pnl_val >= 0 else "SELL",
+                        "entry": 0.0,
+                        "size": 0.0,
+                        "leverage": "Isolata 15x",
+                        "margin": 0.0,
+                        "fee": 0.0,
+                        "realized_pnl": round(pnl_val, 4),
+                        "status": "CLOSED",
+                        "date": date_str,
+                        "month": month_str
+                    })
+    except Exception as e:
+        print(f"Errore sync storico BingX: {e}")
+
 def execute_verified_order(symbol, name, action, entry, size, leverage, margin, sl, tp1):
     global execution_history
     if BINGX_API_KEY and BINGX_SECRET_KEY:
@@ -161,6 +199,7 @@ def toggle_autotrade():
 
 @app.route('/api/autotrade/status', methods=['GET'])
 def get_autotrade_status():
+    sync_bingx_closed_history()
     return jsonify({"auto_trade": auto_trade_active, "mode": get_exchange_mode(), "positions": fetch_bingx_real_positions(), "history": execution_history[:20]})
 
 @app.route('/api/autotrade/close', methods=['POST'])
@@ -179,7 +218,6 @@ def close_position():
             return jsonify({"success": True})
     return jsonify({"success": False}), 404
 
-# PRELIEVO PREZZI LIVE DIRETTAMENTE DA BINGX SWAP API
 @app.route('/api/live-prices', methods=['GET'])
 def get_live_prices():
     try:
@@ -202,12 +240,13 @@ def get_live_prices():
 @app.route('/api/analytics/performance', methods=['GET'])
 def get_performance_analytics():
     global execution_history
+    sync_bingx_closed_history()  # Sincronizza i profitti chiusi da BingX in tempo reale
     today_str = datetime.now().strftime("%Y-%m-%d")
     current_month_str = datetime.now().strftime("%Y-%m")
     
     closed_trades = [h for h in execution_history if h.get("status") == "CLOSED"]
-    today_trades = [h for h in closed_trades if h.get("date") == today_str]
-    month_trades = [h for h in closed_trades if h.get("month") == current_month_str]
+    today_trades = [h for h in closed_trades if h.get("date"] == today_str]
+    month_trades = [h for h in closed_trades if h.get("month"] == current_month_str]
     
     def calc_stats(trades):
         total = len(trades)
@@ -265,7 +304,6 @@ def safe_float(val, default=0.0):
     except Exception:
         return default
 
-# PRELIEVO KLINES DIRETTAMENTE DA BINGX SWAP API
 def fetch_market_bundle(symbol, interval):
     bx_symbol = f"{symbol.replace('USDT','')}-USDT"
     try:
@@ -274,7 +312,6 @@ def fetch_market_bundle(symbol, interval):
         if res.get("code") == 0 and "data" in res:
             klines = res["data"]
             if isinstance(klines, list) and len(klines) > 20:
-                # BingX kline format: [time, open, high, low, close, volume] o dizionario
                 rows = []
                 for k in klines:
                     if isinstance(k, list):
@@ -321,7 +358,6 @@ def calculate_setup(df, current_price, balance, risk_pct, rsi_buy_min, rsi_buy_m
     tp_dist = atr * tp_m
     decimals = 2 if current_price > 5 else 5
 
-    # FORMULE RIGOROSE BINGX PER LONG E SHORT (EVITA QUALSIASI ERRORE DI SL/TP)
     if action == "BUY":
         entry, sl, tp1 = current_price, round(current_price - sl_dist, decimals), round(current_price + tp_dist, decimals)
         target_rialzista, target_ribassista = round(current_price + (tp_dist * 2.5), decimals), sl
@@ -407,7 +443,6 @@ def get_signals():
         markets = fetch_all_markets()
         session_info = {cat: get_market_session_status(cat) for cat in markets.keys()}
         
-        # PRELIEVO PREZZI BINGX IN BULK
         all_prices = {}
         try:
             res = requests.get(f"{BINGX_BASE_URL}/openApi/swap/v2/quote/ticker", timeout=2.5).json()
