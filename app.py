@@ -18,12 +18,6 @@ def load_render_environment():
     BINGX_SECRET_KEY = os.environ.get('BINGX_SECRET_KEY', '').strip()
     TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
     TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '').strip()
-    
-    print("========================================")
-    print("⚡ SALA SEGNALI PRO • RENDER ENV CHECK ⚡")
-    print(f"🔹 BingX API Key: {'CONFIGURATA ✅' if BINGX_API_KEY else 'NON RILEVATA (Paper Mode)'}")
-    print(f"🔹 Telegram Token: {'CONFIGURATO ✅' if TELEGRAM_BOT_TOKEN else 'NON RILEVATO'}")
-    print("========================================")
 
 load_render_environment()
 
@@ -62,8 +56,8 @@ def get_market_session_status(category):
     elif "Forex" in category or "Materie Prime" in category:
         is_closed = (weekday == 5) or (weekday == 4 and current_minutes >= 1320) or (weekday == 6 and current_minutes < 1320)
         if is_closed:
-            return {"status": "CHIUSO (Weekend)", "is_open": False, "hours": "Lun-Ven 24h (Riaper. Dom 22:00 UTC)", "badge_color": "#ff1e42"}
-        return {"status": "APERTO", "is_open": True, "hours": "Sessione Globale 24h (Lun-Ven)", "badge_color": "#00ff66"}
+            return {"status": "CHIUSO (Weekend)", "is_open": False, "hours": "Lun-Ven 24h", "badge_color": "#ff1e42"}
+        return {"status": "APERTO", "is_open": True, "hours": "Sessione Globale 24h", "badge_color": "#00ff66"}
     else:
         if weekday >= 5:
             return {"status": "CHIUSO (Weekend)", "is_open": False, "hours": "NYSE/NASDAQ: 14:30 - 21:00 UTC", "badge_color": "#ff1e42"}
@@ -122,7 +116,7 @@ def fetch_bingx_real_positions():
                     real_pos_list.append({
                         "symbol": sym, "name": p.get("symbol", ""), "action": side,
                         "entry": entry_p, "current_price": entry_p,
-                        "size": size_val, "leverage": f"Isolata {p.get('leverage', 10)}x",
+                        "size": size_val, "leverage": f"Isolata {p.get('leverage', 15)}x",
                         "margin": float(p.get("initialMargin", 0)),
                         "fee": fee_val,
                         "unrealized_pnl": round(float(p.get('unrealizedProfit', 0)), 2), "status": "OPEN"
@@ -317,12 +311,16 @@ def calculate_setup(df, current_price, balance, risk_pct, rsi_buy_min, rsi_buy_m
     tp_dist = atr * tp_m
     decimals = 2 if current_price > 5 else 6
 
+    # CORREZIONE RIGOROSA: SEPARAZIONE BUY, SELL E NEUTRAL PER EVITARE INVERSIONI ERRATE SU BINGX
     if action == "BUY":
         entry, sl, tp1 = current_price, round(current_price - sl_dist, decimals), round(current_price + tp_dist, decimals)
         target_rialzista, target_ribassista = round(current_price + (tp_dist * 2.5), decimals), sl
-    else:
+    elif action == "SELL":
         entry, sl, tp1 = current_price, round(current_price + sl_dist, decimals), round(current_price - tp_dist, decimals)
         target_rialzista, target_ribassista = sl, round(current_price - (tp_dist * 2.5), decimals)
+    else:  # NEUTRAL: Nessun target short rovesciato, valori neutri coerenti con Long di default
+        entry, sl, tp1 = current_price, round(current_price - sl_dist, decimals), round(current_price + tp_dist, decimals)
+        target_rialzista, target_ribassista = round(current_price + tp_dist, decimals), round(current_price - sl_dist, decimals)
 
     tf_min = 5 if timeframe == '5m' else (15 if timeframe == '15m' else 60)
     recent_movement = abs(close.diff().tail(5)).mean()
@@ -337,34 +335,41 @@ def calculate_setup(df, current_price, balance, risk_pct, rsi_buy_min, rsi_buy_m
     max_risk = balance * (risk_pct / 100.0)
     risk_unit = abs(current_price - sl)
     pos_size = round(max((max_risk / risk_unit) if risk_unit > 0 else 0.0, 0.001), 3)
-    lev_int = min(20, max(3, int(round(15.0 / max((risk_unit / current_price) * 100, 0.5)))))
+    
+    if balance <= 2.0:
+        lev_int = 20
+    elif balance <= 5.0:
+        lev_int = 15
+    else:
+        base_lev = int(round(15.0 / max((risk_unit / current_price) * 100, 0.5)))
+        lev_int = min(20, max(5, base_lev))
+
     margin = round((pos_size * current_price) / lev_int, 2)
     
     roi_raw = round((tp_dist / current_price) * lev_int * 100, 1)
     roi_pct = f"+{roi_raw}%" if action == "BUY" else f"-{roi_raw}%" if action == "SELL" else "0.0%"
 
-    # CALCOLO CONSULENZA DINAMICA SUL SEGNALE, MERCATO E STRATEGIA
     notional = pos_size * current_price
-    roundtrip_fee = round(notional * 0.001, 4)  # Apertura + Chiusura (0.05% x 2)
+    roundtrip_fee = round(notional * 0.001, 4)
     expected_gross_profit = round(pos_size * tp_dist, 4)
     expected_net_profit = round(expected_gross_profit - roundtrip_fee, 4)
 
     if not is_open:
         advisor_status = "BLOCCATO"
         advisor_color = "#ff1e42"
-        advisor_msg = f"Borsa chiusa ({category}): attendi la riapertura per evitare spread."
+        advisor_msg = f"Borsa chiusa ({category}): attendi la riapertura."
     elif action == "NEUTRAL":
         advisor_status = "ATTENDI"
         advisor_color = "#8a99ad"
-        advisor_msg = f"Nessun trend direzionale su {timeframe}. Non aprire posizioni per non pagare fee inutili."
+        advisor_msg = f"Asset in range neutro. Evita l'inserimento manuale o l'auto-trade."
     elif expected_net_profit <= 0:
         advisor_status = "SCONSIGLIATO (FEE)"
         advisor_color = "#ff1e42"
-        advisor_msg = f"Target troppo stretto: TP lordo (+${expected_gross_profit}) < Fee A/R (-${roundtrip_fee}). Usa TF 15m/1h o profilo Bilanciato."
+        advisor_msg = f"Target troppo stretto: TP lordo (+${expected_gross_profit}) < Fee (-${roundtrip_fee})."
     else:
         advisor_status = "ESEGUI IN REALE"
         advisor_color = "#00ff66"
-        advisor_msg = f"Setup approvato ({profile.upper()}): profitto netto stimato +${expected_net_profit} al netto delle fee (-${roundtrip_fee}). Non chiudere prima di TP1."
+        advisor_msg = f"Capitale ${balance} con Leva {lev_int}x: profitto netto stimato +${expected_net_profit} (fee -${roundtrip_fee})."
 
     return {
         "action": action, "ai_score": f"{score}%", "sentiment": sent, "sentiment_color": col,
@@ -428,7 +433,6 @@ def get_signals():
                     }
                     raw_signals.append(sig_obj)
 
-                    # Esecuzione in reale solo se profitto netto atteso > 0 (batte le commissioni!)
                     if auto_trade_active and sess["is_open"] and res['action'] in ["BUY", "SELL"] and res['expected_net'] > 0:
                         execute_verified_order(a['id'], a['name'], res['action'], res['entry'], res['size'], res['leverage'], res['margin'], res['sl'], res['tp1'])
 
