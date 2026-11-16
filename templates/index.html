@@ -20,11 +20,11 @@
         .control-group label { display: block; font-size: 0.7rem; font-family: 'JetBrains Mono', monospace; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; }
         .control-group input, .control-group select { width: 100%; background: var(--bg-base); border: 1px solid var(--border-color); color: var(--text-main); padding: 8px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; }
         
-        /* STILI VERO TACHIMETRO CIRCOLARE CON LANCETTA */
+        /* TACHIMETRI CIRCOLARI CON LANCETTA */
         .gauge-card { background: var(--bg-base); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; align-items: center; text-align: center; }
         .gauge-title { font-size: 0.65rem; font-family: 'JetBrains Mono', monospace; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
         .gauge-container { position: relative; width: 110px; height: 65px; margin: 4px auto 0 auto; }
-        .gauge-svg { width: 100%; height: 100%; transform: rotate(0deg); overflow: visible; }
+        .gauge-svg { width: 100%; height: 100%; overflow: visible; }
         .gauge-needle { transition: transform 0.5s cubic-bezier(0.4, 2.08, 0.55, 0.44); transform-origin: 55px 55px; }
         .gauge-value-text { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; font-weight: 700; fill: var(--text-main); }
 
@@ -35,6 +35,14 @@
         .section-title { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; text-transform: uppercase; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
+
+        /* INTESTAZIONI CATEGORIE BORSE */
+        .category-block { margin-bottom: 30px; }
+        .category-header { background: var(--bg-panel); border: 1px solid var(--border-color); border-left: 4px solid var(--accent-green); border-radius: 8px; padding: 12px 16px; margin-bottom: 15px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; }
+        .category-name { font-size: 1rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: var(--text-main); }
+        .session-badges { display: flex; align-items: center; gap: 10px; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; }
+        .status-pill { padding: 3px 10px; border-radius: 12px; font-weight: 800; }
+
         .signals-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 15px; }
         .signal-card { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 10px; padding: 16px; transition: transform 0.2s; }
         .signal-card:hover { border-color: #2a3650; transform: translateY(-2px); }
@@ -43,6 +51,7 @@
         .badge-action { padding: 4px 10px; border-radius: 4px; font-weight: 800; font-size: 0.8rem; font-family: 'JetBrains Mono', monospace; }
         .badge-buy { background: rgba(0,255,102,0.15); color: var(--accent-green); border: 1px solid var(--accent-green); }
         .badge-sell { background: rgba(255,30,66,0.15); color: var(--accent-red); border: 1px solid var(--accent-red); }
+        .badge-neutral { background: rgba(255,255,255,0.08); color: var(--text-muted); border: 1px solid var(--border-color); }
         .metrics-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 12px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; }
         .metric-box label { font-size: 0.65rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; display: block; }
         .metric-box span { font-size: 0.85rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
@@ -57,8 +66,8 @@
 </head>
 <body>
     <header>
-        <div class="logo">⚡ SALA SEGNALI PRO <span style="font-size:0.6rem; background:rgba(0,255,102,0.1); color:var(--accent-green); padding:2px 6px; border-radius:3px;">ANALOG GAUGES ACTIVE</span></div>
-        <div class="terminal-clock" id="clock">00:00:00</div>
+        <div class="logo">⚡ SALA SEGNALI PRO <span style="font-size:0.6rem; background:rgba(0,255,102,0.1); color:var(--accent-green); padding:2px 6px; border-radius:3px;">LIVE EXCHANGE HOURS</span></div>
+        <div class="terminal-clock" id="clock">00:00:00 UTC</div>
     </header>
 
     <div class="controls-bar">
@@ -69,7 +78,6 @@
                 <option value="balanced" selected>Bilanciato</option>
                 <option value="aggressive">Aggressivo / HFT</option>
             </select>
-            <!-- Tachimetro 1: Profilo Operativo con Lancetta -->
             <div class="gauge-card" style="margin-top:6px;">
                 <div class="gauge-title">RPM Profilo</div>
                 <div class="gauge-container">
@@ -86,7 +94,6 @@
 
         <div class="control-group">
             <label>Forza Segnali Rilevati</label>
-            <!-- Tachimetro 2: Forza Segnali con Lancetta -->
             <div class="gauge-card" style="margin-top:6px;">
                 <div class="gauge-title">Power Index</div>
                 <div class="gauge-container">
@@ -123,20 +130,18 @@
     </div>
 
     <div class="container">
-        <!-- TAB 1: SEGNALI & MERCATI -->
         <div id="tab-signals" class="tab-content active">
             <div class="section-title">
-                <span>📡 Scanner Globale Universale (Cripto, Forex, Azioni)</span>
+                <span>📡 Borse Mondiali & Sessioni Live</span>
                 <span id="exchangeModeIndicator" style="color:var(--accent-green)">Connessione in corso...</span>
             </div>
-            <div id="signalsContainer" class="signals-grid">
-                <div style="grid-column: 1/-1; text-align:center; padding: 40px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">
-                    Scansione in corso su tutte le borse globali...
+            <div id="categorizedMarketsContainer">
+                <div style="text-align:center; padding: 40px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">
+                    Verifica orari e sessioni di apertura delle borse globali...
                 </div>
             </div>
         </div>
 
-        <!-- TAB 2: POSIZIONI APERTE -->
         <div id="tab-positions" class="tab-content">
             <div class="section-title"><span>📊 Posizioni Aperte & Esecuzioni Globali</span></div>
             <div style="overflow-x: auto;">
@@ -154,13 +159,12 @@
                         </tr>
                     </thead>
                     <tbody id="positionsTableBody">
-                        <tr><td colspan="8" style="text-align:center; color:var(--text-muted);">Nessuna posizione attiva. Attiva l'Auto-Trade per avviare gli ordini su tutte le borse.</td></tr>
+                        <tr><td colspan="8" style="text-align:center; color:var(--text-muted);">Nessuna posizione attiva.</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
 
-        <!-- TAB 3: TELEMETRIA HFT -->
         <div id="tab-telemetry" class="tab-content">
             <div class="section-title"><span>⚡ Telemetria Istituzionale & Log</span></div>
             <div id="telemetryContainer" style="background:var(--bg-panel); border:1px solid var(--border-color); border-radius:8px; padding:15px; font-family:'JetBrains Mono',monospace; font-size:0.8rem;">
@@ -168,7 +172,6 @@
             </div>
         </div>
 
-        <!-- TAB 4: GRAFICI -->
         <div id="tab-charts" class="tab-content">
             <div class="section-title"><span>📈 Grafici Multi-Timeframe Sincronizzati</span></div>
             <div style="background:var(--bg-panel); border:1px solid var(--border-color); border-radius:8px; padding:30px; text-align:center; font-family:'JetBrains Mono',monospace; color:var(--text-muted);">
@@ -185,33 +188,25 @@
     </div>
 
     <script>
-        setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('it-IT'); }, 1000);
+        setInterval(() => { 
+            const now = new Date();
+            document.getElementById('clock').innerText = now.toLocaleTimeString('it-IT') + ' | ' + now.toISOString().substr(11, 8) + ' UTC'; 
+        }, 1000);
+        
         let autoTradeState = false;
 
         function updateGauge(needleId, textId, pathId, percent) {
-            // percent va da 0 a 100. L'arco va da -90° (0%) a +90° (100%)
             const angle = (percent / 100) * 180 - 90;
             const needle = document.getElementById(needleId);
-            if (needle) {
-                needle.style.transform = `rotate(${angle}deg)`;
-            }
+            if (needle) needle.style.transform = `rotate(${angle}deg)`;
             const text = document.getElementById(textId);
-            if (text) {
-                text.textContent = `${percent.toFixed(1)}%`;
-            }
+            if (text) text.textContent = `${percent.toFixed(1)}%`;
             const path = document.getElementById(pathId);
-            if (path) {
-                const dashoffset = 125.6 - (125.6 * percent) / 100;
-                path.style.strokeDashoffset = dashoffset;
-            }
+            if (path) path.style.strokeDashoffset = 125.6 - (125.6 * percent) / 100;
         }
 
         function updateTachometers(profile, avgScore) {
-            let pPercent = 65;
-            if (profile === 'conservative') pPercent = 35;
-            else if (profile === 'balanced') pPercent = 65;
-            else if (profile === 'aggressive') pPercent = 95;
-
+            let pPercent = profile === 'conservative' ? 35 : (profile === 'aggressive' ? 95 : 65);
             updateGauge('gaugeNeedle1', 'gaugeText1', 'gaugePath1', pPercent);
             updateGauge('gaugeNeedle2', 'gaugeText2', 'gaugePath2', avgScore);
         }
@@ -297,43 +292,74 @@
             const balance = document.getElementById('balanceInput').value;
             const risk = document.getElementById('riskInput').value;
 
-            updateTachometers(profile, 99.9);
-
             try {
                 const res = await fetch(`/api/signals?profile=${profile}&timeframe=${timeframe}&balance=${balance}&risk=${risk}`);
-                const signals = await res.json();
-                const container = document.getElementById('signalsContainer');
-                
-                if (!signals || signals.length === 0) {
-                    container.innerHTML = `<div style="grid-column: 1/-1; text-align:center; padding: 40px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">Nessun segnale trovato.</div>`;
+                const data = await res.json();
+                const signals = data.signals || [];
+                const sessions = data.sessions || {};
+                const container = document.getElementById('categorizedMarketsContainer');
+
+                // Calcolo forza media reale dei segnali
+                if (signals.length > 0) {
+                    const avg = signals.reduce((acc, s) => acc + parseFloat(s.ai_score), 0) / signals.length;
+                    updateTachometers(profile, avg);
+                } else {
+                    updateTachometers(profile, 50.0);
+                }
+
+                const categories = Object.keys(sessions);
+                if (categories.length === 0) {
+                    container.innerHTML = `<div style="text-align:center; padding: 40px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">Nessun dato di borsa disponibile.</div>`;
                     return;
                 }
 
-                container.innerHTML = signals.map(s => `
-                    <div class="signal-card">
-                        <div class="card-header">
-                            <div>
-                                <div class="asset-title">${s.name}</div>
-                                <div style="font-size:0.75rem; color:var(--text-muted);">${s.category} • Prezzo: <strong>${s.price}</strong></div>
-                            </div>
-                            <span class="badge-action ${s.action === 'BUY' ? 'badge-buy' : 'badge-sell'}">${s.action}</span>
-                        </div>
-                        <div style="font-size:0.75rem; color:${s.sentiment_color}; font-weight:700; margin-bottom:8px; font-family:'JetBrains Mono',monospace;">${s.sentiment}</div>
-                        
-                        <div class="metrics-grid">
-                            <div class="metric-box"><label>📈 TARGET RIALZISTA</label><span style="color:var(--accent-green);">${s.target_rialzista}</span></div>
-                            <div class="metric-box"><label>📉 TARGET RIBASSISTA</label><span style="color:var(--accent-red);">${s.target_ribassista}</span></div>
-                        </div>
+                container.innerHTML = categories.map(cat => {
+                    const sess = sessions[cat];
+                    const catSignals = signals.filter(s => s.category === cat);
+                    const badgeStyle = sess.is_open 
+                        ? 'background:rgba(0,255,102,0.15); color:#00ff66; border:1px solid #00ff66;' 
+                        : 'background:rgba(255,30,66,0.15); color:#ff1e42; border:1px solid #ff1e42;';
 
-                        <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; color:var(--text-muted); margin-bottom:6px; display:flex; justify-content:space-between;">
-                            <span>⏱️ Durata (Candele): <strong style="color:var(--accent-green);">${s.duration}</strong></span>
-                            <span>RSI: <strong>${s.rsi}</strong></span>
+                    return `
+                        <div class="category-block">
+                            <div class="category-header" style="border-left-color: ${sess.badge_color};">
+                                <div class="category-name">🏛️ ${cat}</div>
+                                <div class="session-badges">
+                                    <span style="color:var(--text-muted);">🕒 Orari: <strong>${sess.hours}</strong></span>
+                                    <span class="status-pill" style="${badgeStyle}">${sess.is_open ? '🟢' : '🔴'} ${sess.status}</span>
+                                </div>
+                            </div>
+                            <div class="signals-grid">
+                                ${catSignals.length === 0 ? `<div style="color:var(--text-muted); font-family:'JetBrains Mono',monospace; font-size:0.8rem;">In attesa di dati validi per questa borsa...</div>` : 
+                                catSignals.map(s => `
+                                    <div class="signal-card">
+                                        <div class="card-header">
+                                            <div>
+                                                <div class="asset-title">${s.name}</div>
+                                                <div style="font-size:0.75rem; color:var(--text-muted);">Prezzo Live: <strong>${s.price}</strong></div>
+                                            </div>
+                                            <span class="badge-action ${s.action === 'BUY' ? 'badge-buy' : (s.action === 'SELL' ? 'badge-sell' : 'badge-neutral')}">${s.action}</span>
+                                        </div>
+                                        <div style="font-size:0.75rem; color:${s.sentiment_color}; font-weight:700; margin-bottom:8px; font-family:'JetBrains Mono',monospace;">${s.sentiment}</div>
+                                        
+                                        <div class="metrics-grid">
+                                            <div class="metric-box"><label>📈 TARGET RIALZISTA</label><span style="color:var(--accent-green);">${s.target_rialzista}</span></div>
+                                            <div class="metric-box"><label>📉 TARGET RIBASSISTA</label><span style="color:var(--accent-red);">${s.target_ribassista}</span></div>
+                                        </div>
+
+                                        <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; color:var(--text-muted); margin-bottom:6px; display:flex; justify-content:space-between;">
+                                            <span>⏱️ Durata (Candele): <strong style="color:var(--accent-green);">${s.duration}</strong></span>
+                                            <span>RSI: <strong>${s.rsi}</strong></span>
+                                        </div>
+                                        <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; color:var(--text-muted);">
+                                            ⚡ Convinzione: <strong style="color:var(--accent-green);">${s.ai_score}</strong> | Trend: <strong>${s.inversion}</strong>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
                         </div>
-                        <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; color:var(--text-muted);">
-                            ⚡ Convinzione: <strong style="color:var(--accent-green);">${s.ai_score}</strong> | Trend: <strong>${s.inversion}</strong>
-                        </div>
-                    </div>
-                `).join('');
+                    `;
+                }).join('');
             } catch (e) { console.error(e); }
         }
 
