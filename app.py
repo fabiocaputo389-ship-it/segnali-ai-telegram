@@ -73,8 +73,8 @@ def get_market_session_status(category):
 
 def get_exchange_mode():
     if not BINGX_API_KEY or not BINGX_SECRET_KEY:
-        return "PAPER PROP-DESK (ULTRA-FAST LIVE ACTIVE)"
-    return "🔴 BINGX LIVE REALE (ULTRA-FAST LIVE ACTIVE)"
+        return "PAPER PROP-DESK (MARKET SELECTOR ACTIVE)"
+    return "🔴 BINGX LIVE REALE (MARKET SELECTOR ACTIVE)"
 
 def sign_bingx_request(params_str):
     return hmac.new(BINGX_SECRET_KEY.encode('utf-8'), params_str.encode('utf-8'), hashlib.sha256).hexdigest()
@@ -174,7 +174,6 @@ def close_position():
             return jsonify({"success": True})
     return jsonify({"success": False}), 404
 
-# --- ENDPOINT VELOCE PER PREZZI LIVE IN TEMPO REALE (Ogni 2s) ---
 @app.route('/api/live-prices', methods=['GET'])
 def get_live_prices():
     try:
@@ -192,7 +191,7 @@ def get_performance_analytics():
     today_str = datetime.now().strftime("%Y-%m-%d")
     current_month_str = datetime.now().strftime("%Y-%m")
     
-    closed_trades = [h for h in execution_history if h.get("status"] == "CLOSED")
+    closed_trades = [h for h in execution_history if h.get("status") == "CLOSED"]
     today_trades = [h for h in closed_trades if h.get("date") == today_str]
     month_trades = [h for h in closed_trades if h.get("month") == current_month_str]
     
@@ -396,7 +395,7 @@ def get_signals():
 
         scans_telemetry[time.time()] = {
             "timestamp": datetime.now().strftime("%H:%M:%S"),
-            "scanned": len(signals), "status": "ULTRA_FAST_LIVE_SYNC"
+            "scanned": len(signals), "status": "MARKET_SELECTOR_ACTIVE"
         }
 
         return jsonify({"sessions": session_info, "signals": signals})
