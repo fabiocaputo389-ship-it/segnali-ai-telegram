@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sala Segnali Pro • Institutional HFT Terminal</title>
-    <!-- Bootstrap CSS per una grafica pulita e responsiva -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body { background-color: #0b0e11; color: #eaecef; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
@@ -13,83 +12,121 @@
         .text-danger { color: #f6465d !important; }
         .table { color: #eaecef; }
         .table-dark { background-color: #181a20; }
+        .badge-bullish { background-color: rgba(14, 203, 129, 0.2); color: #0ecb81; border: 1px solid #0ecb81; }
+        .badge-bearish { background-color: rgba(246, 70, 93, 0.2); color: #f6465d; border: 1px solid #f6465d; }
     </style>
 </head>
 <body class="p-3">
 
-    <div class="container my-3">
-        <!-- HEADER -->
-        <div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom border-secondary">
+    <div class="container my-2" style="max-width: 600px;">
+        
+        <!-- HEADER INSTITUTIONAL TERMINAL -->
+        <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom border-secondary">
             <div>
                 <h4 class="m-0 fw-bold">⚡ SALA SEGNALI PRO</h4>
-                <small class="text-success">● REAL ACCOUNT ADVISOR ATTIVO</small>
+                <small class="text-success">● INSTITUTIONAL HFT TERMINAL</small>
             </div>
             <div class="text-end">
-                <span id="utc-clock" class="text-muted small">Caricamento orario...</span>
+                <span id="utc-clock" class="text-muted small">Caricamento...</span>
             </div>
         </div>
 
-        <!-- WIDGET SALDO REALE -->
-        <div class="row mb-4">
-            <div class="col-md-6 mb-3">
+        <!-- STATO AUTO-TRADE & ADVISOR -->
+        <div class="card p-3 mb-3 text-center border-danger">
+            <span class="text-muted small">MOTORE ESECUZIONE BINGX</span>
+            <h5 id="autotrade-status" class="fw-bold text-danger m-1">AUTO-TRADE: OFF</h5>
+            <small class="text-success">REAL ACCOUNT ADVISOR ATTIVO (Leva 20x Dinamica)</small>
+        </div>
+
+        <!-- WIDGET CONTO REALE BINGX -->
+        <div class="row mb-3">
+            <div class="col-6">
                 <div class="card p-3 shadow-sm">
-                    <span class="text-muted small">SALDO CONTO BINGX (USDT)</span>
-                    <h2 id="real-balance" class="fw-bold m-0">$0.00</h2>
+                    <span class="text-muted small" style="font-size: 11px;">SALDO BINGX</span>
+                    <h3 id="real-balance" class="fw-bold m-0">$0.00</h3>
                 </div>
             </div>
-            <div class="col-md-6 mb-3">
+            <div class="col-6">
                 <div class="card p-3 shadow-sm">
-                    <span class="text-muted small">EQUITY TOTALE</span>
-                    <h2 id="real-equity" class="fw-bold m-0">$0.00</h2>
+                    <span class="text-muted small" style="font-size: 11px;">EQUITY TOTALE</span>
+                    <h3 id="real-equity" class="fw-bold m-0">$0.00</h3>
                 </div>
             </div>
         </div>
 
-        <!-- POSIZIONI APERTE -->
-        <div class="card mb-4 p-3 shadow-sm">
-            <h5 class="mb-3">📊 Posizioni Attive su BingX</h5>
+        <!-- POSIZIONI APERTE REALI -->
+        <div class="card mb-3 p-3 shadow-sm">
+            <h6 class="mb-2">📊 Posizioni Attive su BingX</h6>
             <div class="table-responsive">
-                <table class="table table-dark table-hover align-middle m-0">
+                <table class="table table-dark table-hover align-middle m-0" style="font-size: 13px;">
                     <thead>
                         <tr>
                             <th>Simbolo</th>
                             <th>Side</th>
                             <th>Qtà</th>
-                            <th>Prezzo Medio</th>
-                            <th>PnL non realizzato</th>
+                            <th>Media</th>
+                            <th>PnL</th>
                             <th>Leva</th>
                         </tr>
                     </thead>
                     <tbody id="active-positions-list">
-                        <tr><td colspan="6" class="text-center text-muted">Sincronizzazione posizioni in corso...</td></tr>
+                        <tr><td colspan="6" class="text-center text-muted">Sincronizzazione in corso...</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
 
-        <!-- REPORT PERFORMANCE GIORNALIERO & MENSILE -->
-        <div class="card p-3 shadow-sm">
-            <h5 class="mb-3">📈 Report Performance Giornaliero & Mensile</h5>
+        <!-- SCANNER & CATEGORIA MATERIE PRIME / FOREX / CRYPTO -->
+        <div class="card mb-3 p-3 shadow-sm">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="fw-bold text-warning">🏛️ Materie Prime & Forex</span>
+                <span class="badge bg-success">APERTO</span>
+            </div>
+            
+            <!-- ESEMPIO SIGNAL CARD ORO (GOLD) -->
+            <div class="p-2 border border-secondary rounded bg-dark mb-2">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="fw-bold">🥇 Oro (Gold)</span>
+                    <span class="badge badge-bullish">BULLISH</span>
+                </div>
+                <div class="row mt-2 text-small" style="font-size: 12px;">
+                    <div class="col-6">
+                        <span class="text-muted">TAKE PROFIT (TP1):</span> <br><b>3918.31</b>
+                    </div>
+                    <div class="col-6">
+                        <span class="text-muted">STOP LOSS (SL):</span> <br><b>3816.00</b>
+                    </div>
+                </div>
+                <div class="mt-2 pt-2 border-top border-secondary d-flex justify-content-between align-items-center">
+                    <span class="text-success fw-bold">🚀 ROI Stimato: +38.0%</span>
+                    <span class="text-muted">Leva: 20x</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- REPORT PERFORMANCE GIORNALIERO & MENSILE (SINCRONIZZATI) -->
+        <div class="card p-3 shadow-sm mb-4">
+            <h6 class="mb-3">📈 Report Performance Giornaliero & Mensile</h6>
             
             <!-- GIORNALIERO -->
-            <div class="mb-4">
+            <div class="mb-3 pb-2 border-bottom border-secondary">
                 <span class="text-success fw-bold small">● REPORT GIORNALIERO (Ultime 24h)</span>
                 <div class="row text-center mt-2">
                     <div class="col-3 border-end border-secondary">
-                        <small class="text-muted d-block">OPERAZIONI</small>
-                        <span id="daily-trades-count" class="fs-5 fw-bold">0</span>
+                        <small class="text-muted d-block" style="font-size: 10px;">OPERAZIONI</small>
+                        <span id="daily-trades-count" class="fs-6 fw-bold">0</span>
                     </div>
                     <div class="col-3 border-end border-secondary">
-                        <small class="text-muted d-block">% VITTORIE</small>
-                        <span id="daily-win-rate" class="fs-5 fw-bold text-success">0%</span>
+                        <small class="text-muted d-block" style="font-size: 10px;">% WIN</small>
+                        <span id="daily-win-rate" class="fs-6 fw-bold text-success">0%</span>
                     </div>
                     <div class="col-3 border-end border-secondary">
-                        <small class="text-muted d-block">% PERDITE</small>
-                        <span id="daily-loss-rate" class="fs-5 fw-bold text-danger">0%</span>
+                        <small class="text-muted d-block" style="font-size: 10px;">% LOSS</small>
+                        <span id="daily-loss-rate" class="fs-6 fw-bold text-danger">0%</span>
                     </div>
                     <div class="col-3">
-                        <small class="text-muted d-block">PNL NETTO</small>
-                        <span id="daily-pnl" class="fs-5 fw-bold">$0.00</span>
+                        <small class="text-muted d-block" style="font-size: 10px;">PNL NETTO</small>
+                        <span id="daily-pnl" class="fs-6 fw-bold">$0.00</span>
                     </div>
                 </div>
             </div>
@@ -99,27 +136,26 @@
                 <span class="text-info fw-bold small">📅 REPORT MENSILE (Mese Corrente)</span>
                 <div class="row text-center mt-2">
                     <div class="col-6 border-end border-secondary">
-                        <small class="text-muted d-block">OPERAZIONI TOTALI</small>
-                        <span id="monthly-trades-count" class="fs-5 fw-bold">0</span>
+                        <small class="text-muted d-block" style="font-size: 10px;">OPERAZIONI TOTALI</small>
+                        <span id="monthly-trades-count" class="fs-6 fw-bold">0</span>
                     </div>
                     <div class="col-6">
-                        <small class="text-muted d-block">PNL MENSILE NETTO</small>
-                        <span id="monthly-pnl" class="fs-5 fw-bold">$0.00</span>
+                        <small class="text-muted d-block" style="font-size: 10px;">PNL MENSILE NETTO</small>
+                        <span id="monthly-pnl" class="fs-6 fw-bold">$0.00</span>
                     </div>
                 </div>
             </div>
         </div>
+
     </div>
 
-    <!-- JAVASCRIPT DI AGGIORNAMENTO LIVE -->
+    <!-- SCRIPT DI AGGIORNAMENTO LIVE -->
     <script>
-        // Orologio UTC in tempo reale
         setInterval(() => {
             const now = new Date();
             document.getElementById('utc-clock').innerText = now.toUTCString().replace('GMT', 'UTC');
         }, 1000);
 
-        // Funzione per aggiornare Bilancio e Posizioni Attive
         async function fetchLiveAccountData() {
             try {
                 const res = await fetch('/api/bingx/live-account');
@@ -136,7 +172,7 @@
                     const positions = data.positions || [];
                     
                     if (positions.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Nessuna posizione aperta al momento</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Nessuna posizione aperta su BingX</td></tr>';
                     } else {
                         tbody.innerHTML = '';
                         positions.forEach(pos => {
@@ -156,11 +192,10 @@
                     }
                 }
             } catch (err) {
-                console.error("Errore recupero conto live:", err);
+                console.error("Errore sincronizzazione conto live:", err);
             }
         }
 
-        // Funzione per aggiornare i report di performance (Giornaliero e Mensile)
         async function fetchPerformanceReports() {
             try {
                 const res = await fetch('/api/bingx/sync-performance');
@@ -173,20 +208,19 @@
                     document.getElementById('daily-loss-rate').innerText = `${daily.totalTrades > 0 ? (100 - daily.winRate).toFixed(1) : 0}%`;
                     const dailyPnlEl = document.getElementById('daily-pnl');
                     dailyPnlEl.innerText = `${daily.totalPnl >= 0 ? '+' : ''}$${daily.totalPnl.toFixed(4)}`;
-                    dailyPnlEl.className = `fs-5 fw-bold ${daily.totalPnl >= 0 ? 'text-success' : 'text-danger'}`;
+                    dailyPnlEl.className = `fs-6 fw-bold ${daily.totalPnl >= 0 ? 'text-success' : 'text-danger'}`;
 
                     const monthly = data.monthly;
                     document.getElementById('monthly-trades-count').innerText = monthly.totalTrades;
                     const monthlyPnlEl = document.getElementById('monthly-pnl');
                     monthlyPnlEl.innerText = `${monthly.totalPnl >= 0 ? '+' : ''}$${monthly.totalPnl.toFixed(4)}`;
-                    monthlyPnlEl.className = `fs-5 fw-bold ${monthly.totalPnl >= 0 ? 'text-success' : 'text-danger'}`;
+                    monthlyPnlEl.className = `fs-6 fw-bold ${monthly.totalPnl >= 0 ? 'text-success' : 'text-danger'}`;
                 }
             } catch (err) {
                 console.error("Errore sincronizzazione report performance:", err);
             }
         }
 
-        // Avvio polling automatico ogni 6 secondi per i dati conto e ogni 15 secondi per i report
         fetchLiveAccountData();
         fetchPerformanceReports();
         
