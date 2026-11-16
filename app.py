@@ -309,7 +309,16 @@ def get_market_data(symbol, interval="15m"):
     except Exception:
         pass
 
-    p = 200.0 if symbol in ['AAPL', 'TSLA', 'NVDA'] else (3000.0 if symbol == 'XAUUSD' else (1.10 if symbol == 'EURUSDT' else 65000.0))
+    # Prezzi di fallback realistici per singolo asset se il feed esterno fallisce
+    fallback_prices = {
+        'BTCUSDT': 64000.0, 'ETHUSDT': 2500.0, 'SOLUSDT': 150.0, 'XRPUSDT': 0.55,
+        'BNBUSDT': 580.0, 'ADAUSDT': 0.45, 'DOGEUSDT': 0.12, 'AVAXUSDT': 25.0,
+        'LINKUSDT': 12.0, 'SUIUSDT': 1.80, 'XAUUSD': 2650.0, 'XAGUSD': 31.0,
+        'EURUSDT': 1.08, 'GBPUSDT': 1.30, 'USDJPY': 152.0, 'AAPL': 230.0,
+        'TSLA': 220.0, 'NVDA': 135.0, 'AMZN': 185.0, 'SPX500': 5800.0
+    }
+    p = fallback_prices.get(symbol, 100.0)
+
     df = pd.DataFrame({
         'Open': [p]*60, 'High': [p*1.002]*60, 'Low': [p*0.998]*60,
         'Close': [p]*60, 'Volume': [30000]*60
@@ -464,7 +473,6 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
     sl_dist = atr * sl_m
     tp_dist = atr * tp_m
     
-    # --- CONTROLLO DI SCALA RIGOROSO PER EVITARE PREZZI ERRATI ---
     if current_price > 1000:
         decimals = 2
     elif current_price > 5:
@@ -493,7 +501,6 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
         max_invalidation = sl
         breakeven_price = round(entry - (tp_dist * 0.3), decimals)
 
-    # Validazione di sicurezza: se per qualsiasi motivo lo SL o TP sono sballati rispetto al prezzo attuale, li ricalcoliamo in percentuale sicura (1% SL, 2% TP)
     if abs(sl - current_price) < (current_price * 0.0005) or abs(sl - current_price) > (current_price * 0.2):
         if action == "BUY":
             sl = round(current_price * 0.99, decimals)
