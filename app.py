@@ -73,8 +73,8 @@ def get_market_session_status(category):
 
 def get_exchange_mode():
     if not BINGX_API_KEY or not BINGX_SECRET_KEY:
-        return "PAPER PROP-DESK (MARKET SELECTOR ACTIVE)"
-    return "🔴 BINGX LIVE REALE (MARKET SELECTOR ACTIVE)"
+        return "PAPER PROP-DESK (UNIFIED TERMINAL ACTIVE)"
+    return "🔴 BINGX LIVE REALE (UNIFIED TERMINAL ACTIVE)"
 
 def sign_bingx_request(params_str):
     return hmac.new(BINGX_SECRET_KEY.encode('utf-8'), params_str.encode('utf-8'), hashlib.sha256).hexdigest()
@@ -92,7 +92,15 @@ def send_telegram_message_cooldown(symbol, text):
 def fetch_bingx_real_positions():
     global execution_history
     if not BINGX_API_KEY or not BINGX_SECRET_KEY:
-        return [h for h in execution_history if h.get("status") == "OPEN"]
+        simulated_pos = []
+        for h in execution_history:
+            if h.get("status") == "OPEN":
+                pos_copy = h.copy()
+                notional = pos_copy.get("size", 1) * pos_copy.get("entry", 1)
+                pos_copy["fee"] = round(notional * 0.0005, 3)
+                simulated_pos.append(pos_copy)
+        return simulated_pos
+
     timestamp = int(time.time() * 1000)
     query_string = f"timestamp={timestamp}"
     signature = sign_bingx_request(query_string)
@@ -105,11 +113,18 @@ def fetch_bingx_real_positions():
                 if amt != 0:
                     sym = p.get("symbol", "").replace("-", "")
                     side = "BUY" if p.get("positionSide") == "LONG" else ("SELL" if p.get("positionSide") == "SHORT" else ("BUY" if amt > 0 else "SELL"))
+                    entry_p = float(p.get("avgPrice", 0))
+                    size_val = abs(amt)
+                    fee_val = float(p.get("fee", 0.0))
+                    if fee_val == 0.0:
+                        fee_val = round((size_val * entry_p) * 0.0005, 3)
+                        
                     real_pos_list.append({
                         "symbol": sym, "name": p.get("symbol", ""), "action": side,
-                        "entry": float(p.get("avgPrice", 0)), "current_price": float(p.get("avgPrice", 0)),
-                        "size": abs(amt), "leverage": f"Isolata {p.get('leverage', 10)}x",
+                        "entry": entry_p, "current_price": entry_p,
+                        "size": size_val, "leverage": f"Isolata {p.get('leverage', 10)}x",
                         "margin": float(p.get("initialMargin", 0)),
+                        "fee": fee_val,
                         "unrealized_pnl": round(float(p.get('unrealizedProfit', 0)), 2), "status": "OPEN"
                     })
             return real_pos_list
@@ -135,10 +150,12 @@ def execute_verified_order(symbol, name, action, entry, size, leverage, margin, 
         except Exception: pass
 
     if not any(h['symbol'] == symbol and h['status'] == 'OPEN' for h in execution_history):
+        notional = size * entry
+        est_fee = round(notional * 0.0005, 3)
         order_record = {
             "id": f"ORD-{int(time.time()*1000)}", "symbol": symbol, "name": name, "action": action,
             "entry": entry, "size": size, "leverage": leverage, "margin": margin,
-            "sl": sl, "tp1": tp1, "unrealized_pnl": 0.0, "status": "OPEN", "opened_at": datetime.now().strftime("%H:%M:%S")
+            "sl": sl, "tp1": tp1, "fee": est_fee, "unrealized_pnl": 0.0, "status": "OPEN", "opened_at": datetime.now().strftime("%H:%M:%S")
         }
         execution_history.insert(0, order_record)
         send_telegram_message_cooldown(symbol, f"🏛 *SALA SEGNALI PRO • GLOBAL ORDER* 🏛\nAsset: `{name}`\nSegnale: *{action}* ({leverage})\nIngresso: `{entry}`\nSL: `{sl}` | TP1: `{tp1}`")
@@ -395,7 +412,7 @@ def get_signals():
 
         scans_telemetry[time.time()] = {
             "timestamp": datetime.now().strftime("%H:%M:%S"),
-            "scanned": len(signals), "status": "MARKET_SELECTOR_ACTIVE"
+            "scanned": len(signals), "status": "UNIFIED_TERMINAL_ACTIVE"
         }
 
         return jsonify({"sessions": session_info, "signals": signals})
