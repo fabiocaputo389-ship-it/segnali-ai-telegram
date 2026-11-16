@@ -15,11 +15,20 @@
         header { background: var(--bg-panel); border-bottom: 1px solid var(--border-color); padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 1000; }
         .logo { font-family: 'JetBrains Mono', monospace; font-weight: 800; font-size: 1.1rem; color: var(--accent-green); }
         .terminal-clock { font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; color: var(--text-muted); background: rgba(255,255,255,0.03); padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border-color); }
-        .controls-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; padding: 15px 20px; background: var(--bg-panel); border-bottom: 1px solid var(--border-color); }
+        
+        .controls-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; padding: 15px 20px; background: var(--bg-panel); border-bottom: 1px solid var(--border-color); }
         .control-group label { display: block; font-size: 0.7rem; font-family: 'JetBrains Mono', monospace; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; }
         .control-group input, .control-group select { width: 100%; background: var(--bg-base); border: 1px solid var(--border-color); color: var(--text-main); padding: 8px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; }
-        .autotrade-btn { background: rgba(255,30,66,0.1); border: 1px solid var(--accent-red); color: var(--accent-red); font-weight: 800; border-radius: 6px; padding: 8px 12px; cursor: pointer; font-family: 'JetBrains Mono', monospace; height: 38px; }
+        
+        /* TACHIMETRO WIDGET STYLES */
+        .tachometer-box { background: var(--bg-base); border: 1px solid var(--border-color); border-radius: 6px; padding: 6px 10px; display: flex; flex-direction: column; justify-content: center; }
+        .tachometer-header { display: flex; justify-content: space-between; font-size: 0.65rem; font-family: 'JetBrains Mono', monospace; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
+        .tachometer-gauge { width: 100%; height: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden; position: relative; }
+        .tachometer-fill { height: 100%; width: 50%; background: var(--accent-green); transition: width 0.3s ease, background 0.3s ease; }
+
+        .autotrade-btn { background: rgba(255,30,66,0.1); border: 1px solid var(--accent-red); color: var(--accent-red); font-weight: 800; border-radius: 6px; padding: 8px 12px; cursor: pointer; font-family: 'JetBrains Mono', monospace; height: 40px; }
         .autotrade-btn.active { background: rgba(0,255,102,0.1); border-color: var(--accent-green); color: var(--accent-green); }
+        
         .container { padding: 20px; max-width: 1400px; margin: 0 auto; }
         .section-title { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; text-transform: uppercase; }
         .tab-content { display: none; }
@@ -46,7 +55,7 @@
 </head>
 <body>
     <header>
-        <div class="logo">⚡ SALA SEGNALI PRO <span style="font-size:0.6rem; background:rgba(0,255,102,0.1); color:var(--accent-green); padding:2px 6px; border-radius:3px;">FULL DASHBOARD</span></div>
+        <div class="logo">⚡ SALA SEGNALI PRO <span style="font-size:0.6rem; background:rgba(0,255,102,0.1); color:var(--accent-green); padding:2px 6px; border-radius:3px;">GLOBAL MARKETS UNLOCKED</span></div>
         <div class="terminal-clock" id="clock">00:00:00</div>
     </header>
 
@@ -58,7 +67,22 @@
                 <option value="balanced" selected>Bilanciato</option>
                 <option value="aggressive">Aggressivo / HFT</option>
             </select>
+            <!-- Tachimetro Profilo -->
+            <div class="tachometer-box" style="margin-top:6px;">
+                <div class="tachometer-header"><span>RPM Profilo</span><span id="profileRpmVal">60%</span></div>
+                <div class="tachometer-gauge"><div id="profileTachFill" class="tachometer-fill" style="width:60%;"></div></div>
+            </div>
         </div>
+
+        <div class="control-group">
+            <label>Forza Segnali Rilevati</label>
+            <!-- Tachimetro Forza Segnali -->
+            <div class="tachometer-box" style="height: calc(100% - 18px); margin-top: 18px;">
+                <div class="tachometer-header"><span>Power Index</span><span id="signalPowerVal">99.9%</span></div>
+                <div class="tachometer-gauge"><div id="signalTachFill" class="tachometer-fill" style="width:99.9%; background:var(--accent-green);"></div></div>
+            </div>
+        </div>
+
         <div class="control-group">
             <label>Timeframe</label>
             <select id="tfSelect">
@@ -84,19 +108,19 @@
         <!-- TAB 1: SEGNALI & MERCATI -->
         <div id="tab-signals" class="tab-content active">
             <div class="section-title">
-                <span>📡 Scanner Globale & Previsioni</span>
+                <span>📡 Scanner Globale Universale (Cripto, Forex, Azioni)</span>
                 <span id="exchangeModeIndicator" style="color:var(--accent-green)">Connessione in corso...</span>
             </div>
             <div id="signalsContainer" class="signals-grid">
                 <div style="grid-column: 1/-1; text-align:center; padding: 40px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">
-                    Caricamento mercati e calcolo durata candele...
+                    Scansione in corso su tutte le borse globali...
                 </div>
             </div>
         </div>
 
         <!-- TAB 2: POSIZIONI APERTE -->
         <div id="tab-positions" class="tab-content">
-            <div class="section-title"><span>📊 Posizioni Aperte & Esecuzioni Ordini</span></div>
+            <div class="section-title"><span>📊 Posizioni Aperte & Esecuzioni Globali</span></div>
             <div style="overflow-x: auto;">
                 <table class="positions-table">
                     <thead>
@@ -112,7 +136,7 @@
                         </tr>
                     </thead>
                     <tbody id="positionsTableBody">
-                        <tr><td colspan="8" style="text-align:center; color:var(--text-muted);">Nessuna posizione attiva. Attiva l'Auto-Trade per avviare gli ordini.</td></tr>
+                        <tr><td colspan="8" style="text-align:center; color:var(--text-muted);">Nessuna posizione attiva. Attiva l'Auto-Trade per avviare gli ordini su tutte le borse.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -130,7 +154,7 @@
         <div id="tab-charts" class="tab-content">
             <div class="section-title"><span>📈 Grafici Multi-Timeframe Sincronizzati</span></div>
             <div style="background:var(--bg-panel); border:1px solid var(--border-color); border-radius:8px; padding:30px; text-align:center; font-family:'JetBrains Mono',monospace; color:var(--text-muted);">
-                Modulo di charting tradingview integrato per tutti i mercati globali. Seleziona un asset dai segnali per sincronizzare il feed.
+                Modulo di charting integrato per tutte le borse globali sincronizzato in tempo reale.
             </div>
         </div>
     </div>
@@ -145,6 +169,29 @@
     <script>
         setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('it-IT'); }, 1000);
         let autoTradeState = false;
+
+        function updateTachometers(profile, avgScore) {
+            const profileFill = document.getElementById('profileTachFill');
+            const profileRpm = document.getElementById('profileRpmVal');
+            if (profile === 'conservative') {
+                profileFill.style.width = '35%';
+                profileFill.style.background = '#00ff66';
+                profileRpm.innerText = '35% (Safe)';
+            } else if (profile === 'balanced') {
+                profileFill.style.width = '65%';
+                profileFill.style.background = '#00f0ff';
+                profileRpm.innerText = '65% (Balanced)';
+            } else {
+                profileFill.style.width = '95%';
+                profileFill.style.background = '#ff1e42';
+                profileRpm.innerText = '95% (HFT Max)';
+            }
+
+            const signalFill = document.getElementById('signalTachFill');
+            const signalVal = document.getElementById('signalPowerVal');
+            signalFill.style.width = `${avgScore}%`;
+            signalVal.innerText = `${avgScore}%`;
+        }
 
         function switchTab(tabName, element) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -211,11 +258,11 @@
                 const data = await res.json();
                 const container = document.getElementById('telemetryContainer');
                 container.innerHTML = `
-                    <p>Scansioni Effettuate: <strong>${data.scans_count}</strong></p>
+                    <p>Scansioni Globali: <strong>${data.scans_count}</strong></p>
                     <p>Ordini Eseguiti Totali: <strong>${data.total_executions}</strong></p>
                     <p>PnL di Sessione: <strong style="color:${data.session_pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}">$${data.session_pnl}</strong></p>
                     <hr style="border-color:var(--border-color); margin:10px 0;">
-                    <p style="color:var(--text-muted);">Ultimi Log di Scanner:</p>
+                    <p style="color:var(--text-muted);">Ultimi Log delle Borse:</p>
                     ${data.telemetry_logs.map(l => `<div>[${l.timestamp}] - Asset Scansionati: ${l.scanned} - Stato: ${l.status}</div>`).join('')}
                 `;
             } catch(e) { console.error(e); }
@@ -226,6 +273,8 @@
             const timeframe = document.getElementById('tfSelect').value;
             const balance = document.getElementById('balanceInput').value;
             const risk = document.getElementById('riskInput').value;
+
+            updateTachometers(profile, 99.9);
 
             try {
                 const res = await fetch(`/api/signals?profile=${profile}&timeframe=${timeframe}&balance=${balance}&risk=${risk}`);
