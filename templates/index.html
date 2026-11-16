@@ -40,7 +40,6 @@
         .institutional-table th { background: rgba(255,255,255,0.03); color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; }
         .status-badge { padding: 4px 10px; border-radius: 4px; font-weight: 800; font-size: 0.75rem; }
 
-        /* TABELLA SELEZIONE MERCATI INTERATTIVA */
         .market-selector-table { width: 100%; border-collapse: collapse; background: var(--bg-panel); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); margin-bottom: 25px; }
         .market-selector-table th, .market-selector-table td { padding: 10px 14px; text-align: left; font-size: 0.85rem; font-family: 'JetBrains Mono', monospace; border-bottom: 1px solid var(--border-color); }
         .market-selector-table th { background: rgba(0,255,102,0.05); color: var(--accent-green); font-size: 0.75rem; text-transform: uppercase; }
@@ -77,7 +76,7 @@
 </head>
 <body>
     <header>
-        <div class="logo">⚡ SALA SEGNALI PRO <span style="font-size:0.6rem; background:rgba(0,255,102,0.1); color:var(--accent-green); padding:2px 6px; border-radius:3px;">MARKET SELECTOR ACTIVE</span></div>
+        <div class="logo">⚡ SALA SEGNALI PRO <span style="font-size:0.6rem; background:rgba(0,255,102,0.1); color:var(--accent-green); padding:2px 6px; border-radius:3px;">UNIFIED TERMINAL</span></div>
         <div class="terminal-clock" id="clock">00:00:00 UTC</div>
     </header>
 
@@ -164,7 +163,7 @@
                 </table>
             </div>
 
-            <!-- TABELLA SELEZIONE TIPO DI MERCATO -->
+            <!-- SELETTORE MERCATO -->
             <div class="section-title" style="margin-top: 25px;">
                 <span>🎯 Seleziona Tipo di Mercato da Eseguire / Monitorare</span>
             </div>
@@ -213,7 +212,7 @@
             </div>
 
             <div class="section-title" style="margin-top: 25px;">
-                <span>📡 Scanner Globale Universale con TP/SL & ROI</span>
+                <span>📡 Scanner Globale Universale con TP/SL & ROI (Live 2s)</span>
             </div>
             <div id="categorizedMarketsContainer">
                 <div style="text-align:center; padding: 40px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">
@@ -224,7 +223,7 @@
 
         <!-- TAB POSIZIONI -->
         <div id="tab-positions" class="tab-content">
-            <div class="section-title"><span>📊 Posizioni Aperte & Esecuzioni Globali</span></div>
+            <div class="section-title"><span>📊 Posizioni Aperte, Commissioni & Esecuzioni</span></div>
             <div style="overflow-x: auto;">
                 <table class="positions-table">
                     <thead>
@@ -235,12 +234,13 @@
                             <th>Size</th>
                             <th>Leva</th>
                             <th>Margine</th>
+                            <th>Commissioni</th>
                             <th>PnL</th>
                             <th>Azione</th>
                         </tr>
                     </thead>
                     <tbody id="positionsTableBody">
-                        <tr><td colspan="8" style="text-align:center; color:var(--text-muted);">Nessuna posizione attiva.</td></tr>
+                        <tr><td colspan="9" style="text-align:center; color:var(--text-muted);">Nessuna posizione attiva.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -384,7 +384,7 @@
         function renderPositions(positions) {
             const tbody = document.getElementById('positionsTableBody');
             if (!positions || positions.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">Nessuna posizione attiva.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:var(--text-muted);">Nessuna posizione attiva.</td></tr>`;
                 return;
             }
             tbody.innerHTML = positions.map(p => `
@@ -395,6 +395,7 @@
                     <td>${p.size}</td>
                     <td>${p.leverage}</td>
                     <td>$${p.margin}</td>
+                    <td style="color:var(--accent-red); font-weight:700;">-$${p.fee || '0.00'}</td>
                     <td style="color:${p.unrealized_pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}; font-weight:700;">$${p.unrealized_pnl}</td>
                     <td><button class="btn-close" onclick="closePosition('${p.symbol}')">CHIUDI</button></td>
                 </tr>
@@ -503,7 +504,7 @@
                             <td><strong>🏛️ ${cat}</strong></td>
                             <td><span class="status-badge" style="${badgeStyle}">${sess.is_open ? '🟢' : '🔴'} ${sess.status}</span></td>
                             <td>${sess.hours}</td>
-                            <td><span style="color:var(--accent-green);">Market Selector & Live</span></td>
+                            <td><span style="color:var(--accent-green);">Unified Terminal Active</span></td>
                         </tr>
                     `;
                 }).join('');
