@@ -20,7 +20,6 @@
         .control-group label { display: block; font-size: 0.7rem; font-family: 'JetBrains Mono', monospace; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; }
         .control-group input, .control-group select { width: 100%; background: var(--bg-base); border: 1px solid var(--border-color); color: var(--text-main); padding: 8px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; }
         
-        /* TACHIMETRI CIRCOLARI CON LANCETTA */
         .gauge-card { background: var(--bg-base); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; align-items: center; text-align: center; }
         .gauge-title { font-size: 0.65rem; font-family: 'JetBrains Mono', monospace; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
         .gauge-container { position: relative; width: 110px; height: 65px; margin: 4px auto 0 auto; }
@@ -36,7 +35,6 @@
         .tab-content { display: none; }
         .tab-content.active { display: block; }
 
-        /* TABELLA PARAMETRI ISTITUZIONALI */
         .institutional-table { width: 100%; border-collapse: collapse; background: var(--bg-panel); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); margin-bottom: 25px; }
         .institutional-table th, .institutional-table td { padding: 12px 16px; text-align: left; font-size: 0.85rem; font-family: 'JetBrains Mono', monospace; border-bottom: 1px solid var(--border-color); }
         .institutional-table th { background: rgba(255,255,255,0.03); color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; }
@@ -63,6 +61,7 @@
         .positions-table th, .positions-table td { padding: 10px 14px; text-align: left; font-size: 0.85rem; font-family: 'JetBrains Mono', monospace; border-bottom: 1px solid var(--border-color); }
         .positions-table th { background: rgba(255,255,255,0.02); color: var(--text-muted); font-size: 0.75rem; }
         .btn-close { background: rgba(255,30,66,0.2); color: var(--accent-red); border: 1px solid var(--accent-red); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; font-weight: 700; }
+        
         .footer-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: var(--bg-panel); border-top: 1px solid var(--border-color); display: flex; justify-content: space-around; padding: 12px; z-index: 1000; }
         .nav-item { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-muted); text-decoration: none; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
         .nav-item.active { color: var(--accent-green); }
@@ -70,7 +69,7 @@
 </head>
 <body>
     <header>
-        <div class="logo">⚡ SALA SEGNALI PRO <span style="font-size:0.6rem; background:rgba(0,255,102,0.1); color:var(--accent-green); padding:2px 6px; border-radius:3px;">BINGX API + TP/SL</span></div>
+        <div class="logo">⚡ SALA SEGNALI PRO <span style="font-size:0.6rem; background:rgba(0,255,102,0.1); color:var(--accent-green); padding:2px 6px; border-radius:3px;">ANALYTICS & REPORTS</span></div>
         <div class="terminal-clock" id="clock">00:00:00 UTC</div>
     </header>
 
@@ -134,6 +133,7 @@
     </div>
 
     <div class="container">
+        <!-- TAB SEGNALI -->
         <div id="tab-signals" class="tab-content active">
             <div class="section-title">
                 <span>📋 Tabella Parametri e Stato Borse Mondiali</span>
@@ -166,6 +166,7 @@
             </div>
         </div>
 
+        <!-- TAB POSIZIONI -->
         <div id="tab-positions" class="tab-content">
             <div class="section-title"><span>📊 Posizioni Aperte & Esecuzioni Globali</span></div>
             <div style="overflow-x: auto;">
@@ -189,13 +190,62 @@
             </div>
         </div>
 
+        <!-- TAB TELEMETRIA E REPORT PERFORMANCE -->
         <div id="tab-telemetry" class="tab-content">
+            <div class="section-title"><span>📊 Report Performance Giornaliero & Mensile</span></div>
+            
+            <!-- Tabella Performance Giornaliera -->
+            <div style="margin-bottom: 20px;">
+                <div style="font-family:'JetBrains Mono',monospace; font-size:0.8rem; color:var(--text-muted); margin-bottom:8px;">🟢 REPORT GIORNALIERO (Oggi)</div>
+                <div style="overflow-x: auto;">
+                    <table class="institutional-table">
+                        <thead>
+                            <tr>
+                                <th>Operazioni Totali</th>
+                                <th>% Vittorie (Win Rate)</th>
+                                <th>% Perdite (Loss Rate)</th>
+                                <th>Importo Guadagnato</th>
+                                <th>Importo Perso</th>
+                                <th>Netto PnL Giornaliero</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dailyPerfBody">
+                            <tr><td colspan="6" style="text-align:center; color:var(--text-muted);">Nessun dato registrato oggi.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Tabella Report Mensile -->
+            <div style="margin-bottom: 25px;">
+                <div style="font-family:'JetBrains Mono',monospace; font-size:0.8rem; color:var(--text-muted); margin-bottom:8px;">📅 REPORT MENSILE (Mese Corrente)</div>
+                <div style="overflow-x: auto;">
+                    <table class="institutional-table">
+                        <thead>
+                            <tr>
+                                <th>Mese</th>
+                                <th>Operazioni Totali</th>
+                                <th>% Vittorie</th>
+                                <th>% Perdite</th>
+                                <th>Totale Guadagnato</th>
+                                <th>Totale Perso</th>
+                                <th>Netto Mensile</th>
+                            </tr>
+                        </thead>
+                        <tbody id="monthlyPerfBody">
+                            <tr><td colspan="7" style="text-align:center; color:var(--text-muted);">Nessun dato registrato questo mese.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <div class="section-title"><span>⚡ Telemetria Istituzionale & Log</span></div>
             <div id="telemetryContainer" style="background:var(--bg-panel); border:1px solid var(--border-color); border-radius:8px; padding:15px; font-family:'JetBrains Mono',monospace; font-size:0.8rem;">
                 Caricamento dati telemetria...
             </div>
         </div>
 
+        <!-- TAB GRAFICI -->
         <div id="tab-charts" class="tab-content">
             <div class="section-title"><span>📈 Grafici Multi-Timeframe Sincronizzati</span></div>
             <div style="background:var(--bg-panel); border:1px solid var(--border-color); border-radius:8px; padding:30px; text-align:center; font-family:'JetBrains Mono',monospace; color:var(--text-muted);">
@@ -240,7 +290,10 @@
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
             document.getElementById(`tab-${tabName}`).classList.add('active');
             element.classList.add('active');
-            if(tabName === 'telemetry') loadTelemetry();
+            if(tabName === 'telemetry') {
+                loadTelemetry();
+                loadPerformanceAnalytics();
+            }
             if(tabName === 'positions') loadStatus();
         }
 
@@ -292,6 +345,43 @@
                 body: JSON.stringify({ symbol })
             });
             loadStatus();
+            loadPerformanceAnalytics();
+        }
+
+        async function loadPerformanceAnalytics() {
+            try {
+                const res = await fetch('/api/analytics/performance');
+                const data = await res.json();
+                
+                // Render Giornaliero
+                const daily = data.daily;
+                const dailyBody = document.getElementById('dailyPerfBody');
+                dailyBody.innerHTML = `
+                    <tr>
+                        <td><strong>${daily.total_trades}</strong></td>
+                        <td><span style="color:var(--accent-green); font-weight:700;">${daily.win_pct}%</span> (${daily.wins} win)</td>
+                        <td><span style="color:var(--accent-red); font-weight:700;">${daily.loss_pct}%</span> (${daily.losses} loss)</td>
+                        <td style="color:var(--accent-green); font-weight:700;">+$${daily.won_amount}</td>
+                        <td style="color:var(--accent-red); font-weight:700;">-$${Math.abs(daily.lost_amount)}</td>
+                        <td style="color:${daily.net_pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}; font-weight:800;">$${daily.net_pnl}</td>
+                    </tr>
+                `;
+
+                // Render Mensile
+                const monthly = data.monthly;
+                const monthlyBody = document.getElementById('monthlyPerfBody');
+                monthlyBody.innerHTML = `
+                    <tr>
+                        <td><strong>${monthly.month}</strong></td>
+                        <td><strong>${monthly.total_trades}</strong></td>
+                        <td><span style="color:var(--accent-green); font-weight:700;">${monthly.win_pct}%</span> (${monthly.wins} win)</td>
+                        <td><span style="color:var(--accent-red); font-weight:700;">${monthly.loss_pct}%</span> (${monthly.losses} loss)</td>
+                        <td style="color:var(--accent-green); font-weight:700;">+$${monthly.won_amount}</td>
+                        <td style="color:var(--accent-red); font-weight:700;">-$${Math.abs(monthly.lost_amount)}</td>
+                        <td style="color:${monthly.net_pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}; font-weight:800;">$${monthly.net_pnl}</td>
+                    </tr>
+                `;
+            } catch(e) { console.error(e); }
         }
 
         async function loadTelemetry() {
@@ -301,7 +391,7 @@
                 const container = document.getElementById('telemetryContainer');
                 container.innerHTML = `
                     <p>Scansioni Globali: <strong>${data.scans_count}</strong></p>
-                    <p>Ordini Eseguiti Totali: <strong>${data.total_executions}</strong></p>
+                    <p>Ordini Attivi Totali: <strong>${data.total_executions}</strong></p>
                     <p>PnL di Sessione: <strong style="color:${data.session_pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}">$${data.session_pnl}</strong></p>
                     <hr style="border-color:var(--border-color); margin:10px 0;">
                     <p style="color:var(--text-muted);">Ultimi Log delle Borse:</p>
@@ -335,7 +425,7 @@
                                 <td><strong>🏛️ ${cat}</strong></td>
                                 <td><span class="status-badge" style="${badgeStyle}">${sess.is_open ? '🟢' : '🔴'} ${sess.status}</span></td>
                                 <td>${sess.hours}</td>
-                                <td><span style="color:var(--accent-green);">Auto-Routing & TP/SL Attivi</span></td>
+                                <td><span style="color:var(--accent-green);">Auto-Routing & Analytics</span></td>
                             </tr>
                         `;
                     }).join('');
@@ -383,7 +473,6 @@
                                         </div>
                                         <div style="font-size:0.75rem; color:${s.sentiment_color}; font-weight:700; margin-bottom:8px; font-family:'JetBrains Mono',monospace;">${s.sentiment}</div>
                                         
-                                        <!-- GRIGLIA ESPLICITA TP, SL E TARGET -->
                                         <div class="metrics-grid">
                                             <div class="metric-box"><label>🎯 TAKE PROFIT (TP1)</label><span style="color:var(--accent-green);">${s.tp1}</span></div>
                                             <div class="metric-box"><label>🛡️ STOP LOSS (SL)</label><span style="color:var(--accent-red);">${s.sl}</span></div>
@@ -391,7 +480,6 @@
                                             <div class="metric-box"><label>📉 TARGET RIBASSISTA</label><span style="color:var(--accent-red);">${s.target_ribassista}</span></div>
                                         </div>
 
-                                        <!-- BOX ROI STIMATO & LEVA -->
                                         <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; background:rgba(0,255,102,0.06); border:1px solid rgba(0,255,102,0.2); padding:6px 10px; border-radius:6px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
                                             <span>🚀 ROI Stimato: <strong style="color:var(--accent-green); font-size:0.85rem;">${s.roi_pct}</strong></span>
                                             <span>Leva: <strong style="color:var(--text-main);">${s.leverage}</strong></span>
