@@ -130,7 +130,6 @@ def execute_bingx_order(symbol, side, position_side, quantity, stop_loss=None, t
         return {"status": "ERROR", "msg": str(e)}
 
 def manage_auto_execution(signal):
-    """Esegue l'ordine su BingX se AUTO-TRADE è attivo e non ci sono posizioni aperte su quel simbolo."""
     if not auto_trade_active:
         return
 
@@ -249,26 +248,33 @@ def fetch_all_markets():
 
 def get_market_status(category):
     now = datetime.now(timezone.utc)
-    weekday = now.weekday()
+    weekday = now.weekday()  # 0=Lunedì, 5=Sabato, 6=Domenica
     hour = now.hour
     minute = now.minute
 
     if category == "Criptovalute":
         return {"status": "Aperto", "text": "🟢 H24 Institutional Feed", "schedule": "Mercato Continuo • H24"}
+    
     elif category == "Materie Prime & Forex":
-        if weekday == 5 or (weekday == 6 and hour < 22):
-            return {"status": "Chiuso", "text": "🔴 Chiuso (Weekend)", "schedule": "Riapertura Dom 22:00 UTC"}
-        elif weekday == 4 and hour >= 21:
-            return {"status": "Chiuso", "text": "🔴 Chiusura Settimanale", "schedule": "Riapertura Dom 22:00 UTC"}
+        # Forex e Oro: Aperto da Domenica 22:00 UTC a Venerdì 21:00 UTC
+        if weekday == 5:  # Sabato
+            return {"status": "Chiuso", "text": "🔴 Chiuso (Weekend Sabato)", "schedule": "Riapertura Dom 22:00 UTC"}
+        elif weekday == 6 and hour < 22:  # Domenica prima delle 22:00 UTC
+            return {"status": "Chiuso", "text": "🔴 Chiuso (Weekend Domenica)", "schedule": "Riapertura Dom 22:00 UTC"}
+        elif weekday == 4 and hour >= 21:  # Venerdì dopo le 21:00 UTC
+            return {"status": "Chiuso", "text": "🔴 Chiuso (Chiusura Weekend)", "schedule": "Riapertura Dom 22:00 UTC"}
         else:
-            return {"status": "Aperto", "text": "🟢 Forex & Gold Live", "schedule": "ECN Pool Attivo"}
+            return {"status": "Aperto", "text": "🟢 Forex & Gold Live ECN", "schedule": "Sessione Globale Attiva"}
+            
     elif category == "Azioni & Indici":
-        if weekday >= 5:
-            return {"status": "Chiuso", "text": "🔴 Chiuso (Weekend)", "schedule": "Wall Street Chiusa"}
+        # Wall Street: Lunedì - Venerdì, dalle 14:30 UTC alle 21:00 UTC
+        if weekday >= 5:  # Sabato o Domenica
+            return {"status": "Chiuso", "text": "🔴 Chiuso (Weekend Wall St)", "schedule": "Riapertura Lunedì 14:30 UTC"}
         elif hour < 14 or (hour == 14 and minute < 30) or hour >= 21:
-            return {"status": "Chiuso", "text": "🔴 Fuori Orario Wall St", "schedule": "Sessione: 14:30 - 21:00 UTC"}
+            return {"status": "Chiuso", "text": "🔴 Fuori Orario Wall Street", "schedule": "Sessione: 14:30 - 21:00 UTC"}
         else:
-            return {"status": "Aperto", "text": "🟢 Wall Street Live ECN", "schedule": "Aperto fino alle 21:00"}
+            return {"status": "Aperto", "text": "🟢 Wall Street Live ECN", "schedule": "Aperto fino alle 21:00 UTC"}
+            
     return {"status": "Aperto", "text": "🟢 Desk Live", "schedule": "Operativo"}
 
 def safe_float(val, default=0.0):
@@ -597,10 +603,18 @@ def process_asset(cat, a, m_status, mode, balance, risk_pct, timeframe):
                 "timestamp": datetime.now().strftime("%H:%M:%S")
             }
 
-            # RIPRISTINATO: Gestione ed esecuzione automatica ordini su BingX
             if res['action'] != "NEUTRAL" and not res["whipsaw_blocked"]:
                 manage_auto_execution(signal_obj)
-                send_telegram_alert(signal_obj)
+                send_telegram_message(
+                    f"🚨 *SEGNALE MERCATO GLOBALE (REALE)* 🚨\n\n"
+                    f"🟢 *Asset*: `{signal_obj['name']}` ({signal_obj['category']})\n"
+                    f"📊 *Direzione*: *{signal_obj['action']}*\n"
+                    f"💰 *Ingresso Live*: `{signal_obj['entry']}`\n"
+                    f"🎯 *Target Max*: `{signal_obj['max_target']}`\n"
+                    f"🛑 *Stop Loss*: `{signal_obj['sl']}`\n"
+                    f"📉 *TP1*: `{signal_obj['tp1']}`\n"
+                    f"⚡ *Convinzione AI*: `{signal_obj['ai_score']}`"
+                )
                 return signal_obj
     except Exception:
         pass
