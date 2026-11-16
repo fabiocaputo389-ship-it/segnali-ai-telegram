@@ -3,32 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SALA SEGNALI PRO • Institutional All-Markets Terminal</title>
+    <title>SALA SEGNALI PRO • Institutional Terminal</title>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-base: #07090e;
-            --bg-panel: #0d121d;
-            --border-color: #1e2638;
-            --accent-green: #00ff66;
-            --accent-red: #ff1e42;
-            --text-main: #f0f4f8;
-            --text-muted: #8a99ad;
+            --bg-base: #07090e; --bg-panel: #0d121d; --border-color: #1e2638;
+            --accent-green: #00ff66; --accent-red: #ff1e42; --text-main: #f0f4f8; --text-muted: #8a99ad;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
         body { background: var(--bg-base); color: var(--text-main); min-height: 100vh; padding-bottom: 70px; }
         header { background: var(--bg-panel); border-bottom: 1px solid var(--border-color); padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 1000; }
-        .logo { font-family: 'JetBrains Mono', monospace; font-weight: 800; font-size: 1.1rem; color: var(--accent-green); display: flex; align-items: center; gap: 8px; }
+        .logo { font-family: 'JetBrains Mono', monospace; font-weight: 800; font-size: 1.1rem; color: var(--accent-green); }
         .terminal-clock { font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; color: var(--text-muted); background: rgba(255,255,255,0.03); padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border-color); }
-        .controls-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; padding: 15px 20px; background: var(--bg-panel); border-bottom: 1px solid var(--border-color); }
+        .controls-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; padding: 15px 20px; background: var(--bg-panel); border-bottom: 1px solid var(--border-color); }
         .control-group label { display: block; font-size: 0.7rem; font-family: 'JetBrains Mono', monospace; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; }
         .control-group input, .control-group select { width: 100%; background: var(--bg-base); border: 1px solid var(--border-color); color: var(--text-main); padding: 8px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; }
-        .autotrade-btn { background: rgba(255,30,66,0.1); border: 1px solid var(--accent-red); color: var(--accent-red); font-weight: 800; border-radius: 6px; padding: 8px 12px; cursor: pointer; transition: all 0.2s; font-family: 'JetBrains Mono', monospace; }
-        .autotrade-btn.active { background: rgba(0,255,102,0.1); border-color: var(--accent-green); color: var(--accent-green); box-shadow: 0 0 15px rgba(0,255,102,0.2); }
+        .autotrade-btn { background: rgba(255,30,66,0.1); border: 1px solid var(--accent-red); color: var(--accent-red); font-weight: 800; border-radius: 6px; padding: 8px 12px; cursor: pointer; font-family: 'JetBrains Mono', monospace; height: 38px; }
+        .autotrade-btn.active { background: rgba(0,255,102,0.1); border-color: var(--accent-green); color: var(--accent-green); }
         .container { padding: 20px; max-width: 1400px; margin: 0 auto; }
-        .section-title { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; text-transform: uppercase; letter-spacing: 1px; }
-        .signals-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 15px; margin-bottom: 30px; }
-        .signal-card { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 10px; padding: 16px; position: relative; overflow: hidden; transition: transform 0.2s; }
+        .section-title { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; text-transform: uppercase; }
+        .signals-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 15px; }
+        .signal-card { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 10px; padding: 16px; transition: transform 0.2s; }
         .signal-card:hover { border-color: #2a3650; transform: translateY(-2px); }
         .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
         .asset-title { font-size: 1.1rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
@@ -38,31 +33,28 @@
         .metrics-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 12px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; }
         .metric-box label { font-size: 0.65rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; display: block; }
         .metric-box span { font-size: 0.85rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
-        .footer-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: var(--bg-panel); border-top: 1px solid var(--border-color); display: flex; justify-content: space-around; padding: 12px; z-index: 1000; }
-        .nav-item { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-muted); text-decoration: none; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
-        .nav-item.active { color: var(--accent-green); }
     </style>
 </head>
 <body>
     <header>
-        <div class="logo">⚡ SALA SEGNALI PRO <span style="font-size:0.6rem; background:rgba(0,255,102,0.1); color:var(--accent-green); padding:2px 6px; border-radius:3px;">DURATION & TARGET ENGINE</span></div>
+        <div class="logo">⚡ SALA SEGNALI PRO <span style="font-size:0.6rem; background:rgba(0,255,102,0.1); color:var(--accent-green); padding:2px 6px; border-radius:3px;">CANDLE DURATION ENGINE</span></div>
         <div class="terminal-clock" id="clock">00:00:00</div>
     </header>
 
     <div class="controls-bar">
         <div class="control-group">
-            <label>Modalità Desk</label>
-            <select id="modeSelect">
-                <option value="Day Trading">Day Trading</option>
-                <option value="Scalping">Scalping HFT</option>
-                <option value="Swing Trading">Swing Trading</option>
+            <label>Profilo Operativo</label>
+            <select id="profileSelect">
+                <option value="conservative">Conservativo</option>
+                <option value="balanced" selected>Bilanciato</option>
+                <option value="aggressive">Aggressivo / HFT</option>
             </select>
         </div>
         <div class="control-group">
             <label>Timeframe</label>
             <select id="tfSelect">
-                <option value="15m" selected>15m (Standard)</option>
                 <option value="5m">5m (Scalp)</option>
+                <option value="15m" selected>15m (Standard)</option>
                 <option value="1h">1h (Trend)</option>
             </select>
         </div>
@@ -75,107 +67,84 @@
             <input type="number" id="riskInput" value="1.0" step="0.1">
         </div>
         <div class="control-group" style="display:flex; align-items:flex-end;">
-            <button id="autotradeToggle" class="autotrade-btn" style="width:100%; height:38px;">AUTO-TRADE: OFF</button>
+            <button id="autotradeToggle" class="autotrade-btn" style="width:100%;">AUTO-TRADE: OFF</button>
         </div>
     </div>
 
     <div class="container">
         <div class="section-title">
-            <span>📡 Scanner Globale (Previsioni & Durata Target)</span>
+            <span>📡 Scanner Globale & Durata Candele</span>
             <span id="exchangeModeIndicator" style="color:var(--accent-green)">Connessione in corso...</span>
         </div>
         <div id="signalsContainer" class="signals-grid">
             <div style="grid-column: 1/-1; text-align:center; padding: 40px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">
-                Analisi di volatilità e calcolo durata target in corso...
+                Analisi candele storiche in corso...
             </div>
         </div>
     </div>
 
-    <div class="footer-nav">
-        <a class="nav-item active"><span>📊</span> Mercati & Durate</a>
-        <a class="nav-item" onclick="alert('Telemetria HFT attiva.')"><span>⚡</span> Telemetria</a>
-        <a class="nav-item" onclick="alert('Grafici sincronizzati.')"><span>📈</span> Grafici</a>
-    </div>
-
     <script>
-        setInterval(() => {
-            document.getElementById('clock').innerText = new Date().toLocaleTimeString('it-IT');
-        }, 1000);
-
+        setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('it-IT'); }, 1000);
         let autoTradeState = false;
 
         document.getElementById('autotradeToggle').addEventListener('click', async () => {
             const res = await fetch('/api/autotrade/toggle', { method: 'POST' });
             const data = await res.json();
             autoTradeState = data.auto_trade;
-            updateAutoTradeUI(data);
+            document.getElementById('autotradeToggle').innerText = autoTradeState ? "AUTO-TRADE: ON" : "AUTO-TRADE: OFF";
+            document.getElementById('autotradeToggle').className = `autotrade-btn ${autoTradeState ? 'active' : ''}`;
         });
 
-        function updateAutoTradeUI(data) {
-            const btn = document.getElementById('autotradeToggle');
-            const ind = document.getElementById('exchangeModeIndicator');
-            btn.innerText = autoTradeState ? "AUTO-TRADE: ON" : "AUTO-TRADE: OFF";
-            btn.className = `autotrade-btn ${autoTradeState ? 'active' : ''}`;
-            ind.innerText = data.mode;
-        }
-
         async function loadSignals() {
-            const mode = document.getElementById('modeSelect').value;
+            const profile = document.getElementById('profileSelect').value;
             const timeframe = document.getElementById('tfSelect').value;
             const balance = document.getElementById('balanceInput').value;
             const risk = document.getElementById('riskInput').value;
 
             try {
-                const res = await fetch(`/api/signals?mode=${encodeURIComponent(mode)}&timeframe=${encodeURIComponent(timeframe)}&balance=${balance}&risk=${risk}`);
+                const res = await fetch(`/api/signals?profile=${profile}&timeframe=${timeframe}&balance=${balance}&risk=${risk}`);
                 const signals = await res.json();
-                renderSignals(signals);
-            } catch (e) { console.error(e); }
-        }
+                const container = document.getElementById('signalsContainer');
+                
+                if (!signals || signals.length === 0) {
+                    container.innerHTML = `<div style="grid-column: 1/-1; text-align:center; padding: 40px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">Nessun segnale trovato.</div>`;
+                    return;
+                }
 
-        function renderSignals(signals) {
-            const container = document.getElementById('signalsContainer');
-            if (!signals || signals.length === 0) {
-                container.innerHTML = `<div style="grid-column: 1/-1; text-align:center; padding: 40px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">Nessun asset disponibile al momento.</div>`;
-                return;
-            }
-
-            container.innerHTML = signals.map(s => `
-                <div class="signal-card">
-                    <div class="card-header">
-                        <div>
-                            <div class="asset-title">${s.name}</div>
-                            <div style="font-size:0.75rem; color:var(--text-muted);">${s.category} • Prezzo: <strong>${s.price}</strong></div>
+                container.innerHTML = signals.map(s => `
+                    <div class="signal-card">
+                        <div class="card-header">
+                            <div>
+                                <div class="asset-title">${s.name}</div>
+                                <div style="font-size:0.75rem; color:var(--text-muted);">${s.category} • Prezzo: <strong>${s.price}</strong></div>
+                            </div>
+                            <span class="badge-action ${s.action === 'BUY' ? 'badge-buy' : 'badge-sell'}">${s.action}</span>
                         </div>
-                        <span class="badge-action ${s.action === 'BUY' ? 'badge-buy' : 'badge-sell'}">${s.action}</span>
-                    </div>
+                        <div style="font-size:0.75rem; color:${s.sentiment_color}; font-weight:700; margin-bottom:8px; font-family:'JetBrains Mono',monospace;">${s.sentiment}</div>
+                        
+                        <div class="metrics-grid">
+                            <div class="metric-box"><label>📈 TARGET RIALZISTA</label><span style="color:var(--accent-green);">${s.target_rialzista}</span></div>
+                            <div class="metric-box"><label>📉 TARGET RIBASSISTA</label><span style="color:var(--accent-red);">${s.target_ribassista}</span></div>
+                        </div>
 
-                    <div style="font-size:0.75rem; color:${s.sentiment_color}; font-weight:700; margin-bottom:8px; font-family:'JetBrains Mono',monospace;">
-                        ${s.sentiment}
+                        <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; color:var(--text-muted); margin-bottom:6px; display:flex; justify-content:space-between;">
+                            <span>⏱️ Durata (Candele): <strong style="color:var(--accent-green);">${s.duration}</strong></span>
+                            <span>RSI: <strong>${s.rsi}</strong></span>
+                        </div>
+                        <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; color:var(--text-muted);">
+                            ⚡ Convinzione: <strong style="color:var(--accent-green);">${s.ai_score}</strong> | Trend: <strong>${s.inversion}</strong>
+                        </div>
                     </div>
-
-                    <div class="metrics-grid">
-                        <div class="metric-box"><label>📈 TARGET RIALZISTA</label><span style="color:var(--accent-green);">${s.target_rialzista}</span></div>
-                        <div class="metric-box"><label>📉 TARGET RIBASSISTA</label><span style="color:var(--accent-red);">${s.target_ribassista}</span></div>
-                    </div>
-
-                    <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; color:var(--text-muted); margin-bottom:6px; display:flex; justify-content:space-between;">
-                        <span>⏱️ Durata Stimata TP: <strong style="color:var(--accent-green);">${s.duration_estimate}</strong></span>
-                        <span>RSI: <strong>${s.rsi}</strong></span>
-                    </div>
-                    <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; color:var(--text-muted);">
-                        ⚡ Convinzione: <strong style="color:var(--accent-green);">${s.ai_score}</strong> | Trend: <strong>${s.inversion_prediction}</strong>
-                    </div>
-                </div>
-            `).join('');
+                `).join('');
+            } catch (e) { console.error(e); }
         }
 
         loadSignals();
         setInterval(loadSignals, 8000);
 
-        document.getElementById('modeSelect').addEventListener('change', loadSignals);
-        document.getElementById('tfSelect').addEventListener('change', loadSignals);
-        document.getElementById('balanceInput').addEventListener('change', loadSignals);
-        document.getElementById('riskInput').addEventListener('change', loadSignals);
+        ['profileSelect', 'tfSelect', 'balanceInput', 'riskInput'].forEach(id => {
+            document.getElementById(id).addEventListener('change', loadSignals);
+        });
     </script>
 </body>
 </html>
