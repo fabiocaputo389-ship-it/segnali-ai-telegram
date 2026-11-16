@@ -11,21 +11,86 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 app = Flask(__name__)
 
-TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
-TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '')
-BINGX_API_KEY = os.environ.get('BINGX_API_KEY', '')
-BINGX_SECRET_KEY = os.environ.get('BINGX_SECRET_KEY', '')
-BINGX_BASE_URL = "https://open-api.bingx.com"
+# --- LETTURA E DIAGNOSTICA VARIABILI DI RENDER ---
+def load_render_environment():
+    global BINGX_API_KEY, BINGX_SECRET_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+    BINGX_API_KEY = os.environ.get('BINGX_API_KEY', '').strip()
+    BINGX_SECRET_KEY = os.environ.get('BINGX_SECRET_KEY', '').strip()
+    TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
+    TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '').strip()
+    
+    print("========================================")
+    print("⚡ SALA SEGNALI PRO • RENDER ENV CHECK ⚡")
+    print(f"🔹 BingX API Key: {'CONFIGURATA ✅' if BINGX_API_KEY else 'NON RILEVATA (Paper Mode)'}")
+    print(f"🔹 BingX Secret Key: {'CONFIGURATA ✅' if BINGX_SECRET_KEY else 'NON RILEVATA'}")
+    print(f"🔹 Telegram Token: {'CONFIGURATO ✅' if TELEGRAM_BOT_TOKEN else 'NON RILEVATO'}")
+    print(f"🔹 Telegram Chat ID: {'CONFIGURATO ✅' if TELEGRAM_CHAT_ID else 'NON RILEVATO'}")
+    print("========================================")
 
+load_render_environment()
+
+BINGX_BASE_URL = "https://open-api.bingx.com"
 auto_trade_active = False
 execution_history = []
 sent_telegram_signals = {}
 scans_telemetry = {}
 session_realized_pnl = 0.0
 
+def get_market_session_status(category):
+    """Calcola in tempo reale orari e stato (APERTO/CHIUSO) delle borse mondiali in UTC."""
+    now_utc = datetime.now(timezone.utc)
+    weekday = now_utc.weekday()  # 0 = Lunedì ... 6 = Domenica
+    current_minutes = now_utc.hour * 60 + now_utc.minute
+
+    if "Criptovalute" in category:
+        return {
+            "status": "APERTO",
+            "is_open": True,
+            "hours": "24/7 Continuo (UTC)",
+            "badge_color": "#00ff66"
+        }
+    elif "Forex" in category or "Materie Prime" in category:
+        # Chiuso dal venerdì 22:00 UTC alla domenica 22:00 UTC
+        is_closed = (weekday == 5) or (weekday == 4 and current_minutes >= 1320) or (weekday == 6 and current_minutes < 1320)
+        if is_closed:
+            return {
+                "status": "CHIUSO (Weekend)",
+                "is_open": False,
+                "hours": "Lun-Ven 24h (Riaper. Dom 22:00 UTC)",
+                "badge_color": "#ff1e42"
+            }
+        return {
+            "status": "APERTO",
+            "is_open": True,
+            "hours": "Sessione Globale 24h (Lun-Ven)",
+            "badge_color": "#00ff66"
+        }
+    else:
+        # Azioni & Indici USA (NYSE/NASDAQ: 14:30 - 21:00 UTC)
+        if weekday >= 5:
+            return {
+                "status": "CHIUSO (Weekend)",
+                "is_open": False,
+                "hours": "NYSE/NASDAQ: 14:30 - 21:00 UTC",
+                "badge_color": "#ff1e42"
+            }
+        if 870 <= current_minutes < 1260:  # 14:30 (870 min) - 21:00 (1260 min)
+            return {
+                "status": "APERTO",
+                "is_open": True,
+                "hours": "NYSE/NASDAQ: 14:30 - 21:00 UTC",
+                "badge_color": "#00ff66"
+            }
+        return {
+            "status": "CHIUSO (Fuori Orario)",
+            "is_open": False,
+            "hours": "NYSE/NASDAQ: 14:30 - 21:00 UTC",
+            "badge_color": "#ff1e42"
+        }
+
 def get_exchange_mode():
     if not BINGX_API_KEY or not BINGX_SECRET_KEY:
-        return "PAPER PROP-DESK (GLOBAL MARKETS UNLOCKED)"
+        return "PAPER PROP-DESK (GLOBAL SESSIONS ACTIVE)"
     return "🔴 BINGX LIVE REALE (GLOBAL EXCHANGES ACTIVE)"
 
 def sign_bingx_request(params_str):
@@ -87,7 +152,6 @@ def fetch_bingx_real_positions():
 
 def execute_verified_order(symbol, name, action, entry, size, leverage, margin, sl, tp1):
     global execution_history
-    
     if BINGX_API_KEY and BINGX_SECRET_KEY:
         try:
             timestamp = int(time.time() * 1000)
@@ -166,21 +230,17 @@ def fetch_all_markets():
             {'id': 'SOLUSDT', 'name': '🟣 Solana'}, {'id': 'XRPUSDT', 'name': '✕ Ripple'},
             {'id': 'BNBUSDT', 'name': '🟡 BNB'}, {'id': 'ADAUSDT', 'name': '₳ Cardano'},
             {'id': 'DOGEUSDT', 'name': '🐕 Dogecoin'}, {'id': 'AVAXUSDT', 'name': '🔺 Avalanche'},
-            {'id': 'LINKUSDT', 'name': '🔗 Chainlink'}, {'id': 'SUIUSDT', 'name': '💧 Sui'},
-            {'id': 'NEARUSDT', 'name': '🌐 Near Protocol'}, {'id': 'DOTUSDT', 'name': '🔴 Polkadot'},
-            {'id': 'UNIUSDT', 'name': '🦄 Uniswap'}, {'id': 'ATOMUSDT', 'name': '⚛️ Cosmos'}
+            {'id': 'LINKUSDT', 'name': '🔗 Chainlink'}, {'id': 'SUIUSDT', 'name': '💧 Sui'}
         ],
         "Materie Prime & Forex": [
             {'id': 'PAXGUSDT', 'name': '🥇 Oro (Gold)'}, {'id': 'XAGUSDT', 'name': '🥈 Argento (Silver)'},
             {'id': 'EURUSDT', 'name': '💶 EUR/USD'}, {'id': 'GBPUSDT', 'name': '🇬🇧 GBP/USD'},
-            {'id': 'USDJPY', 'name': '🇯🇵 USD/JPY'}, {'id': 'AUDUSDT', 'name': '🇦🇺 AUD/USD'},
-            {'id': 'USDCAD', 'name': '🇨🇦 USD/CAD'}
+            {'id': 'USDJPY', 'name': '🇯🇵 USD/JPY'}
         ],
         "Azioni & Indici Globali": [
             {'id': 'AAPL', 'name': '🍏 Apple Inc.'}, {'id': 'TSLA', 'name': '🚗 Tesla Inc.'},
             {'id': 'NVDA', 'name': '💻 Nvidia Corp.'}, {'id': 'AMZN', 'name': '📦 Amazon'},
-            {'id': 'MSFT', 'name': '🪟 Microsoft'}, {'id': 'GOOGL', 'name': '🔍 Alphabet (Google)'},
-            {'id': 'META', 'name': '🌐 Meta Platforms'}, {'id': 'NFLX', 'name': '🎬 Netflix'}
+            {'id': 'MSFT', 'name': '🪟 Microsoft'}, {'id': 'GOOGL', 'name': '🔍 Alphabet (Google)'}
         ]
     }
 
@@ -193,7 +253,7 @@ def safe_float(val, default=0.0):
 
 def get_verified_market_data(symbol, interval="15m"):
     headers = {"User-Agent": "Mozilla/5.0"}
-    clean_sym = symbol + 'USDT' if symbol in ['AAPL', 'TSLA', 'NVDA', 'AMZN', 'MSFT', 'GOOGL', 'META', 'NFLX'] else symbol
+    clean_sym = symbol + 'USDT' if symbol in ['AAPL', 'TSLA', 'NVDA', 'AMZN', 'MSFT', 'GOOGL'] else symbol
     try:
         url = "https://api.binance.com/api/v3/klines"
         res = requests.get(url, params={"symbol": clean_sym, "interval": interval, "limit": 60}, headers=headers, timeout=2.5).json()
@@ -309,6 +369,8 @@ def get_signals():
             r_b_min, r_b_max, r_s_min, r_s_max, sl_m, tp_m = 35.0, 82.0, 18.0, 65.0, 0.8, 1.8
 
         markets = fetch_all_markets()
+        session_info = {cat: get_market_session_status(cat) for cat in markets.keys()}
+        
         raw_signals = []
         target_assets = [(cat, a) for cat, assets in markets.items() for a in assets]
 
@@ -320,15 +382,21 @@ def get_signals():
                 if df is not None and not df.empty and current_price > 0:
                     res = calculate_setup(df, current_price, balance, risk, r_b_min, r_b_max, r_s_min, r_s_max, sl_m, tp_m, timeframe)
                     dec = res["decimals"]
+                    sess = session_info[cat]
                     
                     sig_obj = {
                         "id": f"{a['id']}_{res['action']}", "category": cat, "symbol": a['id'],
                         "name": a['name'], "price": f"{current_price:.{dec}f}",
+                        "market_status": sess["status"],
+                        "market_hours": sess["hours"],
+                        "market_is_open": sess["is_open"],
+                        "market_badge_color": sess["badge_color"],
                         **res
                     }
                     raw_signals.append(sig_obj)
 
-                    if auto_trade_active and res['action'] in ["BUY", "SELL"]:
+                    # Esegue ordini solo se la borsa di riferimento è APERTA e l'auto-trade è attivo
+                    if auto_trade_active and sess["is_open"] and res['action'] in ["BUY", "SELL"]:
                         execute_verified_order(a['id'], a['name'], res['action'], res['entry'], res['size'], res['leverage'], res['margin'], res['sl'], res['tp1'])
 
         unique_map = {sig['symbol']: sig for sig in raw_signals}
@@ -341,9 +409,12 @@ def get_signals():
             "status": "GLOBAL_EXCHANGES_SYNC"
         }
 
-        return jsonify(signals)
+        return jsonify({
+            "sessions": session_info,
+            "signals": signals
+        })
     except Exception as e:
-        return jsonify([])
+        return jsonify({"sessions": {}, "signals": []})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
