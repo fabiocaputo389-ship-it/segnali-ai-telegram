@@ -24,10 +24,10 @@ BINGX_BASE_URL = "https://open-api.bingx.com"
 # Stato Globale Prop-Desk & Protezione Istituzionale
 auto_trade_active = False
 execution_history = []
-sent_telegram_signals = set()
+sent_telegram_signals = {}  # Cooldown anti-spam per simbolo
 scans_telemetry = {}
 
-# Parametri Circuit Breaker Prop-Desk
+# Parametri Circuit Breaker Prop-Desk (Risk Management Istituzionale)
 DAILY_MAX_DRAWDOWN_USD = 10.0  
 session_realized_pnl = 0.0
 
@@ -43,9 +43,18 @@ def sign_bingx_request(params_str):
         hashlib.sha256
     ).hexdigest()
 
-def send_telegram_message(text):
+def send_telegram_message_cooldown(symbol, text):
+    """Invia notifiche istituzionali con cooldown anti-duplicazione rigoroso."""
+    global sent_telegram_signals
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return
+    
+    now = time.time()
+    if symbol in sent_telegram_signals:
+        if now - sent_telegram_signals[symbol] < 900:  # 15 minuti di cooldown per asset
+            return
+            
+    sent_telegram_signals[symbol] = now
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     try:
         requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": text, "parse_mode": "Markdown"}, timeout=3.0)
@@ -138,7 +147,7 @@ def check_circuit_breaker():
     global auto_trade_active, session_realized_pnl
     if session_realized_pnl <= -DAILY_MAX_DRAWDOWN_USD:
         auto_trade_active = False
-        send_telegram_message("🚨 *CIRCUIT BREAKER ATTIVATO* 🚨\nSoglia di perdita giornaliera raggiunta. Auto-Trade disattivato per protezione capitale.")
+        send_telegram_message_cooldown("CIRCUIT_BREAKER", "🚨 *CIRCUIT BREAKER PROP-DESK ATTIVATO* 🚨\nSoglia di perdita giornaliera ($10) raggiunta. Auto-Trade disattivato per salvaguardia capitale.")
         return True
     return False
 
@@ -168,11 +177,12 @@ def manage_auto_execution(signal):
                 )
                 
                 if exec_res.get("status") in ["LIVE_FILLED", "PAPER_FILLED"]:
-                    send_telegram_message(
+                    send_telegram_message_cooldown(
+                        f"EXEC_{symbol}",
                         f"🏛 *SALA SEGNALI PRO • ESECUZIONE LIVE* 🏛\n\n"
                         f"Asset: `{signal['name']}`\n"
                         f"Segnale: *{action}* ({signal['leverage']})\n"
-                        f"Parametri Attivazione: RSI `{signal['rsi']}` | MACD OK\n"
+                        f"Previsione Inversione: `{signal['inversion_prediction']}`\n"
                         f"Size: `{qty}` | Margine: `${signal['margin']}`\n"
                         f"Ingresso: `{signal['entry']}`\n"
                         f"SL: `{signal['sl']}` | TP1: `{signal['tp1']}`"
@@ -353,7 +363,7 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
     vol = df['Volume']
     vol_sma = safe_float(vol.rolling(20).mean().iloc[-1], 1000.0)
     current_vol = safe_float(vol.iloc[-1], 1000.0)
-    low_volume_trap = bool(current_vol < (vol_sma * 0.40))  # Soglia flessibile per attivazione rapida
+    low_volume_trap = bool(current_vol < (vol_sma * 0.25))
 
     o_last = safe_float(df['Open'].iloc[-1], current_price)
     c_last = safe_float(df['Close'].iloc[-1], current_price)
@@ -361,7 +371,7 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
     l_last = safe_float(df['Low'].iloc[-1], current_price)
     body = abs(c_last - o_last)
     rng = h_last - l_last
-    is_fake_wick = bool((rng > 0) and ((body / rng) < 0.15))
+    is_fake_wick = bool((rng > 0) and ((body / rng) < 0.08))
     whipsaw_detected = low_volume_trap or is_fake_wick
 
     recent_highs = df['High'].iloc[-10:-2].max()
@@ -371,7 +381,7 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
     ema_val_12 = safe_float(ema12.iloc[-1], current_price)
     ema_val_26 = safe_float(ema26.iloc[-1], current_price)
 
-    # --- ALGORITMO DI PREVISIONE INVERSIONE ---
+    # --- REVERSAL PREDICTION ENGINE ---
     if rsi >= 72 and current_macd < prev_macd:
         inversion_prediction = "⚠️ Imminente Inversione RIBASSISTA"
     elif rsi <= 28 and current_macd > prev_macd:
@@ -383,9 +393,8 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
     else:
         inversion_prediction = "🛡️ Trend Istituzionale Stabile"
 
-    # Condizioni di attivazione flessibili e reattive
-    is_buy = (ema_val_12 >= ema_val_26) and (current_macd >= -0.001) and (40 <= rsi <= 78) and not whipsaw_detected
-    is_sell = (ema_val_12 <= ema_val_26) and (current_macd <= 0.001) and (22 <= rsi <= 60) and not whipsaw_detected
+    is_buy = (ema_val_12 >= ema_val_26) and (current_macd >= -0.001) and (35 <= rsi <= 82) and not whipsaw_detected
+    is_sell = (ema_val_12 <= ema_val_26) and (current_macd <= 0.001) and (18 <= rsi <= 65) and not whipsaw_detected
 
     if is_buy:
         action = "BUY"
@@ -411,7 +420,7 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
         iv_smile = "IV Smile: Call Skew Elevato"
         kelly_criterion = "Kelly Opt. Size: 3.4% del Capitale"
         tape_speed = "Tape Speed: Massima Accelerazione"
-        ai_agent_note = "TIER-5 AGENT: Confluenza confermata. Parametri RSI/EMA rispettati."
+        ai_agent_note = "TIER-5 AGENT: Confluenza confermata. Routing ottimizzato."
     elif is_sell:
         action = "SELL"
         ai_score = 99.9
@@ -436,7 +445,7 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
         iv_smile = "IV Smile: Put Skew Elevato"
         kelly_criterion = "Kelly Opt. Size: 3.1% del Capitale"
         tape_speed = "Tape Speed: Massima Accelerazione"
-        ai_agent_note = "TIER-5 AGENT: Distribuzione confermata. Parametri RSI/EMA rispettati."
+        ai_agent_note = "TIER-5 AGENT: Distribuzione confermata. Assorbimento completato."
     else:
         action = "NEUTRAL"
         ai_score = 55.0
@@ -461,7 +470,7 @@ def calculate_ai_neural_setup(df, current_price, mode, account_balance, risk_per
         iv_smile = "IV Smile Piatto"
         kelly_criterion = "Kelly Sizing: Inattivo"
         tape_speed = "Tape Speed: Normale"
-        ai_agent_note = f"ATTESA PARAMETRI: RSI={rsi:.1f} (Req: 40-78 BUY / 22-60 SELL) | EMA12={ema_val_12:.2f}, EMA26={ema_val_26:.2f}"
+        ai_agent_note = f"ATTESA PARAMETRI: RSI={rsi:.1f} (Req: 35-82 BUY / 18-65 SELL)"
 
     if mode == 'Scalping':
         sl_m, tp_m = 0.4, 1.0
@@ -582,7 +591,6 @@ def process_asset(cat, a, m_status, mode, balance, risk_pct, timeframe):
             res = calculate_ai_neural_setup(df, current_price, mode, balance, risk_pct, symbol=a['id'])
             dec = res["decimals"]
 
-            # Mostra i parametri di attivazione attuali direttamente nella colonna stato filtri
             scans_telemetry[a['id']] = {
                 "symbol": a['id'],
                 "name": a['name'],
@@ -626,7 +634,8 @@ def process_asset(cat, a, m_status, mode, balance, risk_pct, timeframe):
 
             if res['action'] != "NEUTRAL" and not res["whipsaw_blocked"]:
                 manage_auto_execution(signal_obj)
-                send_telegram_message(
+                send_telegram_message_cooldown(
+                    signal_obj['symbol'],
                     f"🏛 *SALA SEGNALI PRO • ESECUZIONE LIVE* 🏛\n\n"
                     f"🟢 *Asset*: `{signal_obj['name']}` ({signal_obj['category']})\n"
                     f"📊 *Direzione*: *{signal_obj['action']}*\n"
@@ -651,7 +660,7 @@ def get_signals():
         risk_pct = safe_float(request.args.get('risk', 1.0), 1.0)
 
         markets = fetch_all_markets()
-        signals = []
+        raw_signals = []
         
         target_assets = []
         for cat, assets in markets.items():
@@ -664,8 +673,20 @@ def get_signals():
             for future in as_completed(futures):
                 res = future.result()
                 if res:
-                    signals.append(res)
+                    raw_signals.append(res)
 
+        # --- DEDUPLICATION ENGINE PRO: Un solo segnale unico per simbolo ---
+        unique_signals_map = {}
+        for sig in raw_signals:
+            sym = sig['symbol']
+            if sym not in unique_signals_map:
+                unique_signals_map[sym] = sig
+            else:
+                existing = unique_signals_map[sym]
+                if float(sig['ai_score'].replace('%','')) >= float(existing['ai_score'].replace('%','')):
+                    unique_signals_map[sym] = sig
+
+        signals = list(unique_signals_map.values())
         signals.sort(key=lambda x: float(x['ai_score'].replace('%','')), reverse=True)
         return jsonify(signals)
     except Exception as e:
