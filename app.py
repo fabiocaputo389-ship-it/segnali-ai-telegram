@@ -25,8 +25,8 @@ session_realized_pnl = 0.0
 
 def get_exchange_mode():
     if not BINGX_API_KEY or not BINGX_SECRET_KEY:
-        return "PAPER PROP-DESK (ORDERS & TELEMETRY ACTIVE)"
-    return "🔴 BINGX LIVE REALE (ORDINI GLOBALI ATTIVI)"
+        return "PAPER PROP-DESK (AUTO-EXECUTION ACTIVE)"
+    return "🔴 BINGX LIVE REALE (FUTURES API ACTIVE)"
 
 def sign_bingx_request(params_str):
     return hmac.new(
@@ -54,9 +54,9 @@ def format_bingx_symbol(symbol):
     return f"{base}-USDT"
 
 def fetch_bingx_real_positions():
+    global execution_history
     if not BINGX_API_KEY or not BINGX_SECRET_KEY:
-        # Simulazione posizioni attive in Paper Trading se Auto-Trade è attivo
-        global execution_history
+        # Restituisce le posizioni aperte in modalità Paper Trading
         return [h for h in execution_history if h.get("status") == "OPEN"]
     
     timestamp = int(time.time() * 1000)
@@ -83,20 +83,43 @@ def fetch_bingx_real_positions():
                     })
             return real_pos_list
     except Exception as e:
-        print(f"Errore recupero posizioni: {e}")
-    return []
+        print(f"Errore recupero posizioni BingX: {e}")
+    return [h for h in execution_history if h.get("status") == "OPEN"]
 
-def execute_order(symbol, name, action, entry, size, leverage, margin, sl, tp1):
+def execute_live_or_paper_order(symbol, name, action, entry, size, leverage, margin, sl, tp1):
     global execution_history
-    order_record = {
-        "id": f"ORD-{int(time.time()*1000)}",
-        "symbol": symbol, "name": name, "action": action,
-        "entry": entry, "size": size, "leverage": leverage, "margin": margin,
-        "sl": sl, "tp1": tp1, "unrealized_pnl": 0.0, "status": "OPEN",
-        "opened_at": datetime.now().strftime("%H:%M:%S")
-    }
-    execution_history.insert(0, order_record)
-    send_telegram_message_cooldown(symbol, f"🏛 *SALA SEGNALI PRO • ORDINE ESEGUITO* 🏛\nAsset: `{name}`\nSegnale: *{action}* ({leverage})\nIngresso: `{entry}`\nSL: `{sl}` | TP1: `{tp1}`")
+    
+    # Tentativo di invio ordine reale su BingX se le chiavi sono configurate
+    if BINGX_API_KEY and BINGX_SECRET_KEY:
+        try:
+            timestamp = int(time.time() * 1000)
+            bx_symbol = format_bingx_symbol(symbol)
+            pos_side = "LONG" if action == "BUY" else "SHORT"
+            params = {
+                "symbol": bx_symbol, "side": action, "positionSide": pos_side,
+                "type": "MARKET", "quantity": size, "timestamp": timestamp
+            }
+            query_string = "&".join([f"{k}={v}" for k, v in sorted(params.items())])
+            signature = sign_bingx_request(query_string)
+            url = f"{BINGX_BASE_URL}/openApi/swap/v2/trade/order?{query_string}&signature={signature}"
+            headers = {"X-BX-APIKEY": BINGX_API_KEY}
+            res = requests.post(url, headers=headers, timeout=4.0).json()
+            if res.get("code") != 0:
+                print(f"Errore API BingX ({symbol}): {res.get('msg')}")
+        except Exception as e:
+            print(f"Eccezione invio ordine BingX: {e}")
+
+    # Registrazione interna dell'ordine nella dashboard
+    if not any(h['symbol'] == symbol and h['status'] == 'OPEN' for h in execution_history):
+        order_record = {
+            "id": f"ORD-{int(time.time()*1000)}",
+            "symbol": symbol, "name": name, "action": action,
+            "entry": entry, "size": size, "leverage": leverage, "margin": margin,
+            "sl": sl, "tp1": tp1, "unrealized_pnl": 0.0, "status": "OPEN",
+            "opened_at": datetime.now().strftime("%H:%M:%S")
+        }
+        execution_history.insert(0, order_record)
+        send_telegram_message_cooldown(symbol, f"🏛 *SALA SEGNALI PRO • ORDINE APERTO* 🏛\nAsset: `{name}`\nSegnale: *{action}* ({leverage})\nIngresso: `{entry}`\nSL: `{sl}` | TP1: `{tp1}`")
 
 @app.route('/')
 def home():
@@ -136,7 +159,7 @@ def get_telemetry():
     global scans_telemetry, execution_history
     return jsonify({
         "scans_count": len(scans_telemetry),
-        "total_executions": len(execution_history),
+        "total_executions": len([h for h in execution_history if h.get("status") == "OPEN"]),
         "session_pnl": round(session_realized_pnl, 2),
         "telemetry_logs": list(scans_telemetry.values())[-15:]
     })
@@ -257,7 +280,6 @@ def calculate_setup(df, current_price, balance, risk_pct, rsi_buy_min, rsi_buy_m
         target_rialzista = sl
         target_ribassista = round(current_price - (tp_dist * 2.5), decimals)
 
-    # Durata reale basata sulle candele
     tf_min = 5 if timeframe == '5m' else (15 if timeframe == '15m' else 60)
     recent_movement = abs(close.diff().tail(5)).mean()
     effective_speed = max(recent_movement, atr * 0.1, current_price * 0.0001)
@@ -321,11 +343,9 @@ def get_signals():
                     }
                     raw_signals.append(sig_obj)
 
-                    # Esecuzione automatica ordini se Auto-Trade è attivo
+                    # Esecuzione automatica ordini appena si attiva Auto-Trade
                     if auto_trade_active and res['action'] in ["BUY", "SELL"]:
-                        active_pos = fetch_bingx_real_positions()
-                        if not any(p['symbol'] == a['id'] for p in active_pos):
-                            execute_order(a['id'], a['name'], res['action'], res['entry'], res['size'], res['leverage'], res['margin'], res['sl'], res['tp1'])
+                        execute_live_or_paper_order(a['id'], a['name'], res['action'], res['entry'], res['size'], res['leverage'], res['margin'], res['sl'], res['tp1'])
 
         unique_map = {sig['symbol']: sig for sig in raw_signals}
         signals = list(unique_map.values())
