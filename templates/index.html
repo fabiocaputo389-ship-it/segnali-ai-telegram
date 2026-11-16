@@ -69,7 +69,7 @@
 </head>
 <body>
     <header>
-        <div class="logo">⚡ SALA SEGNALI PRO <span style="font-size:0.6rem; background:rgba(0,255,102,0.1); color:var(--accent-green); padding:2px 6px; border-radius:3px;">ANALYTICS & REPORTS</span></div>
+        <div class="logo">⚡ SALA SEGNALI PRO <span style="font-size:0.6rem; background:rgba(0,255,102,0.1); color:var(--accent-green); padding:2px 6px; border-radius:3px;">ULTRA-FAST LIVE STREAMING</span></div>
         <div class="terminal-clock" id="clock">00:00:00 UTC</div>
     </header>
 
@@ -157,11 +157,11 @@
             </div>
 
             <div class="section-title" style="margin-top: 25px;">
-                <span>📡 Scanner Globale Universale con TP/SL & ROI</span>
+                <span>📡 Scanner Globale Universale con TP/SL & ROI (Live 2s)</span>
             </div>
             <div id="categorizedMarketsContainer">
                 <div style="text-align:center; padding: 40px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">
-                    Scansione in corso su tutte le borse globali...
+                    Sincronizzazione live in corso...
                 </div>
             </div>
         </div>
@@ -194,7 +194,6 @@
         <div id="tab-telemetry" class="tab-content">
             <div class="section-title"><span>📊 Report Performance Giornaliero & Mensile</span></div>
             
-            <!-- Tabella Performance Giornaliera -->
             <div style="margin-bottom: 20px;">
                 <div style="font-family:'JetBrains Mono',monospace; font-size:0.8rem; color:var(--text-muted); margin-bottom:8px;">🟢 REPORT GIORNALIERO (Oggi)</div>
                 <div style="overflow-x: auto;">
@@ -216,7 +215,6 @@
                 </div>
             </div>
 
-            <!-- Tabella Report Mensile -->
             <div style="margin-bottom: 25px;">
                 <div style="font-family:'JetBrains Mono',monospace; font-size:0.8rem; color:var(--text-muted); margin-bottom:8px;">📅 REPORT MENSILE (Mese Corrente)</div>
                 <div style="overflow-x: auto;">
@@ -353,10 +351,8 @@
                 const res = await fetch('/api/analytics/performance');
                 const data = await res.json();
                 
-                // Render Giornaliero
                 const daily = data.daily;
-                const dailyBody = document.getElementById('dailyPerfBody');
-                dailyBody.innerHTML = `
+                document.getElementById('dailyPerfBody').innerHTML = `
                     <tr>
                         <td><strong>${daily.total_trades}</strong></td>
                         <td><span style="color:var(--accent-green); font-weight:700;">${daily.win_pct}%</span> (${daily.wins} win)</td>
@@ -367,10 +363,8 @@
                     </tr>
                 `;
 
-                // Render Mensile
                 const monthly = data.monthly;
-                const monthlyBody = document.getElementById('monthlyPerfBody');
-                monthlyBody.innerHTML = `
+                document.getElementById('monthlyPerfBody').innerHTML = `
                     <tr>
                         <td><strong>${monthly.month}</strong></td>
                         <td><strong>${monthly.total_trades}</strong></td>
@@ -388,8 +382,7 @@
             try {
                 const res = await fetch('/api/telemetry');
                 const data = await res.json();
-                const container = document.getElementById('telemetryContainer');
-                container.innerHTML = `
+                document.getElementById('telemetryContainer').innerHTML = `
                     <p>Scansioni Globali: <strong>${data.scans_count}</strong></p>
                     <p>Ordini Attivi Totali: <strong>${data.total_executions}</strong></p>
                     <p>PnL di Sessione: <strong style="color:${data.session_pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}">$${data.session_pnl}</strong></p>
@@ -398,6 +391,20 @@
                     ${data.telemetry_logs.map(l => `<div>[${l.timestamp}] - Asset Scansionati: ${l.scanned} - Stato: ${l.status}</div>`).join('')}
                 `;
             } catch(e) { console.error(e); }
+        }
+
+        // --- AGGIORNAMENTO VELOCE DEI PREZZI LIVE (Ogni 2 Secondi) ---
+        async function updateLivePricesOnly() {
+            try {
+                const res = await fetch('/api/live-prices');
+                const prices = await res.json();
+                for (const [symbol, price] of Object.entries(prices)) {
+                    const priceEl = document.getElementById(`price-${symbol}`);
+                    if (priceEl) {
+                        priceEl.innerText = price.toFixed(price > 5 ? 2 : 6);
+                    }
+                }
+            } catch (e) { }
         }
 
         async function loadSignals() {
@@ -425,7 +432,7 @@
                                 <td><strong>🏛️ ${cat}</strong></td>
                                 <td><span class="status-badge" style="${badgeStyle}">${sess.is_open ? '🟢' : '🔴'} ${sess.status}</span></td>
                                 <td>${sess.hours}</td>
-                                <td><span style="color:var(--accent-green);">Auto-Routing & Analytics</span></td>
+                                <td><span style="color:var(--accent-green);">Ultra-Fast Live Streaming</span></td>
                             </tr>
                         `;
                     }).join('');
@@ -462,12 +469,14 @@
                             </div>
                             <div class="signals-grid">
                                 ${catSignals.length === 0 ? `<div style="color:var(--text-muted); font-family:'JetBrains Mono',monospace; font-size:0.8rem;">In attesa di dati validi per questa borsa...</div>` : 
-                                catSignals.map(s => `
+                                catSignals.map(s => {
+                                    const cleanSym = ['AAPL', 'TSLA', 'NVDA', 'AMZN', 'MSFT', 'GOOGL'].includes(s.symbol) ? s.symbol + 'USDT' : s.symbol;
+                                    return `
                                     <div class="signal-card">
                                         <div class="card-header">
                                             <div>
                                                 <div class="asset-title">${s.name}</div>
-                                                <div style="font-size:0.75rem; color:var(--text-muted);">Prezzo Live: <strong>${s.price}</strong></div>
+                                                <div style="font-size:0.75rem; color:var(--text-muted);">Prezzo Live: <strong id="price-${cleanSym}">${s.price}</strong></div>
                                             </div>
                                             <span class="badge-action ${s.action === 'BUY' ? 'badge-buy' : (s.action === 'SELL' ? 'badge-sell' : 'badge-neutral')}">${s.action}</span>
                                         </div>
@@ -493,7 +502,7 @@
                                             ⚡ Convinzione: <strong style="color:var(--accent-green);">${s.ai_score}</strong> | Trend: <strong>${s.inversion}</strong>
                                         </div>
                                     </div>
-                                `).join('')}
+                                `}).join('')}
                             </div>
                         </div>
                     `;
@@ -503,8 +512,11 @@
 
         loadStatus();
         loadSignals();
+
+        // Cicli separati: Prezzi velocissimi ogni 2s, Segnali completi ogni 10s
+        setInterval(updateLivePricesOnly, 2000);
+        setInterval(loadSignals, 10000);
         setInterval(loadStatus, 4000);
-        setInterval(loadSignals, 8000);
 
         ['profileSelect', 'tfSelect', 'balanceInput', 'riskInput'].forEach(id => {
             document.getElementById(id).addEventListener('change', loadSignals);
