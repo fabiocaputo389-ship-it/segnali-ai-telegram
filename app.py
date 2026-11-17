@@ -189,6 +189,38 @@ def execute_verified_order(symbol, name, action, entry, size, leverage, margin, 
 def home():
     return render_template('index.html')
 
+# --- NUOVO ENDPOINT LIVE TICKER AL MILLISECONDO PER EVITARE DISALLINEAMENTI ---
+@app.route('/api/live-ticker/<symbol>', methods=['GET'])
+def get_live_ticker(symbol):
+    try:
+        # Formatta correttamente il simbolo per le API BingX Swap (es. BTCUSDT -> BTC-USDT)
+        clean_sym = symbol.replace("-", "").upper()
+        if clean_sym.endswith("USDT") and "-" not in symbol:
+            bx_symbol = f"{clean_sym[:-4]}-USDT"
+        else:
+            bx_symbol = symbol
+
+        endpoint = f"{BINGX_BASE_URL}/openApi/swap/v2/quote/ticker"
+        response = requests.get(endpoint, params={"symbol": bx_symbol}, timeout=3.0)
+        data = response.json()
+        
+        if data.get("code") == 0 and "data" in data:
+            ticker = data["data"]
+            # Gestisce sia dizionario singolo che lista di ticker
+            if isinstance(ticker, list) and len(ticker) > 0:
+                ticker = ticker[0]
+            
+            return jsonify({
+                "success": True,
+                "symbol": symbol,
+                "lastPrice": float(ticker.get("lastPrice", 0)),
+                "timestamp": int(time.time() * 1000)
+            }), 200
+        else:
+            return jsonify({"success": False, "error": data.get("msg", "Errore BingX")}), 400
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @app.route('/api/autotrade/toggle', methods=['POST'])
 def toggle_autotrade():
     global auto_trade_active
@@ -244,8 +276,8 @@ def get_performance_analytics():
     current_month_str = datetime.now().strftime("%Y-%m")
     
     closed_trades = [h for h in execution_history if h.get("status") == "CLOSED"]
-    today_trades = [h for h in closed_trades if h.get("date") == today_str]
-    month_trades = [h for h in closed_trades if h.get("month") == current_month_str]
+    today_trades = [h for h in closed_trades if h.get("date"] == today_str]
+    month_trades = [h for h in closed_trades if h.get("month"] == current_month_str]
     
     def calc_stats(trades):
         total = len(trades)
