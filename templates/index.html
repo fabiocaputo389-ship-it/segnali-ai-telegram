@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>SALA SEGNALI PRO • Institutional Terminal</title>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
@@ -11,15 +11,16 @@
             --accent-green: #00ff66; --accent-red: #ff1e42; --accent-gold: #ffd166;
             --text-main: #f0f4f8; --text-muted: #8a99ad;
         }
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
-        body { background: var(--bg-base); color: var(--text-main); min-height: 100vh; padding-bottom: 80px; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { background: var(--bg-base); color: var(--text-main); min-height: 100vh; padding-bottom: 90px; }
         header { background: var(--bg-panel); border-bottom: 1px solid var(--border-color); padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 1000; }
-        .logo { font-family: 'JetBrains Mono', monospace; font-weight: 800; font-size: 1.1rem; color: var(--accent-green); }
-        .terminal-clock { font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; color: var(--text-muted); background: rgba(255,255,255,0.03); padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border-color); }
+        .logo { font-family: 'JetBrains Mono', monospace; font-weight: 800; font-size: 1.1rem; color: var(--accent-green); display: flex; align-items: center; gap: 8px; }
+        .terminal-clock { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--text-muted); background: rgba(255,255,255,0.03); padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border-color); }
         
         .controls-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; padding: 15px 20px; background: var(--bg-panel); border-bottom: 1px solid var(--border-color); }
         .control-group label { display: block; font-size: 0.7rem; font-family: 'JetBrains Mono', monospace; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; }
-        .control-group input, .control-group select { width: 100%; background: var(--bg-base); border: 1px solid var(--border-color); color: var(--text-main); padding: 8px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; }
+        .control-group input, .control-group select { width: 100%; background: var(--bg-base); border: 1px solid var(--border-color); color: var(--text-main); padding: 8px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; outline: none; }
+        .control-group input:focus, .control-group select:focus { border-color: var(--accent-green); }
         
         .gauge-card { background: var(--bg-base); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; align-items: center; text-align: center; }
         .gauge-title { font-size: 0.65rem; font-family: 'JetBrains Mono', monospace; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
@@ -38,9 +39,9 @@
             cursor: pointer; 
             font-family: 'JetBrains Mono', monospace; 
             height: 40px; 
-            -webkit-tap-highlight-color: transparent;
             touch-action: manipulation;
             user-select: none;
+            transition: all 0.2s;
         }
         .autotrade-btn.active { 
             background: rgba(0,255,102,0.1); 
@@ -86,15 +87,13 @@
         }
         .advisor-box strong { color: var(--accent-green); font-family: 'JetBrains Mono', monospace; display: block; margin-bottom: 4px; font-size: 0.75rem; text-transform: uppercase; }
 
-        .institutional-table { width: 100%; border-collapse: collapse; background: var(--bg-panel); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); margin-bottom: 25px; }
-        .institutional-table th, .institutional-table td { padding: 12px 16px; text-align: left; font-size: 0.85rem; font-family: 'JetBrains Mono', monospace; border-bottom: 1px solid var(--border-color); }
-        .institutional-table th { background: rgba(255,255,255,0.03); color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; }
+        .institutional-table, .positions-table, .market-selector-table { width: 100%; border-collapse: collapse; background: var(--bg-panel); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); margin-bottom: 25px; }
+        .institutional-table th, .institutional-table td, .positions-table th, .positions-table td, .market-selector-table th, .market-selector-table td { padding: 12px 14px; text-align: left; font-size: 0.85rem; font-family: 'JetBrains Mono', monospace; border-bottom: 1px solid var(--border-color); }
+        .institutional-table th, .positions-table th { background: rgba(255,255,255,0.03); color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; }
+        .market-selector-table th { background: rgba(0,255,102,0.05); color: var(--accent-green); font-size: 0.75rem; text-transform: uppercase; }
         .status-badge { padding: 4px 10px; border-radius: 4px; font-weight: 800; font-size: 0.75rem; }
 
-        .market-selector-table { width: 100%; border-collapse: collapse; background: var(--bg-panel); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); margin-bottom: 25px; }
-        .market-selector-table th, .market-selector-table td { padding: 10px 14px; text-align: left; font-size: 0.85rem; font-family: 'JetBrains Mono', monospace; border-bottom: 1px solid var(--border-color); }
-        .market-selector-table th { background: rgba(0,255,102,0.05); color: var(--accent-green); font-size: 0.75rem; text-transform: uppercase; }
-        .market-row { cursor: pointer; transition: background 0.2s; }
+        .market-row { cursor: pointer; transition: background 0.2s; touch-action: manipulation; }
         .market-row:hover { background: rgba(255,255,255,0.02); }
         .market-row.selected { background: rgba(0,255,102,0.08); border-left: 3px solid var(--accent-green); }
 
@@ -125,13 +124,10 @@
             line-height: 1.35;
         }
         
-        .positions-table { width: 100%; border-collapse: collapse; background: var(--bg-panel); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); }
-        .positions-table th, .positions-table td { padding: 10px 14px; text-align: left; font-size: 0.85rem; font-family: 'JetBrains Mono', monospace; border-bottom: 1px solid var(--border-color); }
-        .positions-table th { background: rgba(255,255,255,0.02); color: var(--text-muted); font-size: 0.75rem; }
-        .btn-close { background: rgba(255,30,66,0.2); color: var(--accent-red); border: 1px solid var(--accent-red); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; font-weight: 700; }
+        .btn-close { background: rgba(255,30,66,0.2); color: var(--accent-red); border: 1px solid var(--accent-red); padding: 6px 12px; border-radius: 4px; cursor: pointer; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; font-weight: 700; touch-action: manipulation; }
         
         .footer-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: var(--bg-panel); border-top: 1px solid var(--border-color); display: flex; justify-content: space-around; padding: 12px; z-index: 1000; }
-        .nav-item { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-muted); text-decoration: none; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
+        .nav-item { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-muted); text-decoration: none; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; touch-action: manipulation; }
         .nav-item.active { color: var(--accent-green); }
     </style>
 </head>
@@ -252,7 +248,7 @@
                             <td>⭐ <strong>TUTTI</strong></td>
                             <td>Tutti i Mercati Globali</td>
                             <td>Crypto, Forex, Materie Prime, Azioni</td>
-                            <td>Live (2s/10s)</td>
+                            <td>Live (1s/10s)</td>
                             <td><span style="color:var(--accent-green)">Attivo (Default)</span></td>
                         </tr>
                         <tr class="market-row" onclick="filterMarket('Criptovalute Globali', this)">
@@ -281,7 +277,7 @@
             </div>
 
             <div class="section-title" style="margin-top: 25px;">
-                <span>📡 Scanner Globale con Consulenza Reale per Singolo Segnale</span>
+                <span>📡 Scanner Globale con Consulenza Reale e Sync al Millisecondo</span>
             </div>
             <div id="categorizedMarketsContainer">
                 <div style="text-align:center; padding: 40px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">
@@ -468,7 +464,7 @@
             if(tabName === 'positions') loadStatus();
         }
 
-        // GESTIONE ISTANTANEA DEL PULSANTE AUTO-TRADE (CLICK + TOUCHEFFECT)
+        // GESTIONE ISTANTANEA DEL PULSANTE AUTO-TRADE (CLICK + TOUCH)
         const toggleBtn = document.getElementById('autotradeToggle');
         if (toggleBtn) {
             const handleAutoTradeToggle = async (e) => {
@@ -586,17 +582,23 @@
             } catch(e) { console.error(e); }
         }
 
+        // --- SINCRONIZZAZIONE AL SECONDO CON IL NUOVO ENDPOINT LIVE-TICKER ---
         async function updateLivePricesOnly() {
-            try {
-                const res = await fetch('/api/live-prices');
-                const prices = await res.json();
-                for (const [symbol, price] of Object.entries(prices)) {
-                    const priceEl = document.getElementById(`price-${symbol}`);
-                    if (priceEl) {
-                        priceEl.innerText = price.toFixed(price > 5 ? 2 : 5);
+            const signals = cachedSignalData.signals || [];
+            if (signals.length === 0) return;
+
+            for (const sig of signals) {
+                try {
+                    const res = await fetch(`/api/live-ticker/${sig.symbol}`);
+                    const data = await res.json();
+                    if (data.success && data.lastPrice > 0) {
+                        const priceEl = document.getElementById(`price-${sig.symbol}`);
+                        if (priceEl) {
+                            priceEl.innerText = data.lastPrice.toFixed(data.lastPrice > 5 ? 2 : 5);
+                        }
                     }
-                }
-            } catch (e) { }
+                } catch (e) { }
+            }
         }
 
         async function loadSignals() {
@@ -722,7 +724,8 @@
         loadStatus();
         loadSignals();
 
-        setInterval(updateLivePricesOnly, 2000);
+        // Timer dedicati ad altissima frequenza per i prezzi live (1 secondo) e ricaricamento segnali (10 secondi)
+        setInterval(updateLivePricesOnly, 1000);
         setInterval(loadSignals, 10000);
         setInterval(loadStatus, 4000);
 
