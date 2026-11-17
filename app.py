@@ -276,8 +276,11 @@ def get_performance_analytics():
     current_month_str = datetime.now().strftime("%Y-%m")
     
     closed_trades = [h for h in execution_history if h.get("status") == "CLOSED"]
-    today_trades = [h for h in closed_trades if h.get("date"] == today_str]
-    month_trades = [h for h in closed_trades if h.get("month"] == current_month_str]
+    
+    # CORRETTO: h.get("date") invece di h.get("date"]
+    today_trades = [h for h in closed_trades if h.get("date") == today_str]
+    # CORRETTO: h.get("month") invece di h.get("month"]
+    month_trades = [h for h in closed_trades if h.get("month") == current_month_str]
     
     def calc_stats(trades):
         total = len(trades)
