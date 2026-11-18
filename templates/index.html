@@ -457,14 +457,19 @@
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
             document.getElementById(`tab-${tabName}`).classList.add('active');
             element.classList.add('active');
+            
             if(tabName === 'telemetry') {
                 loadTelemetry();
                 loadPerformanceAnalytics();
             }
-            if(tabName === 'positions') loadStatus();
+            if(tabName === 'positions') {
+                loadStatus();
+            }
+            if(tabName === 'signals') {
+                loadSignals();
+            }
         }
 
-        // GESTIONE ISTANTANEA DEL PULSANTE AUTO-TRADE (CLICK + TOUCH)
         const toggleBtn = document.getElementById('autotradeToggle');
         if (toggleBtn) {
             const handleAutoTradeToggle = async (e) => {
@@ -540,49 +545,55 @@
                 const res = await fetch('/api/analytics/performance');
                 const data = await res.json();
                 
-                const daily = data.daily;
-                document.getElementById('dailyPerfBody').innerHTML = `
-                    <tr>
-                        <td><strong>${daily.total_trades}</strong></td>
-                        <td><span style="color:var(--accent-green); font-weight:700;">${daily.win_pct}%</span> (${daily.wins} win)</td>
-                        <td><span style="color:var(--accent-red); font-weight:700;">${daily.loss_pct}%</span> (${daily.losses} loss)</td>
-                        <td style="color:var(--accent-green); font-weight:700;">+$${daily.won_amount}</td>
-                        <td style="color:var(--accent-red); font-weight:700;">-$${Math.abs(daily.lost_amount)}</td>
-                        <td style="color:${daily.net_pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}; font-weight:800;">$${daily.net_pnl}</td>
-                    </tr>
-                `;
+                if (data && data.daily) {
+                    const daily = data.daily;
+                    document.getElementById('dailyPerfBody').innerHTML = `
+                        <tr>
+                            <td><strong>${daily.total_trades}</strong></td>
+                            <td><span style="color:var(--accent-green); font-weight:700;">${daily.win_pct}%</span> (${daily.wins} win)</td>
+                            <td><span style="color:var(--accent-red); font-weight:700;">${daily.loss_pct}%</span> (${daily.losses} loss)</td>
+                            <td style="color:var(--accent-green); font-weight:700;">+$${daily.won_amount}</td>
+                            <td style="color:var(--accent-red); font-weight:700;">-$${Math.abs(daily.lost_amount)}</td>
+                            <td style="color:${daily.net_pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}; font-weight:800;">$${daily.net_pnl}</td>
+                        </tr>
+                    `;
+                }
 
-                const monthly = data.monthly;
-                document.getElementById('monthlyPerfBody').innerHTML = `
-                    <tr>
-                        <td><strong>${monthly.month}</strong></td>
-                        <td><strong>${monthly.total_trades}</strong></td>
-                        <td><span style="color:var(--accent-green); font-weight:700;">${monthly.win_pct}%</span> (${monthly.wins} win)</td>
-                        <td><span style="color:var(--accent-red); font-weight:700;">${monthly.loss_pct}%</span> (${monthly.losses} loss)</td>
-                        <td style="color:var(--accent-green); font-weight:700;">+$${monthly.won_amount}</td>
-                        <td style="color:var(--accent-red); font-weight:700;">-$${Math.abs(monthly.lost_amount)}</td>
-                        <td style="color:${monthly.net_pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}; font-weight:800;">$${monthly.net_pnl}</td>
-                    </tr>
-                `;
-            } catch(e) { console.error(e); }
+                if (data && data.monthly) {
+                    const monthly = data.monthly;
+                    document.getElementById('monthlyPerfBody').innerHTML = `
+                        <tr>
+                            <td><strong>${monthly.month}</strong></td>
+                            <td><strong>${monthly.total_trades}</strong></td>
+                            <td><span style="color:var(--accent-green); font-weight:700;">${monthly.win_pct}%</span> (${monthly.wins} win)</td>
+                            <td><span style="color:var(--accent-red); font-weight:700;">${monthly.loss_pct}%</span> (${monthly.losses} loss)</td>
+                            <td style="color:var(--accent-green); font-weight:700;">+$${monthly.won_amount}</td>
+                            <td style="color:var(--accent-red); font-weight:700;">-$${Math.abs(monthly.lost_amount)}</td>
+                            <td style="color:${monthly.net_pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}; font-weight:800;">$${monthly.net_pnl}</td>
+                        </tr>
+                    `;
+                }
+            } catch(e) { console.error("Errore performance:", e); }
         }
 
         async function loadTelemetry() {
             try {
                 const res = await fetch('/api/telemetry');
                 const data = await res.json();
-                document.getElementById('telemetryContainer').innerHTML = `
-                    <p>Scansioni Globali: <strong>${data.scans_count}</strong></p>
-                    <p>Ordini Attivi Totali: <strong>${data.total_executions}</strong></p>
-                    <p>PnL di Sessione: <strong style="color:${data.session_pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}">$${data.session_pnl}</strong></p>
-                    <hr style="border-color:var(--border-color); margin:10px 0;">
-                    <p style="color:var(--text-muted);">Ultimi Log delle Borse:</p>
-                    ${data.telemetry_logs.map(l => `<div>[${l.timestamp}] - Asset Scansionati: ${l.scanned} - Stato: ${l.status}</div>`).join('')}
-                `;
-            } catch(e) { console.error(e); }
+                const container = document.getElementById('telemetryContainer');
+                if (container && data) {
+                    container.innerHTML = `
+                        <p>Scansioni Globali: <strong>${data.scans_count || 0}</strong></p>
+                        <p>Ordini Attivi Totali: <strong>${data.total_executions || 0}</strong></p>
+                        <p>PnL di Sessione: <strong style="color:${(data.session_pnl || 0) >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}">$${data.session_pnl || 0.0}</strong></p>
+                        <hr style="border-color:var(--border-color); margin:10px 0;">
+                        <p style="color:var(--text-muted);">Ultimi Log delle Borse:</p>
+                        ${data.telemetry_logs && data.telemetry_logs.length > 0 ? data.telemetry_logs.map(l => `<div>[${l.timestamp}] - Asset Scansionati: ${l.scanned} - Stato: ${l.status}</div>`).join('') : '<div>Nessun log recente registrato.</div>'}
+                    `;
+                }
+            } catch(e) { console.error("Errore telemetria:", e); }
         }
 
-        // --- SINCRONIZZAZIONE AL SECONDO CON IL NUOVO ENDPOINT LIVE-TICKER ---
         async function updateLivePricesOnly() {
             const signals = cachedSignalData.signals || [];
             if (signals.length === 0) return;
@@ -724,7 +735,6 @@
         loadStatus();
         loadSignals();
 
-        // Timer dedicati ad altissima frequenza per i prezzi live (1 secondo) e ricaricamento segnali (10 secondi)
         setInterval(updateLivePricesOnly, 1000);
         setInterval(loadSignals, 10000);
         setInterval(loadStatus, 4000);
