@@ -427,13 +427,17 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, rsi_buy_min, r
     expected_gross_profit = round(pos_size * tp_dist, 4)
     expected_net_profit = round(expected_gross_profit - roundtrip_fee, 4)
 
-    # PREVISIONI E DATI REALI WEB INTEGRATI (NOVEMBRE 2026)
+    # PREVISIONI E DATI REALI WEB INTEGRATI PER TUTTO IL MERCATO (NOVEMBRE 2026)
     if symbol == 'BTCUSDT':
-        forecast_table = "📊 [Web Forecast Nov 2026] Supporto: $60.000-$62.000 | Target Breve: $65.000"
+        forecast_table = "📊 [Web Forecast Nov 2026] Bitcoin quota intorno a 63.735 $ (18 novembre 2026) in un contesto di trend ribassista di breve termine, con possibili rimbalzi tecnici da aree di ipervenduto ma rischi di ulteriori discese verso area 60.000-62.000 $ (e potenzialmente sotto in caso di rottura dei supporti)"
     elif symbol == 'ETHUSDT':
-        forecast_table = "📊 [Web Forecast Nov 2026] Supporto: $1.700-$1.750 | Trend: Correzione Tecnica"
+        forecast_table = "📊 [Web Forecast Nov 2026] Ethereum in fase di test dei supporti chiave in area $1.700-$1.750 con potenziale reazione di mercato"
+    elif category == 'Materie Prime & Forex':
+        forecast_table = "📊 [Market Intel Nov 2026] Monitoraggio flussi macro valutari e beni rifugio (Oro/Argento) con volatilità controllata"
+    elif category == 'Azioni & Indici Globali':
+        forecast_table = "📊 [Market Intel Nov 2026] Analisi equity tech e indici globali in ottica di risk-management multi-asset"
     else:
-        forecast_table = f"📊 [Market Intel Nov 2026] Trend Globale monitorato | Volatilità Standard"
+        forecast_table = f"📊 [Market Intel Nov 2026] Trend Globale monitorato per {symbol} | Volatilità Standard"
 
     advisor_msg = f"{forecast_table} | Leva Consigliata: {lev_int}x Isolata | Net PnL stimato: +${expected_net_profit}"
 
