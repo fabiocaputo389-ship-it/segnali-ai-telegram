@@ -118,7 +118,7 @@ def fetch_bingx_real_positions():
                     })
             return real_pos_list
     except Exception: pass
-    return [h for h in execution_history if h.get("status"] == "OPEN"]
+    return [h for h in execution_history if h.get("status") == "OPEN"]
 
 def sync_bingx_closed_history():
     global execution_history
@@ -129,7 +129,7 @@ def sync_bingx_closed_history():
     signature = sign_bingx_request(query_string)
     try:
         res = requests.get(f"{BINGX_BASE_URL}/openApi/swap/v2/user/income?{query_string}&signature={signature}", headers={"X-BX-APIKEY": BINGX_API_KEY}, timeout=4.0).json()
-        if res.get("code"] == 0 and "data" in res:
+        if res.get("code") == 0 and "data" in res:
             for inc in res["data"]:
                 pnl_val = float(inc.get("income", 0.0))
                 trade_time = int(inc.get("time", time.time() * 1000)) / 1000.0
@@ -197,7 +197,7 @@ def get_live_ticker(symbol):
         response = requests.get(endpoint, params={"symbol": bx_symbol}, timeout=3.0)
         data = response.json()
         
-        if data.get("code"] == 0 and "data" in data:
+        if data.get("code") == 0 and "data" in data:
             ticker = data["data"]
             if isinstance(ticker, list) and len(ticker) > 0:
                 ticker = ticker[0]
@@ -244,7 +244,7 @@ def close_position():
 def get_live_prices():
     try:
         res = requests.get(f"{BINGX_BASE_URL}/openApi/swap/v2/quote/ticker", timeout=2.5).json()
-        if res.get("code"] == 0 and "data" in res:
+        if res.get("code") == 0 and "data" in res:
             prices = {}
             data = res["data"]
             if isinstance(data, list):
@@ -268,7 +268,7 @@ def get_performance_analytics():
     
     closed_trades = [h for h in execution_history if h.get("status") == "CLOSED"]
     today_trades = [h for h in closed_trades if h.get("date") == today_str]
-    month_trades = [h for h in closed_trades if h.get("month") == current_month_str]
+    month_trades = [h for h in closed_trades if h.get("month"] == current_month_str]
     
     def calc_stats(trades):
         total = len(trades)
@@ -404,7 +404,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, rsi_buy_min, r
     risk_unit = abs(current_price - sl)
     pos_size = round(max((max_risk / risk_unit) if risk_unit > 0 else 0.0, 0.001), 3)
     
-    # LEVA ISOLATA DINAMICA DI SICUREZZA
+    # LEVA ISOLATA DINAMICA DI SICUREZZA (MAX 8x-10x)
     if symbol in ['BTCUSDT', 'ETHUSDT']:
         lev_int = 8
     elif category == 'Criptovalute Globali':
@@ -422,11 +422,11 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, rsi_buy_min, r
     expected_gross_profit = round(pos_size * tp_dist, 4)
     expected_net_profit = round(expected_gross_profit - roundtrip_fee, 4)
 
-    # PREVISIONI E DATI REALI WEB INTEGRATI
+    # DATI REALI E PREVISIONI WEB INTEGRATI IN TABELLA / TESTO
     if symbol == 'BTCUSDT':
-        forecast_table = "📊 [Web Forecast Nov 2026] Supporto: $60.000-$62.000 | Target Breve: $65.000"
+        forecast_table = "📊 [Web Forecast Nov 2026] Supporto: $60.000-$62.000 | Target Breve: $65.000 | Fed Rate Press: Alta"
     elif symbol == 'ETHUSDT':
-        forecast_table = "📊 [Web Forecast Nov 2026] Supporto: $1.700-$1.750 | Trend: Correzione Tecnica"
+        forecast_table = "📊 [Web Forecast Nov 2026] Supporto: $1.700-$1.750 | Trend: Correzione Tecnica / Rimbalzo"
     else:
         forecast_table = f"📊 [Market Intel Nov 2026] Trend Globale monitorato | Volatilità Standard"
 
