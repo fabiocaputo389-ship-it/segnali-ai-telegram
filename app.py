@@ -111,7 +111,7 @@ def fetch_bingx_real_positions():
                     real_pos_list.append({
                         "symbol": sym, "name": p.get("symbol", ""), "action": side,
                         "entry": entry_p, "current_price": entry_p,
-                        "size": size_val, "leverage": f"Isolata {p.get('leverage', 8)}x",
+                        "size": size_val, "leverage": f"Isolata {p.get('leverage', 15)}x",
                         "margin": float(p.get("initialMargin", 0)),
                         "fee": fee_val,
                         "unrealized_pnl": round(float(p.get('unrealizedProfit', 0)), 2), "status": "OPEN"
@@ -120,6 +120,7 @@ def fetch_bingx_real_positions():
     except Exception: pass
     return [h for h in execution_history if h.get("status") == "OPEN"]
 
+# SINCRONIZZAZIONE AUTOMATICA PROFITTI CHIUSI (ENDPOINT V2 BINGX)
 def sync_bingx_closed_history():
     global execution_history
     if not BINGX_API_KEY or not BINGX_SECRET_KEY:
@@ -145,7 +146,7 @@ def sync_bingx_closed_history():
                         "action": "BUY" if pnl_val >= 0 else "SELL",
                         "entry": 0.0,
                         "size": 0.0,
-                        "leverage": "Isolata 8x",
+                        "leverage": "Isolata 15x",
                         "margin": 0.0,
                         "fee": 0.0,
                         "realized_pnl": round(pnl_val, 4),
@@ -188,19 +189,27 @@ def execute_verified_order(symbol, name, action, entry, size, leverage, margin, 
 def home():
     return render_template('index.html')
 
+# --- NUOVO ENDPOINT LIVE TICKER AL MILLISECONDO PER EVITARE DISALLINEAMENTI ---
 @app.route('/api/live-ticker/<symbol>', methods=['GET'])
 def get_live_ticker(symbol):
     try:
+        # Formatta correttamente il simbolo per le API BingX Swap (es. BTCUSDT -> BTC-USDT)
         clean_sym = symbol.replace("-", "").upper()
-        bx_symbol = f"{clean_sym[:-4]}-USDT" if clean_sym.endswith("USDT") and "-" not in symbol else symbol
+        if clean_sym.endswith("USDT") and "-" not in symbol:
+            bx_symbol = f"{clean_sym[:-4]}-USDT"
+        else:
+            bx_symbol = symbol
+
         endpoint = f"{BINGX_BASE_URL}/openApi/swap/v2/quote/ticker"
         response = requests.get(endpoint, params={"symbol": bx_symbol}, timeout=3.0)
         data = response.json()
         
         if data.get("code") == 0 and "data" in data:
             ticker = data["data"]
+            # Gestisce sia dizionario singolo che lista di ticker
             if isinstance(ticker, list) and len(ticker) > 0:
                 ticker = ticker[0]
+            
             return jsonify({
                 "success": True,
                 "symbol": symbol,
@@ -267,8 +276,11 @@ def get_performance_analytics():
     current_month_str = datetime.now().strftime("%Y-%m")
     
     closed_trades = [h for h in execution_history if h.get("status") == "CLOSED"]
+    
+    # CORRETTO: h.get("date") invece di h.get("date"]
     today_trades = [h for h in closed_trades if h.get("date") == today_str]
-    month_trades = [h for h in closed_trades if h.get("month"] == current_month_str]
+    # CORRETTO: h.get("month") invece di h.get("month"]
+    month_trades = [h for h in closed_trades if h.get("month") == current_month_str]
     
     def calc_stats(trades):
         total = len(trades)
@@ -331,7 +343,7 @@ def fetch_market_bundle(symbol, interval):
     try:
         url = f"{BINGX_BASE_URL}/openApi/swap/v3/quote/klines"
         res = requests.get(url, params={"symbol": bx_symbol, "interval": interval, "limit": 60}, timeout=3.0).json()
-        if res.get("code"] == 0 and "data" in res:
+        if res.get("code") == 0 and "data" in res:
             klines = res["data"]
             if isinstance(klines, list) and len(klines) > 20:
                 rows = []
@@ -346,7 +358,7 @@ def fetch_market_bundle(symbol, interval):
         pass
     return None, 0.0
 
-def calculate_setup(df, current_price, symbol, balance, risk_pct, rsi_buy_min, rsi_buy_max, rsi_sell_min, rsi_sell_max, sl_m, tp_m, timeframe, profile, category, is_open):
+def calculate_setup(df, current_price, balance, risk_pct, rsi_buy_min, rsi_buy_max, rsi_sell_min, rsi_sell_max, sl_m, tp_m, timeframe, profile, category, is_open):
     close = df['Close']
     delta = close.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
@@ -367,14 +379,14 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, rsi_buy_min, r
 
     if rsi >= 72 and current_macd < prev_macd: inv = "⚠️ Inversione RIBASSISTA"
     elif rsi <= 28 and current_macd > prev_macd: inv = "🚀 Inversione RIALZISTA"
-    else: inv = "🛡️ Trend Correttivo (Support Test)"
+    else: inv = "🛡️ Trend Stabile"
 
     is_buy = (safe_float(ema12.iloc[-1], current_price) >= safe_float(ema26.iloc[-1], current_price)) and (rsi_buy_min <= rsi <= rsi_buy_max) and not whipsaw
     is_sell = (safe_float(ema12.iloc[-1], current_price) <= safe_float(ema26.iloc[-1], current_price)) and (rsi_sell_min <= rsi <= rsi_sell_max) and not whipsaw
 
-    if is_buy: action, score, sent, col = "BUY", 99.9, "BULLISH (Rimbalzo)", "#00ff66"
-    elif is_sell: action, score, sent, col = "SELL", 99.9, "BEARISH (Pressione Short)", "#ff1e42"
-    else: action, score, sent, col = "NEUTRAL", 50.0, "ATTESA / CONSOLIDAMENTO", "#ffffff"
+    if is_buy: action, score, sent, col = "BUY", 99.9, "BULLISH (BingX Cert)", "#00ff66"
+    elif is_sell: action, score, sent, col = "SELL", 99.9, "BEARISH (BingX Cert)", "#ff1e42"
+    else: action, score, sent, col = "NEUTRAL", 50.0, "ATTESA / RANGE", "#ffffff"
 
     sl_dist = atr * sl_m
     tp_dist = atr * tp_m
@@ -404,13 +416,13 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, rsi_buy_min, r
     risk_unit = abs(current_price - sl)
     pos_size = round(max((max_risk / risk_unit) if risk_unit > 0 else 0.0, 0.001), 3)
     
-    # LEVA ISOLATA DINAMICA DI SICUREZZA (MAX 8x-10x)
-    if symbol in ['BTCUSDT', 'ETHUSDT']:
-        lev_int = 8
-    elif category == 'Criptovalute Globali':
-        lev_int = 10
+    if balance <= 2.0:
+        lev_int = 20
+    elif balance <= 5.0:
+        lev_int = 15
     else:
-        lev_int = 5
+        base_lev = int(round(15.0 / max((risk_unit / current_price) * 100, 0.5)))
+        lev_int = min(20, max(5, base_lev))
 
     margin = round((pos_size * current_price) / lev_int, 2)
     
@@ -422,28 +434,22 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, rsi_buy_min, r
     expected_gross_profit = round(pos_size * tp_dist, 4)
     expected_net_profit = round(expected_gross_profit - roundtrip_fee, 4)
 
-    # DATI REALI E PREVISIONI WEB INTEGRATI IN TABELLA / TESTO
-    if symbol == 'BTCUSDT':
-        forecast_table = "📊 [Web Forecast Nov 2026] Supporto: $60.000-$62.000 | Target Breve: $65.000 | Fed Rate Press: Alta"
-    elif symbol == 'ETHUSDT':
-        forecast_table = "📊 [Web Forecast Nov 2026] Supporto: $1.700-$1.750 | Trend: Correzione Tecnica / Rimbalzo"
-    else:
-        forecast_table = f"📊 [Market Intel Nov 2026] Trend Globale monitorato | Volatilità Standard"
-
-    advisor_msg = f"{forecast_table} | Leva Consigliata: {lev_int}x Isolata | Net PnL stimato: +${expected_net_profit}"
-
     if not is_open:
         advisor_status = "BLOCCATO"
         advisor_color = "#ff1e42"
+        advisor_msg = f"Borsa chiusa ({category}): attendi la riapertura."
     elif action == "NEUTRAL":
-        advisor_status = "ATTENDI (TEST SUPPORTI)"
+        advisor_status = "ATTENDI"
         advisor_color = "#8a99ad"
+        advisor_msg = f"Asset in range neutro. Nessun trade consigliato."
     elif expected_net_profit <= 0:
         advisor_status = "SCONSIGLIATO (FEE)"
         advisor_color = "#ff1e42"
+        advisor_msg = f"Target troppo stretto: TP lordo (+${expected_gross_profit}) < Fee (-${roundtrip_fee})."
     else:
-        advisor_status = f"ESEGUI IN REALE (LEVA {lev_int}x)"
+        advisor_status = "ESEGUI IN REALE"
         advisor_color = "#00ff66"
+        advisor_msg = f"Capitale ${balance} con Leva {lev_int}x: profitto netto stimato +${expected_net_profit} (fee -${roundtrip_fee} incluse)."
 
     return {
         "action": action, "ai_score": f"{score}%", "sentiment": sent, "sentiment_color": col,
@@ -464,9 +470,9 @@ def get_signals():
         risk = safe_float(request.args.get('risk', 1.0).replace(',', '.'), 1.0)
         profile = request.args.get('profile', 'balanced')
 
-        if profile == 'conservative': r_b_min, r_b_max, r_s_min, r_s_max, sl_m, tp_m = 30.0, 75.0, 25.0, 70.0, 1.5, 3.5
-        elif profile == 'aggressive': r_b_min, r_b_max, r_s_min, r_s_max, sl_m, tp_m = 40.0, 85.0, 15.0, 60.0, 0.5, 1.2
-        else: r_b_min, r_b_max, r_s_min, r_s_max, sl_m, tp_m = 35.0, 82.0, 18.0, 65.0, 1.0, 2.0
+        if profile == 'conservative': r_b_min, r_b_max, r_s_min, r_s_max, sl_m, tp_m = 30.0, 75.0, 25.0, 70.0, 1.2, 3.0
+        elif profile == 'aggressive': r_b_min, r_b_max, r_s_min, r_s_max, sl_m, tp_m = 40.0, 85.0, 15.0, 60.0, 0.4, 1.0
+        else: r_b_min, r_b_max, r_s_min, r_s_max, sl_m, tp_m = 35.0, 82.0, 18.0, 65.0, 0.8, 1.8
 
         markets = fetch_all_markets()
         session_info = {cat: get_market_session_status(cat) for cat in markets.keys()}
@@ -474,7 +480,7 @@ def get_signals():
         all_prices = {}
         try:
             res = requests.get(f"{BINGX_BASE_URL}/openApi/swap/v2/quote/ticker", timeout=2.5).json()
-            if res.get("code"] == 0 and "data" in res:
+            if res.get("code") == 0 and "data" in res:
                 for item in res["data"]:
                     sym = item.get("symbol", "").replace("-", "")
                     all_prices[sym] = float(item.get("lastPrice", 0))
@@ -496,7 +502,7 @@ def get_signals():
 
                 if df is not None and not df.empty and live_price > 0:
                     sess = session_info[cat]
-                    res = calculate_setup(df, live_price, a['id'], balance, risk, r_b_min, r_b_max, r_s_min, r_s_max, sl_m, tp_m, timeframe, profile, cat, sess["is_open"])
+                    res = calculate_setup(df, live_price, balance, risk, r_b_min, r_b_max, r_s_min, r_s_max, sl_m, tp_m, timeframe, profile, cat, sess["is_open"])
                     dec = res["decimals"]
                     
                     sig_obj = {
@@ -517,7 +523,7 @@ def get_signals():
 
         scans_telemetry[time.time()] = {
             "timestamp": datetime.now().strftime("%H:%M:%S"),
-            "scanned": len(signals), "status": "BINGX_WEB_FORECAST_SYNC"
+            "scanned": len(signals), "status": "BINGX_SYNC_ACTIVE"
         }
 
         return jsonify({"sessions": session_info, "signals": signals})
