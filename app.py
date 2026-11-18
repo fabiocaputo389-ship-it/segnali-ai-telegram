@@ -245,25 +245,6 @@ def close_position():
             return jsonify({"success": True})
     return jsonify({"success": False}), 404
 
-@app.route('/api/live-prices', methods=['GET'])
-def get_live_prices():
-    try:
-        res = requests.get(f"{BINGX_BASE_URL}/openApi/swap/v2/quote/ticker", timeout=2.5).json()
-        if res.get("code") == 0 and "data" in res:
-            prices = {}
-            data = res["data"]
-            if isinstance(data, list):
-                for item in data:
-                    sym = item.get("symbol", "").replace("-", "")
-                    prices[sym] = float(item.get("lastPrice", 0))
-            elif isinstance(data, dict):
-                sym = data.get("symbol", "").replace("-", "")
-                prices[sym] = float(data.get("lastPrice", 0))
-            return jsonify(prices)
-    except Exception:
-        pass
-    return jsonify({})
-
 @app.route('/api/analytics/performance', methods=['GET'])
 def get_performance_analytics():
     global execution_history
@@ -409,7 +390,6 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, rsi_buy_min, r
     risk_unit = abs(current_price - sl)
     pos_size = round(max((max_risk / risk_unit) if risk_unit > 0 else 0.0, 0.001), 3)
     
-    # LEVA ISOLATA DINAMICA DI SICUREZZA (5x - 10x)
     if symbol in ['BTCUSDT', 'ETHUSDT']:
         lev_int = 8
     elif category == 'Criptovalute Globali':
@@ -427,9 +407,8 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, rsi_buy_min, r
     expected_gross_profit = round(pos_size * tp_dist, 4)
     expected_net_profit = round(expected_gross_profit - roundtrip_fee, 4)
 
-    # PREVISIONI E DATI REALI WEB INTEGRATI PER TUTTO IL MERCATO (NOVEMBRE 2026)
     if symbol == 'BTCUSDT':
-        forecast_table = "📊 [Web Forecast Nov 2026] Bitcoin quota intorno a 63.735 $ (18 novembre 2026) in un contesto di trend ribassista di breve termine, con possibili rimbalzi tecnici da aree di ipervenduto ma rischi di ulteriori discese verso area 60.000-62.000 $ (e potenzialmente sotto in caso di rottura dei supporti)"
+        forecast_table = "📊 [Web Forecast Nov 2026] Bitcoin quota intorno a 63.735 $ in un contesto di trend ribassista di breve termine, con possibili rimbalzi tecnici da aree di ipervenduto ma rischi di ulteriori discese verso area 60.000-62.000 $"
     elif symbol == 'ETHUSDT':
         forecast_table = "📊 [Web Forecast Nov 2026] Ethereum in fase di test dei supporti chiave in area $1.700-$1.750 con potenziale reazione di mercato"
     elif category == 'Materie Prime & Forex':
