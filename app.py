@@ -315,8 +315,8 @@ def fetch_all_markets():
         "Materie Prime & Forex": [
             {'id': 'PAXGUSDT', 'name': '🥇 Oro (Gold)'},
             {'id': 'XAGUSDT', 'name': '🥈 Argento (Silver)'},
-            {'id': 'WTIUSDT', 'name': '🛢️ Petrolio WTI (Crude Oil)'},
-            {'id': 'NATGASUSDT', 'name': '🔥 Gas Naturale (Natural Gas)'},
+            {'id': 'WTIUSDT', 'name': '🛢️ Petrolio WTI'},
+            {'id': 'NATGASUSDT', 'name': '🔥 Gas Naturale'},
             {'id': 'COPPERUSDT', 'name': '🥉 Rame (Copper)'},
             {'id': 'GBPUSDT', 'name': '💷 GBP/USD'},
             {'id': 'EURUSDT', 'name': '💶 EUR/USD'},
@@ -378,7 +378,7 @@ def fetch_market_bundle(symbol, interval):
             res = requests.get(url, params={"symbol": bx_symbol, "interval": interval, "limit": 60}, timeout=3.0).json()
             if res.get("code") == 0 and "data" in res:
                 klines = res["data"]
-                if isinstance(klines, list) and len(klines) >= 22:
+                if isinstance(klines, list) and len(klines) > 20:
                     rows = []
                     for k in klines:
                         if isinstance(k, list):
@@ -396,6 +396,36 @@ def fetch_market_bundle(symbol, interval):
         return df, ref_price
 
     return None, 0.0
+
+ASSET_FORECASTS = {
+    # Criptovalute
+    'BTCUSDT': "📊 [Forecast Nov 2026] BTC intorno a 63.735 $ con fase correttiva di breve termine: attenzione a rimbalzi tecnici dai supporti e possibili test in area 60.000-62.000 $",
+    'ETHUSDT': "📊 [Forecast Nov 2026] ETH in test dei supporti chiave in area $1.700-$1.750 con possibile reazione direzionale sui livelli",
+    'SOLUSDT': "📊 [Forecast Nov 2026] SOL ad alta beta: volatilità marcata al seguito di BTC/ETH, reazioni rapide su supporti e resistenze intraday",
+    'XRPUSDT': "📊 [Forecast Nov 2026] XRP con struttura direzionale legata ai flussi di liquidità crypto e rotture di range",
+    'BNBUSDT': "📊 [Forecast Nov 2026] BNB con tenuta relativa e movimenti più ordinati rispetto alle altcoin ad alta volatilità",
+    'ADAUSDT': "📊 [Forecast Nov 2026] ADA in fase di accumulazione/test supporti, reazioni tecniche da monitorare con SL stretto",
+    'DOGEUSDT': "📊 [Forecast Nov 2026] DOGE guidato da momentum e sentiment social/retail: evitare ingressi tardivi su spike",
+    'AVAXUSDT': "📊 [Forecast Nov 2026] AVAX sensibile ai flussi layer-1 e alla direzione generale del mercato crypto",
+    'LINKUSDT': "📊 [Forecast Nov 2026] LINK monitorato sulle aree di domanda/offerta con movimenti impulsivi",
+    'SUIUSDT': "📊 [Forecast Nov 2026] SUI ad alta reattività direzionale: privilegiare conferme di volume prima dell'ingresso",
+    # Materie Prime & Valute (Forex)
+    'PAXGUSDT': "📊 [Forecast Nov 2026] Oro (PAXG) sostenuto dalla domanda rifugio e dai tassi reali: reazioni affidabili sui livelli",
+    'XAGUSDT': "📊 [Forecast Nov 2026] Argento (XAG) con maggiore volatilità percentuale rispetto all'oro e movimenti impulsivi sui dati macro",
+    'WTIUSDT': "📊 [Forecast Nov 2026] Petrolio WTI sensibile a scorte energetiche, domanda globale e tensioni geopolitiche",
+    'NATGASUSDT': "📊 [Forecast Nov 2026] Gas Naturale ad altissima volatilità stagionale e meteorologica: gestione rigorosa del rischio",
+    'COPPERUSDT': "📊 [Forecast Nov 2026] Rame (Copper) barometro della manifattura globale e della crescita industriale",
+    'GBPUSDT': "📊 [Forecast Nov 2026] GBP/USD guidato dal differenziale tassi BoE/Fed e dai dati macro UK/USA",
+    'EURUSDT': "📊 [Forecast Nov 2026] EUR/USD sensibile alle indicazioni BCE/Fed, inflazione dell'Eurozona e flussi sul dollaro USA",
+    'USDJPY': "📊 [Forecast Nov 2026] USD/JPY influenzato dai rendimenti USA, politica monetaria BoJ e flussi risk-on/risk-off",
+    # Azioni & Indici Globali
+    'AAPLUSDT': "📊 [Forecast Nov 2026] Apple (AAPL) monitorata su trend tech, flussi istituzionali e livelli di supporto/resistenza",
+    'TSLAUSDT': "📊 [Forecast Nov 2026] Tesla (TSLA) ad elevata volatilità intraday con ampie escursioni direzionali",
+    'NVDAUSDT': "📊 [Forecast Nov 2026] Nvidia (NVDA) trainata dal comparto AI/semiconduttori con forte momentum direzionale",
+    'AMZNUSDT': "📊 [Forecast Nov 2026] Amazon (AMZN) seguita su trend cloud/e-commerce e tenuta dei livelli tecnici chiave",
+    'MSFTUSDT': "📊 [Forecast Nov 2026] Microsoft (MSFT) con andamento istituzionale legato al settore enterprise/AI",
+    'GOOGLUSDT': "📊 [Forecast Nov 2026] Alphabet (GOOGL) osservata su flussi big-tech e reazioni sui livelli tecnici",
+}
 
 def calculate_setup(df, current_price, symbol, balance, risk_pct, rsi_buy_min, rsi_buy_max, rsi_sell_min, rsi_sell_max, sl_m, tp_m, timeframe, profile, category, is_open):
     close = df['Close']
@@ -455,7 +485,6 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, rsi_buy_min, r
     risk_unit = abs(current_price - sl)
     pos_size = round(max((max_risk / risk_unit) if risk_unit > 0 else 0.0, 0.001), 3)
     
-    # LEVA ISOLATA DINAMICA DI SICUREZZA (5x - 10x)
     if symbol in ['BTCUSDT', 'ETHUSDT']:
         lev_int = 8
     elif category == 'Criptovalute Globali':
@@ -473,17 +502,10 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, rsi_buy_min, r
     expected_gross_profit = round(pos_size * tp_dist, 4)
     expected_net_profit = round(expected_gross_profit - roundtrip_fee, 4)
 
-    # PREVISIONI E DATI REALI WEB INTEGRATI PER TUTTO IL MERCATO (NOVEMBRE 2026)
-    if symbol == 'BTCUSDT':
-        forecast_table = "📊 [Web Forecast Nov 2026] Bitcoin quota intorno a 63.735 $ (18 novembre 2026) in un contesto di trend ribassista di breve termine, con possibili rimbalzi tecnici da aree di ipervenduto ma rischi di ulteriori discese verso area 60.000-62.000 $ (e potenzialmente sotto in caso di rottura dei supporti)"
-    elif symbol == 'ETHUSDT':
-        forecast_table = "📊 [Web Forecast Nov 2026] Ethereum in fase di test dei supporti chiave in area $1.700-$1.750 con potenziale reazione di mercato"
-    elif category == 'Materie Prime & Forex':
-        forecast_table = "📊 [Market Intel Nov 2026] Monitoraggio flussi macro valutari e beni rifugio (Oro/Argento) con volatilità controllata"
-    elif category == 'Azioni & Indici Globali':
-        forecast_table = "📊 [Market Intel Nov 2026] Analisi equity tech e indici globali in ottica di risk-management multi-asset"
-    else:
-        forecast_table = f"📊 [Market Intel Nov 2026] Trend Globale monitorato per {symbol} | Volatilità Standard"
+    forecast_table = ASSET_FORECASTS.get(
+        symbol,
+        f"📊 [Forecast Nov 2026] Monitoraggio globale {symbol} ({category}) con controllo volatilità e rischio"
+    )
 
     advisor_msg = f"{forecast_table} | Leva Consigliata: {lev_int}x Isolata | Net PnL stimato: +${expected_net_profit}"
 
