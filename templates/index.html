@@ -32,7 +32,7 @@
             color: var(--text-main);
             font-family: 'Inter', sans-serif;
             padding: 12px;
-            padding-bottom: 82px;
+            padding-bottom: 84px;
             line-height: 1.4;
         }
 
@@ -374,6 +374,31 @@
             flex-wrap: wrap;
         }
 
+        .chart-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.72rem;
+        }
+
+        .score-bar-track {
+            width: 100%;
+            height: 7px;
+            background: var(--bg-subcard);
+            border-radius: 999px;
+            overflow: hidden;
+            margin-top: 6px;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .score-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-blue), var(--accent-green));
+        }
+
         .bottom-nav {
             position: fixed;
             bottom: 0;
@@ -385,7 +410,7 @@
             grid-template-columns: repeat(4, 1fr);
             padding: 6px 4px;
             gap: 4px;
-            z-index: 60;
+            z-index: 999;
         }
 
         .nav-btn {
@@ -393,8 +418,8 @@
             border: 1px solid transparent;
             color: var(--text-muted);
             border-radius: 8px;
-            padding: 6px 4px;
-            font-size: 0.7rem;
+            padding: 7px 4px;
+            font-size: 0.72rem;
             font-weight: 700;
             cursor: pointer;
             display: flex;
@@ -405,8 +430,8 @@
 
         .nav-btn.active {
             color: var(--accent-green);
-            background: rgba(0, 255, 102, 0.08);
-            border-color: rgba(0, 255, 102, 0.3);
+            background: rgba(0, 255, 102, 0.09);
+            border-color: rgba(0, 255, 102, 0.35);
         }
 
         .tab-view {
@@ -427,9 +452,9 @@
             <div id="clockBadge" class="clock-box">--:--:-- |<br>--:--:-- UTC</div>
         </div>
         <div class="controls-row">
-            <button id="soundToggleBtn" type="button" class="btn btn-audio-on" onclick="toggleSignalSound()">🔊 VOCALE &amp; AUDIO: ON</button>
-            <button type="button" class="btn" onclick="testVoiceAlert()">🗣️ TEST VOCALE</button>
-            <button type="button" class="btn btn-refresh" onclick="loadAllLive(true)">↻ AGGIORNA</button>
+            <button id="soundToggleBtn" type="button" class="btn btn-audio-on">🔊 VOCALE &amp; AUDIO: ON</button>
+            <button id="testVoiceBtn" type="button" class="btn">🗣️ TEST VOCALE</button>
+            <button id="refreshAllBtn" type="button" class="btn btn-refresh">↻ AGGIORNA</button>
         </div>
     </div>
 
@@ -528,14 +553,14 @@
     <div id="tab-signals" class="tab-view active">
         <div class="panel">
             <div class="section-heading">
-                <span>📡 SEGNALI OPERATIVI LIVE (BLOCCATI 90s)</span>
+                <span>🧠 CERVELLO MATEMATICO EV+ &amp; SEGNALI LIVE (90s)</span>
                 <span id="lastScanLabel" class="mono" style="font-size:0.66rem; color:var(--text-muted);">LIVE • --:--:--</span>
             </div>
 
             <div class="grid-params">
                 <div>
                     <label for="marketSelect">Mercato</label>
-                    <select id="marketSelect" onchange="onMarketOrAssetChange()">
+                    <select id="marketSelect">
                         <option value="ALL" selected>Tutti i Mercati</option>
                         <option value="Criptovalute Globali">Criptovalute Globali</option>
                         <option value="Materie Prime & Forex">Materie Prime &amp; Forex</option>
@@ -544,13 +569,13 @@
                 </div>
                 <div>
                     <label for="assetSelect">Asset</label>
-                    <select id="assetSelect" onchange="onMarketOrAssetChange()">
+                    <select id="assetSelect">
                         <option value="ALL" selected>Tutti gli Asset</option>
                     </select>
                 </div>
                 <div>
                     <label for="profileSelect">Profilo</label>
-                    <select id="profileSelect" onchange="loadSignals(true)">
+                    <select id="profileSelect">
                         <option value="conservative">Conservativo</option>
                         <option value="balanced" selected>Bilanciato</option>
                         <option value="aggressive">Aggressivo</option>
@@ -558,7 +583,7 @@
                 </div>
                 <div>
                     <label for="timeframeSelect">Timeframe</label>
-                    <select id="timeframeSelect" onchange="loadSignals(true)">
+                    <select id="timeframeSelect">
                         <option value="5m">5m</option>
                         <option value="15m" selected>15m</option>
                         <option value="1h">1h</option>
@@ -566,15 +591,15 @@
                 </div>
                 <div>
                     <label for="balanceInput">Capitale ($)</label>
-                    <input id="balanceInput" type="number" step="0.5" min="1" value="2.0" onchange="loadSignals(true)">
+                    <input id="balanceInput" type="number" step="0.5" min="1" value="2.0">
                 </div>
                 <div>
                     <label for="riskInput">Rischio (%)</label>
-                    <input id="riskInput" type="number" step="0.25" min="0.25" max="20" value="1.0" onchange="loadSignals(true)">
+                    <input id="riskInput" type="number" step="0.25" min="0.25" max="20" value="1.0">
                 </div>
                 <div>
                     <label for="minScoreInput">Min Score (%)</label>
-                    <input id="minScoreInput" type="number" step="1" min="50" max="99" value="80" onchange="loadSignals(true)">
+                    <input id="minScoreInput" type="number" step="1" min="50" max="99" value="80">
                 </div>
             </div>
 
@@ -585,8 +610,8 @@
 
         <div class="panel">
             <div class="section-heading">
-                <span>🎯 TABELLA TRADER PROFESSIONISTA — LIVELLI, CANDELE TP, ANTI-FAKEOUT &amp; EV</span>
-                <select id="filterTakenSelect" style="max-width:220px;" onchange="renderMonitoringTable()">
+                <span>🎯 TABELLA TRADER PROFESSIONISTA — SCORE MERCATO, CANDELE TP &amp; EV+</span>
+                <select id="filterTakenSelect" style="max-width:220px;">
                     <option value="ALL" selected>Tutti gli Asset</option>
                     <option value="TAKEN">Solo Presi (BUY/SELL)</option>
                     <option value="NOT_TAKEN">Solo Non Presi</option>
@@ -598,11 +623,11 @@
                         <tr>
                             <th>Asset</th>
                             <th>Prezzo / Candele TP</th>
-                            <th>Certezza / Score</th>
+                            <th>Score Mercato / Certezza</th>
                             <th>Entry / SL / TP1</th>
                             <th>EV Netto / R:R</th>
                             <th>Anti-Fakeout &amp; Inversione</th>
-                            <th>Stato &amp; Trigger</th>
+                            <th>Stato &amp; Cervello EV+</th>
                         </tr>
                     </thead>
                     <tbody id="monitoringTableBody">
@@ -619,7 +644,7 @@
         <div class="panel">
             <div class="section-heading">
                 <span>💼 POSIZIONI REALI BINGX</span>
-                <button type="button" class="btn" onclick="loadPositionsStatus()">↻ AGGIORNA</button>
+                <button id="refreshPosBtn" type="button" class="btn">↻ AGGIORNA</button>
             </div>
             <div id="positionsContainer" class="telemetry-card">Caricamento posizioni reali BingX...</div>
         </div>
@@ -628,8 +653,8 @@
     <div id="tab-telemetry" class="tab-view">
         <div class="panel">
             <div class="section-heading">
-                <span>⚡ LOG TELEMETRIA LIVE</span>
-                <button type="button" class="btn" onclick="loadTelemetry()">↻ AGGIORNA</button>
+                <span>⚡ LOG TELEMETRIA &amp; SCORE MERCATI LIVE</span>
+                <button id="refreshTelBtn" type="button" class="btn">↻ AGGIORNA</button>
             </div>
             <div id="telemetryLogsBox" class="telemetry-card">Nessun log registrato.</div>
         </div>
@@ -638,18 +663,19 @@
     <div id="tab-charts" class="tab-view">
         <div class="panel">
             <div class="section-heading">
-                <span>📈 PREZZI LIVE &amp; TARGET PER ASSET</span>
+                <span>📈 SCORE ESATTO MERCATI, PREZZI LIVE &amp; TARGET</span>
+                <button id="refreshChartsBtn" type="button" class="btn">↻ AGGIORNA</button>
             </div>
-            <div id="chartsSummaryBox" class="telemetry-card">Seleziona un asset o osserva la tabella live.</div>
+            <div id="chartsSummaryBox">Caricamento score mercati e target...</div>
         </div>
     </div>
 
-    <div class="bottom-nav">
-        <button id="nav-signals" type="button" class="nav-btn active" onclick="switchTab('signals')">📊<span>Segnali</span></button>
-        <button id="nav-positions" type="button" class="nav-btn" onclick="switchTab('positions')">💼<span>Posizioni</span></button>
-        <button id="nav-telemetry" type="button" class="nav-btn" onclick="switchTab('telemetry')">⚡<span>Telemetria</span></button>
-        <button id="nav-charts" type="button" class="nav-btn" onclick="switchTab('charts')">📈<span>Grafici</span></button>
-    </div>
+    <nav class="bottom-nav" aria-label="Navigazione Terminale">
+        <button id="nav-signals" data-tab="signals" type="button" class="nav-btn active">📊<span>Segnali</span></button>
+        <button id="nav-positions" data-tab="positions" type="button" class="nav-btn">💼<span>Posizioni</span></button>
+        <button id="nav-telemetry" data-tab="telemetry" type="button" class="nav-btn">⚡<span>Telemetria</span></button>
+        <button id="nav-charts" data-tab="charts" type="button" class="nav-btn">📈<span>Grafici</span></button>
+    </nav>
 
     <script>
         const MARKET_ASSETS_CATALOG = {
@@ -699,6 +725,7 @@
             account: null
         };
 
+        let activeTabName = 'signals';
         let signalSoundEnabled = true;
         let audioCtx = null;
         const notifiedSignalKeys = new Set();
@@ -771,6 +798,7 @@
             populateAssetDropdown();
             renderSignalsAndMarkets();
             renderMonitoringTable();
+            renderChartsTab();
             loadSignals(true);
         }
 
@@ -785,13 +813,26 @@
         updateClocks();
 
         function switchTab(tabName) {
+            if (!tabName) return;
+            activeTabName = tabName;
             document.querySelectorAll('.tab-view').forEach(v => v.classList.remove('active'));
             document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
             document.getElementById(`tab-${tabName}`)?.classList.add('active');
             document.getElementById(`nav-${tabName}`)?.classList.add('active');
-            if (tabName === 'positions') loadPositionsStatus();
-            if (tabName === 'telemetry') loadTelemetry();
-            if (tabName === 'charts') renderChartsTab();
+
+            if (tabName === 'positions') {
+                loadPositionsStatus();
+            } else if (tabName === 'telemetry') {
+                loadTelemetry();
+            } else if (tabName === 'charts') {
+                renderChartsTab();
+                if (!(latestPayload.market_monitoring_table || []).length) {
+                    loadSignals(true);
+                }
+            } else if (tabName === 'signals') {
+                renderSignalsAndMarkets();
+                renderMonitoringTable();
+            }
         }
 
         function unlockAudioContext() {
@@ -850,11 +891,11 @@
             const certText = sig.certainty_text || `${Number(sig.certainty_pct || 80).toFixed(1)}%`;
             const etaText = computeTpCandleEstimate(sig).replace(/•/g, ',');
             const evText = `attesa matematica ${Number(sig.ev_net_usd || 0).toFixed(2)} dollari`;
-            const revText = sig.reversal_summary ? sig.reversal_summary.replace('→', 'verso') : '';
+            const scoreText = `score mercato ${Number(sig.exact_market_score || 0).toFixed(1)} percento`;
             const prev = signalSoundEnabled;
             signalSoundEnabled = true;
             playToneSequence(sig.action === 'SELL' ? [660, 440] : [587.33, 880], 0.11, 0.04, 'sine', 0.14);
-            speakItalianText(`Segnale ${dirLabel} su ${cleanName}, certezza ${certText}. Entry ${sig.entry}, SL ${sig.sl}, TP1 ${sig.tp1}. Durata candele TP: ${etaText}. ${evText}. ${revText}.`);
+            speakItalianText(`Segnale ${dirLabel} su ${cleanName}, ${scoreText}, certezza ${certText}. Entry ${sig.entry}, SL ${sig.sl}, TP1 ${sig.tp1}. Durata candele TP: ${etaText}. ${evText}.`);
             signalSoundEnabled = prev;
         }
 
@@ -867,7 +908,7 @@
             const prev = signalSoundEnabled;
             signalSoundEnabled = true;
             playToneSequence([587.33, 880, 1174.66], 0.11, 0.04, 'sine', 0.15);
-            speakItalianText('Modalità reale BingX attiva. Saldo, report giornaliero e mensile sincronizzati.');
+            speakItalianText('Cervello matematico e terminale BingX attivi.');
             signalSoundEnabled = prev;
         }
 
@@ -894,7 +935,7 @@
             if (newly.length > 0 && signalSoundEnabled) {
                 const first = newly[0];
                 playToneSequence(first.action === 'SELL' ? [660, 440] : [587.33, 880], 0.12, 0.04, 'sine', 0.15);
-                speakItalianText(`Nuovo segnale ${first.action} reale su ${first.symbol}. Target in ${first.duration || 'alcune candele'}.`);
+                speakItalianText(`Nuovo segnale ${first.action} con score ${first.exact_market_score || ''} su ${first.symbol}.`);
             }
         }
 
@@ -1045,10 +1086,14 @@
                 }
                 const logsBox = document.getElementById('telemetryLogsBox');
                 const logs = teleData.telemetry_logs || [];
+                const diagEntries = Object.entries(latestPayload.market_diagnostics || {});
+                const scoreHeader = diagEntries.length
+                    ? `<div style="margin-bottom:8px; color:var(--accent-gold); font-weight:800;">SCORE MERCATI AL MOMENTO:<br>${diagEntries.map(([k, v]) => `• ${k}: <strong>${Number(v.market_score || 0).toFixed(1)}%</strong> (${v.signals_count || 0} segnali)`).join('<br>')}</div>`
+                    : '';
                 if (logsBox) {
-                    logsBox.innerHTML = logs.length
+                    logsBox.innerHTML = scoreHeader + (logs.length
                         ? logs.map(l => `• [${l.timestamp}] ${l.status} — Segnali: ${l.signals_found}/${l.scanned}`).join('<br>')
-                        : 'Nessun log registrato.';
+                        : 'Nessun log registrato.');
                 }
             }
         }
@@ -1117,7 +1162,7 @@
             if (isFetchingSignals && !force) return;
             isFetchingSignals = true;
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 9000);
+            const timeoutId = setTimeout(() => controller.abort(), 8500);
 
             try {
                 const res = await fetch(buildQueryUrl(), { signal: controller.signal, cache: 'no-store' });
@@ -1125,11 +1170,13 @@
                 const heldSignals = mergeAndHoldSignals(Array.isArray(data.signals) ? data.signals : []);
 
                 latestPayload = {
-                    sessions: data.sessions || {},
+                    sessions: data.sessions || latestPayload.sessions,
                     signals: heldSignals,
-                    active_params: data.active_params || {},
-                    market_diagnostics: data.market_diagnostics || {},
-                    market_monitoring_table: Array.isArray(data.market_monitoring_table) ? data.market_monitoring_table : [],
+                    active_params: data.active_params || latestPayload.active_params,
+                    market_diagnostics: data.market_diagnostics || latestPayload.market_diagnostics,
+                    market_monitoring_table: Array.isArray(data.market_monitoring_table) && data.market_monitoring_table.length
+                        ? data.market_monitoring_table
+                        : latestPayload.market_monitoring_table,
                     performance: data.performance || latestPayload.performance,
                     telemetry: data.telemetry || latestPayload.telemetry,
                     account: (data.performance && data.performance.account) || latestPayload.account
@@ -1148,6 +1195,9 @@
                 const nowTime = new Date().toLocaleTimeString('it-IT', { hour12: false });
                 const scanLbl = document.getElementById('lastScanLabel');
                 if (scanLbl) scanLbl.textContent = `SYNC RETRY • ${nowTime}`;
+                renderSignalsAndMarkets();
+                renderMonitoringTable();
+                renderChartsTab();
             } finally {
                 clearTimeout(timeoutId);
                 isFetchingSignals = false;
@@ -1170,8 +1220,9 @@
             const monitored = latestPayload.market_monitoring_table || [];
 
             container.innerHTML = cats.map(cat => {
-                const sess = sessions[cat] || { status: 'APERTO', is_open: true, hours: '', badge_color: '#00ff66' };
+                const sess = sessions[cat] || { status: 'LIVE', is_open: true, hours: '', badge_color: '#00ff66' };
                 const diag = diagnostics[cat] || {};
+                const mScore = Number(diag.market_score || 0).toFixed(1);
                 const catSignals = allSignals.filter(s => s.category === cat && (selectedAsset === 'ALL' || s.symbol === selectedAsset));
                 const catCount = monitored.filter(r => r.category === cat && (selectedAsset === 'ALL' || r.symbol === selectedAsset)).length;
 
@@ -1180,7 +1231,7 @@
                         <div class="cat-header">
                             <div>
                                 <strong>${cat}</strong>
-                                <span class="mono" style="font-size:0.68rem; color:var(--text-muted); margin-left:6px;">${sess.hours || ''}</span>
+                                <span class="mono" style="font-size:0.68rem; color:var(--accent-blue); margin-left:6px;">Score: ${mScore}%</span>
                             </div>
                             <span class="status-pill" style="color:${sess.badge_color || '#00ff66'};">
                                 ${sess.status} • ${catSignals.length} BUY/SELL • ${catCount} ASSET
@@ -1188,8 +1239,8 @@
                         </div>
                         ${catSignals.length === 0 ? `
                             <div class="diag-box">
-                                <div style="color:var(--accent-gold); font-weight:800; margin-bottom:3px;">⚠️ NESSUN SEGNALE SU ${cat.toUpperCase()}</div>
-                                <div>${diag.reason || 'In attesa di setup reale confermato.'}</div>
+                                <div style="color:var(--accent-gold); font-weight:800; margin-bottom:3px;">🧠 CERVELLO EV+ — NESSUN SEGNALE SU ${cat.toUpperCase()}</div>
+                                <div>${diag.reason || 'Analisi matematica in corso per setup con EV netto > 0.'}</div>
                             </div>
                         ` : `
                             <div class="signals-grid">
@@ -1199,11 +1250,12 @@
                                     const tpTiming = computeTpCandleEstimate(sig);
                                     const certText = sig.certainty_text || `${Number(sig.certainty_pct || 80).toFixed(1)}%`;
                                     const evVal = Number(sig.ev_net_usd || 0);
+                                    const exScore = Number(sig.exact_market_score || 0).toFixed(1);
                                     return `
                                         <div class="signal-card" style="border-left:4px solid ${col};">
                                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
                                                 <strong>${sig.name}</strong>
-                                                <span class="mono" style="color:${col}; font-weight:800;">${sig.action} • ${sig.ai_score}</span>
+                                                <span class="mono" style="color:${col}; font-weight:800;">${sig.action} • Score ${exScore}%</span>
                                             </div>
                                             <div class="mono" style="font-size:0.72rem; margin-bottom:4px;">
                                                 Prezzo Live: <strong>${sig.price}</strong> | Blocco: <span style="color:var(--accent-gold);">${sig.remaining_sec || 90}s</span>
@@ -1267,6 +1319,7 @@
                     ? `<span class="tag-taken">PRESO (${r.action})</span>`
                     : `<span class="tag-filtered">NON PRESO (${r.action})</span>`;
                 const evVal = Number(r.ev_net_usd || 0);
+                const exScore = Number(r.exact_market_score || 0).toFixed(1);
                 return `
                     <tr>
                         <td>
@@ -1279,8 +1332,8 @@
                         </td>
                         <td class="mono" style="font-size:0.68rem;">
                             ${tag}<br>
-                            <span style="color:var(--accent-green);">Certezza: ${r.certainty_text || '0%'}</span><br>
-                            <span style="color:${actCol};">Score ${r.ai_score || '0%'}</span>
+                            <span style="color:var(--accent-blue); font-weight:800;">Score: ${exScore}%</span><br>
+                            <span style="color:${actCol};">Cert: ${r.certainty_text || '0%'}</span>
                             <div class="action-btns">
                                 <button type="button" class="btn btn-buy" onclick="executeTradeFromRow(${idx}, 'BUY')">BUY</button>
                                 <button type="button" class="btn btn-sell" onclick="executeTradeFromRow(${idx}, 'SELL')">SELL</button>
@@ -1310,14 +1363,45 @@
         function renderChartsTab() {
             const box = document.getElementById('chartsSummaryBox');
             if (!box) return;
-            const rows = latestPayload.market_monitoring_table || [];
-            if (!rows.length) {
-                box.textContent = 'Nessun dato live disponibile.';
-                return;
-            }
-            box.innerHTML = rows.slice(0, 12).map(r =>
-                `• <strong>${r.name}</strong> (${r.bingx_symbol}): Prezzo <strong>${r.price ?? 'N/D'}</strong> | TP1 <strong>${r.tp1 ?? 'N/D'}</strong> | ${computeTpCandleEstimate(r)}`
-            ).join('<br>');
+            const diagEntries = Object.entries(latestPayload.market_diagnostics || {});
+            const rows = (latestPayload.market_monitoring_table || [])
+                .slice()
+                .sort((a, b) => Number(b.exact_market_score || 0) - Number(a.exact_market_score || 0));
+
+            const marketCards = diagEntries.map(([cat, d]) => {
+                const sc = Math.max(0, Math.min(100, Number(d.market_score || 0)));
+                return `
+                    <div class="chart-card">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <strong>${cat}</strong>
+                            <span style="color:var(--accent-green); font-weight:800;">Score: ${sc.toFixed(1)}%</span>
+                        </div>
+                        <div class="score-bar-track"><div class="score-bar-fill" style="width:${sc}%;"></div></div>
+                    </div>
+                `;
+            }).join('');
+
+            const assetCards = rows.slice(0, 12).map(r => {
+                const sc = Math.max(0, Math.min(100, Number(r.exact_market_score || 0)));
+                const evVal = Number(r.ev_net_usd || 0);
+                return `
+                    <div class="chart-card">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <strong>${r.name} (${r.bingx_symbol})</strong>
+                            <span style="color:var(--accent-blue); font-weight:800;">Score ${sc.toFixed(1)}% • ${r.action}</span>
+                        </div>
+                        <div style="margin-top:4px; color:var(--text-muted);">
+                            Prezzo: <strong style="color:var(--text-main);">${r.price ?? 'N/D'}</strong> |
+                            TP1: <strong style="color:var(--accent-green);">${r.tp1 ?? 'N/D'}</strong> |
+                            EV: <strong style="color:${evVal > 0 ? 'var(--accent-green)' : 'var(--accent-red)'};">${evVal >= 0 ? '+' : '-'}$${Math.abs(evVal).toFixed(4)}</strong>
+                        </div>
+                        <div style="margin-top:3px; color:var(--accent-gold);">${computeTpCandleEstimate(r)}</div>
+                        <div class="score-bar-track"><div class="score-bar-fill" style="width:${sc}%;"></div></div>
+                    </div>
+                `;
+            }).join('');
+
+            box.innerHTML = (marketCards + assetCards) || '<div class="telemetry-card">Nessun dato live disponibile.</div>';
         }
 
         async function loadPositionsStatus() {
@@ -1352,11 +1436,41 @@
             await Promise.all([loadSignals(force), loadTelemetry(), loadBingXLiveAccount()]);
         }
 
-        document.getElementById('balanceInput')?.addEventListener('input', () => {
-            balanceManuallyEdited = true;
-        });
+        function bindUIEvents() {
+            document.querySelectorAll('.bottom-nav .nav-btn').forEach(btn => {
+                btn.addEventListener('click', (ev) => {
+                    ev.preventDefault();
+                    const targetTab = btn.getAttribute('data-tab');
+                    switchTab(targetTab);
+                });
+            });
 
+            document.getElementById('soundToggleBtn')?.addEventListener('click', toggleSignalSound);
+            document.getElementById('testVoiceBtn')?.addEventListener('click', testVoiceAlert);
+            document.getElementById('refreshAllBtn')?.addEventListener('click', () => loadAllLive(true));
+            document.getElementById('refreshPosBtn')?.addEventListener('click', loadPositionsStatus);
+            document.getElementById('refreshTelBtn')?.addEventListener('click', loadTelemetry);
+            document.getElementById('refreshChartsBtn')?.addEventListener('click', () => {
+                renderChartsTab();
+                loadSignals(true);
+            });
+
+            document.getElementById('marketSelect')?.addEventListener('change', onMarketOrAssetChange);
+            document.getElementById('assetSelect')?.addEventListener('change', onMarketOrAssetChange);
+            document.getElementById('profileSelect')?.addEventListener('change', () => loadSignals(true));
+            document.getElementById('timeframeSelect')?.addEventListener('change', () => loadSignals(true));
+            document.getElementById('balanceInput')?.addEventListener('change', () => loadSignals(true));
+            document.getElementById('balanceInput')?.addEventListener('input', () => {
+                balanceManuallyEdited = true;
+            });
+            document.getElementById('riskInput')?.addEventListener('change', () => loadSignals(true));
+            document.getElementById('minScoreInput')?.addEventListener('change', () => loadSignals(true));
+            document.getElementById('filterTakenSelect')?.addEventListener('change', renderMonitoringTable);
+        }
+
+        bindUIEvents();
         populateAssetDropdown();
+        renderChartsTab();
         loadAllLive(true);
         setInterval(() => loadSignals(false), 5000);
         setInterval(() => {
