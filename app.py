@@ -1,6 +1,5 @@
 import hashlib
 import hmac
-import json
 import math
 import os
 import threading
@@ -22,6 +21,7 @@ DEFAULT_DEMO_MODE = os.getenv("BINGX_DEMO_MODE", "true").lower() in ("1", "true"
 
 DIRECTION_COOLDOWN_SEC = 120.0
 _LAST_CONFIRMED_DIRECTION = {}
+_LIVE_PRICE_CACHE = {}
 
 STATE_LOCK = threading.Lock()
 STATE = {
@@ -33,6 +33,7 @@ STATE = {
     "positions": [],
     "history": [],
     "closed_trades": [],
+    "last_bingx_sync": 0.0,
 }
 
 MARKET_CATALOG = {
@@ -165,16 +166,11 @@ def compute_order_quantity(bx_symbol: str, price: float, raw_qty: float, balance
 
 def get_session_statuses():
     now_utc = datetime.now(timezone.utc)
-    weekday = now_utc.weekday()  # 0=Mon .. 6=Sun
+    weekday = now_utc.weekday()
     hour_float = now_utc.hour + now_utc.minute / 60.0
 
-    # Cripto sempre aperto 24/7
     crypto_open = True
-
-    # Materie prime & Forex: aperto Lun-Ven, chiuso weekend
     commodities_open = weekday < 5
-
-    # Azioni & Indici USA (NYSE/NASDAQ 14:30 - 21:00 UTC Lun-Ven)
     equities_open = (weekday < 5) and (14.5 <= hour_float <= 21.0)
 
     return {
@@ -199,7 +195,69 @@ def get_session_statuses():
     }
 
 
+def sign_bingx_query(params: dict) -> str:
+    query_str = urlencode(sorted(params.items()))
+    sig = hmac.new(BINGX_API_SECRET.encode("utf-8"), query_str.encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"{query_str}&signature={sig}"
+
+
+def sync_bingx_closed_income_if_configured():
+    if not (BINGX_API_KEY and BINGX_API_SECRET):
+        return
+    with STATE_LOCK:
+        if time.time() - STATE.get("last_bingx_sync", 0.0) < 15.0:
+            return
+        STATE["last_bingx_sync"] = time.time()
+
+    try:
+        ts_ms = int(time.time() * 1000)
+        start_ms = ts_ms - (30 * 86400 * 1000)
+        q = sign_bingx_query({"timestamp": ts_ms, "startTime": start_ms, "limit": 100})
+        url = f"{BINGX_BASE_URL}/openApi/swap/v2/user/income?{q}"
+        resp = requests.get(url, headers={"X-BX-APIKEY": BINGX_API_KEY}, timeout=3.5)
+        if resp.status_code != 200:
+            return
+        rows = resp.json().get("data") or []
+        if not isinstance(rows, list):
+            return
+
+        synced = []
+        for item in rows:
+            if not isinstance(item, dict):
+                continue
+            inc_type = str(item.get("incomeType") or "").upper()
+            if inc_type not in ("REALIZED_PNL", "PROFIT", "TRADE_PNL"):
+                continue
+            pnl_val = safe_float(item.get("income"), 0.0)
+            if pnl_val == 0.0:
+                continue
+            t_ms = int(safe_float(item.get("time"), ts_ms))
+            dt_utc = datetime.fromtimestamp(t_ms / 1000.0, tz=timezone.utc)
+            trade_id = str(item.get("tranId") or item.get("orderId") or f"bx_{t_ms}_{pnl_val}")
+            synced.append({
+                "id": trade_id,
+                "symbol": canonicalize_symbol_key(item.get("symbol") or "BTCUSDT"),
+                "realized_pnl": round(pnl_val, 4),
+                "closed_date": dt_utc.strftime("%Y-%m-%d"),
+                "closed_month": dt_utc.strftime("%Y-%m"),
+                "closed_at": dt_utc.strftime("%Y-%m-%d %H:%M:%S UTC"),
+            })
+
+        if synced:
+            with STATE_LOCK:
+                existing_ids = {t.get("id") for t in STATE["closed_trades"]}
+                for tr in synced:
+                    if tr["id"] not in existing_ids:
+                        STATE["closed_trades"].append(tr)
+                        existing_ids.add(tr["id"])
+    except Exception:
+        pass
+
+
 def fetch_bingx_ticker(bx_symbol: str):
+    cached = _LIVE_PRICE_CACHE.get(bx_symbol)
+    if cached and (time.time() - cached["ts"]) < 2.0:
+        return cached["price"]
     try:
         url = f"{BINGX_BASE_URL}/openApi/swap/v2/quote/ticker"
         resp = requests.get(url, params={"symbol": bx_symbol}, timeout=2.5)
@@ -211,6 +269,7 @@ def fetch_bingx_ticker(bx_symbol: str):
             if isinstance(data, dict):
                 price = safe_float(data.get("lastPrice"), 0.0)
                 if price > 0:
+                    _LIVE_PRICE_CACHE[bx_symbol] = {"price": price, "ts": time.time()}
                     return price
     except Exception:
         pass
@@ -266,7 +325,7 @@ def generate_market_dataframe(meta: dict, timeframe: str, live_price_override=No
             klines_df.iloc[-1, klines_df.columns.get_loc("Low")] = min(klines_df.iloc[-1]["Low"], live_price_override)
         return klines_df, safe_float(klines_df["Close"].iloc[-1], base)
 
-    seed_val = int(hashlib.md5(f"{symbol}_{timeframe}_{int(time.time() // 20)}".encode()).hexdigest()[:8], 16)
+    seed_val = int(hashlib.md5(f"{symbol}_{timeframe}_{int(time.time() // 15)}".encode()).hexdigest()[:8], 16)
     rng = np.random.default_rng(seed_val)
     n = 75
     drift = 0.0006 if seed_val % 2 == 0 else -0.0006
@@ -842,6 +901,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
 
 
 def build_performance_payload():
+    sync_bingx_closed_income_if_configured()
     now_utc = datetime.now(timezone.utc)
     today_key = now_utc.strftime("%Y-%m-%d")
     month_key = now_utc.strftime("%Y-%m")
@@ -882,6 +942,21 @@ def build_performance_payload():
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.route("/api/live-ticker", methods=["GET"])
+def api_live_ticker():
+    sym = canonicalize_symbol_key(request.args.get("symbol", "BTCUSDT"))
+    meta = ASSET_LOOKUP.get(sym, {"symbol": sym, "bx": resolve_bingx_symbol(sym)[0], "base_price": 100.0})
+    live_p = fetch_bingx_ticker(meta["bx"])
+    price_out = live_p if (live_p and live_p > 0) else meta["base_price"]
+    return jsonify({
+        "symbol": sym,
+        "bingx_symbol": meta["bx"],
+        "price": price_out,
+        "live": bool(live_p and live_p > 0),
+        "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
+    })
 
 
 @app.route("/api/signals", methods=["GET"])
@@ -1057,6 +1132,37 @@ def api_execute_manual():
         STATE["history"].insert(0, {**pos_item, "status": "APERTO"})
 
     return jsonify({"success": True, "mode": "DEMO/PAPER" if STATE["demo_mode"] else "BINGX LIVE", "position": pos_item})
+
+
+@app.route("/api/autotrade/close-position", methods=["POST"])
+def api_close_position():
+    body = request.get_json(silent=True) or {}
+    pos_id = body.get("id")
+    realized_pnl = safe_float(body.get("realized_pnl"), 0.0)
+    now_dt = datetime.now(timezone.utc)
+
+    closed_item = None
+    with STATE_LOCK:
+        remaining = []
+        for p in STATE["positions"]:
+            if not closed_item and (pos_id is None or p.get("id") == pos_id):
+                closed_item = {
+                    **p,
+                    "status": "CHIUSO",
+                    "realized_pnl": round(realized_pnl, 4),
+                    "closed_date": now_dt.strftime("%Y-%m-%d"),
+                    "closed_month": now_dt.strftime("%Y-%m"),
+                    "closed_at": now_dt.strftime("%Y-%m-%d %H:%M:%S UTC"),
+                }
+            else:
+                remaining.append(p)
+        STATE["positions"] = remaining
+        if closed_item:
+            STATE["closed_trades"].append(closed_item)
+            STATE["session_pnl"] = round(STATE["session_pnl"] + realized_pnl, 4)
+            STATE["history"].insert(0, closed_item)
+
+    return jsonify({"success": True, "closed": closed_item, "performance": build_performance_payload()})
 
 
 @app.route("/api/autotrade/status", methods=["GET"])
