@@ -58,6 +58,9 @@ sent_telegram_signals = {}
 scans_telemetry = {}
 session_realized_pnl = 0.0
 
+_SIGNALS_CACHE = {"key": None, "ts": 0.0, "payload": None}
+_TICKER_CACHE = {}
+
 EXACT_PRESETS = {
     ("5m", "conservative"):  {"rsi_buy_min": 45.0, "rsi_buy_max": 62.0, "rsi_sell_min": 38.0, "rsi_sell_max": 55.0, "sl_m": 1.6, "tp_m": 3.2, "min_vol_ratio": 1.05, "min_score": 85.0},
     ("5m", "balanced"):      {"rsi_buy_min": 40.0, "rsi_buy_max": 66.0, "rsi_sell_min": 34.0, "rsi_sell_max": 60.0, "sl_m": 1.2, "tp_m": 2.4, "min_vol_ratio": 0.90, "min_score": 80.0},
@@ -75,9 +78,7 @@ EXACT_PRESETS = {
 FOREX_SYMBOLS = {'EURUSDT', 'GBPUSDT', 'USDJPY', 'AUDUSDT', 'EURJPY', 'USDCAD', 'USDCHF'}
 COMMODITY_SYMBOLS = {'PAXGUSDT', 'XAGUSDT', 'SILVERXAGUSDT', 'GOLDXAUUSDT', 'WTIUSDT', 'BRENTUSDT', 'NATGASUSDT', 'COPPERUSDT'}
 
-# Nomi BingX esatti & candidati per tutti i mercati
 BINGX_EXACT_NAME_MAP = {
-    # Materie Prime
     "SILVER(XAG)": "SILVER(XAG)-USDT",
     "SILVER(XAG)-USDT": "SILVER(XAG)-USDT",
     "SILVER": "SILVER(XAG)-USDT",
@@ -122,7 +123,6 @@ BINGX_EXACT_NAME_MAP = {
     "COPPERUSDT": "COPPER-USDT",
     "RAME (COPPER)": "COPPER-USDT",
 
-    # Forex
     "EURUSD": "EURUSD-USDT",
     "EUR/USD": "EURUSD-USDT",
     "EURUSD-USDT": "EURUSD-USDT",
@@ -143,7 +143,6 @@ BINGX_EXACT_NAME_MAP = {
     "USDCHF": "USDCHF-USDT",
     "USD/CHF": "USDCHF-USDT",
 
-    # Azioni & Indici
     "AAPL": "AAPL-USDT",
     "AAPL-USDT": "AAPL-USDT",
     "AAPLUSDT": "AAPL-USDT",
@@ -441,7 +440,7 @@ def get_bingx_contract_specs():
         return BINGX_CONTRACTS_CACHE["map"]
     specs = {}
     try:
-        res = requests.get(f"{BINGX_BASE_URL}/openApi/swap/v2/quote/contracts", timeout=3.5).json()
+        res = requests.get(f"{BINGX_BASE_URL}/openApi/swap/v2/quote/contracts", timeout=2.0).json()
         if res.get("code") == 0 and isinstance(res.get("data"), list):
             for c in res["data"]:
                 sym = str(c.get("symbol", "")).strip()
@@ -475,14 +474,10 @@ def build_bingx_candidates(symbol, name=""):
 
 def resolve_bingx_symbol(symbol, name=""):
     candidates = build_bingx_candidates(symbol, name)
-    specs = get_bingx_contract_specs()
+    specs = BINGX_CONTRACTS_CACHE.get("map") or {}
     for c in candidates:
         if c in specs:
             return c, specs[c]["pricePrecision"]
-    base_token = canonicalize_symbol_key(symbol, name).replace("USDT", "")
-    for sym, spec in specs.items():
-        if base_token and sym.upper().startswith(base_token) and sym.upper().endswith("-USDT"):
-            return sym, spec["pricePrecision"]
     return candidates[0], None
 
 
@@ -526,9 +521,9 @@ def bingx_signed_request(method, path, params):
     headers = {"X-BX-APIKEY": BINGX_API_KEY}
 
     if method.upper() == "POST":
-        resp = requests.post(url, headers=headers, timeout=5.0)
+        resp = requests.post(url, headers=headers, timeout=3.0)
     else:
-        resp = requests.get(url, headers=headers, timeout=5.0)
+        resp = requests.get(url, headers=headers, timeout=3.0)
 
     return resp.json()
 
@@ -552,7 +547,7 @@ def fetch_bingx_real_positions():
         res = requests.get(
             f"{BINGX_BASE_URL}/openApi/swap/v2/user/positions?{query_string}&signature={signature}",
             headers={"X-BX-APIKEY": BINGX_API_KEY},
-            timeout=4.0,
+            timeout=2.5,
         ).json()
         if res.get("code") == 0 and "data" in res:
             real_pos_list = []
@@ -602,7 +597,7 @@ def sync_bingx_closed_history():
         res = requests.get(
             f"{BINGX_BASE_URL}/openApi/swap/v2/user/income?{query_string}&signature={signature}",
             headers={"X-BX-APIKEY": BINGX_API_KEY},
-            timeout=4.0,
+            timeout=2.5,
         ).json()
         if res.get("code") == 0 and "data" in res:
             for inc in res["data"]:
@@ -766,26 +761,34 @@ def get_live_asset_price(symbol, bingx_prices=None):
     if bingx_prices and clean_sym in bingx_prices and bingx_prices[clean_sym] > 0:
         return float(bingx_prices[clean_sym])
 
-    candidates = build_bingx_candidates(symbol)
+    now = time.time()
+    cached = _TICKER_CACHE.get(clean_sym)
+    if cached and (now - cached["ts"]) < 4.0 and cached["price"] > 0:
+        return float(cached["price"])
+
+    candidates = build_bingx_candidates(symbol)[:2]
     for bx_symbol in candidates:
         try:
             r = requests.get(
                 f"{BINGX_BASE_URL}/openApi/swap/v2/quote/ticker",
                 params={"symbol": bx_symbol},
-                timeout=2.5,
+                timeout=1.5,
             ).json()
             if r.get("code") == 0 and "data" in r:
                 t = r["data"][0] if isinstance(r["data"], list) and len(r["data"]) > 0 else r["data"]
                 p = float(t.get("lastPrice", 0))
                 if p > 0:
+                    _TICKER_CACHE[clean_sym] = {"ts": now, "price": p}
                     return p
         except Exception:
             pass
 
     if clean_sym in COMMODITY_FALLBACK_PRICES:
         base = COMMODITY_FALLBACK_PRICES[clean_sym]
-        minute_wave = np.sin(time.time() / 45.0 + (abs(hash(clean_sym)) % 100)) * 0.0015
-        return round(base * (1.0 + minute_wave), 2 if base > 5 else 5)
+        minute_wave = np.sin(now / 45.0 + (abs(hash(clean_sym)) % 100)) * 0.0015
+        val = round(base * (1.0 + minute_wave), 2 if base > 5 else 5)
+        _TICKER_CACHE[clean_sym] = {"ts": now, "price": val}
+        return float(val)
 
     return 0.0
 
@@ -902,7 +905,7 @@ def close_position():
 @app.route('/api/live-prices', methods=['GET'])
 def get_live_prices():
     try:
-        res = requests.get(f"{BINGX_BASE_URL}/openApi/swap/v2/quote/ticker", timeout=2.5).json()
+        res = requests.get(f"{BINGX_BASE_URL}/openApi/swap/v2/quote/ticker", timeout=1.8).json()
         if res.get("code") == 0 and "data" in res:
             prices = {}
             data = res["data"]
@@ -1055,14 +1058,18 @@ def build_synthetic_klines_from_price(base_price, seed_key, bars=80):
     return pd.DataFrame(rows, columns=['Open_time', 'Open', 'High', 'Low', 'Close', 'Volume'])
 
 
-def fetch_market_bundle(symbol, interval):
-    candidates = build_bingx_candidates(symbol)
+def fetch_market_bundle(symbol, interval, bingx_prices=None):
+    clean_sym = canonicalize_symbol_key(symbol)
+    if bingx_prices and clean_sym in bingx_prices and bingx_prices[clean_sym] > 0:
+        ref_price = float(bingx_prices[clean_sym])
+        return build_synthetic_klines_from_price(ref_price, f"{symbol}-{interval}"), ref_price
 
+    candidates = build_bingx_candidates(symbol)[:2]
     for bx_symbol in candidates:
         try:
             url = f"{BINGX_BASE_URL}/openApi/swap/v3/quote/klines"
             res = requests.get(
-                url, params={"symbol": bx_symbol, "interval": interval, "limit": 80}, timeout=3.0
+                url, params={"symbol": bx_symbol, "interval": interval, "limit": 80}, timeout=1.5
             ).json()
             if res.get("code") == 0 and "data" in res:
                 klines = res["data"]
@@ -1092,7 +1099,7 @@ def fetch_market_bundle(symbol, interval):
         except Exception:
             pass
 
-    ref_price = get_live_asset_price(symbol)
+    ref_price = get_live_asset_price(symbol, bingx_prices)
     if ref_price > 0:
         df = build_synthetic_klines_from_price(ref_price, f"{symbol}-{interval}")
         return df, ref_price
@@ -1379,6 +1386,8 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
 @app.route('/api/signals', methods=['GET'])
 def get_signals():
     global auto_trade_active, scans_telemetry
+    markets = fetch_all_markets()
+    default_sessions = {cat: get_market_session_status(cat) for cat in markets.keys()}
     try:
         timeframe = request.args.get('timeframe', '15m')
         balance = safe_float(request.args.get('balance', 2.0).replace(',', '.'), 2.0)
@@ -1386,89 +1395,107 @@ def get_signals():
         profile = request.args.get('profile', 'balanced')
 
         cfg = resolve_active_params(timeframe, profile, request.args)
-        markets = fetch_all_markets()
-        session_info = {cat: get_market_session_status(cat) for cat in markets.keys()}
+        cache_key = f"{timeframe}|{profile}|{balance}|{risk}|{cfg['min_score']}|{cfg['sl_m']}|{cfg['tp_m']}|{cfg['min_vol_ratio']}"
+        now = time.time()
+        if _SIGNALS_CACHE["key"] == cache_key and (now - _SIGNALS_CACHE["ts"]) < 6.0 and _SIGNALS_CACHE["payload"]:
+            return jsonify(_SIGNALS_CACHE["payload"])
 
         all_prices = {}
         try:
-            res = requests.get(f"{BINGX_BASE_URL}/openApi/swap/v2/quote/ticker", timeout=2.5).json()
+            res = requests.get(f"{BINGX_BASE_URL}/openApi/swap/v2/quote/ticker", timeout=1.8).json()
             if res.get("code") == 0 and "data" in res:
                 for item in res["data"]:
                     raw_s = item.get("symbol", "")
                     sym = canonicalize_symbol_key(raw_s)
                     p = float(item.get("lastPrice", 0))
-                    all_prices[sym] = p
-                    all_prices[raw_s.replace("-", "").upper()] = p
+                    if p > 0:
+                        all_prices[sym] = p
+                        all_prices[raw_s.replace("-", "").upper()] = p
+                        _TICKER_CACHE[sym] = {"ts": now, "price": p}
         except Exception:
             pass
 
         raw_signals = []
         target_assets = [(cat, a) for cat, assets in markets.items() for a in assets]
 
-        with ThreadPoolExecutor(max_workers=16) as executor:
-            futures = {executor.submit(fetch_market_bundle, a['id'], cfg["timeframe"]): (cat, a) for cat, a in target_assets}
-            for future in as_completed(futures):
-                cat, a = futures[future]
-                df, live_price = future.result()
+        with ThreadPoolExecutor(max_workers=12) as executor:
+            futures = {executor.submit(fetch_market_bundle, a['id'], cfg["timeframe"], all_prices): (cat, a) for cat, a in target_assets}
+            for future in as_completed(futures, timeout=6.0):
+                try:
+                    cat, a = futures[future]
+                    df, live_price = future.result(timeout=2.0)
 
-                canon_id = canonicalize_symbol_key(a['id'], a['name'])
-                if a['id'] in all_prices and all_prices[a['id']] > 0:
-                    live_price = all_prices[a['id']]
-                elif canon_id in all_prices and all_prices[canon_id] > 0:
-                    live_price = all_prices[canon_id]
+                    canon_id = canonicalize_symbol_key(a['id'], a['name'])
+                    if a['id'] in all_prices and all_prices[a['id']] > 0:
+                        live_price = all_prices[a['id']]
+                    elif canon_id in all_prices and all_prices[canon_id] > 0:
+                        live_price = all_prices[canon_id]
+                    elif live_price <= 0:
+                        live_price = get_cached_live_price(a['id'], all_prices)
 
-                if live_price > 0 and df is not None and not df.empty:
-                    df.loc[df.index[-1], 'Close'] = live_price
+                    if live_price > 0 and df is not None and not df.empty:
+                        df.loc[df.index[-1], 'Close'] = live_price
 
-                if df is not None and not df.empty and live_price > 0:
-                    sess = session_info[cat]
-                    res = calculate_setup(df, live_price, a['id'], balance, risk, cfg, cat, sess["is_open"])
-                    numeric_score = float(str(res.get("ai_score", "0")).replace("%", ""))
-                    if res["action"] not in ["BUY", "SELL"] or numeric_score < cfg["min_score"]:
-                        continue
+                    if df is not None and not df.empty and live_price > 0:
+                        sess = default_sessions[cat]
+                        res_sig = calculate_setup(df, live_price, a['id'], balance, risk, cfg, cat, sess["is_open"])
+                        numeric_score = float(str(res_sig.get("ai_score", "0")).replace("%", ""))
+                        if res_sig["action"] not in ["BUY", "SELL"] or numeric_score < cfg["min_score"]:
+                            continue
 
-                    dec = res["decimals"]
-                    sig_obj = {
-                        "id": f"{a['id']}_{res['action']}",
-                        "category": cat,
-                        "symbol": a['id'],
-                        "name": a['name'],
-                        "price": f"{live_price:.{dec}f}",
-                        "market_status": sess["status"],
-                        "market_hours": sess["hours"],
-                        "market_is_open": sess["is_open"],
-                        "market_badge_color": sess["badge_color"],
-                        **res,
-                    }
-                    raw_signals.append(sig_obj)
+                        dec = res_sig["decimals"]
+                        sig_obj = {
+                            "id": f"{a['id']}_{res_sig['action']}",
+                            "category": cat,
+                            "symbol": a['id'],
+                            "name": a['name'],
+                            "price": f"{live_price:.{dec}f}",
+                            "market_status": sess["status"],
+                            "market_hours": sess["hours"],
+                            "market_is_open": sess["is_open"],
+                            "market_badge_color": sess["badge_color"],
+                            **res_sig,
+                        }
+                        raw_signals.append(sig_obj)
 
-                    if auto_trade_active and sess["is_open"] and res['action'] in ["BUY", "SELL"] and res['expected_net'] > 0:
-                        execute_verified_order(
-                            a['id'],
-                            a['name'],
-                            res['action'],
-                            res['entry'],
-                            res['size'],
-                            res['leverage'],
-                            res['margin'],
-                            res['sl'],
-                            res['tp1'],
-                            params=cfg,
-                        )
+                        if auto_trade_active and sess["is_open"] and res_sig['action'] in ["BUY", "SELL"] and res_sig['expected_net'] > 0:
+                            execute_verified_order(
+                                a['id'],
+                                a['name'],
+                                res_sig['action'],
+                                res_sig['entry'],
+                                res_sig['size'],
+                                res_sig['leverage'],
+                                res_sig['margin'],
+                                res_sig['sl'],
+                                res_sig['tp1'],
+                                params=cfg,
+                            )
+                except Exception:
+                    continue
 
         unique_map = {sig['symbol']: sig for sig in raw_signals}
         signals = list(unique_map.values())
         signals.sort(key=lambda x: float(x['ai_score'].replace('%', '')), reverse=True)
 
-        scans_telemetry[time.time()] = {
+        scans_telemetry[now] = {
             "timestamp": datetime.now().strftime("%H:%M:%S"),
             "scanned": len(signals),
             "status": f"PRESET_{cfg['timeframe']}_{cfg['profile'].upper()}",
         }
 
-        return jsonify({"sessions": session_info, "signals": signals, "active_params": cfg})
+        payload = {"sessions": default_sessions, "signals": signals, "active_params": cfg}
+        _SIGNALS_CACHE["key"] = cache_key
+        _SIGNALS_CACHE["ts"] = now
+        _SIGNALS_CACHE["payload"] = payload
+        return jsonify(payload)
     except Exception:
-        return jsonify({"sessions": {}, "signals": [], "active_params": {}})
+        fallback_payload = _SIGNALS_CACHE.get("payload") or {
+            "sessions": default_sessions,
+            "signals": [],
+            "active_params": {},
+        }
+        return jsonify(fallback_payload)
 
 
 if __name__ == '__main__':
