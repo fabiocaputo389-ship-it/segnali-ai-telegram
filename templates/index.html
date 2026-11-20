@@ -396,35 +396,34 @@
         </div>
         <div class="kpi-card">
             <div class="mono" style="font-size:0.66rem; color:var(--text-muted);">STATO SCANNER</div>
-            <div id="kpiScannerStatus" class="kpi-val" style="color:var(--accent-gold); font-size:0.84rem;">PRONTO</div>
+            <div id="kpiScannerStatus" class="kpi-val" style="color:var(--accent-gold); font-size:0.84rem;">LIVE</div>
         </div>
     </div>
 
-    <!-- TAB 1: SEGNALI & MERCATI -->
     <div id="tab-signals" class="tab-view active">
         <div class="panel">
             <div class="panel-title">
                 <span>📡 SEGNALI OPERATIVI & MOTIVO ASSENZA PER MERCATO</span>
-                <span id="lastScanLabel" class="mono" style="font-size:0.68rem; color:var(--text-muted);">In attesa dati...</span>
+                <span id="lastScanLabel" class="mono" style="font-size:0.68rem; color:var(--text-muted);">LIVE • Avvio scansione...</span>
             </div>
             <div id="marketsSignalsContainer">
-                <div class="diag-box">Inizializzazione monitoraggio mercati...</div>
+                <div class="diag-box">Scansione live di tutti i mercati in corso...</div>
             </div>
         </div>
 
         <div class="panel">
             <div class="panel-title">
-                <span>📊 TABELLA MONITORAGGIO MERCATI — PARAMETRI, MOTIVO NO-SEGNALE & TRIGGER</span>
+                <span>📊 TABELLA MONITORAGGIO TUTTI I MERCATI — PARAMETRI, MOTIVO NO-SEGNALE & TRIGGER</span>
             </div>
             <div class="filter-bar">
                 <select id="filterMarketSelect" onchange="renderMonitoringTable()">
-                    <option value="ALL">Tutti i Mercati</option>
+                    <option value="ALL" selected>Tutti i Mercati</option>
                     <option value="Criptovalute Globali">Criptovalute Globali</option>
                     <option value="Materie Prime & Forex">Materie Prime & Forex</option>
                     <option value="Azioni & Indici Globali">Azioni & Indici Globali</option>
                 </select>
                 <select id="filterTakenSelect" onchange="renderMonitoringTable()">
-                    <option value="ALL">Tutti gli Asset (Presi + Non Presi)</option>
+                    <option value="ALL" selected>Tutti gli Asset (Presi + Non Presi)</option>
                     <option value="TAKEN">Solo Segnali Presi (BUY/SELL)</option>
                     <option value="NOT_TAKEN">Solo Non Presi / Filtrati</option>
                 </select>
@@ -443,7 +442,7 @@
                     </thead>
                     <tbody id="monitoringTableBody">
                         <tr>
-                            <td colspan="6" class="mono" style="color:var(--text-muted);">Caricamento tabella parametri di mercato...</td>
+                            <td colspan="6" class="mono" style="color:var(--text-muted);">Caricamento parametri di tutti i mercati...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -451,7 +450,6 @@
         </div>
     </div>
 
-    <!-- TAB 2: POSIZIONI -->
     <div id="tab-positions" class="tab-view">
         <div class="panel">
             <div class="panel-title">
@@ -464,7 +462,6 @@
         </div>
     </div>
 
-    <!-- TAB 3: TELEMETRIA -->
     <div id="tab-telemetry" class="tab-view">
         <div class="panel">
             <div class="panel-title">
@@ -518,7 +515,6 @@
             if (tabName === 'telemetry') loadTelemetry();
         }
 
-        // --- MOTORE AUDIO ALLARME SEGNALI (WEB AUDIO API) ---
         function unlockAudioContext() {
             try {
                 const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -630,10 +626,10 @@
             if (isFetchingSignals && !force) return;
             isFetchingSignals = true;
             const statusEl = document.getElementById('kpiScannerStatus');
-            if (statusEl) statusEl.textContent = 'SCANSIONE...';
+            if (statusEl) statusEl.textContent = 'LIVE SYNC...';
 
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 6500);
+            const timeoutId = setTimeout(() => controller.abort(), 10000);
 
             try {
                 const res = await fetch(buildQueryUrl(), { signal: controller.signal, cache: 'no-store' });
@@ -652,14 +648,16 @@
 
                 const nowTime = new Date().toLocaleTimeString('it-IT', { hour12: false });
                 const scanLbl = document.getElementById('lastScanLabel');
-                if (scanLbl) scanLbl.textContent = `Aggiornato alle ${nowTime}`;
+                if (scanLbl) scanLbl.textContent = `LIVE • Aggiornato alle ${nowTime}`;
                 if (statusEl) {
-                    statusEl.textContent = latestPayload.signals.length > 0 ? 'SEGNALI ATTIVI' : 'FILTRATO / 0 SEGNALI';
-                    statusEl.style.color = latestPayload.signals.length > 0 ? 'var(--accent-green)' : 'var(--accent-gold)';
+                    statusEl.textContent = latestPayload.signals.length > 0
+                        ? `LIVE (${latestPayload.signals.length} BUY/SELL)`
+                        : 'LIVE • TUTTI MERCATI';
+                    statusEl.style.color = latestPayload.signals.length > 0 ? 'var(--accent-green)' : 'var(--accent-blue)';
                 }
             } catch (err) {
                 if (statusEl) {
-                    statusEl.textContent = 'TIMEOUT / RETRY';
+                    statusEl.textContent = 'LIVE RETRY';
                     statusEl.style.color = 'var(--accent-gold)';
                 }
                 renderSignalsAndMarkets();
@@ -678,14 +676,16 @@
             const sessions = latestPayload.sessions || {};
             const diagnostics = latestPayload.market_diagnostics || {};
             const signals = latestPayload.signals || [];
+            const monitored = latestPayload.market_monitoring_table || [];
 
             const kpiSig = document.getElementById('kpiSignalsCount');
             if (kpiSig) kpiSig.textContent = String(signals.length);
 
             container.innerHTML = categories.map(cat => {
-                const sess = sessions[cat] || { status: 'N/D', is_open: false, hours: '', badge_color: '#94a3b8' };
+                const sess = sessions[cat] || { status: 'APERTO (Live)', is_open: true, hours: '24/7', badge_color: '#00ff66' };
                 const diag = diagnostics[cat] || {};
                 const catSignals = signals.filter(s => s.category === cat);
+                const catMonitoredCount = monitored.filter(r => r.category === cat).length;
 
                 const whyText = diag.reason || (
                     sess.is_open
@@ -700,8 +700,8 @@
                                 <strong>${cat}</strong>
                                 <span class="mono" style="font-size:0.7rem; color:var(--text-muted); margin-left:8px;">${sess.hours || ''}</span>
                             </div>
-                            <span class="status-pill" style="color:${sess.badge_color || '#94a3b8'};">
-                                ${sess.status || 'STATO'} • ${catSignals.length} SEGNALI
+                            <span class="status-pill" style="color:${sess.badge_color || '#00ff66'};">
+                                ${sess.status || 'APERTO'} • ${catSignals.length} BUY/SELL • ${catMonitoredCount} ASSET
                             </span>
                         </div>
 
@@ -836,7 +836,7 @@
                 const logs = data.telemetry_logs || [];
                 box.innerHTML = `
                     <div style="margin-bottom:8px;">Scansioni eseguite: <strong>${data.scans_count || 0}</strong> | PnL sessione: <strong>$${data.session_pnl || 0}</strong></div>
-                    <div>${logs.length ? logs.map(l => `• [${l.timestamp}] ${l.status} — Segnali: ${l.scanned}`).join('<br>') : 'Nessun log disponibile.'}</div>
+                    <div>${logs.length ? logs.map(l => `• [${l.timestamp}] ${l.status} — Segnali: ${l.signals_found ?? l.scanned}`).join('<br>') : 'Nessun log disponibile.'}</div>
                 `;
             } catch (e) {
                 box.textContent = 'Errore caricamento telemetria.';
