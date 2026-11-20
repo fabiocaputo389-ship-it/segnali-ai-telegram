@@ -1255,6 +1255,23 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
     else:
         action, score, sent, col = "NEUTRAL", 50.0, "FILTRATO / NO-TRADE", "#ffffff"
 
+    if not is_open:
+        filter_reason = f"Borsa chiusa ({category}) — in attesa riapertura sessione."
+    elif is_chop:
+        filter_reason = f"Fase laterale/bassa volatilità o volume debole (Vol {vol_ratio}x < soglia)."
+    elif fake_bull_breakout or fake_bear_breakout:
+        filter_reason = "Falsa rottura (fakeout) rilevata sui massimi/minimi recenti."
+    elif not confirmed_breakout_vol:
+        filter_reason = f"Volume insufficiente (Vol {vol_ratio}x < Min Vol Ratio {min_vol_ratio}x)."
+    elif action == "NEUTRAL":
+        filter_reason = (
+            f"Nessuna confluenza completa (RSI {round(rsi, 1)} | "
+            f"BUY {rsi_buy_min}-{rsi_buy_max}, SELL {rsi_sell_min}-{rsi_sell_max} | "
+            f"EMA/MACD non allineati)."
+        )
+    else:
+        filter_reason = f"Setup {action} valido ({confluence_label if 'confluence_label' in locals() else f'{confluence_hits}/5 Fattori'}, Score {score}%)."
+
     bx_symbol, bx_precision = resolve_bingx_symbol(symbol)
     mkt_decimals, min_sl_pct, min_tp_vs_sl = get_market_calibration_spec(symbol, category, current_price)
     decimals = bx_precision if bx_precision is not None else mkt_decimals
@@ -1349,6 +1366,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
 
     return {
         "action": action,
+        "filter_reason": filter_reason,
         "bingx_symbol": bx_symbol,
         "ai_score": f"{score}%",
         "sentiment": sent,
@@ -1388,6 +1406,9 @@ def get_signals():
     global auto_trade_active, scans_telemetry
     markets = fetch_all_markets()
     default_sessions = {cat: get_market_session_status(cat) for cat in markets.keys()}
+    cat_counts = {cat: {"BUY": 0, "SELL": 0, "NEUTRAL": 0} for cat in markets.keys()}
+    cat_reasons = {cat: [] for cat in markets.keys()}
+
     try:
         timeframe = request.args.get('timeframe', '15m')
         balance = safe_float(request.args.get('balance', 2.0).replace(',', '.'), 2.0)
@@ -1431,17 +1452,26 @@ def get_signals():
                     elif canon_id in all_prices and all_prices[canon_id] > 0:
                         live_price = all_prices[canon_id]
                     elif live_price <= 0:
-                        live_price = get_cached_live_price(a['id'], all_prices)
+                        live_price = get_live_asset_price(a['id'], all_prices)
 
                     if live_price > 0 and df is not None and not df.empty:
                         df.loc[df.index[-1], 'Close'] = live_price
 
+                    sess = default_sessions[cat]
                     if df is not None and not df.empty and live_price > 0:
-                        sess = default_sessions[cat]
                         res_sig = calculate_setup(df, live_price, a['id'], balance, risk, cfg, cat, sess["is_open"])
                         numeric_score = float(str(res_sig.get("ai_score", "0")).replace("%", ""))
                         if res_sig["action"] not in ["BUY", "SELL"] or numeric_score < cfg["min_score"]:
+                            cat_counts[cat]["NEUTRAL"] += 1
+                            reason_txt = res_sig.get("filter_reason") or f"Score {numeric_score}% < soglia {cfg['min_score']}%."
+                            if len(cat_reasons[cat]) < 3:
+                                cat_reasons[cat].append(f"{a['name']}: {reason_txt}")
                             continue
+
+                        if res_sig["action"] == "BUY":
+                            cat_counts[cat]["BUY"] += 1
+                        elif res_sig["action"] == "SELL":
+                            cat_counts[cat]["SELL"] += 1
 
                         dec = res_sig["decimals"]
                         sig_obj = {
@@ -1471,8 +1501,34 @@ def get_signals():
                                 res_sig['tp1'],
                                 params=cfg,
                             )
+                    else:
+                        cat_counts[cat]["NEUTRAL"] += 1
+                        if len(cat_reasons[cat]) < 3:
+                            cat_reasons[cat].append(f"{a['name']}: dati candele o prezzo live non disponibili.")
                 except Exception:
                     continue
+
+        market_diagnostics = {}
+        for cat, sess in default_sessions.items():
+            reasons = cat_reasons.get(cat, [])
+            top_reason = reasons[0] if reasons else (
+                "Nessun asset ha superato contemporaneamente filtri RSI, Volume, Trend EMA/MACD e Min Score."
+                if sess["is_open"]
+                else f"Borsa {cat} chiusa ({sess['hours']})."
+            )
+            market_diagnostics[cat] = {
+                "is_open": sess["is_open"],
+                "status": sess["status"],
+                "hours": sess["hours"],
+                "total_assets": len(markets.get(cat, [])),
+                "buy_count": cat_counts[cat]["BUY"],
+                "sell_count": cat_counts[cat]["SELL"],
+                "neutral_count": cat_counts[cat]["NEUTRAL"],
+                "reason": (
+                    f"{top_reason} (BUY: {cat_counts[cat]['BUY']}, SELL: {cat_counts[cat]['SELL']}, "
+                    f"Filtrati/Neutrali: {cat_counts[cat]['NEUTRAL']})."
+                ),
+            }
 
         unique_map = {sig['symbol']: sig for sig in raw_signals}
         signals = list(unique_map.values())
@@ -1484,7 +1540,12 @@ def get_signals():
             "status": f"PRESET_{cfg['timeframe']}_{cfg['profile'].upper()}",
         }
 
-        payload = {"sessions": default_sessions, "signals": signals, "active_params": cfg}
+        payload = {
+            "sessions": default_sessions,
+            "signals": signals,
+            "active_params": cfg,
+            "market_diagnostics": market_diagnostics,
+        }
         _SIGNALS_CACHE["key"] = cache_key
         _SIGNALS_CACHE["ts"] = now
         _SIGNALS_CACHE["payload"] = payload
@@ -1494,6 +1555,7 @@ def get_signals():
             "sessions": default_sessions,
             "signals": [],
             "active_params": {},
+            "market_diagnostics": {},
         }
         return jsonify(fallback_payload)
 
