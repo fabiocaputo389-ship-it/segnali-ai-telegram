@@ -70,6 +70,9 @@ EXACT_PRESETS = {
     ("1h", "aggressive"):    {"rsi_buy_min": 32.0, "rsi_buy_max": 75.0, "rsi_sell_min": 25.0, "rsi_sell_max": 68.0, "sl_m": 1.0, "tp_m": 2.2, "min_vol_ratio": 0.75, "min_score": 80.0},
 }
 
+FOREX_SYMBOLS = {'EURUSDT', 'GBPUSDT', 'USDJPY'}
+COMMODITY_SYMBOLS = {'PAXGUSDT', 'XAGUSDT', 'WTIUSDT', 'NATGASUSDT', 'COPPERUSDT'}
+
 
 def safe_float(val, default=0.0):
     try:
@@ -77,6 +80,35 @@ def safe_float(val, default=0.0):
         return default if (np.isnan(f) or not np.isfinite(f)) else f
     except Exception:
         return default
+
+
+def get_market_calibration_spec(symbol, category, current_price):
+    clean = symbol.replace("-", "").upper()
+    if clean in FOREX_SYMBOLS:
+        decimals = 3 if clean == 'USDJPY' or current_price >= 20 else 5
+        min_sl_pct = 0.0015
+        min_tp_vs_sl = 1.6
+    elif clean in COMMODITY_SYMBOLS:
+        decimals = 2 if current_price >= 10 else 4
+        min_sl_pct = 0.0025
+        min_tp_vs_sl = 1.6
+    elif category == 'Azioni & Indici Globali':
+        decimals = 2
+        min_sl_pct = 0.0025
+        min_tp_vs_sl = 1.6
+    else:
+        decimals = 2 if current_price >= 5 else (4 if current_price >= 0.05 else 5)
+        min_sl_pct = 0.0035
+        min_tp_vs_sl = 1.6
+
+    return decimals, min_sl_pct, min_tp_vs_sl
+
+
+def quantize_to_tick(price, decimals, tick_size=None):
+    if tick_size and tick_size > 0:
+        steps = round(price / tick_size)
+        return round(steps * tick_size, decimals)
+    return round(price, decimals)
 
 
 def resolve_active_params(timeframe, profile, args):
@@ -885,35 +917,36 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         action, score, sent, col = "NEUTRAL", 50.0, "FILTRATO / NO-TRADE", "#ffffff"
 
     _, bx_precision = resolve_bingx_symbol(symbol)
-    decimals = bx_precision if bx_precision is not None else (2 if current_price > 5 else 5)
+    mkt_decimals, min_sl_pct, min_tp_vs_sl = get_market_calibration_spec(symbol, category, current_price)
+    decimals = bx_precision if bx_precision is not None else mkt_decimals
+    tick_size = 10 ** (-decimals)
 
-    min_sl_gap = max(atr * sl_m, current_price * 0.0015)
-    min_tp_gap = max(atr * tp_m, current_price * 0.0025)
-    min_tick_step = 10 ** (-decimals)
+    raw_sl_dist = max(atr * sl_m, current_price * min_sl_pct)
+    raw_tp_dist = max(atr * tp_m, raw_sl_dist * min_tp_vs_sl)
 
-    entry = round(current_price, decimals)
+    entry = quantize_to_tick(current_price, decimals, tick_size)
 
     if action == "BUY":
-        sl = round(entry - min_sl_gap, decimals)
-        tp1 = round(entry + min_tp_gap, decimals)
+        sl = quantize_to_tick(entry - raw_sl_dist, decimals, tick_size)
+        tp1 = quantize_to_tick(entry + raw_tp_dist, decimals, tick_size)
         if sl >= entry:
-            sl = round(entry - min_tick_step * 10, decimals)
+            sl = quantize_to_tick(entry - tick_size * 5, decimals, tick_size)
         if tp1 <= entry:
-            tp1 = round(entry + min_tick_step * 20, decimals)
-        target_rialzista = round(entry + (min_tp_gap * 2.5), decimals)
+            tp1 = quantize_to_tick(entry + tick_size * 10, decimals, tick_size)
+        target_rialzista = quantize_to_tick(entry + abs(tp1 - entry) * 2.0, decimals, tick_size)
         target_ribassista = sl
     elif action == "SELL":
-        sl = round(entry + min_sl_gap, decimals)
-        tp1 = round(entry - min_tp_gap, decimals)
+        sl = quantize_to_tick(entry + raw_sl_dist, decimals, tick_size)
+        tp1 = quantize_to_tick(entry - raw_tp_dist, decimals, tick_size)
         if sl <= entry:
-            sl = round(entry + min_tick_step * 10, decimals)
+            sl = quantize_to_tick(entry + tick_size * 5, decimals, tick_size)
         if tp1 >= entry:
-            tp1 = round(entry - min_tick_step * 20, decimals)
+            tp1 = quantize_to_tick(entry - tick_size * 10, decimals, tick_size)
         target_rialzista = sl
-        target_ribassista = round(entry - (min_tp_gap * 2.5), decimals)
+        target_ribassista = quantize_to_tick(entry - abs(entry - tp1) * 2.0, decimals, tick_size)
     else:
-        sl = round(entry - min_sl_gap, decimals)
-        tp1 = round(entry + min_tp_gap, decimals)
+        sl = quantize_to_tick(entry - raw_sl_dist, decimals, tick_size)
+        tp1 = quantize_to_tick(entry + raw_tp_dist, decimals, tick_size)
         target_rialzista = tp1
         target_ribassista = sl
 
