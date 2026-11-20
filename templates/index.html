@@ -3,19 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SALA SEGNALI PRO • Institutional BingX Desk</title>
+    <title>SALA SEGNALI PRO • BingX Live Sync</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg-main: #070b12;
-            --bg-panel: #0e1522;
-            --bg-card: #131c2e;
-            --bg-subcard: #0b111c;
+            --bg-panel: #0d1420;
+            --bg-card: #121b2b;
+            --bg-subcard: #0a1019;
             --border-subtle: rgba(148, 163, 184, 0.16);
             --text-main: #f1f5f9;
             --text-muted: #94a3b8;
             --accent-green: #00ff66;
-            --accent-red: #ff1e42;
+            --accent-red: #ff2a4b;
             --accent-gold: #ffd166;
             --accent-blue: #38bdf8;
         }
@@ -31,9 +31,9 @@
             background-color: var(--bg-main);
             color: var(--text-main);
             font-family: 'Inter', sans-serif;
-            padding: 14px;
-            padding-bottom: 84px;
-            line-height: 1.45;
+            padding: 12px;
+            padding-bottom: 82px;
+            line-height: 1.4;
         }
 
         .mono {
@@ -49,11 +49,11 @@
             background: var(--bg-panel);
             border: 1px solid var(--border-subtle);
             border-radius: 12px;
-            padding: 12px 16px;
+            padding: 12px 14px;
             margin-bottom: 14px;
         }
 
-        .brand-row {
+        .brand-left {
             display: flex;
             align-items: center;
             gap: 10px;
@@ -63,24 +63,39 @@
         .brand-title {
             font-size: 1.05rem;
             font-weight: 800;
-            letter-spacing: 0.4px;
+            line-height: 1.15;
             color: var(--accent-gold);
+            letter-spacing: 0.3px;
         }
 
-        .badge-desk {
-            font-size: 0.68rem;
-            font-weight: 700;
-            padding: 3px 8px;
-            border-radius: 6px;
-            background: rgba(56, 189, 248, 0.14);
-            border: 1px solid rgba(56, 189, 248, 0.45);
-            color: var(--accent-blue);
+        .badge-live-sync {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.64rem;
+            font-weight: 800;
+            line-height: 1.15;
+            padding: 5px 8px;
+            border-radius: 7px;
+            background: rgba(0, 255, 102, 0.08);
+            border: 1px solid rgba(0, 255, 102, 0.45);
+            color: var(--accent-green);
+            text-transform: uppercase;
+        }
+
+        .clock-box {
+            background: var(--bg-subcard);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            padding: 6px 10px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            line-height: 1.3;
         }
 
         .controls-row {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
             flex-wrap: wrap;
         }
 
@@ -88,10 +103,10 @@
             border: 1px solid var(--border-subtle);
             background: var(--bg-card);
             color: var(--text-main);
-            padding: 7px 12px;
+            padding: 6px 10px;
             border-radius: 8px;
             font-family: 'JetBrains Mono', monospace;
-            font-size: 0.74rem;
+            font-size: 0.7rem;
             font-weight: 700;
             cursor: pointer;
         }
@@ -118,28 +133,53 @@
             color: var(--accent-blue);
         }
 
-        .grid-params {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 10px;
-            margin-bottom: 14px;
+        .btn-voice {
+            background: rgba(255, 209, 102, 0.12);
+            border-color: var(--accent-gold);
+            color: var(--accent-gold);
+            padding: 5px 8px;
+            font-size: 0.66rem;
+        }
+
+        .btn-buy {
+            background: rgba(0, 255, 102, 0.14);
+            border-color: var(--accent-green);
+            color: var(--accent-green);
+            padding: 5px 8px;
+            font-size: 0.66rem;
+        }
+
+        .btn-sell {
+            background: rgba(255, 42, 75, 0.14);
+            border-color: var(--accent-red);
+            color: var(--accent-red);
+            padding: 5px 8px;
+            font-size: 0.66rem;
+        }
+
+        .btn-release {
+            background: rgba(148, 163, 184, 0.12);
+            border-color: var(--text-muted);
+            color: var(--text-muted);
+            padding: 5px 7px;
+            font-size: 0.65rem;
         }
 
         .panel {
             background: var(--bg-panel);
             border: 1px solid var(--border-subtle);
             border-radius: 12px;
-            padding: 12px 14px;
+            padding: 13px;
             margin-bottom: 14px;
         }
 
-        .panel-title {
-            font-size: 0.76rem;
+        .section-heading {
+            font-size: 0.8rem;
             font-weight: 800;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            color: var(--accent-blue);
-            margin-bottom: 10px;
+            color: var(--text-main);
+            margin-bottom: 12px;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -147,9 +187,67 @@
             gap: 8px;
         }
 
+        .sub-report-header {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.74rem;
+            font-weight: 800;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            margin-bottom: 14px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.74rem;
+        }
+
+        th, td {
+            border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+            padding: 10px 9px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            background: var(--bg-subcard);
+            line-height: 1.25;
+        }
+
+        .telemetry-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            padding: 12px 14px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.78rem;
+            line-height: 1.55;
+        }
+
+        .grid-params {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
         label {
             display: block;
-            font-size: 0.68rem;
+            font-size: 0.66rem;
             font-weight: 700;
             color: var(--text-muted);
             text-transform: uppercase;
@@ -162,62 +260,16 @@
             border: 1px solid var(--border-subtle);
             color: var(--text-main);
             border-radius: 8px;
-            padding: 7px 10px;
+            padding: 7px 9px;
             font-family: 'JetBrains Mono', monospace;
-            font-size: 0.78rem;
-        }
-
-        .kpi-strip {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 10px;
-            margin-bottom: 14px;
-        }
-
-        .kpi-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border-subtle);
-            border-radius: 10px;
-            padding: 10px 12px;
-        }
-
-        .kpi-val {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 1.05rem;
-            font-weight: 800;
-            margin-top: 2px;
-        }
-
-        .sessions-table-wrap {
-            overflow-x: auto;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.74rem;
-        }
-
-        th, td {
-            border-bottom: 1px solid var(--border-subtle);
-            padding: 8px 8px;
-            text-align: left;
-            vertical-align: top;
-        }
-
-        th {
-            color: var(--text-muted);
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.68rem;
-            text-transform: uppercase;
-            background: var(--bg-subcard);
+            font-size: 0.75rem;
         }
 
         .cat-block {
             background: var(--bg-card);
             border: 1px solid var(--border-subtle);
-            border-radius: 12px;
-            padding: 12px 14px;
+            border-radius: 10px;
+            padding: 12px;
             margin-bottom: 12px;
         }
 
@@ -234,7 +286,7 @@
 
         .status-pill {
             font-family: 'JetBrains Mono', monospace;
-            font-size: 0.68rem;
+            font-size: 0.66rem;
             font-weight: 800;
             padding: 3px 8px;
             border-radius: 999px;
@@ -259,9 +311,9 @@
             border: 1px solid rgba(255, 209, 102, 0.35);
             border-left: 4px solid var(--accent-gold);
             border-radius: 8px;
-            padding: 11px 13px;
+            padding: 10px 12px;
             font-family: 'JetBrains Mono', monospace;
-            font-size: 0.74rem;
+            font-size: 0.72rem;
         }
 
         .tag-taken {
@@ -271,9 +323,8 @@
             padding: 2px 6px;
             border-radius: 5px;
             font-family: 'JetBrains Mono', monospace;
-            font-size: 0.66rem;
+            font-size: 0.65rem;
             font-weight: 700;
-            white-space: nowrap;
         }
 
         .tag-filtered {
@@ -283,20 +334,15 @@
             padding: 2px 6px;
             border-radius: 5px;
             font-family: 'JetBrains Mono', monospace;
-            font-size: 0.66rem;
+            font-size: 0.65rem;
             font-weight: 700;
-            white-space: nowrap;
         }
 
-        .filter-bar {
+        .action-btns {
             display: flex;
+            gap: 5px;
+            margin-top: 6px;
             flex-wrap: wrap;
-            gap: 8px;
-            margin-bottom: 10px;
-        }
-
-        .filter-bar select {
-            max-width: 240px;
         }
 
         .bottom-nav {
@@ -307,27 +353,31 @@
             background: var(--bg-panel);
             border-top: 1px solid var(--border-subtle);
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            padding: 6px;
-            gap: 6px;
-            z-index: 50;
+            grid-template-columns: repeat(4, 1fr);
+            padding: 6px 4px;
+            gap: 4px;
+            z-index: 60;
         }
 
         .nav-btn {
-            background: var(--bg-card);
-            border: 1px solid var(--border-subtle);
-            color: var(--text-main);
+            background: transparent;
+            border: 1px solid transparent;
+            color: var(--text-muted);
             border-radius: 8px;
-            padding: 8px 6px;
-            font-size: 0.72rem;
+            padding: 6px 4px;
+            font-size: 0.7rem;
             font-weight: 700;
             cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
         }
 
         .nav-btn.active {
-            border-color: var(--accent-green);
             color: var(--accent-green);
             background: rgba(0, 255, 102, 0.08);
+            border-color: rgba(0, 255, 102, 0.3);
         }
 
         .tab-view {
@@ -342,107 +392,168 @@
 <body>
 
     <div class="topbar">
-        <div class="brand-row">
-            <span class="brand-title">⚡ SALA SEGNALI PRO</span>
-            <span class="badge-desk">BINGX MULTI-MARKET DESK</span>
-            <span id="clockBadge" class="mono" style="font-size:0.74rem; color:var(--text-muted);">--:--:--</span>
+        <div class="brand-left">
+            <div class="brand-title">⚡ SALA<br>SEGNALI PRO</div>
+            <div class="badge-live-sync">BINGX<br>LIVE<br>SYNC</div>
+            <div id="clockBadge" class="clock-box">--:--:-- |<br>--:--:-- UTC</div>
         </div>
         <div class="controls-row">
-            <button id="soundToggleBtn" type="button" class="btn btn-audio-on" onclick="toggleSignalSound()">🔊 AUDIO: ON</button>
-            <button type="button" class="btn" onclick="testSoundAlert()">🔔 TEST SUONO</button>
-            <button type="button" class="btn btn-refresh" onclick="loadSignals(true)">↻ AGGIORNA</button>
+            <button id="soundToggleBtn" type="button" class="btn btn-audio-on" onclick="toggleSignalSound()">🔊 VOCALE &amp; AUDIO: ON</button>
+            <button type="button" class="btn" onclick="testVoiceAlert()">🗣️ TEST VOCALE</button>
+            <button type="button" class="btn btn-refresh" onclick="loadAllLive(true)">↻ AGGIORNA</button>
         </div>
     </div>
 
-    <div class="grid-params">
-        <div>
-            <label for="profileSelect">Profilo Operativo</label>
-            <select id="profileSelect" onchange="loadSignals(true)">
-                <option value="conservative">Conservativo</option>
-                <option value="balanced" selected>Bilanciato</option>
-                <option value="aggressive">Aggressivo</option>
-            </select>
+    <div class="panel">
+        <div class="section-heading">
+            <span>📊 REPORT PERFORMANCE GIORNALIERO &amp; MENSILE</span>
+            <span id="liveApiStatus" class="mono" style="font-size:0.66rem; color:var(--accent-green);">LIVE BINGX FEED</span>
         </div>
-        <div>
-            <label for="timeframeSelect">Timeframe</label>
-            <select id="timeframeSelect" onchange="loadSignals(true)">
-                <option value="5m">5m (Scalp)</option>
-                <option value="15m" selected>15m (Standard)</option>
-                <option value="1h">1h (Intraday)</option>
-            </select>
+
+        <div class="sub-report-header" style="color:var(--accent-green);">
+            <span>🟢</span>
+            <span>REPORT GIORNALIERO (Oggi)</span>
         </div>
-        <div>
-            <label for="balanceInput">Capitale ($)</label>
-            <input id="balanceInput" type="number" step="0.5" min="1" value="2.0" onchange="loadSignals(true)">
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>OPERAZIONI<br>OGGI</th>
+                        <th>%<br>VITTORIE<br>(WIN RATE)</th>
+                        <th>%<br>PERDITE<br>(LOSS RATE)</th>
+                        <th>IMPORTO<br>GUADAGNATO</th>
+                        <th>IMPORTO<br>PERSO</th>
+                        <th>NETTO<br>GIORNALIERO</th>
+                    </tr>
+                </thead>
+                <tbody id="dailyReportBody">
+                    <tr>
+                        <td colspan="6" class="mono" style="color:var(--text-muted);">Sincronizzazione dati reali in corso...</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
-        <div>
-            <label for="riskInput">Rischio (%)</label>
-            <input id="riskInput" type="number" step="0.25" min="0.25" max="20" value="1.0" onchange="loadSignals(true)">
+
+        <div class="sub-report-header" style="color:var(--accent-red);">
+            <span>📅</span>
+            <span>REPORT MENSILE (Mese Corrente)</span>
         </div>
-        <div>
-            <label for="minScoreInput">Min Score (%)</label>
-            <input id="minScoreInput" type="number" step="1" min="50" max="99" value="80" onchange="loadSignals(true)">
+        <div class="table-wrap" style="margin-bottom:0;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>OPERAZIONI<br>TOTALI</th>
+                        <th>%<br>VITTORIE</th>
+                        <th>%<br>PERDITE</th>
+                        <th>TOTALE<br>GUADAGNATO</th>
+                        <th>TOTALE<br>PERSO</th>
+                        <th>NETTO<br>MENSILE</th>
+                    </tr>
+                </thead>
+                <tbody id="monthlyReportBody">
+                    <tr>
+                        <td colspan="6" class="mono" style="color:var(--text-muted);">Sincronizzazione dati reali in corso...</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
     </div>
 
-    <div class="kpi-strip">
-        <div class="kpi-card">
-            <div class="mono" style="font-size:0.66rem; color:var(--text-muted);">SEGNALI BUY/SELL ATTIVI</div>
-            <div id="kpiSignalsCount" class="kpi-val" style="color:var(--accent-green);">0</div>
+    <div class="panel">
+        <div class="section-heading">
+            <span>⚡ TELEMETRIA ISTITUZIONALE &amp; LOG</span>
         </div>
-        <div class="kpi-card">
-            <div class="mono" style="font-size:0.66rem; color:var(--text-muted);">ASSET MONITORATI</div>
-            <div id="kpiMonitoredCount" class="kpi-val" style="color:var(--accent-blue);">0</div>
-        </div>
-        <div class="kpi-card">
-            <div class="mono" style="font-size:0.66rem; color:var(--text-muted);">STATO SCANNER</div>
-            <div id="kpiScannerStatus" class="kpi-val" style="color:var(--accent-gold); font-size:0.84rem;">LIVE</div>
+        <div id="telemetrySummaryBox" class="telemetry-card">
+            <div>Scansioni Globali: <strong>0</strong></div>
+            <div>Ordini Attivi Totali: <strong>0</strong></div>
+            <div>PnL di Sessione: <strong>$0</strong></div>
         </div>
     </div>
 
     <div id="tab-signals" class="tab-view active">
         <div class="panel">
-            <div class="panel-title">
-                <span>📡 SEGNALI OPERATIVI & MOTIVO ASSENZA PER MERCATO</span>
-                <span id="lastScanLabel" class="mono" style="font-size:0.68rem; color:var(--text-muted);">LIVE • Avvio scansione...</span>
+            <div class="section-heading">
+                <span>📡 SEGNALI OPERATIVI LIVE (BLOCCATI 90s)</span>
+                <span id="lastScanLabel" class="mono" style="font-size:0.66rem; color:var(--text-muted);">LIVE • --:--:--</span>
             </div>
+
+            <div class="grid-params">
+                <div>
+                    <label for="marketSelect">Mercato</label>
+                    <select id="marketSelect" onchange="onMarketOrAssetChange()">
+                        <option value="ALL" selected>Tutti i Mercati</option>
+                        <option value="Criptovalute Globali">Criptovalute Globali</option>
+                        <option value="Materie Prime & Forex">Materie Prime &amp; Forex</option>
+                        <option value="Azioni & Indici Globali">Azioni &amp; Indici Globali</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="assetSelect">Asset</label>
+                    <select id="assetSelect" onchange="onMarketOrAssetChange()">
+                        <option value="ALL" selected>Tutti gli Asset</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="profileSelect">Profilo</label>
+                    <select id="profileSelect" onchange="loadSignals(true)">
+                        <option value="low_vol">Assorbimento / Bassa Vol</option>
+                        <option value="conservative">Conservativo</option>
+                        <option value="balanced" selected>Bilanciato</option>
+                        <option value="aggressive">Aggressivo</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="timeframeSelect">Timeframe</label>
+                    <select id="timeframeSelect" onchange="loadSignals(true)">
+                        <option value="5m">5m</option>
+                        <option value="15m" selected>15m</option>
+                        <option value="1h">1h</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="balanceInput">Capitale ($)</label>
+                    <input id="balanceInput" type="number" step="0.5" min="1" value="2.0" onchange="loadSignals(true)">
+                </div>
+                <div>
+                    <label for="riskInput">Rischio (%)</label>
+                    <input id="riskInput" type="number" step="0.25" min="0.25" max="20" value="1.0" onchange="loadSignals(true)">
+                </div>
+                <div>
+                    <label for="minScoreInput">Min Score (%)</label>
+                    <input id="minScoreInput" type="number" step="1" min="50" max="99" value="80" onchange="loadSignals(true)">
+                </div>
+            </div>
+
             <div id="marketsSignalsContainer">
-                <div class="diag-box">Scansione live di tutti i mercati in corso...</div>
+                <div class="diag-box">Scansione live in corso...</div>
             </div>
         </div>
 
         <div class="panel">
-            <div class="panel-title">
-                <span>📊 TABELLA MONITORAGGIO TUTTI I MERCATI — PARAMETRI, MOTIVO NO-SEGNALE & TRIGGER</span>
-            </div>
-            <div class="filter-bar">
-                <select id="filterMarketSelect" onchange="renderMonitoringTable()">
-                    <option value="ALL" selected>Tutti i Mercati</option>
-                    <option value="Criptovalute Globali">Criptovalute Globali</option>
-                    <option value="Materie Prime & Forex">Materie Prime & Forex</option>
-                    <option value="Azioni & Indici Globali">Azioni & Indici Globali</option>
-                </select>
-                <select id="filterTakenSelect" onchange="renderMonitoringTable()">
-                    <option value="ALL" selected>Tutti gli Asset (Presi + Non Presi)</option>
-                    <option value="TAKEN">Solo Segnali Presi (BUY/SELL)</option>
-                    <option value="NOT_TAKEN">Solo Non Presi / Filtrati</option>
+            <div class="section-heading">
+                <span>🎯 TABELLA TRADER PROFESSIONISTA — LIVELLI, CANDELE TP, ANTI-FAKEOUT &amp; EV</span>
+                <select id="filterTakenSelect" style="max-width:220px;" onchange="renderMonitoringTable()">
+                    <option value="ALL" selected>Tutti gli Asset</option>
+                    <option value="TAKEN">Solo Presi (BUY/SELL)</option>
+                    <option value="NOT_TAKEN">Solo Non Presi</option>
                 </select>
             </div>
-            <div class="sessions-table-wrap">
+            <div class="table-wrap" style="margin-bottom:0;">
                 <table>
                     <thead>
                         <tr>
-                            <th>Mercato / Asset</th>
-                            <th>Prezzo / Stato</th>
-                            <th>Azione & Score</th>
-                            <th>Parametri (RSI / Vol / Trend)</th>
-                            <th>Perché NON prende il segnale</th>
-                            <th>Quando viene PRESO</th>
+                            <th>Asset</th>
+                            <th>Prezzo / Candele TP</th>
+                            <th>Certezza / Score</th>
+                            <th>Entry / SL / TP1</th>
+                            <th>EV Netto / R:R</th>
+                            <th>Anti-Fakeout &amp; Inversione</th>
+                            <th>Stato &amp; Trigger</th>
                         </tr>
                     </thead>
                     <tbody id="monitoringTableBody">
                         <tr>
-                            <td colspan="6" class="mono" style="color:var(--text-muted);">Caricamento parametri di tutti i mercati...</td>
+                            <td colspan="7" class="mono" style="color:var(--text-muted);">Caricamento monitoraggio live...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -452,41 +563,85 @@
 
     <div id="tab-positions" class="tab-view">
         <div class="panel">
-            <div class="panel-title">
-                <span>💼 POSIZIONI & STORICO BINGX</span>
-                <button type="button" class="btn" onclick="loadPositionsStatus()">↻ AGGIORNA POSIZIONI</button>
+            <div class="section-heading">
+                <span>💼 POSIZIONI REALI BINGX</span>
+                <button type="button" class="btn" onclick="loadPositionsStatus()">↻ AGGIORNA</button>
             </div>
-            <div id="positionsContainer" class="mono" style="font-size:0.76rem; color:var(--text-muted);">
-                Nessuna posizione caricata.
-            </div>
+            <div id="positionsContainer" class="telemetry-card">Caricamento posizioni reali BingX...</div>
         </div>
     </div>
 
     <div id="tab-telemetry" class="tab-view">
         <div class="panel">
-            <div class="panel-title">
-                <span>⚡ TELEMETRIA SCANSIONI</span>
-                <button type="button" class="btn" onclick="loadTelemetry()">↻ AGGIORNA TELEMETRIA</button>
+            <div class="section-heading">
+                <span>⚡ LOG TELEMETRIA LIVE</span>
+                <button type="button" class="btn" onclick="loadTelemetry()">↻ AGGIORNA</button>
             </div>
-            <div id="telemetryContainer" class="mono" style="font-size:0.76rem; color:var(--text-muted);">
-                Nessun dato telemetria disponibile.
+            <div id="telemetryLogsBox" class="telemetry-card">Nessun log registrato.</div>
+        </div>
+    </div>
+
+    <div id="tab-charts" class="tab-view">
+        <div class="panel">
+            <div class="section-heading">
+                <span>📈 PREZZI LIVE &amp; TARGET PER ASSET</span>
             </div>
+            <div id="chartsSummaryBox" class="telemetry-card">Seleziona un asset o osserva la tabella live.</div>
         </div>
     </div>
 
     <div class="bottom-nav">
-        <button id="nav-signals" type="button" class="nav-btn active" onclick="switchTab('signals')">📊 Segnali & Mercati</button>
-        <button id="nav-positions" type="button" class="nav-btn" onclick="switchTab('positions')">💼 Posizioni</button>
-        <button id="nav-telemetry" type="button" class="nav-btn" onclick="switchTab('telemetry')">⚡ Telemetria</button>
+        <button id="nav-signals" type="button" class="nav-btn active" onclick="switchTab('signals')">📊<span>Segnali</span></button>
+        <button id="nav-positions" type="button" class="nav-btn" onclick="switchTab('positions')">💼<span>Posizioni</span></button>
+        <button id="nav-telemetry" type="button" class="nav-btn" onclick="switchTab('telemetry')">⚡<span>Telemetria</span></button>
+        <button id="nav-charts" type="button" class="nav-btn" onclick="switchTab('charts')">📈<span>Grafici</span></button>
     </div>
 
     <script>
+        const MARKET_ASSETS_CATALOG = {
+            'Criptovalute Globali': [
+                { id: 'BTCUSDT', name: 'Bitcoin (BTC-USDT)' },
+                { id: 'ETHUSDT', name: 'Ethereum (ETH-USDT)' },
+                { id: 'SOLUSDT', name: 'Solana (SOL-USDT)' },
+                { id: 'XRPUSDT', name: 'Ripple (XRP-USDT)' },
+                { id: 'BNBUSDT', name: 'BNB (BNB-USDT)' },
+                { id: 'ADAUSDT', name: 'Cardano (ADA-USDT)' },
+                { id: 'DOGEUSDT', name: 'Dogecoin (DOGE-USDT)' },
+                { id: 'AVAXUSDT', name: 'Avalanche (AVAX-USDT)' },
+                { id: 'LINKUSDT', name: 'Chainlink (LINK-USDT)' },
+                { id: 'SUIUSDT', name: 'Sui (SUI-USDT)' }
+            ],
+            'Materie Prime & Forex': [
+                { id: 'PAXGUSDT', name: 'Oro (GOLD(XAU)-USDT)' },
+                { id: 'XAGUSDT', name: 'Argento (SILVER(XAG)-USDT)' },
+                { id: 'WTIUSDT', name: 'Petrolio WTI (WTI-USDT)' },
+                { id: 'NATGASUSDT', name: 'Gas Naturale (NATGAS-USDT)' },
+                { id: 'COPPERUSDT', name: 'Rame (COPPER-USDT)' },
+                { id: 'GBPUSDT', name: 'GBP/USD (GBPUSD-USDT)' },
+                { id: 'EURUSDT', name: 'EUR/USD (EURUSD-USDT)' },
+                { id: 'USDJPY', name: 'USD/JPY (USDJPY-USDT)' }
+            ],
+            'Azioni & Indici Globali': [
+                { id: 'AAPLUSDT', name: 'Apple Inc. (AAPL-USDT)' },
+                { id: 'TSLAUSDT', name: 'Tesla Inc. (TSLA-USDT)' },
+                { id: 'NVDAUSDT', name: 'Nvidia Corp. (NVDA-USDT)' },
+                { id: 'AMZNUSDT', name: 'Amazon (AMZN-USDT)' },
+                { id: 'MSFTUSDT', name: 'Microsoft (MSFT-USDT)' },
+                { id: 'GOOGLUSDT', name: 'Alphabet (GOOGL-USDT)' }
+            ]
+        };
+
+        const SIGNAL_HOLD_MS = 90000;
+        const pinnedSignalsMap = new Map();
+
         let latestPayload = {
             sessions: {},
             signals: [],
             active_params: {},
             market_diagnostics: {},
-            market_monitoring_table: []
+            market_monitoring_table: [],
+            performance: null,
+            telemetry: null
         };
 
         let signalSoundEnabled = true;
@@ -494,12 +649,81 @@
         const notifiedSignalKeys = new Set();
         let isFetchingSignals = false;
 
+        function computeTpCandleEstimate(row) {
+            if (row && row.tp_eta_text) return row.tp_eta_text;
+            const tfVal = (row && row.params && row.params.timeframe) || document.getElementById('timeframeSelect')?.value || '15m';
+            const tfMin = tfVal === '5m' ? 5 : (tfVal === '1h' ? 60 : 15);
+            const entry = parseFloat(row?.entry || row?.price || 0);
+            const tp1 = parseFloat(row?.tp1 || 0);
+            if (!entry || !tp1) return `Candela ${tfVal}`;
+            const dist = Math.max(Math.abs(tp1 - entry), entry * 0.002);
+            const perCandle = Math.max(entry * 0.002, 0.0001);
+            const candles = Math.max(1, Math.ceil(dist / perCandle));
+            const totalMin = candles * tfMin;
+            const durText = totalMin < 60 ? `~${totalMin} min (${candles} candele)` : `~${(totalMin / 60).toFixed(1)} ore (${candles} candele)`;
+            const etaUtc = new Date(Date.now() + totalMin * 60000).toISOString().substr(11, 5) + ' UTC';
+            return `${durText} • Candela ${tfVal} • ETA ~${etaUtc}`;
+        }
+
+        function mergeAndHoldSignals(freshSignals) {
+            const now = Date.now();
+            for (const [sym, entry] of pinnedSignalsMap.entries()) {
+                if (now > entry.expiresAt) pinnedSignalsMap.delete(sym);
+            }
+            if (Array.isArray(freshSignals)) {
+                for (const sig of freshSignals) {
+                    if (sig && (sig.action === 'BUY' || sig.action === 'SELL') && sig.symbol) {
+                        pinnedSignalsMap.set(sig.symbol, {
+                            signal: { ...sig, tp_eta_text: computeTpCandleEstimate(sig) },
+                            expiresAt: now + SIGNAL_HOLD_MS
+                        });
+                    }
+                }
+            }
+            const merged = [];
+            for (const [, entry] of pinnedSignalsMap.entries()) {
+                merged.push({
+                    ...entry.signal,
+                    tp_eta_text: computeTpCandleEstimate(entry.signal),
+                    remaining_sec: Math.max(1, Math.ceil((entry.expiresAt - now) / 1000))
+                });
+            }
+            return merged;
+        }
+
+        function releasePinnedSignal(symbol) {
+            pinnedSignalsMap.delete(symbol);
+            latestPayload.signals = mergeAndHoldSignals([]);
+            renderSignalsAndMarkets();
+        }
+
+        function populateAssetDropdown() {
+            const marketVal = document.getElementById('marketSelect')?.value || 'ALL';
+            const assetSelect = document.getElementById('assetSelect');
+            if (!assetSelect) return;
+            const prevVal = assetSelect.value || 'ALL';
+            let items = marketVal === 'ALL'
+                ? Object.values(MARKET_ASSETS_CATALOG).flat()
+                : (MARKET_ASSETS_CATALOG[marketVal] || []);
+            assetSelect.innerHTML = `<option value="ALL">Tutti gli Asset (${items.length})</option>` + items.map(it =>
+                `<option value="${it.id}">${it.name}</option>`
+            ).join('');
+            assetSelect.value = items.some(it => it.id === prevVal) ? prevVal : 'ALL';
+        }
+
+        function onMarketOrAssetChange() {
+            populateAssetDropdown();
+            renderSignalsAndMarkets();
+            renderMonitoringTable();
+            loadSignals(true);
+        }
+
         function updateClocks() {
             const now = new Date();
             const localStr = now.toLocaleTimeString('it-IT', { hour12: false });
             const utcStr = now.toISOString().substr(11, 8);
             const el = document.getElementById('clockBadge');
-            if (el) el.textContent = `${localStr} | ${utcStr} UTC`;
+            if (el) el.innerHTML = `${localStr} |<br>${utcStr} UTC`;
         }
         setInterval(updateClocks, 1000);
         updateClocks();
@@ -507,77 +731,87 @@
         function switchTab(tabName) {
             document.querySelectorAll('.tab-view').forEach(v => v.classList.remove('active'));
             document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-            const view = document.getElementById(`tab-${tabName}`);
-            const btn = document.getElementById(`nav-${tabName}`);
-            if (view) view.classList.add('active');
-            if (btn) btn.classList.add('active');
+            document.getElementById(`tab-${tabName}`)?.classList.add('active');
+            document.getElementById(`nav-${tabName}`)?.classList.add('active');
             if (tabName === 'positions') loadPositionsStatus();
             if (tabName === 'telemetry') loadTelemetry();
+            if (tabName === 'charts') renderChartsTab();
         }
 
         function unlockAudioContext() {
             try {
-                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-                if (!AudioContextClass) return null;
-                if (!audioCtx) {
-                    audioCtx = new AudioContextClass();
-                }
-                if (audioCtx.state === 'suspended') {
-                    audioCtx.resume();
-                }
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtx) return null;
+                if (!audioCtx) audioCtx = new AudioCtx();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
                 return audioCtx;
             } catch (e) {
                 return null;
             }
         }
-
         document.addEventListener('pointerdown', unlockAudioContext, { passive: true });
         document.addEventListener('keydown', unlockAudioContext, { passive: true });
 
-        function playToneSequence(freqs, durationSec = 0.14, gapSec = 0.05, type = 'sine', peakGain = 0.16) {
+        function playToneSequence(freqs, durationSec = 0.12, gapSec = 0.04, type = 'sine', peakGain = 0.15) {
             if (!signalSoundEnabled) return;
             const ctx = unlockAudioContext();
             if (!ctx) return;
-
             const now = ctx.currentTime;
             freqs.forEach((freq, idx) => {
                 const start = now + idx * (durationSec + gapSec);
                 const end = start + durationSec;
-
                 const osc = ctx.createOscillator();
                 const gain = ctx.createGain();
-
                 osc.type = type;
                 osc.frequency.setValueAtTime(freq, start);
-
                 gain.gain.setValueAtTime(0.0001, start);
                 gain.gain.exponentialRampToValueAtTime(peakGain, start + 0.02);
                 gain.gain.exponentialRampToValueAtTime(0.0001, end);
-
                 osc.connect(gain);
                 gain.connect(ctx.destination);
-
                 osc.start(start);
                 osc.stop(end + 0.01);
             });
         }
 
-        function playSignalAlert(action = 'BUY') {
+        function speakItalianText(text) {
             if (!signalSoundEnabled) return;
-            if (action === 'SELL') {
-                playToneSequence([660, 440], 0.15, 0.05, 'triangle', 0.18);
-            } else {
-                playToneSequence([587.33, 880, 1174.66], 0.12, 0.04, 'sine', 0.16);
-            }
-            if (navigator.vibrate) {
-                try { navigator.vibrate([120, 60, 120]); } catch (e) {}
-            }
+            try {
+                if ('speechSynthesis' in window) {
+                    window.speechSynthesis.cancel();
+                    const utter = new SpeechSynthesisUtterance(text);
+                    utter.lang = 'it-IT';
+                    utter.rate = 1.02;
+                    window.speechSynthesis.speak(utter);
+                }
+            } catch (e) {}
         }
 
-        function testSoundAlert() {
+        function speakSignal(sig) {
+            if (!sig) return;
+            const cleanName = String(sig.name || sig.symbol || '').replace(/[^\w\s/()-]/g, '').trim();
+            const dirLabel = sig.action === 'BUY' ? 'acquisto long' : 'vendita short';
+            const certText = sig.certainty_text || `${Number(sig.certainty_pct || 80).toFixed(1)}%`;
+            const etaText = computeTpCandleEstimate(sig).replace(/•/g, ',');
+            const evText = `attesa matematica ${Number(sig.ev_net_usd || 0).toFixed(2)} dollari`;
+            const revText = sig.reversal_summary ? sig.reversal_summary.replace('→', 'verso') : '';
             const prev = signalSoundEnabled;
             signalSoundEnabled = true;
-            playSignalAlert('BUY');
+            playToneSequence(sig.action === 'SELL' ? [660, 440] : [587.33, 880], 0.11, 0.04, 'sine', 0.14);
+            speakItalianText(`Segnale ${dirLabel} su ${cleanName}, certezza ${certText}. Entry ${sig.entry}, SL ${sig.sl}, TP1 ${sig.tp1}. Durata candele TP: ${etaText}. ${evText}. ${revText}.`);
+            signalSoundEnabled = prev;
+        }
+
+        function speakSignalBySymbol(symbol) {
+            const sig = (latestPayload.signals || []).find(s => s.symbol === symbol);
+            if (sig) speakSignal(sig);
+        }
+
+        function testVoiceAlert() {
+            const prev = signalSoundEnabled;
+            signalSoundEnabled = true;
+            playToneSequence([587.33, 880, 1174.66], 0.11, 0.04, 'sine', 0.15);
+            speakItalianText('Modalità reale BingX attiva. Report giornaliero e mensile sincronizzati.');
             signalSoundEnabled = prev;
         }
 
@@ -585,39 +819,183 @@
             signalSoundEnabled = !signalSoundEnabled;
             const btn = document.getElementById('soundToggleBtn');
             if (btn) {
-                btn.textContent = signalSoundEnabled ? '🔊 AUDIO: ON' : '🔇 AUDIO: OFF';
+                btn.textContent = signalSoundEnabled ? '🔊 VOCALE & AUDIO: ON' : '🔇 VOCALE & AUDIO: OFF';
                 btn.className = `btn ${signalSoundEnabled ? 'btn-audio-on' : 'btn-audio-off'}`;
             }
-            if (signalSoundEnabled) {
-                playSignalAlert('BUY');
-            }
+            if (signalSoundEnabled) testVoiceAlert();
         }
 
         function notifyNewSignals(signalsList) {
             if (!Array.isArray(signalsList) || signalsList.length === 0) return;
-            const validSignals = signalsList.filter(s => s && (s.action === 'BUY' || s.action === 'SELL'));
-            if (validSignals.length === 0) return;
-
-            const newlyDetected = [];
-            for (const sig of validSignals) {
-                const key = `${sig.symbol || sig.id}_${sig.action}_${(sig.applied_params && sig.applied_params.timeframe) || ''}`;
-                if (!notifiedSignalKeys.has(key)) {
-                    notifiedSignalKeys.add(key);
-                    newlyDetected.push(sig);
-                }
-            }
-            if (newlyDetected.length > 0) {
-                playSignalAlert(newlyDetected[0].action);
+            const valid = signalsList.filter(s => s && (s.action === 'BUY' || s.action === 'SELL'));
+            if (!valid.length) return;
+            const newly = valid.filter(sig => {
+                const k = `${sig.symbol}_${sig.action}`;
+                if (notifiedSignalKeys.has(k)) return false;
+                notifiedSignalKeys.add(k);
+                return true;
+            });
+            if (newly.length > 0 && signalSoundEnabled) {
+                const first = newly[0];
+                playToneSequence(first.action === 'SELL' ? [660, 440] : [587.33, 880], 0.12, 0.04, 'sine', 0.15);
+                speakItalianText(`Nuovo segnale ${first.action} reale su ${first.symbol}. Target in ${first.duration || 'alcune candele'}.`);
             }
         }
 
+        function renderDailyRow(d) {
+            const st = d || {};
+            const total = Number(st.total_trades || 0);
+            const wins = Number(st.wins || 0);
+            const losses = Number(st.losses || 0);
+            const winPct = Number(st.win_pct || 0);
+            const lossPct = Number(st.loss_pct || 0);
+            const wonAmt = Number(st.won_amount || 0);
+            const lostAmt = Math.abs(Number(st.lost_amount || 0));
+            const netVal = Number(st.net_pnl || 0);
+            const netCol = netVal > 0 ? 'var(--accent-green)' : (netVal < 0 ? 'var(--accent-red)' : 'var(--text-main)');
+            const netStr = `${netVal < 0 ? '-' : ''}$${Math.abs(netVal).toFixed(2)}`;
+
+            return `
+                <tr>
+                    <td class="mono" style="font-weight:800;">${total}</td>
+                    <td class="mono" style="color:var(--accent-green); font-weight:800;">
+                        ${winPct.toFixed(0)}%<br><span style="font-size:0.66rem; color:var(--text-muted);">(${wins} win)</span>
+                    </td>
+                    <td class="mono" style="color:var(--accent-red); font-weight:800;">
+                        ${lossPct.toFixed(0)}%<br><span style="font-size:0.66rem; color:var(--text-muted);">(${losses} loss)</span>
+                    </td>
+                    <td class="mono" style="color:var(--accent-green); font-weight:800;">
+                        +$${wonAmt.toFixed(2)}
+                    </td>
+                    <td class="mono" style="color:var(--accent-red); font-weight:800;">
+                        -$${lostAmt.toFixed(2)}
+                    </td>
+                    <td class="mono" style="color:${netCol}; font-weight:800;">
+                        ${netStr}
+                    </td>
+                </tr>
+            `;
+        }
+
+        function renderMonthlyRow(m) {
+            const st = m || {};
+            const total = Number(st.total_trades || 0);
+            const wins = Number(st.wins || 0);
+            const losses = Number(st.losses || 0);
+            const winPct = Number(st.win_pct || 0);
+            const lossPct = Number(st.loss_pct || 0);
+            const wonAmt = Number(st.won_amount || 0);
+            const lostAmt = Math.abs(Number(st.lost_amount || 0));
+            const netVal = Number(st.net_pnl || 0);
+            const netCol = netVal > 0 ? 'var(--accent-green)' : (netVal < 0 ? 'var(--accent-red)' : 'var(--text-main)');
+            const netStr = `${netVal < 0 ? '-' : ''}$${Math.abs(netVal).toFixed(2)}`;
+
+            return `
+                <tr>
+                    <td class="mono" style="font-weight:800;">${total}</td>
+                    <td class="mono" style="color:var(--accent-green); font-weight:800;">
+                        ${winPct.toFixed(0)}%<br><span style="font-size:0.66rem; color:var(--text-muted);">(${wins} win)</span>
+                    </td>
+                    <td class="mono" style="color:var(--accent-red); font-weight:800;">
+                        ${lossPct.toFixed(0)}%<br><span style="font-size:0.66rem; color:var(--text-muted);">(${losses} loss)</span>
+                    </td>
+                    <td class="mono" style="color:var(--accent-green); font-weight:800;">
+                        +$${wonAmt.toFixed(2)}
+                    </td>
+                    <td class="mono" style="color:var(--accent-red); font-weight:800;">
+                        -$${lostAmt.toFixed(2)}
+                    </td>
+                    <td class="mono" style="color:${netCol}; font-weight:800;">
+                        ${netStr}
+                    </td>
+                </tr>
+            `;
+        }
+
+        function renderPerformanceAndTelemetry(perfData, teleData) {
+            if (perfData) {
+                latestPayload.performance = perfData;
+                const dBody = document.getElementById('dailyReportBody');
+                const mBody = document.getElementById('monthlyReportBody');
+                if (dBody) dBody.innerHTML = renderDailyRow(perfData.daily);
+                if (mBody) mBody.innerHTML = renderMonthlyRow(perfData.monthly);
+
+                const apiBadge = document.getElementById('liveApiStatus');
+                if (apiBadge) {
+                    apiBadge.textContent = perfData.api_configured ? 'BINGX API REALE CONNESSA' : 'BINGX MARKET LIVE (NO API KEY)';
+                    apiBadge.style.color = perfData.api_configured ? 'var(--accent-green)' : 'var(--accent-gold)';
+                }
+            }
+
+            if (teleData) {
+                latestPayload.telemetry = teleData;
+                const box = document.getElementById('telemetrySummaryBox');
+                const pnlNum = Number(teleData.session_pnl || 0);
+                if (box) {
+                    box.innerHTML = `
+                        <div>Scansioni Globali: <strong>${Number(teleData.scans_count || 0)}</strong></div>
+                        <div>Ordini Attivi Totali: <strong>${Number(teleData.active_orders_count || 0)}</strong></div>
+                        <div>PnL di Sessione: <strong>$${pnlNum.toFixed(2)}</strong></div>
+                    `;
+                }
+                const logsBox = document.getElementById('telemetryLogsBox');
+                const logs = teleData.telemetry_logs || [];
+                if (logsBox) {
+                    logsBox.innerHTML = logs.length
+                        ? logs.map(l => `• [${l.timestamp}] ${l.status} — Segnali: ${l.signals_found}/${l.scanned}`).join('<br>')
+                        : 'Nessun log registrato.';
+                }
+            }
+        }
+
+        async function executeTradeFromPayload(row, sideOverride = null) {
+            if (!row) return;
+            const action = sideOverride || (row.action === 'SELL' ? 'SELL' : 'BUY');
+            try {
+                const res = await fetch('/api/autotrade/execute-manual', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        symbol: row.symbol,
+                        name: row.name,
+                        action,
+                        size: row.size || 0.001
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    releasePinnedSignal(row.symbol);
+                    alert(`Ordine REALE ${action} inviato su ${row.bingx_symbol}`);
+                    await loadPositionsStatus();
+                } else {
+                    alert(data.error || 'Impossibile inviare ordine reale');
+                }
+            } catch (e) {
+                alert('Errore di rete durante invio ordine reale.');
+            }
+        }
+
+        function executeTradeFromRow(index, sideOverride = null) {
+            const rows = latestPayload.market_monitoring_table || [];
+            executeTradeFromPayload(rows[index], sideOverride);
+        }
+
+        function executeTradeFromSignalSymbol(symbol) {
+            const sig = (latestPayload.signals || []).find(s => s.symbol === symbol);
+            if (sig) executeTradeFromPayload(sig, sig.action);
+        }
+
         function buildQueryUrl() {
+            const prof = document.getElementById('profileSelect')?.value || 'balanced';
             const params = new URLSearchParams({
-                profile: document.getElementById('profileSelect')?.value || 'balanced',
+                profile: prof,
+                low_vol_mode: prof === 'low_vol' ? '1' : '0',
                 timeframe: document.getElementById('timeframeSelect')?.value || '15m',
                 balance: document.getElementById('balanceInput')?.value || '2.0',
                 risk: document.getElementById('riskInput')?.value || '1.0',
-                min_score: document.getElementById('minScoreInput')?.value || '80'
+                min_score: document.getElementById('minScoreInput')?.value || '80',
+                market: document.getElementById('marketSelect')?.value || 'ALL',
+                symbol: document.getElementById('assetSelect')?.value || 'ALL'
             });
             return `/api/signals?${params.toString()}`;
         }
@@ -625,43 +1003,37 @@
         async function loadSignals(force = false) {
             if (isFetchingSignals && !force) return;
             isFetchingSignals = true;
-            const statusEl = document.getElementById('kpiScannerStatus');
-            if (statusEl) statusEl.textContent = 'LIVE SYNC...';
-
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 10000);
+            const timeoutId = setTimeout(() => controller.abort(), 9000);
 
             try {
                 const res = await fetch(buildQueryUrl(), { signal: controller.signal, cache: 'no-store' });
                 const data = await res.json();
+                const heldSignals = mergeAndHoldSignals(Array.isArray(data.signals) ? data.signals : []);
+
                 latestPayload = {
-                    sessions: data.sessions || latestPayload.sessions || {},
-                    signals: Array.isArray(data.signals) ? data.signals : [],
+                    sessions: data.sessions || {},
+                    signals: heldSignals,
                     active_params: data.active_params || {},
                     market_diagnostics: data.market_diagnostics || {},
-                    market_monitoring_table: Array.isArray(data.market_monitoring_table) ? data.market_monitoring_table : []
+                    market_monitoring_table: Array.isArray(data.market_monitoring_table) ? data.market_monitoring_table : [],
+                    performance: data.performance || latestPayload.performance,
+                    telemetry: data.telemetry || latestPayload.telemetry
                 };
 
-                notifyNewSignals(latestPayload.signals);
+                renderPerformanceAndTelemetry(latestPayload.performance, latestPayload.telemetry);
+                notifyNewSignals(heldSignals);
                 renderSignalsAndMarkets();
                 renderMonitoringTable();
+                renderChartsTab();
 
                 const nowTime = new Date().toLocaleTimeString('it-IT', { hour12: false });
                 const scanLbl = document.getElementById('lastScanLabel');
-                if (scanLbl) scanLbl.textContent = `LIVE • Aggiornato alle ${nowTime}`;
-                if (statusEl) {
-                    statusEl.textContent = latestPayload.signals.length > 0
-                        ? `LIVE (${latestPayload.signals.length} BUY/SELL)`
-                        : 'LIVE • TUTTI MERCATI';
-                    statusEl.style.color = latestPayload.signals.length > 0 ? 'var(--accent-green)' : 'var(--accent-blue)';
-                }
-            } catch (err) {
-                if (statusEl) {
-                    statusEl.textContent = 'LIVE RETRY';
-                    statusEl.style.color = 'var(--accent-gold)';
-                }
-                renderSignalsAndMarkets();
-                renderMonitoringTable();
+                if (scanLbl) scanLbl.textContent = `LIVE • ${nowTime}`;
+            } catch (e) {
+                const nowTime = new Date().toLocaleTimeString('it-IT', { hour12: false });
+                const scanLbl = document.getElementById('lastScanLabel');
+                if (scanLbl) scanLbl.textContent = `SYNC RETRY • ${nowTime}`;
             } finally {
                 clearTimeout(timeoutId);
                 isFetchingSignals = false;
@@ -672,65 +1044,75 @@
             const container = document.getElementById('marketsSignalsContainer');
             if (!container) return;
 
-            const categories = ['Criptovalute Globali', 'Materie Prime & Forex', 'Azioni & Indici Globali'];
+            const selectedMarket = document.getElementById('marketSelect')?.value || 'ALL';
+            const selectedAsset = document.getElementById('assetSelect')?.value || 'ALL';
+            const allCats = ['Criptovalute Globali', 'Materie Prime & Forex', 'Azioni & Indici Globali'];
+            const cats = selectedMarket === 'ALL' ? allCats : [selectedMarket];
+
             const sessions = latestPayload.sessions || {};
             const diagnostics = latestPayload.market_diagnostics || {};
-            const signals = latestPayload.signals || [];
+            const allSignals = mergeAndHoldSignals(latestPayload.signals || []);
+            latestPayload.signals = allSignals;
             const monitored = latestPayload.market_monitoring_table || [];
 
-            const kpiSig = document.getElementById('kpiSignalsCount');
-            if (kpiSig) kpiSig.textContent = String(signals.length);
-
-            container.innerHTML = categories.map(cat => {
-                const sess = sessions[cat] || { status: 'APERTO (Live)', is_open: true, hours: '24/7', badge_color: '#00ff66' };
+            container.innerHTML = cats.map(cat => {
+                const sess = sessions[cat] || { status: 'APERTO', is_open: true, hours: '', badge_color: '#00ff66' };
                 const diag = diagnostics[cat] || {};
-                const catSignals = signals.filter(s => s.category === cat);
-                const catMonitoredCount = monitored.filter(r => r.category === cat).length;
-
-                const whyText = diag.reason || (
-                    sess.is_open
-                        ? 'Nessun asset ha superato contemporaneamente i filtri RSI, Volume, Trend EMA/MACD e Min Score.'
-                        : `Borsa ${cat} chiusa (${sess.hours}).`
-                );
+                const catSignals = allSignals.filter(s => s.category === cat && (selectedAsset === 'ALL' || s.symbol === selectedAsset));
+                const catCount = monitored.filter(r => r.category === cat && (selectedAsset === 'ALL' || r.symbol === selectedAsset)).length;
 
                 return `
                     <div class="cat-block">
                         <div class="cat-header">
                             <div>
                                 <strong>${cat}</strong>
-                                <span class="mono" style="font-size:0.7rem; color:var(--text-muted); margin-left:8px;">${sess.hours || ''}</span>
+                                <span class="mono" style="font-size:0.68rem; color:var(--text-muted); margin-left:6px;">${sess.hours || ''}</span>
                             </div>
                             <span class="status-pill" style="color:${sess.badge_color || '#00ff66'};">
-                                ${sess.status || 'APERTO'} • ${catSignals.length} BUY/SELL • ${catMonitoredCount} ASSET
+                                ${sess.status} • ${catSignals.length} BUY/SELL • ${catCount} ASSET
                             </span>
                         </div>
-
                         ${catSignals.length === 0 ? `
                             <div class="diag-box">
-                                <div style="color:var(--accent-gold); font-weight:800; margin-bottom:4px;">
-                                    ⚠️ PERCHÉ NON CI SONO SEGNALI SU ${cat.toUpperCase()}
-                                </div>
-                                <div>${whyText}</div>
+                                <div style="color:var(--accent-gold); font-weight:800; margin-bottom:3px;">⚠️ NESSUN SEGNALE SU ${cat.toUpperCase()}</div>
+                                <div>${diag.filter_reason || diag.reason || 'In attesa di setup reale confermato.'}</div>
                             </div>
                         ` : `
                             <div class="signals-grid">
                                 ${catSignals.map(sig => {
                                     const isBuy = sig.action === 'BUY';
-                                    const badgeCol = isBuy ? 'var(--accent-green)' : 'var(--accent-red)';
+                                    const col = isBuy ? 'var(--accent-green)' : 'var(--accent-red)';
+                                    const tpTiming = computeTpCandleEstimate(sig);
+                                    const certText = sig.certainty_text || `${Number(sig.certainty_pct || 80).toFixed(1)}%`;
+                                    const evVal = Number(sig.ev_net_usd || 0);
                                     return `
-                                        <div class="signal-card" style="border-left:4px solid ${badgeCol};">
-                                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                                        <div class="signal-card" style="border-left:4px solid ${col};">
+                                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
                                                 <strong>${sig.name}</strong>
-                                                <span class="mono" style="color:${badgeCol}; font-weight:800;">${sig.action} • ${sig.ai_score}</span>
+                                                <span class="mono" style="color:${col}; font-weight:800;">${sig.action} • ${sig.ai_score}</span>
                                             </div>
-                                            <div class="mono" style="font-size:0.74rem; margin-bottom:6px;">
-                                                Prezzo: <strong>${sig.price}</strong> | BingX: <span>${sig.bingx_symbol}</span>
+                                            <div class="mono" style="font-size:0.72rem; margin-bottom:4px;">
+                                                Prezzo Live: <strong>${sig.price}</strong> | Blocco: <span style="color:var(--accent-gold);">${sig.remaining_sec || 90}s</span>
                                             </div>
-                                            <div class="mono" style="font-size:0.72rem; color:var(--text-muted);">
+                                            <div class="mono" style="font-size:0.7rem; color:var(--accent-green); margin-bottom:3px;">
+                                                🎯 Certezza: <strong>${certText}</strong> • R:R <strong>1:${sig.rrr}</strong> • Kelly <strong>${sig.kelly_pct ?? 0}%</strong>
+                                            </div>
+                                            <div class="mono" style="font-size:0.7rem; color:var(--text-muted);">
                                                 Entry: ${sig.entry} | SL: <span style="color:var(--accent-red);">${sig.sl}</span> | TP1: <span style="color:var(--accent-green);">${sig.tp1}</span>
                                             </div>
-                                            <div class="mono" style="font-size:0.7rem; color:var(--accent-blue); margin-top:4px;">
-                                                RSI ${sig.rsi} • Vol ${sig.vol_ratio}x • R:R 1:${sig.rrr} • ${sig.leverage}
+                                            <div class="mono" style="font-size:0.69rem; color:var(--accent-gold); margin-top:3px;">
+                                                🕯️ TP: <strong>${tpTiming}</strong>
+                                            </div>
+                                            <div class="mono" style="font-size:0.69rem; color:${sig.false_breakout ? 'var(--accent-red)' : 'var(--accent-green)'}; margin-top:2px;">
+                                                🛡️ ${sig.fakeout_label || 'PULITO'} • EV: <strong>${evVal >= 0 ? '+' : '-'}$${Math.abs(evVal).toFixed(4)}</strong>
+                                            </div>
+                                            <div class="mono" style="font-size:0.69rem; color:var(--accent-blue); margin-top:2px;">
+                                                🔄 ${sig.reversal_summary || ''}
+                                            </div>
+                                            <div class="action-btns">
+                                                <button type="button" class="btn ${isBuy ? 'btn-buy' : 'btn-sell'}" onclick="executeTradeFromSignalSymbol('${sig.symbol}')">PRENDI ${sig.action}</button>
+                                                <button type="button" class="btn btn-voice" onclick="speakSignalBySymbol('${sig.symbol}')">🗣️ VOCALE</button>
+                                                <button type="button" class="btn btn-release" onclick="releasePinnedSignal('${sig.symbol}')">✕</button>
                                             </div>
                                         </div>
                                     `;
@@ -745,68 +1127,83 @@
         function renderMonitoringTable() {
             const tbody = document.getElementById('monitoringTableBody');
             if (!tbody) return;
-
-            const marketFilter = document.getElementById('filterMarketSelect')?.value || 'ALL';
-            const takenFilter = document.getElementById('filterTakenSelect')?.value || 'ALL';
+            const selectedMarket = document.getElementById('marketSelect')?.value || 'ALL';
+            const selectedAsset = document.getElementById('assetSelect')?.value || 'ALL';
+            const filterTaken = document.getElementById('filterTakenSelect')?.value || 'ALL';
             const rows = latestPayload.market_monitoring_table || [];
 
-            const kpiMon = document.getElementById('kpiMonitoredCount');
-            if (kpiMon) kpiMon.textContent = String(rows.length);
+            const filtered = rows
+                .map((r, idx) => ({ r, idx }))
+                .filter(({ r }) => {
+                    if (selectedMarket !== 'ALL' && r.category !== selectedMarket) return false;
+                    if (selectedAsset !== 'ALL' && r.symbol !== selectedAsset) return false;
+                    if (filterTaken === 'TAKEN' && !r.taken) return false;
+                    if (filterTaken === 'NOT_TAKEN' && r.taken) return false;
+                    return true;
+                });
 
-            const filtered = rows.filter(r => {
-                if (marketFilter !== 'ALL' && r.category !== marketFilter) return false;
-                if (takenFilter === 'TAKEN' && !r.taken) return false;
-                if (takenFilter === 'NOT_TAKEN' && r.taken) return false;
-                return true;
-            });
-
-            if (filtered.length === 0) {
-                tbody.innerHTML = `
-                    <tr>
-                        <td colspan="6" class="mono" style="color:var(--text-muted);">
-                            Nessun asset corrispondente ai filtri selezionati.
-                        </td>
-                    </tr>
-                `;
+            if (!filtered.length) {
+                tbody.innerHTML = `<tr><td colspan="7" class="mono" style="color:var(--text-muted);">Nessun asset nel filtro corrente.</td></tr>`;
                 return;
             }
 
-            tbody.innerHTML = filtered.map(r => {
-                const actionColor = r.action === 'BUY'
-                    ? 'var(--accent-green)'
-                    : (r.action === 'SELL' ? 'var(--accent-red)' : 'var(--text-muted)');
-                const statusTag = r.taken
+            tbody.innerHTML = filtered.map(({ r, idx }) => {
+                const actCol = r.action === 'BUY' ? 'var(--accent-green)' : (r.action === 'SELL' ? 'var(--accent-red)' : 'var(--text-muted)');
+                const tag = r.taken
                     ? `<span class="tag-taken">PRESO (${r.action})</span>`
                     : `<span class="tag-filtered">NON PRESO (${r.action})</span>`;
-
+                const evVal = Number(r.ev_net_usd || 0);
                 return `
                     <tr>
                         <td>
-                            <div style="font-weight:700;">${r.name}</div>
-                            <div class="mono" style="font-size:0.66rem; color:var(--text-muted);">${r.category} • ${r.bingx_symbol}</div>
-                        </td>
-                        <td class="mono">
-                            <div><strong>${r.price}</strong></div>
-                            <div style="font-size:0.66rem; color:${r.is_open ? 'var(--accent-green)' : 'var(--accent-red)'};">${r.session_status}</div>
-                        </td>
-                        <td class="mono">
-                            <div style="margin-bottom:4px;">${statusTag}</div>
-                            <div style="color:${actionColor}; font-weight:700;">Score ${r.ai_score} • R:R 1:${r.rrr || 0}</div>
+                            <strong>${r.name}</strong><br>
+                            <span class="mono" style="font-size:0.64rem; color:var(--text-muted);">${r.bingx_symbol}</span>
                         </td>
                         <td class="mono" style="font-size:0.68rem;">
-                            <div>RSI: <strong>${r.rsi !== null && r.rsi !== undefined ? r.rsi : 'N/D'}</strong> | Vol: <strong>${r.vol_ratio !== null && r.vol_ratio !== undefined ? r.vol_ratio + 'x' : 'N/D'}</strong></div>
-                            <div style="color:var(--text-muted);">Trend: ${r.trend_state || 'N/D'}</div>
-                            <div style="color:var(--text-muted);">Volatilità: ${r.vol_regime || 'N/D'}</div>
+                            <strong>${r.price ?? 'N/D'}</strong><br>
+                            <span style="color:var(--accent-gold);">🕯️ ${computeTpCandleEstimate(r)}</span>
                         </td>
-                        <td class="mono" style="font-size:0.69rem; color:${r.taken ? 'var(--accent-green)' : 'var(--accent-gold)'};">
-                            ${r.why_not_taken || '-'}
+                        <td class="mono" style="font-size:0.68rem;">
+                            ${tag}<br>
+                            <span style="color:var(--accent-green);">Certezza: ${r.certainty_text || '0%'}</span><br>
+                            <span style="color:${actCol};">Score ${r.ai_score || '0%'}</span>
+                            <div class="action-btns">
+                                <button type="button" class="btn btn-buy" onclick="executeTradeFromRow(${idx}, 'BUY')">BUY</button>
+                                <button type="button" class="btn btn-sell" onclick="executeTradeFromRow(${idx}, 'SELL')">SELL</button>
+                            </div>
                         </td>
-                        <td class="mono" style="font-size:0.69rem; color:var(--accent-blue);">
-                            ${r.when_taken || '-'}
+                        <td class="mono" style="font-size:0.68rem;">
+                            E: <strong>${r.entry ?? '-'}</strong><br>
+                            SL: <span style="color:var(--accent-red);">${r.sl ?? '-'}</span><br>
+                            TP1: <span style="color:var(--accent-green);">${r.tp1 ?? '-'}</span>
+                        </td>
+                        <td class="mono" style="font-size:0.68rem;">
+                            <strong style="color:${evVal > 0 ? 'var(--accent-green)' : 'var(--accent-red)'};">EV: ${evVal >= 0 ? '+' : '-'}$${Math.abs(evVal).toFixed(4)}</strong><br>
+                            R:R 1:${r.rrr || 0} • p ${r.p_win_pct ?? 0}%
+                        </td>
+                        <td class="mono" style="font-size:0.67rem;">
+                            <span style="color:${r.false_breakout ? 'var(--accent-red)' : 'var(--accent-green)'};">${r.fakeout_label || 'PULITO'}</span><br>
+                            <span style="color:var(--accent-gold);">${r.reversal_summary || ''}</span>
+                        </td>
+                        <td class="mono" style="font-size:0.67rem;">
+                            <span style="color:${r.taken ? 'var(--accent-green)' : 'var(--accent-gold)'};">${r.filter_reason || r.why_not_taken || '-'}</span>
                         </td>
                     </tr>
                 `;
             }).join('');
+        }
+
+        function renderChartsTab() {
+            const box = document.getElementById('chartsSummaryBox');
+            if (!box) return;
+            const rows = latestPayload.market_monitoring_table || [];
+            if (!rows.length) {
+                box.textContent = 'Nessun dato live disponibile.';
+                return;
+            }
+            box.innerHTML = rows.slice(0, 12).map(r =>
+                `• <strong>${r.name}</strong> (${r.bingx_symbol}): Prezzo <strong>${r.price ?? 'N/D'}</strong> | TP1 <strong>${r.tp1 ?? 'N/D'}</strong> | ${computeTpCandleEstimate(r)}`
+            ).join('<br>');
         }
 
         async function loadPositionsStatus() {
@@ -815,36 +1212,42 @@
             try {
                 const res = await fetch('/api/autotrade/status', { cache: 'no-store' });
                 const data = await res.json();
+                if (data.performance) {
+                    renderPerformanceAndTelemetry(data.performance, latestPayload.telemetry);
+                }
                 const posList = data.positions || [];
-                const histList = data.history || [];
+                const errTxt = data.positions_error ? `<div style="color:var(--accent-gold); margin-bottom:6px;">${data.positions_error}</div>` : '';
                 box.innerHTML = `
-                    <div style="margin-bottom:8px; color:var(--accent-blue);">Modalità: ${data.mode || 'N/D'} | Auto-Trade: ${data.auto_trade ? 'ATTIVO' : 'DISATTIVO'}</div>
-                    <div style="margin-bottom:10px;"><strong>Posizioni Aperte (${posList.length}):</strong><br>${posList.length ? posList.map(p => `• ${p.name || p.symbol} (${p.action}) Entry ${p.entry} Size ${p.size} PnL ${p.unrealized_pnl}`).join('<br>') : 'Nessuna posizione aperta.'}</div>
-                    <div><strong>Storico Recente (${histList.length}):</strong><br>${histList.length ? histList.slice(0, 10).map(h => `• [${h.status}] ${h.name || h.symbol} (${h.action}) PnL ${h.realized_pnl ?? h.unrealized_pnl ?? 0}`).join('<br>') : 'Nessun trade registrato.'}</div>
+                    ${errTxt}
+                    <div><strong>Posizioni Reali Aperte su BingX (${posList.length}):</strong><br>${posList.length ? posList.map(p => `• ${p.bx_symbol || p.symbol} (${p.action}) Entry ${p.entry} Qty ${p.size} Lev ${p.leverage} uPnL ${p.unrealized_pnl}`).join('<br>') : 'Nessuna posizione aperta sul conto BingX.'}</div>
                 `;
             } catch (e) {
-                box.textContent = 'Errore caricamento posizioni.';
+                box.textContent = 'Errore lettura posizioni BingX.';
             }
         }
 
         async function loadTelemetry() {
-            const box = document.getElementById('telemetryContainer');
-            if (!box) return;
             try {
                 const res = await fetch('/api/telemetry', { cache: 'no-store' });
                 const data = await res.json();
-                const logs = data.telemetry_logs || [];
-                box.innerHTML = `
-                    <div style="margin-bottom:8px;">Scansioni eseguite: <strong>${data.scans_count || 0}</strong> | PnL sessione: <strong>$${data.session_pnl || 0}</strong></div>
-                    <div>${logs.length ? logs.map(l => `• [${l.timestamp}] ${l.status} — Segnali: ${l.signals_found ?? l.scanned}`).join('<br>') : 'Nessun log disponibile.'}</div>
-                `;
-            } catch (e) {
-                box.textContent = 'Errore caricamento telemetria.';
-            }
+                renderPerformanceAndTelemetry(latestPayload.performance, data);
+            } catch (e) {}
         }
 
-        loadSignals(true);
-        setInterval(() => loadSignals(false), 10000);
+        async function loadAllLive(force = false) {
+            await Promise.all([loadSignals(force), loadTelemetry()]);
+        }
+
+        populateAssetDropdown();
+        loadAllLive(true);
+        setInterval(() => loadSignals(false), 5000);
+        setInterval(() => loadTelemetry(), 10000);
+        setInterval(() => {
+            if (pinnedSignalsMap.size > 0) {
+                latestPayload.signals = mergeAndHoldSignals([]);
+                renderSignalsAndMarkets();
+            }
+        }, 1000);
     </script>
 </body>
 </html>
