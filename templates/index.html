@@ -261,7 +261,7 @@
                         <tr class="market-row" onclick="filterMarket('Materie Prime & Forex', this)">
                             <td>💱 <strong>FOREX & COMMODITIES</strong></td>
                             <td>Materie Prime & Forex</td>
-                            <td>Oro (PAXG), Argento (XAG), GBP/USD, EUR/USD, USD/JPY</td>
+                            <td>Oro (PAXG), Argento (XAG), Petrolio WTI, Gas, Rame, GBP/USD, EUR/USD, USD/JPY</td>
                             <td>24h (Lun-Ven)</td>
                             <td><span style="color:var(--accent-green)">🟢 Operativo</span></td>
                         </tr>
@@ -603,9 +603,44 @@
                     const res = await fetch(`/api/live-ticker/${sig.symbol}`);
                     const data = await res.json();
                     if (data.success && data.lastPrice > 0) {
+                        const liveP = parseFloat(data.lastPrice);
+                        const dec = sig.decimals || (liveP > 5 ? 2 : 5);
+                        const tpDist = parseFloat(sig.tp_dist) || 0;
+                        const slDist = parseFloat(sig.sl_dist) || 0;
+
                         const priceEl = document.getElementById(`price-${sig.symbol}`);
                         if (priceEl) {
-                            priceEl.innerText = data.lastPrice.toFixed(data.lastPrice > 5 ? 2 : 5);
+                            priceEl.innerText = liveP.toFixed(dec);
+                        }
+
+                        if (tpDist > 0 && slDist > 0) {
+                            let newTp1, newSl, newUp, newDown;
+                            if (sig.action === 'BUY') {
+                                newTp1 = (liveP + tpDist).toFixed(dec);
+                                newSl = (liveP - slDist).toFixed(dec);
+                                newUp = (liveP + tpDist * 2.5).toFixed(dec);
+                                newDown = newSl;
+                            } else if (sig.action === 'SELL') {
+                                newTp1 = (liveP - tpDist).toFixed(dec);
+                                newSl = (liveP + slDist).toFixed(dec);
+                                newUp = newSl;
+                                newDown = (liveP - tpDist * 2.5).toFixed(dec);
+                            } else {
+                                newTp1 = (liveP + tpDist).toFixed(dec);
+                                newSl = (liveP - slDist).toFixed(dec);
+                                newUp = newTp1;
+                                newDown = newSl;
+                            }
+
+                            const tp1El = document.getElementById(`tp1-${sig.symbol}`);
+                            const slEl = document.getElementById(`sl-${sig.symbol}`);
+                            const upEl = document.getElementById(`target-up-${sig.symbol}`);
+                            const downEl = document.getElementById(`target-down-${sig.symbol}`);
+
+                            if (tp1El) tp1El.innerText = newTp1;
+                            if (slEl) slEl.innerText = newSl;
+                            if (upEl) upEl.innerText = newUp;
+                            if (downEl) downEl.innerText = newDown;
                         }
                     }
                 } catch (e) { }
@@ -698,10 +733,10 @@
                                     <div style="font-size:0.75rem; color:${s.sentiment_color}; font-weight:700; margin-bottom:8px; font-family:'JetBrains Mono',monospace;">${s.sentiment}</div>
                                     
                                     <div class="metrics-grid">
-                                        <div class="metric-box"><label>🎯 TAKE PROFIT (TP1)</label><span style="color:var(--accent-green);">${s.tp1}</span></div>
-                                        <div class="metric-box"><label>🛡️ STOP LOSS (SL)</label><span style="color:var(--accent-red);">${s.sl}</span></div>
-                                        <div class="metric-box"><label>📈 TARGET RIALZISTA</label><span style="color:var(--accent-green);">${s.target_rialzista}</span></div>
-                                        <div class="metric-box"><label>📉 TARGET RIBASSISTA</label><span style="color:var(--accent-red);">${s.target_ribassista}</span></div>
+                                        <div class="metric-box"><label>🎯 TAKE PROFIT (TP1)</label><span id="tp1-${s.symbol}" style="color:var(--accent-green);">${s.tp1}</span></div>
+                                        <div class="metric-box"><label>🛡️ STOP LOSS (SL)</label><span id="sl-${s.symbol}" style="color:var(--accent-red);">${s.sl}</span></div>
+                                        <div class="metric-box"><label>📈 TARGET RIALZISTA</label><span id="target-up-${s.symbol}" style="color:var(--accent-green);">${s.target_rialzista}</span></div>
+                                        <div class="metric-box"><label>📉 TARGET RIBASSISTA</label><span id="target-down-${s.symbol}" style="color:var(--accent-red);">${s.target_ribassista}</span></div>
                                     </div>
 
                                     <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; background:rgba(0,255,102,0.06); border:1px solid rgba(0,255,102,0.2); padding:6px 10px; border-radius:6px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
