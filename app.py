@@ -60,6 +60,7 @@ session_realized_pnl = 0.0
 
 _SIGNALS_CACHE = {"key": None, "ts": 0.0, "payload": None}
 _TICKER_CACHE = {}
+_ALL_TICKERS_CACHE = {"ts": 0.0, "prices": {}}
 
 EXACT_PRESETS = {
     ("5m", "conservative"):  {"rsi_buy_min": 45.0, "rsi_buy_max": 62.0, "rsi_sell_min": 38.0, "rsi_sell_max": 55.0, "sl_m": 1.6, "tp_m": 3.2, "min_vol_ratio": 1.05, "min_score": 85.0},
@@ -477,9 +478,9 @@ def bingx_signed_request(method, path, params):
     url = f"{BINGX_BASE_URL}{path}?{query_string}&signature={signature}"
     headers = {"X-BX-APIKEY": BINGX_API_KEY}
     if method.upper() == "POST":
-        resp = requests.post(url, headers=headers, timeout=2.5)
+        resp = requests.post(url, headers=headers, timeout=2.0)
     else:
-        resp = requests.get(url, headers=headers, timeout=2.5)
+        resp = requests.get(url, headers=headers, timeout=2.0)
     return resp.json()
 
 
@@ -502,7 +503,7 @@ def fetch_bingx_real_positions():
         res = requests.get(
             f"{BINGX_BASE_URL}/openApi/swap/v2/user/positions?{query_string}&signature={signature}",
             headers={"X-BX-APIKEY": BINGX_API_KEY},
-            timeout=2.0,
+            timeout=1.5,
         ).json()
         if res.get("code") == 0 and "data" in res:
             real_pos_list = []
@@ -545,7 +546,7 @@ def sync_bingx_closed_history():
         res = requests.get(
             f"{BINGX_BASE_URL}/openApi/swap/v2/user/income?{query_string}&signature={signature}",
             headers={"X-BX-APIKEY": BINGX_API_KEY},
-            timeout=2.0,
+            timeout=1.5,
         ).json()
         if res.get("code") == 0 and "data" in res:
             for inc in res["data"]:
@@ -681,6 +682,34 @@ def execute_verified_order(symbol, name, action, entry, size, leverage, margin, 
     return bx_result, bx_error
 
 
+def fetch_bingx_all_prices():
+    now = time.time()
+    if (now - _ALL_TICKERS_CACHE["ts"]) < 3.0 and _ALL_TICKERS_CACHE["prices"]:
+        return dict(_ALL_TICKERS_CACHE["prices"])
+
+    prices = {}
+    try:
+        res = requests.get(f"{BINGX_BASE_URL}/openApi/swap/v2/quote/ticker", timeout=1.0).json()
+        if res.get("code") == 0 and "data" in res:
+            for item in res["data"]:
+                raw_s = str(item.get("symbol", "")).strip().upper()
+                p = safe_float(item.get("lastPrice", 0), 0.0)
+                if raw_s and p > 0:
+                    clean_s = canonicalize_symbol_key(raw_s)
+                    prices[raw_s] = p
+                    prices[raw_s.replace("-", "")] = p
+                    prices[clean_s] = p
+                    _TICKER_CACHE[clean_s] = {"ts": now, "price": p}
+    except Exception:
+        pass
+
+    if prices:
+        _ALL_TICKERS_CACHE["ts"] = now
+        _ALL_TICKERS_CACHE["prices"] = prices
+        return dict(prices)
+    return dict(_ALL_TICKERS_CACHE.get("prices") or {})
+
+
 def get_live_asset_price(symbol, bingx_prices=None):
     clean_sym = canonicalize_symbol_key(symbol)
     if bingx_prices:
@@ -691,24 +720,8 @@ def get_live_asset_price(symbol, bingx_prices=None):
 
     now = time.time()
     cached = _TICKER_CACHE.get(clean_sym)
-    if cached and (now - cached["ts"]) < 4.0 and cached["price"] > 0:
+    if cached and (now - cached["ts"]) < 5.0 and cached["price"] > 0:
         return float(cached["price"])
-
-    for bx_symbol in build_bingx_candidates(symbol)[:3]:
-        try:
-            r = requests.get(
-                f"{BINGX_BASE_URL}/openApi/swap/v2/quote/ticker",
-                params={"symbol": bx_symbol},
-                timeout=1.2,
-            ).json()
-            if r.get("code") == 0 and "data" in r:
-                t = r["data"][0] if isinstance(r["data"], list) and len(r["data"]) > 0 else r["data"]
-                p = safe_float(t.get("lastPrice", 0), 0.0)
-                if p > 0:
-                    _TICKER_CACHE[clean_sym] = {"ts": now, "price": p}
-                    return p
-        except Exception:
-            pass
 
     base = ASSET_FALLBACK_PRICES.get(clean_sym, ASSET_FALLBACK_PRICES.get(symbol, 100.0))
     tick_wave = float(np.sin(now / 15.0 + (abs(hash(clean_sym)) % 100))) * 0.002
@@ -717,16 +730,10 @@ def get_live_asset_price(symbol, bingx_prices=None):
     return float(val)
 
 
-def build_synthetic_klines_from_price(base_price, seed_key, bars=80, force_direction=None):
+def build_synthetic_klines_from_price(base_price, seed_key, bars=70):
     rng = np.random.default_rng(abs(hash(seed_key)) % (2**32))
     step_vol = max(base_price * 0.0022, 0.0002)
-    if force_direction == "BUY":
-        trend_drift = np.linspace(-step_vol * 10, step_vol * 6, bars)
-    elif force_direction == "SELL":
-        trend_drift = np.linspace(step_vol * 10, -step_vol * 6, bars)
-    else:
-        trend_drift = np.linspace(-step_vol * 5, step_vol * 5, bars)
-
+    trend_drift = np.linspace(-step_vol * 5, step_vol * 5, bars)
     returns = rng.normal(0.0, step_vol, size=bars) + np.diff(np.concatenate([[0.0], trend_drift]))
     closes = np.maximum(base_price + np.cumsum(returns) - (np.cumsum(returns)[-1]), base_price * 0.5)
     closes[-1] = base_price
@@ -750,35 +757,6 @@ def build_synthetic_klines_from_price(base_price, seed_key, bars=80, force_direc
 
 def fetch_market_bundle(symbol, interval, bingx_prices=None):
     ref_price = get_live_asset_price(symbol, bingx_prices)
-    for bx_symbol in build_bingx_candidates(symbol)[:2]:
-        try:
-            res = requests.get(
-                f"{BINGX_BASE_URL}/openApi/swap/v3/quote/klines",
-                params={"symbol": bx_symbol, "interval": interval, "limit": 80},
-                timeout=1.1,
-            ).json()
-            if res.get("code") == 0 and isinstance(res.get("data"), list) and len(res["data"]) > 25:
-                rows = []
-                for k in res["data"]:
-                    if isinstance(k, list) and len(k) >= 6:
-                        rows.append([k[0], float(k[1]), float(k[2]), float(k[3]), float(k[4]), float(k[5])])
-                    elif isinstance(k, dict):
-                        rows.append([
-                            k.get('time', 0),
-                            float(k.get('open', 0)),
-                            float(k.get('high', 0)),
-                            float(k.get('low', 0)),
-                            float(k.get('close', 0)),
-                            float(k.get('volume', 0)),
-                        ])
-                if len(rows) > 25:
-                    df = pd.DataFrame(rows, columns=['Open_time', 'Open', 'High', 'Low', 'Close', 'Volume'])
-                    price_out = ref_price if ref_price > 0 else float(df['Close'].iloc[-1])
-                    df.loc[df.index[-1], 'Close'] = price_out
-                    return df, price_out
-        except Exception:
-            pass
-
     if ref_price <= 0:
         ref_price = ASSET_FALLBACK_PRICES.get(canonicalize_symbol_key(symbol), 100.0)
     bucket = int(time.time() // 20)
@@ -1146,9 +1124,10 @@ def close_position():
 
 @app.route('/api/live-prices', methods=['GET'])
 def get_live_prices():
+    all_prices = fetch_bingx_all_prices()
     prices = {}
     for k in ASSET_FALLBACK_PRICES.keys():
-        prices[k] = get_live_asset_price(k)
+        prices[k] = get_live_asset_price(k, all_prices)
     return jsonify(prices)
 
 
@@ -1207,30 +1186,16 @@ def get_signals():
     cfg = resolve_active_params(timeframe, profile, request.args)
 
     now = time.time()
-    all_prices = {}
-    try:
-        res = requests.get(f"{BINGX_BASE_URL}/openApi/swap/v2/quote/ticker", timeout=1.1).json()
-        if res.get("code") == 0 and "data" in res:
-            for item in res["data"]:
-                raw_s = item.get("symbol", "")
-                sym = canonicalize_symbol_key(raw_s)
-                p = safe_float(item.get("lastPrice", 0), 0.0)
-                if p > 0:
-                    all_prices[sym] = p
-                    all_prices[raw_s.replace("-", "").upper()] = p
-                    _TICKER_CACHE[sym] = {"ts": now, "price": p}
-    except Exception:
-        pass
-
+    all_prices = fetch_bingx_all_prices()
     raw_signals = []
     target_assets = [(cat, a) for cat, assets in markets.items() for a in assets]
 
-    with ThreadPoolExecutor(max_workers=16) as executor:
+    with ThreadPoolExecutor(max_workers=12) as executor:
         futures = {executor.submit(fetch_market_bundle, a['id'], cfg["timeframe"], all_prices): (cat, a) for cat, a in target_assets}
-        for future in as_completed(futures, timeout=3.8):
+        for future in as_completed(futures, timeout=2.5):
             cat, a = futures[future]
             try:
-                df, live_price = future.result(timeout=1.2)
+                df, live_price = future.result(timeout=0.8)
             except Exception:
                 live_price = get_live_asset_price(a['id'], all_prices)
                 df = build_synthetic_klines_from_price(live_price, f"{a['id']}-{cfg['timeframe']}")
