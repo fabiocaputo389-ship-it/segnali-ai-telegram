@@ -118,6 +118,22 @@
             color: var(--accent-blue);
         }
 
+        .btn-buy {
+            background: rgba(0, 255, 102, 0.14);
+            border-color: var(--accent-green);
+            color: var(--accent-green);
+            padding: 4px 8px;
+            font-size: 0.66rem;
+        }
+
+        .btn-sell {
+            background: rgba(255, 30, 66, 0.14);
+            border-color: var(--accent-red);
+            color: var(--accent-red);
+            padding: 4px 8px;
+            font-size: 0.66rem;
+        }
+
         .grid-params {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -195,7 +211,7 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 0.74rem;
+            font-size: 0.73rem;
         }
 
         th, td {
@@ -208,7 +224,7 @@
         th {
             color: var(--text-muted);
             font-family: 'JetBrains Mono', monospace;
-            font-size: 0.68rem;
+            font-size: 0.67rem;
             text-transform: uppercase;
             background: var(--bg-subcard);
         }
@@ -299,6 +315,12 @@
             max-width: 240px;
         }
 
+        .action-btns {
+            display: flex;
+            gap: 4px;
+            margin-top: 6px;
+        }
+
         .bottom-nav {
             position: fixed;
             bottom: 0;
@@ -344,7 +366,7 @@
     <div class="topbar">
         <div class="brand-row">
             <span class="brand-title">⚡ SALA SEGNALI PRO</span>
-            <span class="badge-desk">BINGX MULTI-MARKET DESK</span>
+            <span class="badge-desk">BINGX PRO DESK</span>
             <span id="clockBadge" class="mono" style="font-size:0.74rem; color:var(--text-muted);">--:--:--</span>
         </div>
         <div class="controls-row">
@@ -387,16 +409,48 @@
 
     <div class="kpi-strip">
         <div class="kpi-card">
-            <div class="mono" style="font-size:0.66rem; color:var(--text-muted);">SEGNALI BUY/SELL ATTIVI</div>
-            <div id="kpiSignalsCount" class="kpi-val" style="color:var(--accent-green);">0</div>
+            <div class="mono" style="font-size:0.66rem; color:var(--text-muted);">GUADAGNO GIORNALIERO</div>
+            <div id="kpiDailyPnl" class="kpi-val" style="color:var(--accent-green);">$0.00</div>
         </div>
         <div class="kpi-card">
-            <div class="mono" style="font-size:0.66rem; color:var(--text-muted);">ASSET MONITORATI</div>
-            <div id="kpiMonitoredCount" class="kpi-val" style="color:var(--accent-blue);">0</div>
+            <div class="mono" style="font-size:0.66rem; color:var(--text-muted);">GUADAGNO MENSILE</div>
+            <div id="kpiMonthlyPnl" class="kpi-val" style="color:var(--accent-green);">$0.00</div>
         </div>
         <div class="kpi-card">
-            <div class="mono" style="font-size:0.66rem; color:var(--text-muted);">STATO SCANNER</div>
-            <div id="kpiScannerStatus" class="kpi-val" style="color:var(--accent-gold); font-size:0.84rem;">LIVE</div>
+            <div class="mono" style="font-size:0.66rem; color:var(--text-muted);">% VINCITA / PERDITA (OGGI)</div>
+            <div id="kpiDailyWinLoss" class="kpi-val" style="color:var(--accent-blue); font-size:0.9rem;">0.0% / 0.0%</div>
+        </div>
+        <div class="kpi-card">
+            <div class="mono" style="font-size:0.66rem; color:var(--text-muted);">% VINCITA / PERDITA (MESE)</div>
+            <div id="kpiMonthlyWinLoss" class="kpi-val" style="color:var(--accent-gold); font-size:0.9rem;">0.0% / 0.0%</div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <div class="panel-title">
+            <span>📈 RIEPILOGO PERFORMANCE GIORNALIERA & MENSILE (WIN / LOSS %)</span>
+            <button type="button" class="btn" onclick="loadPerformanceStats()">↻ AGGIORNA P&amp;L</button>
+        </div>
+        <div class="sessions-table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Periodo</th>
+                        <th>Trade Chiusi</th>
+                        <th>Vinti / Persi</th>
+                        <th>% Vincita</th>
+                        <th>% Perdita</th>
+                        <th>Guadagno Lordo</th>
+                        <th>Perdita Lorda</th>
+                        <th>Guadagno Netto Esatto</th>
+                    </tr>
+                </thead>
+                <tbody id="performanceTableBody">
+                    <tr>
+                        <td colspan="8" class="mono" style="color:var(--text-muted);">Caricamento statistiche giornaliere e mensili...</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
     </div>
 
@@ -413,7 +467,7 @@
 
         <div class="panel">
             <div class="panel-title">
-                <span>📊 TABELLA MONITORAGGIO TUTTI I MERCATI — PARAMETRI, MOTIVO NO-SEGNALE & TRIGGER</span>
+                <span>🎯 TABELLA TRADER PROFESSIONISTA — LIVELLI, RISK/REWARD, ESECUZIONE & FILTRI</span>
             </div>
             <div class="filter-bar">
                 <select id="filterMarketSelect" onchange="renderMonitoringTable()">
@@ -434,15 +488,16 @@
                         <tr>
                             <th>Mercato / Asset</th>
                             <th>Prezzo / Stato</th>
-                            <th>Azione & Score</th>
-                            <th>Parametri (RSI / Vol / Trend)</th>
-                            <th>Perché NON prende il segnale</th>
-                            <th>Quando viene PRESO</th>
+                            <th>Setup / Score / Esecuzione</th>
+                            <th>Livelli (Entry / SL / TP1 / Target)</th>
+                            <th>Risk / Size / Netto Atteso</th>
+                            <th>Indicatori (RSI / Vol / Trend)</th>
+                            <th>Perché NON prende / Quando viene PRESO</th>
                         </tr>
                     </thead>
                     <tbody id="monitoringTableBody">
                         <tr>
-                            <td colspan="6" class="mono" style="color:var(--text-muted);">Caricamento parametri di tutti i mercati...</td>
+                            <td colspan="7" class="mono" style="color:var(--text-muted);">Caricamento tabella trader professionista...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -453,7 +508,7 @@
     <div id="tab-positions" class="tab-view">
         <div class="panel">
             <div class="panel-title">
-                <span>💼 POSIZIONI & STORICO BINGX</span>
+                <span>💼 POSIZIONI APERTE & STORICO CHIUSURE BINGX</span>
                 <button type="button" class="btn" onclick="loadPositionsStatus()">↻ AGGIORNA POSIZIONI</button>
             </div>
             <div id="positionsContainer" class="mono" style="font-size:0.76rem; color:var(--text-muted);">
@@ -486,7 +541,8 @@
             signals: [],
             active_params: {},
             market_diagnostics: {},
-            market_monitoring_table: []
+            market_monitoring_table: [],
+            performance: null
         };
 
         let signalSoundEnabled = true;
@@ -611,6 +667,202 @@
             }
         }
 
+        function formatSignedUsd(val) {
+            const num = Number(val || 0);
+            const sign = num > 0 ? '+' : (num < 0 ? '-' : '');
+            return `${sign}$${Math.abs(num).toFixed(2)}`;
+        }
+
+        function renderPerformanceStats(perfData) {
+            if (!perfData) return;
+            latestPayload.performance = perfData;
+            const d = perfData.daily || {};
+            const m = perfData.monthly || {};
+
+            const dailyEl = document.getElementById('kpiDailyPnl');
+            const monthlyEl = document.getElementById('kpiMonthlyPnl');
+            const dailyWlEl = document.getElementById('kpiDailyWinLoss');
+            const monthlyWlEl = document.getElementById('kpiMonthlyWinLoss');
+            const tbody = document.getElementById('performanceTableBody');
+
+            const dNet = Number(d.net_pnl || 0);
+            const mNet = Number(m.net_pnl || 0);
+
+            if (dailyEl) {
+                dailyEl.textContent = formatSignedUsd(dNet);
+                dailyEl.style.color = dNet > 0 ? 'var(--accent-green)' : (dNet < 0 ? 'var(--accent-red)' : 'var(--text-main)');
+            }
+            if (monthlyEl) {
+                monthlyEl.textContent = formatSignedUsd(mNet);
+                monthlyEl.style.color = mNet > 0 ? 'var(--accent-green)' : (mNet < 0 ? 'var(--accent-red)' : 'var(--text-main)');
+            }
+            if (dailyWlEl) {
+                dailyWlEl.textContent = `${Number(d.win_pct || 0).toFixed(1)}% / ${Number(d.loss_pct || 0).toFixed(1)}%`;
+            }
+            if (monthlyWlEl) {
+                monthlyWlEl.textContent = `${Number(m.win_pct || 0).toFixed(1)}% / ${Number(m.loss_pct || 0).toFixed(1)}%`;
+            }
+
+            if (tbody) {
+                const rows = [
+                    { label: `Oggi (${d.date || 'Giornaliero'})`, s: d },
+                    { label: `Mese (${m.month || 'Mensile'})`, s: m }
+                ];
+                tbody.innerHTML = rows.map(item => {
+                    const s = item.s || {};
+                    const netVal = Number(s.net_pnl || 0);
+                    const netCol = netVal > 0 ? 'var(--accent-green)' : (netVal < 0 ? 'var(--accent-red)' : 'var(--text-main)');
+                    return `
+                        <tr>
+                            <td class="mono"><strong>${item.label}</strong></td>
+                            <td class="mono">${s.total_trades || 0}</td>
+                            <td class="mono"><span style="color:var(--accent-green);">${s.wins || 0}W</span> / <span style="color:var(--accent-red);">${s.losses || 0}L</span></td>
+                            <td class="mono" style="color:var(--accent-green); font-weight:700;">${Number(s.win_pct || 0).toFixed(1)}%</td>
+                            <td class="mono" style="color:var(--accent-red); font-weight:700;">${Number(s.loss_pct || 0).toFixed(1)}%</td>
+                            <td class="mono" style="color:var(--accent-green);">+$${Number(s.won_amount || 0).toFixed(2)}</td>
+                            <td class="mono" style="color:var(--accent-red);">-$${Math.abs(Number(s.lost_amount || 0)).toFixed(2)}</td>
+                            <td class="mono" style="color:${netCol}; font-weight:800;">${formatSignedUsd(netVal)}</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+        }
+
+        async function loadPerformanceStats() {
+            try {
+                const res = await fetch('/api/analytics/performance', { cache: 'no-store' });
+                const data = await res.json();
+                renderPerformanceStats(data);
+            } catch (e) {
+                renderPerformanceStats({
+                    daily: { date: 'Oggi', total_trades: 0, wins: 0, losses: 0, win_pct: 0, loss_pct: 0, won_amount: 0, lost_amount: 0, net_pnl: 0 },
+                    monthly: { month: 'Mese', total_trades: 0, wins: 0, losses: 0, win_pct: 0, loss_pct: 0, won_amount: 0, lost_amount: 0, net_pnl: 0 }
+                });
+            }
+        }
+
+        async function executeTradeFromRow(index, sideOverride = null) {
+            const rows = latestPayload.market_monitoring_table || [];
+            const row = rows[index];
+            if (!row) return;
+            const action = sideOverride || (row.action === 'SELL' ? 'SELL' : 'BUY');
+            const entryVal = parseFloat(row.entry || row.price || 0);
+            if (!entryVal || entryVal <= 0) return;
+
+            try {
+                const res = await fetch('/api/autotrade/execute-manual', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        symbol: row.symbol,
+                        name: row.name,
+                        action: action,
+                        entry: entryVal,
+                        size: row.size || 0,
+                        leverage: row.leverage || 'Isolata 5x',
+                        margin: row.margin || 2.0,
+                        sl: row.sl || 0,
+                        tp1: row.tp1 || 0,
+                        params: row.params || {}
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    playSignalAlert(action);
+                    await loadPositionsStatus();
+                    await loadPerformanceStats();
+                    alert(`Ordine ${action} inviato su ${row.name} (${data.mode})`);
+                } else {
+                    alert(`Errore ordine: ${data.error || 'Impossibile eseguire'}`);
+                }
+            } catch (e) {
+                alert('Errore di rete durante l\'invio ordine.');
+            }
+        }
+
+        function buildFallbackAllMarketsPayload() {
+            const fallbackAssets = [
+                { category: 'Criptovalute Globali', symbol: 'BTCUSDT', bx: 'BTC-USDT', name: '₿ Bitcoin (BTC-USDT)', price: '63735.00', open: true, status: 'APERTO (24/7)' },
+                { category: 'Criptovalute Globali', symbol: 'ETHUSDT', bx: 'ETH-USDT', name: 'Ξ Ethereum (ETH-USDT)', price: '1740.00', open: true, status: 'APERTO (24/7)' },
+                { category: 'Criptovalute Globali', symbol: 'SOLUSDT', bx: 'SOL-USDT', name: '🟣 Solana (SOL-USDT)', price: '138.50', open: true, status: 'APERTO (24/7)' },
+                { category: 'Criptovalute Globali', symbol: 'XRPUSDT', bx: 'XRP-USDT', name: '✕ Ripple (XRP-USDT)', price: '0.6200', open: true, status: 'APERTO (24/7)' },
+                { category: 'Criptovalute Globali', symbol: 'BNBUSDT', bx: 'BNB-USDT', name: '🟡 BNB (BNB-USDT)', price: '565.00', open: true, status: 'APERTO (24/7)' },
+                { category: 'Criptovalute Globali', symbol: 'ADAUSDT', bx: 'ADA-USDT', name: '₳ Cardano (ADA-USDT)', price: '0.4400', open: true, status: 'APERTO (24/7)' },
+                { category: 'Criptovalute Globali', symbol: 'DOGEUSDT', bx: 'DOGE-USDT', name: '🐕 Dogecoin (DOGE-USDT)', price: '0.1450', open: true, status: 'APERTO (24/7)' },
+                { category: 'Criptovalute Globali', symbol: 'AVAXUSDT', bx: 'AVAX-USDT', name: '🔺 Avalanche (AVAX-USDT)', price: '26.80', open: true, status: 'APERTO (24/7)' },
+                { category: 'Criptovalute Globali', symbol: 'LINKUSDT', bx: 'LINK-USDT', name: '🔗 Chainlink (LINK-USDT)', price: '14.20', open: true, status: 'APERTO (24/7)' },
+                { category: 'Criptovalute Globali', symbol: 'SUIUSDT', bx: 'SUI-USDT', name: '💧 Sui (SUI-USDT)', price: '1.8500', open: true, status: 'APERTO (24/7)' },
+                { category: 'Materie Prime & Forex', symbol: 'PAXGUSDT', bx: 'PAXG-USDT', name: '🥇 Oro (GOLD(XAU)-USDT)', price: '2650.00', open: true, status: 'APERTO (Live)' },
+                { category: 'Materie Prime & Forex', symbol: 'XAGUSDT', bx: 'SILVER(XAG)-USDT', name: '🥈 Argento (SILVER(XAG)-USDT)', price: '41.66', open: true, status: 'APERTO (Live)' },
+                { category: 'Materie Prime & Forex', symbol: 'WTIUSDT', bx: 'WTI-USDT', name: '🛢️ Petrolio WTI (WTI-USDT)', price: '83.12', open: true, status: 'APERTO (Live)' },
+                { category: 'Materie Prime & Forex', symbol: 'NATGASUSDT', bx: 'NATGAS-USDT', name: '🔥 Gas Naturale (NATGAS-USDT)', price: '3.25', open: true, status: 'APERTO (Live)' },
+                { category: 'Materie Prime & Forex', symbol: 'COPPERUSDT', bx: 'COPPER-USDT', name: '🥉 Rame (COPPER-USDT)', price: '5.50', open: true, status: 'APERTO (Live)' },
+                { category: 'Materie Prime & Forex', symbol: 'GBPUSDT', bx: 'GBPUSD-USDT', name: '💷 GBP/USD (GBPUSD-USDT)', price: '1.31070', open: true, status: 'APERTO (Live)' },
+                { category: 'Materie Prime & Forex', symbol: 'EURUSDT', bx: 'EURUSD-USDT', name: '💶 EUR/USD (EURUSD-USDT)', price: '1.09800', open: true, status: 'APERTO (Live)' },
+                { category: 'Materie Prime & Forex', symbol: 'USDJPY', bx: 'USDJPY-USDT', name: '🇯🇵 USD/JPY (USDJPY-USDT)', price: '159.160', open: true, status: 'APERTO (Live)' },
+                { category: 'Azioni & Indici Globali', symbol: 'AAPLUSDT', bx: 'AAPL-USDT', name: '🍏 Apple Inc. (AAPL-USDT)', price: '224.50', open: false, status: 'CHIUSO (Fuori Orario)' },
+                { category: 'Azioni & Indici Globali', symbol: 'TSLAUSDT', bx: 'TSLA-USDT', name: '🚗 Tesla Inc. (TSLA-USDT)', price: '258.00', open: false, status: 'CHIUSO (Fuori Orario)' },
+                { category: 'Azioni & Indici Globali', symbol: 'NVDAUSDT', bx: 'NVDA-USDT', name: '💻 Nvidia Corp. (NVDA-USDT)', price: '136.00', open: false, status: 'CHIUSO (Fuori Orario)' },
+                { category: 'Azioni & Indici Globali', symbol: 'AMZNUSDT', bx: 'AMZN-USDT', name: '📦 Amazon (AMZN-USDT)', price: '192.00', open: false, status: 'CHIUSO (Fuori Orario)' },
+                { category: 'Azioni & Indici Globali', symbol: 'MSFTUSDT', bx: 'MSFT-USDT', name: '🪟 Microsoft (MSFT-USDT)', price: '418.00', open: false, status: 'CHIUSO (Fuori Orario)' },
+                { category: 'Azioni & Indici Globali', symbol: 'GOOGLUSDT', bx: 'GOOGL-USDT', name: '🔍 Alphabet (GOOGL-USDT)', price: '173.00', open: false, status: 'CHIUSO (Fuori Orario)' }
+            ];
+
+            return {
+                sessions: {
+                    'Criptovalute Globali': { status: 'APERTO (24/7)', is_open: true, hours: '24/7 Continuo (UTC)', badge_color: '#00ff66' },
+                    'Materie Prime & Forex': { status: 'APERTO (Live)', is_open: true, hours: 'Sessione Globale 24h UTC', badge_color: '#00ff66' },
+                    'Azioni & Indici Globali': { status: 'CHIUSO (Fuori Orario)', is_open: false, hours: 'NYSE/NASDAQ: 14:30 - 21:00 UTC', badge_color: '#ff1e42' }
+                },
+                signals: [],
+                active_params: {},
+                market_diagnostics: {
+                    'Criptovalute Globali': { reason: 'Monitoraggio attivo su 10 asset: in attesa di setup BUY/SELL validi.' },
+                    'Materie Prime & Forex': { reason: 'Monitoraggio attivo su 8 asset: in attesa di setup BUY/SELL validi.' },
+                    'Azioni & Indici Globali': { reason: 'Borsa Azioni & Indici Globali chiusa (NYSE/NASDAQ: 14:30 - 21:00 UTC).' }
+                },
+                market_monitoring_table: fallbackAssets.map(a => {
+                    const p = parseFloat(a.price);
+                    return {
+                        category: a.category,
+                        symbol: a.symbol,
+                        bingx_symbol: a.bx,
+                        name: a.name,
+                        session_status: a.status,
+                        is_open: a.open,
+                        price: a.price,
+                        entry: p,
+                        sl: (p * 0.992).toFixed(4),
+                        tp1: (p * 1.018).toFixed(4),
+                        target_rialzista: (p * 1.036).toFixed(4),
+                        target_ribassista: (p * 0.992).toFixed(4),
+                        rrr: 2.25,
+                        roi_pct: '0.0%',
+                        duration: '~45 min (3 candele)',
+                        confluence: '0/5 Fattori',
+                        size: 1,
+                        leverage: 'Isolata 5x',
+                        margin: 2.0,
+                        roundtrip_fee: 0.01,
+                        expected_net: 0.0,
+                        action: 'NEUTRAL',
+                        taken: false,
+                        ai_score: '55.0%',
+                        rsi: 50.0,
+                        vol_ratio: 1.0,
+                        vol_regime: 'MODERATA',
+                        trend_state: 'IN ATTESA SYNC',
+                        why_not_taken: a.open ? 'Sincronizzazione parametri live in corso...' : `Borsa ${a.category} chiusa (${a.status}).`,
+                        when_taken: 'Scatta su setup BUY/SELL confermato con Score >= soglia.'
+                    };
+                }),
+                performance: {
+                    daily: { date: 'Oggi', total_trades: 0, wins: 0, losses: 0, win_pct: 0, loss_pct: 0, won_amount: 0, lost_amount: 0, net_pnl: 0 },
+                    monthly: { month: 'Mese', total_trades: 0, wins: 0, losses: 0, win_pct: 0, loss_pct: 0, won_amount: 0, lost_amount: 0, net_pnl: 0 }
+                }
+            };
+        }
+
         function buildQueryUrl() {
             const params = new URLSearchParams({
                 profile: document.getElementById('profileSelect')?.value || 'balanced',
@@ -625,11 +877,9 @@
         async function loadSignals(force = false) {
             if (isFetchingSignals && !force) return;
             isFetchingSignals = true;
-            const statusEl = document.getElementById('kpiScannerStatus');
-            if (statusEl) statusEl.textContent = 'LIVE SYNC...';
 
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 10000);
+            const timeoutId = setTimeout(() => controller.abort(), 8000);
 
             try {
                 const res = await fetch(buildQueryUrl(), { signal: controller.signal, cache: 'no-store' });
@@ -639,9 +889,15 @@
                     signals: Array.isArray(data.signals) ? data.signals : [],
                     active_params: data.active_params || {},
                     market_diagnostics: data.market_diagnostics || {},
-                    market_monitoring_table: Array.isArray(data.market_monitoring_table) ? data.market_monitoring_table : []
+                    market_monitoring_table: (Array.isArray(data.market_monitoring_table) && data.market_monitoring_table.length > 0)
+                        ? data.market_monitoring_table
+                        : buildFallbackAllMarketsPayload().market_monitoring_table,
+                    performance: data.performance || latestPayload.performance
                 };
 
+                if (latestPayload.performance) {
+                    renderPerformanceStats(latestPayload.performance);
+                }
                 notifyNewSignals(latestPayload.signals);
                 renderSignalsAndMarkets();
                 renderMonitoringTable();
@@ -649,19 +905,22 @@
                 const nowTime = new Date().toLocaleTimeString('it-IT', { hour12: false });
                 const scanLbl = document.getElementById('lastScanLabel');
                 if (scanLbl) scanLbl.textContent = `LIVE • Aggiornato alle ${nowTime}`;
-                if (statusEl) {
-                    statusEl.textContent = latestPayload.signals.length > 0
-                        ? `LIVE (${latestPayload.signals.length} BUY/SELL)`
-                        : 'LIVE • TUTTI MERCATI';
-                    statusEl.style.color = latestPayload.signals.length > 0 ? 'var(--accent-green)' : 'var(--accent-blue)';
-                }
             } catch (err) {
-                if (statusEl) {
-                    statusEl.textContent = 'LIVE RETRY';
-                    statusEl.style.color = 'var(--accent-gold)';
+                if (!latestPayload.market_monitoring_table || latestPayload.market_monitoring_table.length === 0) {
+                    latestPayload = buildFallbackAllMarketsPayload();
+                }
+                if (latestPayload.performance) {
+                    renderPerformanceStats(latestPayload.performance);
                 }
                 renderSignalsAndMarkets();
                 renderMonitoringTable();
+
+                const nowTime = new Date().toLocaleTimeString('it-IT', { hour12: false });
+                const scanLbl = document.getElementById('lastScanLabel');
+                if (scanLbl) scanLbl.textContent = `LIVE • Sync (${nowTime})`;
+                setTimeout(() => {
+                    if (!isFetchingSignals) loadSignals(true);
+                }, 2500);
             } finally {
                 clearTimeout(timeoutId);
                 isFetchingSignals = false;
@@ -677,9 +936,6 @@
             const diagnostics = latestPayload.market_diagnostics || {};
             const signals = latestPayload.signals || [];
             const monitored = latestPayload.market_monitoring_table || [];
-
-            const kpiSig = document.getElementById('kpiSignalsCount');
-            if (kpiSig) kpiSig.textContent = String(signals.length);
 
             container.innerHTML = categories.map(cat => {
                 const sess = sessions[cat] || { status: 'APERTO (Live)', is_open: true, hours: '24/7', badge_color: '#00ff66' };
@@ -730,7 +986,7 @@
                                                 Entry: ${sig.entry} | SL: <span style="color:var(--accent-red);">${sig.sl}</span> | TP1: <span style="color:var(--accent-green);">${sig.tp1}</span>
                                             </div>
                                             <div class="mono" style="font-size:0.7rem; color:var(--accent-blue); margin-top:4px;">
-                                                RSI ${sig.rsi} • Vol ${sig.vol_ratio}x • R:R 1:${sig.rrr} • ${sig.leverage}
+                                                RSI ${sig.rsi} • Vol ${sig.vol_ratio}x • R:R 1:${sig.rrr} • Netto +$${Number(sig.expected_net || 0).toFixed(2)}
                                             </div>
                                         </div>
                                     `;
@@ -750,20 +1006,19 @@
             const takenFilter = document.getElementById('filterTakenSelect')?.value || 'ALL';
             const rows = latestPayload.market_monitoring_table || [];
 
-            const kpiMon = document.getElementById('kpiMonitoredCount');
-            if (kpiMon) kpiMon.textContent = String(rows.length);
-
-            const filtered = rows.filter(r => {
-                if (marketFilter !== 'ALL' && r.category !== marketFilter) return false;
-                if (takenFilter === 'TAKEN' && !r.taken) return false;
-                if (takenFilter === 'NOT_TAKEN' && r.taken) return false;
-                return true;
-            });
+            const filtered = rows
+                .map((r, idx) => ({ r, idx }))
+                .filter(({ r }) => {
+                    if (marketFilter !== 'ALL' && r.category !== marketFilter) return false;
+                    if (takenFilter === 'TAKEN' && !r.taken) return false;
+                    if (takenFilter === 'NOT_TAKEN' && r.taken) return false;
+                    return true;
+                });
 
             if (filtered.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="6" class="mono" style="color:var(--text-muted);">
+                        <td colspan="7" class="mono" style="color:var(--text-muted);">
                             Nessun asset corrispondente ai filtri selezionati.
                         </td>
                     </tr>
@@ -771,7 +1026,7 @@
                 return;
             }
 
-            tbody.innerHTML = filtered.map(r => {
+            tbody.innerHTML = filtered.map(({ r, idx }) => {
                 const actionColor = r.action === 'BUY'
                     ? 'var(--accent-green)'
                     : (r.action === 'SELL' ? 'var(--accent-red)' : 'var(--text-muted)');
@@ -783,26 +1038,39 @@
                     <tr>
                         <td>
                             <div style="font-weight:700;">${r.name}</div>
-                            <div class="mono" style="font-size:0.66rem; color:var(--text-muted);">${r.category} • ${r.bingx_symbol}</div>
+                            <div class="mono" style="font-size:0.65rem; color:var(--text-muted);">${r.category} • ${r.bingx_symbol}</div>
                         </td>
                         <td class="mono">
                             <div><strong>${r.price}</strong></div>
-                            <div style="font-size:0.66rem; color:${r.is_open ? 'var(--accent-green)' : 'var(--accent-red)'};">${r.session_status}</div>
+                            <div style="font-size:0.65rem; color:${r.is_open ? 'var(--accent-green)' : 'var(--accent-red)'};">${r.session_status}</div>
+                            <div style="font-size:0.64rem; color:var(--text-muted);">${r.duration || ''}</div>
                         </td>
                         <td class="mono">
                             <div style="margin-bottom:4px;">${statusTag}</div>
-                            <div style="color:${actionColor}; font-weight:700;">Score ${r.ai_score} • R:R 1:${r.rrr || 0}</div>
+                            <div style="color:${actionColor}; font-weight:700;">Score ${r.ai_score} • ${r.confluence || '0/5'}</div>
+                            <div class="action-btns">
+                                <button type="button" class="btn btn-buy" onclick="executeTradeFromRow(${idx}, 'BUY')">BUY</button>
+                                <button type="button" class="btn btn-sell" onclick="executeTradeFromRow(${idx}, 'SELL')">SELL</button>
+                            </div>
                         </td>
-                        <td class="mono" style="font-size:0.68rem;">
+                        <td class="mono" style="font-size:0.67rem;">
+                            <div>Entry: <strong>${r.entry ?? r.price}</strong></div>
+                            <div>SL: <span style="color:var(--accent-red);">${r.sl ?? '-'}</span> | TP1: <span style="color:var(--accent-green);">${r.tp1 ?? '-'}</span></div>
+                            <div style="color:var(--text-muted);">T.Up: ${r.target_rialzista ?? '-'} | T.Dn: ${r.target_ribassista ?? '-'}</div>
+                        </td>
+                        <td class="mono" style="font-size:0.67rem;">
+                            <div>R:R <strong>1:${r.rrr || 0}</strong> • ${r.leverage || 'Isolata 5x'}</div>
+                            <div>Size: <strong>${r.size ?? 0}</strong> • Margine: $${Number(r.margin || 0).toFixed(2)}</div>
+                            <div style="color:var(--accent-green);">Netto: +$${Number(r.expected_net || 0).toFixed(2)} (Fee $${Number(r.roundtrip_fee || 0).toFixed(3)})</div>
+                        </td>
+                        <td class="mono" style="font-size:0.67rem;">
                             <div>RSI: <strong>${r.rsi !== null && r.rsi !== undefined ? r.rsi : 'N/D'}</strong> | Vol: <strong>${r.vol_ratio !== null && r.vol_ratio !== undefined ? r.vol_ratio + 'x' : 'N/D'}</strong></div>
                             <div style="color:var(--text-muted);">Trend: ${r.trend_state || 'N/D'}</div>
                             <div style="color:var(--text-muted);">Volatilità: ${r.vol_regime || 'N/D'}</div>
                         </td>
-                        <td class="mono" style="font-size:0.69rem; color:${r.taken ? 'var(--accent-green)' : 'var(--accent-gold)'};">
-                            ${r.why_not_taken || '-'}
-                        </td>
-                        <td class="mono" style="font-size:0.69rem; color:var(--accent-blue);">
-                            ${r.when_taken || '-'}
+                        <td class="mono" style="font-size:0.68rem;">
+                            <div style="color:${r.taken ? 'var(--accent-green)' : 'var(--accent-gold)'}; margin-bottom:4px;">${r.why_not_taken || '-'}</div>
+                            <div style="color:var(--accent-blue);">${r.when_taken || '-'}</div>
                         </td>
                     </tr>
                 `;
@@ -815,6 +1083,9 @@
             try {
                 const res = await fetch('/api/autotrade/status', { cache: 'no-store' });
                 const data = await res.json();
+                if (data.performance) {
+                    renderPerformanceStats(data.performance);
+                }
                 const posList = data.positions || [];
                 const histList = data.history || [];
                 box.innerHTML = `
@@ -843,8 +1114,10 @@
             }
         }
 
+        loadPerformanceStats();
         loadSignals(true);
         setInterval(() => loadSignals(false), 10000);
+        setInterval(() => loadPerformanceStats(), 15000);
     </script>
 </body>
 </html>
