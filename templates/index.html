@@ -118,6 +118,14 @@
             color: var(--accent-blue);
         }
 
+        .btn-voice {
+            background: rgba(255, 209, 102, 0.12);
+            border-color: var(--accent-gold);
+            color: var(--accent-gold);
+            padding: 4px 8px;
+            font-size: 0.66rem;
+        }
+
         .btn-buy {
             background: rgba(0, 255, 102, 0.14);
             border-color: var(--accent-green);
@@ -136,7 +144,7 @@
 
         .grid-params {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
             gap: 10px;
             margin-bottom: 14px;
         }
@@ -312,13 +320,14 @@
         }
 
         .filter-bar select {
-            max-width: 240px;
+            max-width: 260px;
         }
 
         .action-btns {
             display: flex;
             gap: 4px;
             margin-top: 6px;
+            flex-wrap: wrap;
         }
 
         .bottom-nav {
@@ -370,13 +379,28 @@
             <span id="clockBadge" class="mono" style="font-size:0.74rem; color:var(--text-muted);">--:--:--</span>
         </div>
         <div class="controls-row">
-            <button id="soundToggleBtn" type="button" class="btn btn-audio-on" onclick="toggleSignalSound()">🔊 AUDIO: ON</button>
-            <button type="button" class="btn" onclick="testSoundAlert()">🔔 TEST SUONO</button>
+            <button id="soundToggleBtn" type="button" class="btn btn-audio-on" onclick="toggleSignalSound()">🔊 VOCALE & AUDIO: ON</button>
+            <button type="button" class="btn" onclick="testVoiceAlert()">🗣️ TEST VOCALE</button>
             <button type="button" class="btn btn-refresh" onclick="loadSignals(true)">↻ AGGIORNA</button>
         </div>
     </div>
 
     <div class="grid-params">
+        <div>
+            <label for="marketSelect">Mercato Selezionato</label>
+            <select id="marketSelect" onchange="onMarketOrAssetChange()">
+                <option value="ALL" selected>Tutti i Mercati</option>
+                <option value="Criptovalute Globali">Criptovalute Globali</option>
+                <option value="Materie Prime & Forex">Materie Prime & Forex</option>
+                <option value="Azioni & Indici Globali">Azioni & Indici Globali</option>
+            </select>
+        </div>
+        <div>
+            <label for="assetSelect">Cripto / Valuta / Azione</label>
+            <select id="assetSelect" onchange="onMarketOrAssetChange()">
+                <option value="ALL" selected>Tutti gli Asset</option>
+            </select>
+        </div>
         <div>
             <label for="profileSelect">Profilo Operativo</label>
             <select id="profileSelect" onchange="loadSignals(true)">
@@ -470,12 +494,6 @@
                 <span>🎯 TABELLA TRADER PROFESSIONISTA — LIVELLI, RISK/REWARD, ESECUZIONE & FILTRI</span>
             </div>
             <div class="filter-bar">
-                <select id="filterMarketSelect" onchange="renderMonitoringTable()">
-                    <option value="ALL" selected>Tutti i Mercati</option>
-                    <option value="Criptovalute Globali">Criptovalute Globali</option>
-                    <option value="Materie Prime & Forex">Materie Prime & Forex</option>
-                    <option value="Azioni & Indici Globali">Azioni & Indici Globali</option>
-                </select>
                 <select id="filterTakenSelect" onchange="renderMonitoringTable()">
                     <option value="ALL" selected>Tutti gli Asset (Presi + Non Presi)</option>
                     <option value="TAKEN">Solo Segnali Presi (BUY/SELL)</option>
@@ -536,6 +554,39 @@
     </div>
 
     <script>
+        const MARKET_ASSETS_CATALOG = {
+            'Criptovalute Globali': [
+                { id: 'BTCUSDT', name: 'Bitcoin (BTC-USDT)' },
+                { id: 'ETHUSDT', name: 'Ethereum (ETH-USDT)' },
+                { id: 'SOLUSDT', name: 'Solana (SOL-USDT)' },
+                { id: 'XRPUSDT', name: 'Ripple (XRP-USDT)' },
+                { id: 'BNBUSDT', name: 'BNB (BNB-USDT)' },
+                { id: 'ADAUSDT', name: 'Cardano (ADA-USDT)' },
+                { id: 'DOGEUSDT', name: 'Dogecoin (DOGE-USDT)' },
+                { id: 'AVAXUSDT', name: 'Avalanche (AVAX-USDT)' },
+                { id: 'LINKUSDT', name: 'Chainlink (LINK-USDT)' },
+                { id: 'SUIUSDT', name: 'Sui (SUI-USDT)' }
+            ],
+            'Materie Prime & Forex': [
+                { id: 'PAXGUSDT', name: 'Oro (GOLD(XAU)-USDT)' },
+                { id: 'XAGUSDT', name: 'Argento (SILVER(XAG)-USDT)' },
+                { id: 'WTIUSDT', name: 'Petrolio WTI (WTI-USDT)' },
+                { id: 'NATGASUSDT', name: 'Gas Naturale (NATGAS-USDT)' },
+                { id: 'COPPERUSDT', name: 'Rame (COPPER-USDT)' },
+                { id: 'GBPUSDT', name: 'GBP/USD (GBPUSD-USDT)' },
+                { id: 'EURUSDT', name: 'EUR/USD (EURUSD-USDT)' },
+                { id: 'USDJPY', name: 'USD/JPY (USDJPY-USDT)' }
+            ],
+            'Azioni & Indici Globali': [
+                { id: 'AAPLUSDT', name: 'Apple Inc. (AAPL-USDT)' },
+                { id: 'TSLAUSDT', name: 'Tesla Inc. (TSLA-USDT)' },
+                { id: 'NVDAUSDT', name: 'Nvidia Corp. (NVDA-USDT)' },
+                { id: 'AMZNUSDT', name: 'Amazon (AMZN-USDT)' },
+                { id: 'MSFTUSDT', name: 'Microsoft (MSFT-USDT)' },
+                { id: 'GOOGLUSDT', name: 'Alphabet (GOOGL-USDT)' }
+            ]
+        };
+
         let latestPayload = {
             sessions: {},
             signals: [],
@@ -549,6 +600,40 @@
         let audioCtx = null;
         const notifiedSignalKeys = new Set();
         let isFetchingSignals = false;
+
+        function populateAssetDropdown() {
+            const marketVal = document.getElementById('marketSelect')?.value || 'ALL';
+            const assetSelect = document.getElementById('assetSelect');
+            if (!assetSelect) return;
+
+            const prevVal = assetSelect.value || 'ALL';
+            let items = [];
+
+            if (marketVal === 'ALL') {
+                Object.values(MARKET_ASSETS_CATALOG).forEach(list => {
+                    items = items.concat(list);
+                });
+            } else {
+                items = MARKET_ASSETS_CATALOG[marketVal] || [];
+            }
+
+            assetSelect.innerHTML = `<option value="ALL">Tutti gli Asset (${items.length})</option>` + items.map(it =>
+                `<option value="${it.id}">${it.name}</option>`
+            ).join('');
+
+            if (items.some(it => it.id === prevVal)) {
+                assetSelect.value = prevVal;
+            } else {
+                assetSelect.value = 'ALL';
+            }
+        }
+
+        function onMarketOrAssetChange() {
+            populateAssetDropdown();
+            renderSignalsAndMarkets();
+            renderMonitoringTable();
+            loadSignals(true);
+        }
 
         function updateClocks() {
             const now = new Date();
@@ -618,22 +703,46 @@
             });
         }
 
-        function playSignalAlert(action = 'BUY') {
+        function speakItalianText(text) {
             if (!signalSoundEnabled) return;
-            if (action === 'SELL') {
-                playToneSequence([660, 440], 0.15, 0.05, 'triangle', 0.18);
-            } else {
-                playToneSequence([587.33, 880, 1174.66], 0.12, 0.04, 'sine', 0.16);
-            }
-            if (navigator.vibrate) {
-                try { navigator.vibrate([120, 60, 120]); } catch (e) {}
-            }
+            try {
+                if ('speechSynthesis' in window) {
+                    window.speechSynthesis.cancel();
+                    const utter = new SpeechSynthesisUtterance(text);
+                    utter.lang = 'it-IT';
+                    utter.rate = 1.02;
+                    utter.pitch = 1.0;
+                    utter.volume = 1.0;
+                    const voices = window.speechSynthesis.getVoices() || [];
+                    const itVoice = voices.find(v => (v.lang || '').toLowerCase().startsWith('it'));
+                    if (itVoice) utter.voice = itVoice;
+                    window.speechSynthesis.speak(utter);
+                }
+            } catch (e) {}
         }
 
-        function testSoundAlert() {
+        function speakSignal(sig) {
+            if (!sig) return;
+            const cleanName = String(sig.name || sig.symbol || '').replace(/[^\w\s/()-]/g, '').trim();
+            const dirLabel = sig.action === 'BUY' ? 'acquisto long' : (sig.action === 'SELL' ? 'vendita short' : 'neutro');
+            const spoken = `Segnale ${dirLabel} su ${cleanName}. Prezzo ${sig.price}, stop loss ${sig.sl}, take profit ${sig.tp1}, score ${sig.ai_score}.`;
             const prev = signalSoundEnabled;
             signalSoundEnabled = true;
-            playSignalAlert('BUY');
+            playToneSequence(sig.action === 'SELL' ? [660, 440] : [587.33, 880], 0.11, 0.04, 'sine', 0.14);
+            speakItalianText(spoken);
+            signalSoundEnabled = prev;
+        }
+
+        function speakSignalByIndex(idx) {
+            const sig = (latestPayload.signals || [])[idx];
+            if (sig) speakSignal(sig);
+        }
+
+        function testVoiceAlert() {
+            const prev = signalSoundEnabled;
+            signalSoundEnabled = true;
+            playToneSequence([587.33, 880, 1174.66], 0.11, 0.04, 'sine', 0.15);
+            speakItalianText('Voce segnali operativa. Sistema pronto sul mercato selezionato.');
             signalSoundEnabled = prev;
         }
 
@@ -641,11 +750,13 @@
             signalSoundEnabled = !signalSoundEnabled;
             const btn = document.getElementById('soundToggleBtn');
             if (btn) {
-                btn.textContent = signalSoundEnabled ? '🔊 AUDIO: ON' : '🔇 AUDIO: OFF';
+                btn.textContent = signalSoundEnabled ? '🔊 VOCALE & AUDIO: ON' : '🔇 VOCALE & AUDIO: OFF';
                 btn.className = `btn ${signalSoundEnabled ? 'btn-audio-on' : 'btn-audio-off'}`;
             }
             if (signalSoundEnabled) {
-                playSignalAlert('BUY');
+                testVoiceAlert();
+            } else if ('speechSynthesis' in window) {
+                try { window.speechSynthesis.cancel(); } catch (e) {}
             }
         }
 
@@ -662,8 +773,12 @@
                     newlyDetected.push(sig);
                 }
             }
-            if (newlyDetected.length > 0) {
-                playSignalAlert(newlyDetected[0].action);
+            if (newlyDetected.length > 0 && signalSoundEnabled) {
+                const first = newlyDetected[0];
+                playToneSequence(first.action === 'SELL' ? [660, 440] : [587.33, 880, 1174.66], 0.12, 0.04, 'sine', 0.16);
+                const cleanName = String(first.name || first.symbol || '').replace(/[^\w\s/()-]/g, '').trim();
+                const dirLabel = first.action === 'BUY' ? 'acquisto long' : 'vendita short';
+                speakItalianText(`Nuovo segnale ${dirLabel} su ${cleanName}. Entrata ${first.entry}, stop loss ${first.sl}, target ${first.tp1}.`);
             }
         }
 
@@ -768,7 +883,8 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    playSignalAlert(action);
+                    playToneSequence(action === 'SELL' ? [660, 440] : [587.33, 880], 0.12, 0.04, 'sine', 0.15);
+                    speakItalianText(`Ordine ${action} eseguito su ${row.symbol}`);
                     await loadPositionsStatus();
                     await loadPerformanceStats();
                     alert(`Ordine ${action} inviato su ${row.name} (${data.mode})`);
@@ -781,62 +897,25 @@
         }
 
         function buildFallbackAllMarketsPayload() {
-            const fallbackAssets = [
-                { category: 'Criptovalute Globali', symbol: 'BTCUSDT', bx: 'BTC-USDT', name: '₿ Bitcoin (BTC-USDT)', price: '63735.00', open: true, status: 'APERTO (24/7)' },
-                { category: 'Criptovalute Globali', symbol: 'ETHUSDT', bx: 'ETH-USDT', name: 'Ξ Ethereum (ETH-USDT)', price: '1740.00', open: true, status: 'APERTO (24/7)' },
-                { category: 'Criptovalute Globali', symbol: 'SOLUSDT', bx: 'SOL-USDT', name: '🟣 Solana (SOL-USDT)', price: '138.50', open: true, status: 'APERTO (24/7)' },
-                { category: 'Criptovalute Globali', symbol: 'XRPUSDT', bx: 'XRP-USDT', name: '✕ Ripple (XRP-USDT)', price: '0.6200', open: true, status: 'APERTO (24/7)' },
-                { category: 'Criptovalute Globali', symbol: 'BNBUSDT', bx: 'BNB-USDT', name: '🟡 BNB (BNB-USDT)', price: '565.00', open: true, status: 'APERTO (24/7)' },
-                { category: 'Criptovalute Globali', symbol: 'ADAUSDT', bx: 'ADA-USDT', name: '₳ Cardano (ADA-USDT)', price: '0.4400', open: true, status: 'APERTO (24/7)' },
-                { category: 'Criptovalute Globali', symbol: 'DOGEUSDT', bx: 'DOGE-USDT', name: '🐕 Dogecoin (DOGE-USDT)', price: '0.1450', open: true, status: 'APERTO (24/7)' },
-                { category: 'Criptovalute Globali', symbol: 'AVAXUSDT', bx: 'AVAX-USDT', name: '🔺 Avalanche (AVAX-USDT)', price: '26.80', open: true, status: 'APERTO (24/7)' },
-                { category: 'Criptovalute Globali', symbol: 'LINKUSDT', bx: 'LINK-USDT', name: '🔗 Chainlink (LINK-USDT)', price: '14.20', open: true, status: 'APERTO (24/7)' },
-                { category: 'Criptovalute Globali', symbol: 'SUIUSDT', bx: 'SUI-USDT', name: '💧 Sui (SUI-USDT)', price: '1.8500', open: true, status: 'APERTO (24/7)' },
-                { category: 'Materie Prime & Forex', symbol: 'PAXGUSDT', bx: 'PAXG-USDT', name: '🥇 Oro (GOLD(XAU)-USDT)', price: '2650.00', open: true, status: 'APERTO (Live)' },
-                { category: 'Materie Prime & Forex', symbol: 'XAGUSDT', bx: 'SILVER(XAG)-USDT', name: '🥈 Argento (SILVER(XAG)-USDT)', price: '41.66', open: true, status: 'APERTO (Live)' },
-                { category: 'Materie Prime & Forex', symbol: 'WTIUSDT', bx: 'WTI-USDT', name: '🛢️ Petrolio WTI (WTI-USDT)', price: '83.12', open: true, status: 'APERTO (Live)' },
-                { category: 'Materie Prime & Forex', symbol: 'NATGASUSDT', bx: 'NATGAS-USDT', name: '🔥 Gas Naturale (NATGAS-USDT)', price: '3.25', open: true, status: 'APERTO (Live)' },
-                { category: 'Materie Prime & Forex', symbol: 'COPPERUSDT', bx: 'COPPER-USDT', name: '🥉 Rame (COPPER-USDT)', price: '5.50', open: true, status: 'APERTO (Live)' },
-                { category: 'Materie Prime & Forex', symbol: 'GBPUSDT', bx: 'GBPUSD-USDT', name: '💷 GBP/USD (GBPUSD-USDT)', price: '1.31070', open: true, status: 'APERTO (Live)' },
-                { category: 'Materie Prime & Forex', symbol: 'EURUSDT', bx: 'EURUSD-USDT', name: '💶 EUR/USD (EURUSD-USDT)', price: '1.09800', open: true, status: 'APERTO (Live)' },
-                { category: 'Materie Prime & Forex', symbol: 'USDJPY', bx: 'USDJPY-USDT', name: '🇯🇵 USD/JPY (USDJPY-USDT)', price: '159.160', open: true, status: 'APERTO (Live)' },
-                { category: 'Azioni & Indici Globali', symbol: 'AAPLUSDT', bx: 'AAPL-USDT', name: '🍏 Apple Inc. (AAPL-USDT)', price: '224.50', open: false, status: 'CHIUSO (Fuori Orario)' },
-                { category: 'Azioni & Indici Globali', symbol: 'TSLAUSDT', bx: 'TSLA-USDT', name: '🚗 Tesla Inc. (TSLA-USDT)', price: '258.00', open: false, status: 'CHIUSO (Fuori Orario)' },
-                { category: 'Azioni & Indici Globali', symbol: 'NVDAUSDT', bx: 'NVDA-USDT', name: '💻 Nvidia Corp. (NVDA-USDT)', price: '136.00', open: false, status: 'CHIUSO (Fuori Orario)' },
-                { category: 'Azioni & Indici Globali', symbol: 'AMZNUSDT', bx: 'AMZN-USDT', name: '📦 Amazon (AMZN-USDT)', price: '192.00', open: false, status: 'CHIUSO (Fuori Orario)' },
-                { category: 'Azioni & Indici Globali', symbol: 'MSFTUSDT', bx: 'MSFT-USDT', name: '🪟 Microsoft (MSFT-USDT)', price: '418.00', open: false, status: 'CHIUSO (Fuori Orario)' },
-                { category: 'Azioni & Indici Globali', symbol: 'GOOGLUSDT', bx: 'GOOGL-USDT', name: '🔍 Alphabet (GOOGL-USDT)', price: '173.00', open: false, status: 'CHIUSO (Fuori Orario)' }
-            ];
-
-            return {
-                sessions: {
-                    'Criptovalute Globali': { status: 'APERTO (24/7)', is_open: true, hours: '24/7 Continuo (UTC)', badge_color: '#00ff66' },
-                    'Materie Prime & Forex': { status: 'APERTO (Live)', is_open: true, hours: 'Sessione Globale 24h UTC', badge_color: '#00ff66' },
-                    'Azioni & Indici Globali': { status: 'CHIUSO (Fuori Orario)', is_open: false, hours: 'NYSE/NASDAQ: 14:30 - 21:00 UTC', badge_color: '#ff1e42' }
-                },
-                signals: [],
-                active_params: {},
-                market_diagnostics: {
-                    'Criptovalute Globali': { reason: 'Monitoraggio attivo su 10 asset: in attesa di setup BUY/SELL validi.' },
-                    'Materie Prime & Forex': { reason: 'Monitoraggio attivo su 8 asset: in attesa di setup BUY/SELL validi.' },
-                    'Azioni & Indici Globali': { reason: 'Borsa Azioni & Indici Globali chiusa (NYSE/NASDAQ: 14:30 - 21:00 UTC).' }
-                },
-                market_monitoring_table: fallbackAssets.map(a => {
-                    const p = parseFloat(a.price);
-                    return {
-                        category: a.category,
-                        symbol: a.symbol,
-                        bingx_symbol: a.bx,
+            const rows = [];
+            Object.entries(MARKET_ASSETS_CATALOG).forEach(([category, list]) => {
+                const isOpen = category !== 'Azioni & Indici Globali';
+                const status = category === 'Criptovalute Globali' ? 'APERTO (24/7)' : (isOpen ? 'APERTO (Live)' : 'CHIUSO (Fuori Orario)');
+                list.forEach(a => {
+                    rows.push({
+                        category,
+                        symbol: a.id,
+                        bingx_symbol: `${a.id.replace('USDT', '')}-USDT`,
                         name: a.name,
-                        session_status: a.status,
-                        is_open: a.open,
-                        price: a.price,
-                        entry: p,
-                        sl: (p * 0.992).toFixed(4),
-                        tp1: (p * 1.018).toFixed(4),
-                        target_rialzista: (p * 1.036).toFixed(4),
-                        target_ribassista: (p * 0.992).toFixed(4),
-                        rrr: 2.25,
+                        session_status: status,
+                        is_open: isOpen,
+                        price: '100.00',
+                        entry: 100.0,
+                        sl: 99.0,
+                        tp1: 102.5,
+                        target_rialzista: 105.0,
+                        target_ribassista: 99.0,
+                        rrr: 2.5,
                         roi_pct: '0.0%',
                         duration: '~45 min (3 candele)',
                         confluence: '0/5 Fattori',
@@ -852,10 +931,22 @@
                         vol_ratio: 1.0,
                         vol_regime: 'MODERATA',
                         trend_state: 'IN ATTESA SYNC',
-                        why_not_taken: a.open ? 'Sincronizzazione parametri live in corso...' : `Borsa ${a.category} chiusa (${a.status}).`,
+                        why_not_taken: isOpen ? 'Sincronizzazione parametri live in corso...' : `Borsa ${category} chiusa (${status}).`,
                         when_taken: 'Scatta su setup BUY/SELL confermato con Score >= soglia.'
-                    };
-                }),
+                    });
+                });
+            });
+
+            return {
+                sessions: {
+                    'Criptovalute Globali': { status: 'APERTO (24/7)', is_open: true, hours: '24/7 Continuo (UTC)', badge_color: '#00ff66' },
+                    'Materie Prime & Forex': { status: 'APERTO (Live)', is_open: true, hours: 'Sessione Globale 24h UTC', badge_color: '#00ff66' },
+                    'Azioni & Indici Globali': { status: 'CHIUSO (Fuori Orario)', is_open: false, hours: 'NYSE/NASDAQ: 14:30 - 21:00 UTC', badge_color: '#ff1e42' }
+                },
+                signals: [],
+                active_params: {},
+                market_diagnostics: {},
+                market_monitoring_table: rows,
                 performance: {
                     daily: { date: 'Oggi', total_trades: 0, wins: 0, losses: 0, win_pct: 0, loss_pct: 0, won_amount: 0, lost_amount: 0, net_pnl: 0 },
                     monthly: { month: 'Mese', total_trades: 0, wins: 0, losses: 0, win_pct: 0, loss_pct: 0, won_amount: 0, lost_amount: 0, net_pnl: 0 }
@@ -864,12 +955,16 @@
         }
 
         function buildQueryUrl() {
+            const marketVal = document.getElementById('marketSelect')?.value || 'ALL';
+            const assetVal = document.getElementById('assetSelect')?.value || 'ALL';
             const params = new URLSearchParams({
                 profile: document.getElementById('profileSelect')?.value || 'balanced',
                 timeframe: document.getElementById('timeframeSelect')?.value || '15m',
                 balance: document.getElementById('balanceInput')?.value || '2.0',
                 risk: document.getElementById('riskInput')?.value || '1.0',
-                min_score: document.getElementById('minScoreInput')?.value || '80'
+                min_score: document.getElementById('minScoreInput')?.value || '80',
+                market: marketVal,
+                symbol: assetVal
             });
             return `/api/signals?${params.toString()}`;
         }
@@ -931,21 +1026,31 @@
             const container = document.getElementById('marketsSignalsContainer');
             if (!container) return;
 
-            const categories = ['Criptovalute Globali', 'Materie Prime & Forex', 'Azioni & Indici Globali'];
+            const selectedMarket = document.getElementById('marketSelect')?.value || 'ALL';
+            const selectedAsset = document.getElementById('assetSelect')?.value || 'ALL';
+
+            const allCategories = ['Criptovalute Globali', 'Materie Prime & Forex', 'Azioni & Indici Globali'];
+            const categories = selectedMarket === 'ALL' ? allCategories : [selectedMarket];
+
             const sessions = latestPayload.sessions || {};
             const diagnostics = latestPayload.market_diagnostics || {};
-            const signals = latestPayload.signals || [];
+            const allSignals = latestPayload.signals || [];
             const monitored = latestPayload.market_monitoring_table || [];
 
             container.innerHTML = categories.map(cat => {
                 const sess = sessions[cat] || { status: 'APERTO (Live)', is_open: true, hours: '24/7', badge_color: '#00ff66' };
                 const diag = diagnostics[cat] || {};
-                const catSignals = signals.filter(s => s.category === cat);
-                const catMonitoredCount = monitored.filter(r => r.category === cat).length;
+
+                const catSignals = allSignals.filter(s =>
+                    s.category === cat && (selectedAsset === 'ALL' || s.symbol === selectedAsset)
+                );
+                const catMonitoredCount = monitored.filter(r =>
+                    r.category === cat && (selectedAsset === 'ALL' || r.symbol === selectedAsset)
+                ).length;
 
                 const whyText = diag.reason || (
                     sess.is_open
-                        ? 'Nessun asset ha superato contemporaneamente i filtri RSI, Volume, Trend EMA/MACD e Min Score.'
+                        ? 'Nessun asset selezionato ha superato contemporaneamente i filtri RSI, Volume, Trend EMA/MACD e Min Score.'
                         : `Borsa ${cat} chiusa (${sess.hours}).`
                 );
 
@@ -964,7 +1069,7 @@
                         ${catSignals.length === 0 ? `
                             <div class="diag-box">
                                 <div style="color:var(--accent-gold); font-weight:800; margin-bottom:4px;">
-                                    ⚠️ PERCHÉ NON CI SONO SEGNALI SU ${cat.toUpperCase()}
+                                    ⚠️ PERCHÉ NON CI SONO SEGNALI SU ${cat.toUpperCase()}${selectedAsset !== 'ALL' ? ' (' + selectedAsset + ')' : ''}
                                 </div>
                                 <div>${whyText}</div>
                             </div>
@@ -973,9 +1078,10 @@
                                 ${catSignals.map(sig => {
                                     const isBuy = sig.action === 'BUY';
                                     const badgeCol = isBuy ? 'var(--accent-green)' : 'var(--accent-red)';
+                                    const globalSigIdx = allSignals.findIndex(x => x.id === sig.id);
                                     return `
                                         <div class="signal-card" style="border-left:4px solid ${badgeCol};">
-                                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                                            <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:6px;">
                                                 <strong>${sig.name}</strong>
                                                 <span class="mono" style="color:${badgeCol}; font-weight:800;">${sig.action} • ${sig.ai_score}</span>
                                             </div>
@@ -987,6 +1093,9 @@
                                             </div>
                                             <div class="mono" style="font-size:0.7rem; color:var(--accent-blue); margin-top:4px;">
                                                 RSI ${sig.rsi} • Vol ${sig.vol_ratio}x • R:R 1:${sig.rrr} • Netto +$${Number(sig.expected_net || 0).toFixed(2)}
+                                            </div>
+                                            <div class="action-btns">
+                                                <button type="button" class="btn btn-voice" onclick="speakSignalByIndex(${globalSigIdx})">🗣️ VOCALE SEGNALE</button>
                                             </div>
                                         </div>
                                     `;
@@ -1002,14 +1111,16 @@
             const tbody = document.getElementById('monitoringTableBody');
             if (!tbody) return;
 
-            const marketFilter = document.getElementById('filterMarketSelect')?.value || 'ALL';
+            const selectedMarket = document.getElementById('marketSelect')?.value || 'ALL';
+            const selectedAsset = document.getElementById('assetSelect')?.value || 'ALL';
             const takenFilter = document.getElementById('filterTakenSelect')?.value || 'ALL';
             const rows = latestPayload.market_monitoring_table || [];
 
             const filtered = rows
                 .map((r, idx) => ({ r, idx }))
                 .filter(({ r }) => {
-                    if (marketFilter !== 'ALL' && r.category !== marketFilter) return false;
+                    if (selectedMarket !== 'ALL' && r.category !== selectedMarket) return false;
+                    if (selectedAsset !== 'ALL' && r.symbol !== selectedAsset) return false;
                     if (takenFilter === 'TAKEN' && !r.taken) return false;
                     if (takenFilter === 'NOT_TAKEN' && r.taken) return false;
                     return true;
@@ -1019,7 +1130,7 @@
                 tbody.innerHTML = `
                     <tr>
                         <td colspan="7" class="mono" style="color:var(--text-muted);">
-                            Nessun asset corrispondente ai filtri selezionati.
+                            Nessun asset corrispondente alla selezione corrente.
                         </td>
                     </tr>
                 `;
@@ -1114,6 +1225,7 @@
             }
         }
 
+        populateAssetDropdown();
         loadPerformanceStats();
         loadSignals(true);
         setInterval(() => loadSignals(false), 10000);
