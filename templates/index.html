@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SALA SEGNALI PRO • Institutional Terminal</title>
+    <title>SALA SEGNALI PRO • Institutional Desk</title>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg-base: #07090e; --bg-panel: #0d121d; --border-color: #1e2638;
-            --accent-green: #00ff66; --accent-red: #ff1e42; --accent-gold: #ffd166;
+            --accent-green: #00ff66; --accent-red: #ff1e42; --accent-gold: #ffd166; --accent-cyan: #38bdf8;
             --text-main: #f0f4f8; --text-muted: #8a99ad;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
@@ -17,7 +17,7 @@
         .logo { font-family: 'JetBrains Mono', monospace; font-weight: 800; font-size: 1.1rem; color: var(--accent-green); display: flex; align-items: center; gap: 8px; }
         .terminal-clock { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--text-muted); background: rgba(255,255,255,0.03); padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border-color); }
         
-        .controls-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; padding: 15px 20px; background: var(--bg-panel); border-bottom: 1px solid var(--border-color); }
+        .controls-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: 12px; padding: 15px 20px; background: var(--bg-panel); border-bottom: 1px solid var(--border-color); }
         .control-group label { display: block; font-size: 0.7rem; font-family: 'JetBrains Mono', monospace; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; }
         .control-group input, .control-group select { width: 100%; background: var(--bg-base); border: 1px solid var(--border-color); color: var(--text-main); padding: 8px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; outline: none; }
         .control-group input:focus, .control-group select:focus { border-color: var(--accent-green); }
@@ -28,6 +28,24 @@
         .gauge-svg { width: 100%; height: 100%; overflow: visible; }
         .gauge-needle { transition: transform 0.5s cubic-bezier(0.4, 2.08, 0.55, 0.44); transform-origin: 55px 55px; }
         .gauge-value-text { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; font-weight: 700; fill: var(--text-main); }
+        .gauge-readout-row { display: inline-flex; align-items: center; justify-content: center; gap: 6px; margin-top: 4px; }
+        .gauge-ok-pill {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            font-weight: 800;
+            padding: 2px 7px;
+            border-radius: 5px;
+            border: 1px solid #2b354b;
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text-muted);
+            transition: all 0.25s ease;
+        }
+        .gauge-ok-pill.lit {
+            color: #05160a;
+            background: var(--accent-green);
+            border-color: var(--accent-green);
+            box-shadow: 0 0 10px rgba(0, 255, 102, 0.9), 0 0 20px rgba(0, 255, 102, 0.45);
+        }
 
         .autotrade-btn { 
             background: rgba(255,30,66,0.1); 
@@ -50,9 +68,52 @@
         }
         
         .container { padding: 20px; max-width: 1400px; margin: 0 auto; }
-        .section-title { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; text-transform: uppercase; }
+        .section-title { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; text-transform: uppercase; flex-wrap: wrap; gap: 8px; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
+
+        .pro-toolbar {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px 14px;
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+        .filter-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+        .pill-btn {
+            background: var(--bg-base);
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .pill-btn.active {
+            background: rgba(0, 255, 102, 0.14);
+            border-color: var(--accent-green);
+            color: var(--accent-green);
+        }
+        .search-box {
+            background: var(--bg-base);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 7px 12px;
+            border-radius: 6px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            min-width: 210px;
+            outline: none;
+        }
+        .search-box:focus { border-color: var(--accent-cyan); }
 
         .advisor-panel {
             background: linear-gradient(135deg, rgba(13,18,29,0.95), rgba(20,28,45,0.95));
@@ -71,10 +132,12 @@
             font-size: 0.85rem;
             color: var(--accent-gold);
             font-weight: 800;
+            flex-wrap: wrap;
+            gap: 8px;
         }
         .advisor-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
             gap: 12px;
         }
         .advisor-box {
@@ -104,15 +167,36 @@
         .signals-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 15px; }
         .signal-card { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 10px; padding: 16px; transition: transform 0.2s; }
         .signal-card:hover { border-color: #2a3650; transform: translateY(-2px); }
-        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .asset-title { font-size: 1.1rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
         .badge-action { padding: 4px 10px; border-radius: 4px; font-weight: 800; font-size: 0.8rem; font-family: 'JetBrains Mono', monospace; }
         .badge-buy { background: rgba(0,255,102,0.15); color: var(--accent-green); border: 1px solid var(--accent-green); }
         .badge-sell { background: rgba(255,30,66,0.15); color: var(--accent-red); border: 1px solid var(--accent-red); }
-        .badge-neutral { background: rgba(255,255,255,0.08); color: var(--text-muted); border: 1px solid var(--border-color); }
+        .pro-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; }
+        .pro-chip { background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); color: var(--accent-cyan); padding: 2px 7px; border-radius: 4px; }
         .metrics-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 10px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; }
         .metric-box label { font-size: 0.65rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; display: block; }
         .metric-box span { font-size: 0.85rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+
+        .card-actions-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+        .btn-pro {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.72rem;
+            font-weight: 800;
+            padding: 8px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 1px solid var(--border-color);
+            background: rgba(255,255,255,0.04);
+            color: var(--text-main);
+            transition: all 0.2s;
+        }
+        .btn-pro.exec {
+            background: rgba(0, 255, 102, 0.14);
+            border-color: var(--accent-green);
+            color: var(--accent-green);
+        }
+        .btn-pro:hover { filter: brightness(1.15); }
         
         .card-advisor-box {
             margin-top: 10px;
@@ -133,7 +217,7 @@
 </head>
 <body>
     <header>
-        <div class="logo">⚡ SALA SEGNALI PRO <span style="font-size:0.6rem; background:rgba(0,255,102,0.1); color:var(--accent-green); padding:2px 6px; border-radius:3px;">BINGX LIVE SYNC</span></div>
+        <div class="logo">⚡ SALA SEGNALI PRO <span style="font-size:0.6rem; background:rgba(0,255,102,0.1); color:var(--accent-green); padding:2px 6px; border-radius:3px;">INSTITUTIONAL DESK</span></div>
         <div class="terminal-clock" id="clock">00:00:00 UTC</div>
     </header>
 
@@ -153,8 +237,11 @@
                         <path id="gaugePath1" d="M 15 55 A 40 40 0 0 1 95 55" fill="none" stroke="#00ff66" stroke-width="7" stroke-dasharray="125.6" stroke-dashoffset="50" stroke-linecap="round"/>
                         <circle cx="55" cy="55" r="4" fill="#f0f4f8"/>
                         <line id="gaugeNeedle1" class="gauge-needle" x1="55" y1="55" x2="55" y2="20" stroke="#ff1e42" stroke-width="2.5" stroke-linecap="round"/>
-                        <text id="gaugeText1" x="55" y="45" text-anchor="middle" class="gauge-value-text">65%</text>
+                        <text id="gaugeText1" x="55" y="45" text-anchor="middle" class="gauge-value-text">65.0%</text>
                     </svg>
+                </div>
+                <div class="gauge-readout-row">
+                    <span id="gaugeOk1" class="gauge-ok-pill">OK</span>
                 </div>
             </div>
         </div>
@@ -169,8 +256,11 @@
                         <path id="gaugePath2" d="M 15 55 A 40 40 0 0 1 95 55" fill="none" stroke="#00ff66" stroke-width="7" stroke-dasharray="125.6" stroke-dashoffset="0" stroke-linecap="round"/>
                         <circle cx="55" cy="55" r="4" fill="#f0f4f8"/>
                         <line id="gaugeNeedle2" class="gauge-needle" x1="55" y1="55" x2="90" y2="35" stroke="#00ff66" stroke-width="2.5" stroke-linecap="round"/>
-                        <text id="gaugeText2" x="55" y="45" text-anchor="middle" class="gauge-value-text">99.9%</text>
+                        <text id="gaugeText2" x="55" y="45" text-anchor="middle" class="gauge-value-text">0.0%</text>
                     </svg>
+                </div>
+                <div class="gauge-readout-row">
+                    <span id="gaugeOk2" class="gauge-ok-pill">OK</span>
                 </div>
             </div>
         </div>
@@ -202,10 +292,20 @@
             
             <div class="advisor-panel" id="dashboardAdvisorPanel">
                 <div class="advisor-header">
-                    <span>🧠 CONSULENZA LIVE CONTO REALE (Strategia, Mercato & Commissioni)</span>
+                    <span>🧠 DESK OPERATIVO PROFESSIONALE (Confluenza, Rischio/Rendimento & Net PnL)</span>
                     <span id="advisorTag" style="background:rgba(255,209,102,0.15); padding:2px 8px; border-radius:4px;">BINGX LIVE SYNC</span>
                 </div>
                 <div class="advisor-grid" id="dynamicAdvisorContent"></div>
+            </div>
+
+            <div class="pro-toolbar">
+                <div class="filter-pills">
+                    <button class="pill-btn active" onclick="setSideFilter('ALL', this)">TUTTI OPERATIVI</button>
+                    <button class="pill-btn" onclick="setSideFilter('BUY', this)">🟢 SOLO BUY</button>
+                    <button class="pill-btn" onclick="setSideFilter('SELL', this)">🔴 SOLO SELL</button>
+                    <button class="pill-btn" onclick="setSideFilter('HIGH', this)">⚡ SCORE >= 90%</button>
+                </div>
+                <input type="text" id="assetSearchInput" class="search-box" placeholder="🔍 Filtra asset (es. BTC, EUR, XAG)..." oninput="renderSignalsUI()">
             </div>
 
             <div class="section-title">
@@ -277,7 +377,7 @@
             </div>
 
             <div class="section-title" style="margin-top: 25px;">
-                <span>📡 Scanner Globale con Consulenza Reale e Sync al Millisecondo</span>
+                <span>📡 Scanner Operativo Istituzionale (Solo Setup BUY / SELL Validati)</span>
             </div>
             <div id="categorizedMarketsContainer">
                 <div style="text-align:center; padding: 40px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">
@@ -366,10 +466,20 @@
 
         <!-- TAB GRAFICI -->
         <div id="tab-charts" class="tab-content">
-            <div class="section-title"><span>📈 Grafici Multi-Timeframe Sincronizzati</span></div>
-            <div style="background:var(--bg-panel); border:1px solid var(--border-color); border-radius:8px; padding:30px; text-align:center; font-family:'JetBrains Mono',monospace; color:var(--text-muted);">
-                Modulo di charting integrato per tutte le borse globali sincronizzato con BingX Swap.
+            <div class="section-title">
+                <span>📈 Grafici Multi-Timeframe Sincronizzati</span>
+                <select id="chartSymbolSelect" class="search-box" style="min-width:170px;" onchange="loadTradingViewChart()">
+                    <option value="BINANCE:BTCUSDT">BTC / USDT</option>
+                    <option value="BINANCE:ETHUSDT">ETH / USDT</option>
+                    <option value="BINANCE:SOLUSDT">SOL / USDT</option>
+                    <option value="FX:EURUSD">EUR / USD</option>
+                    <option value="FX:GBPUSD">GBP / USD</option>
+                    <option value="OANDA:XAUUSD">GOLD / XAU</option>
+                    <option value="OANDA:XAGUSD">SILVER / XAG</option>
+                    <option value="TVC:USOIL">OIL / WTI</option>
+                </select>
             </div>
+            <div id="tvChartContainer" style="background:var(--bg-panel); border:1px solid var(--border-color); border-radius:8px; min-height:460px; overflow:hidden;"></div>
         </div>
     </div>
 
@@ -388,35 +498,92 @@
         
         let autoTradeState = false;
         let selectedMarketFilter = 'ALL';
+        let selectedSideFilter = 'ALL';
         let cachedSignalData = { sessions: {}, signals: [] };
+
+        function setSideFilter(side, btnEl) {
+            selectedSideFilter = side;
+            document.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+            if (btnEl) btnEl.classList.add('active');
+            renderSignalsUI();
+        }
+
+        function getPreciseSignalsOnly() {
+            const q = (document.getElementById('assetSearchInput')?.value || '').trim().toUpperCase();
+            return (cachedSignalData.signals || []).filter(s => {
+                const isOp = (s.action === 'BUY' || s.action === 'SELL') && parseFloat(s.ai_score) >= 80.0;
+                if (!isOp) return false;
+                if (selectedSideFilter === 'BUY' && s.action !== 'BUY') return false;
+                if (selectedSideFilter === 'SELL' && s.action !== 'SELL') return false;
+                if (selectedSideFilter === 'HIGH' && parseFloat(s.ai_score) < 90.0) return false;
+                if (q && !s.symbol.toUpperCase().includes(q) && !s.name.toUpperCase().includes(q)) return false;
+                return true;
+            });
+        }
+
+        function copySetupToClipboard(symbol) {
+            const s = (cachedSignalData.signals || []).find(item => item.symbol === symbol);
+            if (!s) return;
+            const txt = `${s.name} (${s.symbol}) | ${s.action} | Entry: ${s.entry} | TP1: ${s.tp1} | SL: ${s.sl} | R:R 1:${s.rrr} | ${s.leverage}`;
+            navigator.clipboard?.writeText(txt).catch(() => {});
+            alert(`Setup copiato:\n${txt}`);
+        }
+
+        async function manualExecuteSignal(symbol) {
+            const s = (cachedSignalData.signals || []).find(item => item.symbol === symbol);
+            if (!s) return;
+            try {
+                const res = await fetch('/api/autotrade/execute-manual', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        symbol: s.symbol,
+                        name: s.name,
+                        action: s.action,
+                        entry: s.entry,
+                        size: s.size,
+                        leverage: s.leverage,
+                        margin: s.margin,
+                        sl: s.sl,
+                        tp1: s.tp1
+                    })
+                });
+                const out = await res.json();
+                if (out.success) {
+                    loadStatus();
+                    alert(`Ordine ${s.action} inviato su ${s.name} (${out.mode})`);
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function loadTradingViewChart() {
+            const container = document.getElementById('tvChartContainer');
+            const sym = document.getElementById('chartSymbolSelect')?.value || 'BINANCE:BTCUSDT';
+            const tfMap = { '5m': '5', '15m': '15', '1h': '60' };
+            const interval = tfMap[document.getElementById('tfSelect')?.value] || '15';
+            if (!container) return;
+            container.innerHTML = `<iframe src="https://s.tradingview.com/widgetembed/?frameElementId=tv_frame&symbol=${encodeURIComponent(sym)}&interval=${interval}&theme=dark&style=1&locale=it&toolbar_bg=0d121d" style="width:100%; height:460px; border:0;" allowfullscreen></iframe>`;
+        }
 
         function updateDynamicDashboardAdvisor() {
             const profile = document.getElementById('profileSelect').value;
             const tf = document.getElementById('tfSelect').value;
             const balance = parseFloat(document.getElementById('balanceInput').value.replace(',', '.')) || 2.0;
+            const opCount = getPreciseSignalsOnly().length;
 
             let stratAdvice = "";
             if (profile === 'aggressive') {
-                stratAdvice = `⚠️ <strong>Strategia Aggressiva:</strong> Target stretti. Con $${balance}, attenzione alle fee A/R. Consigliato <strong>Bilanciato</strong>.`;
+                stratAdvice = `⚠️ <strong>Strategia Aggressiva:</strong> Target rapidi. Con $${balance}, verifica sempre che il Net PnL superi le fee A/R.`;
             } else if (profile === 'conservative') {
-                stratAdvice = `🛡️ <strong>Strategia Conservativa:</strong> Target ampi (TP 3.0x ATR). Ideale per conto reale: profitti netti che superano le fee.`;
+                stratAdvice = `🛡️ <strong>Strategia Conservativa:</strong> Target ampi e filtraggio severo. Ideale per proteggere il capitale.`;
             } else {
-                stratAdvice = `⚖️ <strong>Strategia Bilanciata:</strong> Ottimizzata per conto reale con leva dinamica. Lascia correre l'operazione fino a TP1.`;
+                stratAdvice = `⚖️ <strong>Strategia Bilanciata:</strong> Confluenza trend/momentum/volume e gestione dinamica fino a TP1.`;
             }
 
-            let tfAdvice = "";
-            if (tf === '5m') {
-                tfAdvice = `⏱️ <strong>Timeframe 5m:</strong> Candela corta, rischio maggiore sulle commissioni. Preferisci <strong>15m o 1h</strong> in reale.`;
-            } else {
-                tfAdvice = `⏱️ <strong>Timeframe ${tf}:</strong> Candele stabili, ampiezza ideale per coprire i costi di transazione BingX.`;
-            }
-
-            let marketAdvice = "";
-            if (selectedMarketFilter === 'ALL') {
-                marketAdvice = `🌍 <strong>Filtro: Tutti i Mercati</strong> — L'algoritmo esclude i trade con profitto netto atteso negativo.`;
-            } else {
-                marketAdvice = `🎯 <strong>Filtro Attivo:</strong> ${selectedMarketFilter} — Sincronizzazione prezzi BingX attiva.`;
-            }
+            let tfAdvice = `⏱️ <strong>Timeframe ${tf}:</strong> Scansione multi-fattore su struttura, RSI, MACD e ATR live.`;
+            let marketAdvice = `🎯 <strong>Desk Attivo:</strong> ${opCount} setup operativi BUY/SELL validati (${selectedMarketFilter === 'ALL' ? 'Tutti i Mercati' : selectedMarketFilter}).`;
 
             const container = document.getElementById('dynamicAdvisorContent');
             if (container) {
@@ -436,20 +603,28 @@
             renderSignalsUI();
         }
 
-        function updateGauge(needleId, textId, pathId, percent) {
-            const angle = (percent / 100) * 180 - 90;
+        function updateGauge(needleId, textId, pathId, okId, percent, exactOrMinTarget) {
+            const clamped = Math.max(0, Math.min(100, percent));
+            const angle = (clamped / 100) * 180 - 90;
             const needle = document.getElementById(needleId);
             if (needle) needle.style.transform = `rotate(${angle}deg)`;
             const text = document.getElementById(textId);
-            if (text) text.textContent = `${percent.toFixed(1)}%`;
+            if (text) text.textContent = `${clamped.toFixed(1)}%`;
             const path = document.getElementById(pathId);
-            if (path) path.style.strokeDashoffset = 125.6 - (125.6 * percent) / 100;
+            if (path) path.style.strokeDashoffset = 125.6 - (125.6 * clamped) / 100;
+
+            const okEl = document.getElementById(okId);
+            if (okEl) {
+                const reached = clamped >= exactOrMinTarget;
+                okEl.classList.toggle('lit', reached);
+                okEl.innerText = reached ? 'OK ✓' : 'OK';
+            }
         }
 
-        function updateTachometers(profile, avgScore) {
-            let pPercent = profile === 'conservative' ? 35 : (profile === 'aggressive' ? 95 : 65);
-            updateGauge('gaugeNeedle1', 'gaugeText1', 'gaugePath1', pPercent);
-            updateGauge('gaugeNeedle2', 'gaugeText2', 'gaugePath2', avgScore);
+        function updateTachometers(profile, avgScore, hasPreciseSignals) {
+            let pPercent = profile === 'conservative' ? 60 : (profile === 'aggressive' ? 95 : 85);
+            updateGauge('gaugeNeedle1', 'gaugeText1', 'gaugePath1', 'gaugeOk1', pPercent, 85);
+            updateGauge('gaugeNeedle2', 'gaugeText2', 'gaugePath2', 'gaugeOk2', hasPreciseSignals ? avgScore : 0.0, 80);
         }
 
         function switchTab(tabName, element) {
@@ -467,6 +642,9 @@
             }
             if(tabName === 'signals') {
                 loadSignals();
+            }
+            if(tabName === 'charts') {
+                loadTradingViewChart();
             }
         }
 
@@ -595,7 +773,7 @@
         }
 
         async function updateLivePricesOnly() {
-            const signals = cachedSignalData.signals || [];
+            const signals = getPreciseSignalsOnly();
             if (signals.length === 0) return;
 
             for (const sig of signals) {
@@ -620,16 +798,11 @@
                                 newSl = (liveP - slDist).toFixed(dec);
                                 newUp = (liveP + tpDist * 2.5).toFixed(dec);
                                 newDown = newSl;
-                            } else if (sig.action === 'SELL') {
+                            } else {
                                 newTp1 = (liveP - tpDist).toFixed(dec);
                                 newSl = (liveP + slDist).toFixed(dec);
                                 newUp = newSl;
                                 newDown = (liveP - tpDist * 2.5).toFixed(dec);
-                            } else {
-                                newTp1 = (liveP + tpDist).toFixed(dec);
-                                newSl = (liveP - slDist).toFixed(dec);
-                                newUp = newTp1;
-                                newDown = newSl;
                             }
 
                             const tp1El = document.getElementById(`tp1-${sig.symbol}`);
@@ -663,9 +836,10 @@
         }
 
         function renderSignalsUI() {
-            const signals = cachedSignalData.signals || [];
+            const signals = getPreciseSignalsOnly();
             const sessions = cachedSignalData.sessions || {};
             const profile = document.getElementById('profileSelect').value;
+            updateDynamicDashboardAdvisor();
             
             const sessionsTbody = document.getElementById('sessionsTableBody');
             const categories = Object.keys(sessions);
@@ -680,7 +854,7 @@
                             <td><strong>🏛️ ${cat}</strong></td>
                             <td><span class="status-badge" style="${badgeStyle}">${sess.is_open ? '🟢' : '🔴'} ${sess.status}</span></td>
                             <td>${sess.hours}</td>
-                            <td><span style="color:var(--accent-green);">BingX Live Sync & Real Advisor</span></td>
+                            <td><span style="color:var(--accent-green);">BingX Pro Desk Sync</span></td>
                         </tr>
                     `;
                 }).join('');
@@ -688,9 +862,9 @@
 
             if (signals.length > 0) {
                 const avg = signals.reduce((acc, s) => acc + parseFloat(s.ai_score), 0) / signals.length;
-                updateTachometers(profile, avg);
+                updateTachometers(profile, avg, true);
             } else {
-                updateTachometers(profile, 50.0);
+                updateTachometers(profile, 0.0, false);
             }
 
             const container = document.getElementById('categorizedMarketsContainer');
@@ -699,7 +873,7 @@
                 : categories.filter(cat => cat === selectedMarketFilter);
 
             if (filteredCategories.length === 0) {
-                container.innerHTML = `<div style="text-align:center; padding: 40px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">Nessun dato per questa categoria.</div>`;
+                container.innerHTML = `<div style="text-align:center; padding: 40px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">Nessun segnale preciso disponibile per questa categoria.</div>`;
                 return;
             }
 
@@ -720,16 +894,24 @@
                             </div>
                         </div>
                         <div class="signals-grid">
-                            ${catSignals.length === 0 ? `<div style="color:var(--text-muted); font-family:'JetBrains Mono',monospace; font-size:0.8rem;">In attesa di dati validi per questa borsa...</div>` : 
+                            ${catSignals.length === 0 ? `<div style="color:var(--text-muted); font-family:'JetBrains Mono',monospace; font-size:0.8rem;">Nessun setup operativo BUY/SELL al momento su questa borsa (i segnali neutrali sono filtrati).</div>` : 
                             catSignals.map(s => `
                                 <div class="signal-card">
                                     <div class="card-header">
                                         <div>
                                             <div class="asset-title">${s.name}</div>
-                                            <div style="font-size:0.75rem; color:var(--text-muted);">Prezzo Live: <strong id="price-${s.symbol}">${s.price}</strong></div>
+                                            <div style="font-size:0.75rem; color:var(--text-muted);">Prezzo Live: <strong id="price-${s.symbol}">${s.price}</strong> | Entry: <strong>${s.entry}</strong></div>
                                         </div>
-                                        <span class="badge-action ${s.action === 'BUY' ? 'badge-buy' : (s.action === 'SELL' ? 'badge-sell' : 'badge-neutral')}">${s.action}</span>
+                                        <span class="badge-action ${s.action === 'BUY' ? 'badge-buy' : 'badge-sell'}">${s.action}</span>
                                     </div>
+
+                                    <div class="pro-chips">
+                                        <span class="pro-chip">🎯 ${s.confluence || 'Confluenza'}</span>
+                                        <span class="pro-chip">⚖️ R:R 1:${s.rrr}</span>
+                                        <span class="pro-chip">📊 Vol ${s.vol_ratio || 1.0}x</span>
+                                        <span class="pro-chip">🌊 ${s.vol_regime || 'Live'}</span>
+                                    </div>
+
                                     <div style="font-size:0.75rem; color:${s.sentiment_color}; font-weight:700; margin-bottom:8px; font-family:'JetBrains Mono',monospace;">${s.sentiment}</div>
                                     
                                     <div class="metrics-grid">
@@ -740,16 +922,22 @@
                                     </div>
 
                                     <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; background:rgba(0,255,102,0.06); border:1px solid rgba(0,255,102,0.2); padding:6px 10px; border-radius:6px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
-                                        <span>🚀 ROI Stimato: <strong style="color:var(--accent-green); font-size:0.85rem;">${s.roi_pct}</strong></span>
-                                        <span>Leva: <strong style="color:var(--text-main);">${s.leverage}</strong></span>
+                                        <span>🚀 ROI: <strong style="color:var(--accent-green); font-size:0.85rem;">${s.roi_pct}</strong></span>
+                                        <span>Net: <strong style="color:var(--accent-green);">+$${s.expected_net}</strong></span>
+                                        <span><strong style="color:var(--text-main);">${s.leverage}</strong></span>
                                     </div>
 
                                     <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; color:var(--text-muted); margin-bottom:6px; display:flex; justify-content:space-between;">
                                         <span>⏱️ Durata: <strong style="color:var(--accent-green);">${s.duration}</strong></span>
-                                        <span>RSI: <strong>${s.rsi}</strong></span>
+                                        <span>RSI: <strong>${s.rsi}</strong> | Size: <strong>${s.size}</strong></span>
                                     </div>
                                     <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; color:var(--text-muted);">
                                         ⚡ Convinzione: <strong style="color:var(--accent-green);">${s.ai_score}</strong> | Trend: <strong>${s.inversion}</strong>
+                                    </div>
+
+                                    <div class="card-actions-row">
+                                        <button class="btn-pro" onclick="copySetupToClipboard('${s.symbol}')">📋 COPIA SETUP</button>
+                                        <button class="btn-pro exec" onclick="manualExecuteSignal('${s.symbol}')">⚡ ESEGUI ${s.action}</button>
                                     </div>
 
                                     <div class="card-advisor-box" style="border-left-color: ${s.advisor_color};">
