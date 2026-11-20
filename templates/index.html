@@ -4,52 +4,56 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>SALA SEGNALI PRO • Institutional Desk</title>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-base: #07090e; --bg-panel: #0d121d; --border-color: #1e2638;
-            --accent-green: #00ff66; --accent-red: #ff1e42; --accent-gold: #ffd166; --accent-cyan: #38bdf8;
-            --text-main: #f0f4f8; --text-muted: #8a99ad;
+            --bg-base: #ffffff;
+            --bg-panel: #ffffff;
+            --border-color: #000000;
+            --accent-green: #009933;
+            --accent-red: #d90429;
+            --text-main: #000000;
+            --text-muted: #000000;
         }
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; color: var(--text-main); }
         body { background: var(--bg-base); color: var(--text-main); min-height: 100vh; padding-bottom: 90px; }
-        header { background: var(--bg-panel); border-bottom: 1px solid var(--border-color); padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 1000; }
-        .logo { font-family: 'JetBrains Mono', monospace; font-weight: 800; font-size: 1.1rem; color: var(--accent-green); display: flex; align-items: center; gap: 8px; }
-        .terminal-clock { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--text-muted); background: rgba(255,255,255,0.03); padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border-color); }
+        header { background: var(--bg-panel); border-bottom: 2px solid var(--border-color); padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 1000; }
+        .logo { font-family: 'JetBrains Mono', monospace; font-weight: 800; font-size: 1.1rem; color: var(--text-main); display: flex; align-items: center; gap: 8px; }
+        .terminal-clock { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--text-main); background: #ffffff; padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border-color); font-weight: 700; }
         
-        .controls-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: 12px; padding: 15px 20px; background: var(--bg-panel); border-bottom: 1px solid var(--border-color); }
-        .control-group label { display: block; font-size: 0.7rem; font-family: 'JetBrains Mono', monospace; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; }
-        .control-group input, .control-group select { width: 100%; background: var(--bg-base); border: 1px solid var(--border-color); color: var(--text-main); padding: 8px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; outline: none; }
+        .controls-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: 12px; padding: 15px 20px; background: var(--bg-panel); border-bottom: 2px solid var(--border-color); }
+        .control-group label { display: block; font-size: 0.7rem; font-family: 'JetBrains Mono', monospace; color: var(--text-main); margin-bottom: 4px; text-transform: uppercase; font-weight: 800; }
+        .control-group input, .control-group select { width: 100%; background: #ffffff; border: 1.5px solid var(--border-color); color: var(--text-main); padding: 8px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; outline: none; font-weight: 700; }
         .control-group input:focus, .control-group select:focus { border-color: var(--accent-green); }
         
-        .gauge-card { background: var(--bg-base); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; align-items: center; text-align: center; }
-        .gauge-title { font-size: 0.65rem; font-family: 'JetBrains Mono', monospace; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
+        .gauge-card { background: #ffffff; border: 1.5px solid var(--border-color); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; align-items: center; text-align: center; }
+        .gauge-title { font-size: 0.68rem; font-family: 'JetBrains Mono', monospace; color: var(--text-main); text-transform: uppercase; margin-bottom: 4px; font-weight: 800; }
         .gauge-container { position: relative; width: 110px; height: 65px; margin: 4px auto 0 auto; }
         .gauge-svg { width: 100%; height: 100%; overflow: visible; }
         .gauge-needle { transition: transform 0.5s cubic-bezier(0.4, 2.08, 0.55, 0.44); transform-origin: 55px 55px; }
-        .gauge-value-text { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; font-weight: 700; fill: var(--text-main); }
+        .gauge-value-text { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; font-weight: 800; fill: #000000; }
         .gauge-readout-row { display: inline-flex; align-items: center; justify-content: center; gap: 6px; margin-top: 4px; }
         .gauge-ok-pill {
             font-family: 'JetBrains Mono', monospace;
-            font-size: 0.7rem;
+            font-size: 0.72rem;
             font-weight: 800;
-            padding: 2px 7px;
+            padding: 2px 8px;
             border-radius: 5px;
-            border: 1px solid #2b354b;
-            background: rgba(255, 255, 255, 0.04);
-            color: var(--text-muted);
+            border: 1.5px solid var(--accent-red);
+            background: #ffffff;
+            color: var(--accent-red);
             transition: all 0.25s ease;
         }
         .gauge-ok-pill.lit {
-            color: #05160a;
+            color: #ffffff;
             background: var(--accent-green);
             border-color: var(--accent-green);
-            box-shadow: 0 0 10px rgba(0, 255, 102, 0.9), 0 0 20px rgba(0, 255, 102, 0.45);
+            box-shadow: 0 0 10px rgba(0, 153, 51, 0.7);
         }
 
         .autotrade-btn { 
-            background: rgba(255,30,66,0.1); 
-            border: 1px solid var(--accent-red); 
+            background: #ffffff; 
+            border: 2px solid var(--accent-red); 
             color: var(--accent-red); 
             font-weight: 800; 
             border-radius: 6px; 
@@ -62,19 +66,19 @@
             transition: all 0.2s;
         }
         .autotrade-btn.active { 
-            background: rgba(0,255,102,0.1); 
+            background: #ffffff; 
             border-color: var(--accent-green); 
             color: var(--accent-green); 
         }
         
         .container { padding: 20px; max-width: 1400px; margin: 0 auto; }
-        .section-title { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; text-transform: uppercase; flex-wrap: wrap; gap: 8px; }
+        .section-title { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--text-main); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; text-transform: uppercase; flex-wrap: wrap; gap: 8px; font-weight: 800; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
 
         .pro-toolbar {
             background: var(--bg-panel);
-            border: 1px solid var(--border-color);
+            border: 1.5px solid var(--border-color);
             border-radius: 8px;
             padding: 12px 14px;
             margin-bottom: 20px;
@@ -86,25 +90,25 @@
         }
         .filter-pills { display: flex; flex-wrap: wrap; gap: 8px; }
         .pill-btn {
-            background: var(--bg-base);
-            border: 1px solid var(--border-color);
-            color: var(--text-muted);
+            background: #ffffff;
+            border: 1.5px solid var(--border-color);
+            color: var(--text-main);
             font-family: 'JetBrains Mono', monospace;
             font-size: 0.75rem;
-            font-weight: 700;
+            font-weight: 800;
             padding: 6px 12px;
             border-radius: 6px;
             cursor: pointer;
             transition: all 0.2s;
         }
         .pill-btn.active {
-            background: rgba(0, 255, 102, 0.14);
+            background: #ffffff;
             border-color: var(--accent-green);
             color: var(--accent-green);
         }
         .search-box {
-            background: var(--bg-base);
-            border: 1px solid var(--border-color);
+            background: #ffffff;
+            border: 1.5px solid var(--border-color);
             color: var(--text-main);
             padding: 7px 12px;
             border-radius: 6px;
@@ -112,13 +116,13 @@
             font-size: 0.8rem;
             min-width: 210px;
             outline: none;
+            font-weight: 700;
         }
-        .search-box:focus { border-color: var(--accent-cyan); }
 
         .advisor-panel {
-            background: linear-gradient(135deg, rgba(13,18,29,0.95), rgba(20,28,45,0.95));
-            border: 1px solid var(--accent-gold);
-            border-left: 4px solid var(--accent-gold);
+            background: #ffffff;
+            border: 1.5px solid var(--border-color);
+            border-left: 5px solid var(--accent-green);
             border-radius: 8px;
             padding: 16px;
             margin-bottom: 25px;
@@ -130,7 +134,7 @@
             margin-bottom: 10px;
             font-family: 'JetBrains Mono', monospace;
             font-size: 0.85rem;
-            color: var(--accent-gold);
+            color: var(--text-main);
             font-weight: 800;
             flex-wrap: wrap;
             gap: 8px;
@@ -141,42 +145,43 @@
             gap: 12px;
         }
         .advisor-box {
-            background: rgba(0,0,0,0.3);
-            border: 1px solid var(--border-color);
+            background: #ffffff;
+            border: 1.5px solid var(--border-color);
             border-radius: 6px;
             padding: 10px 12px;
             font-size: 0.8rem;
             line-height: 1.4;
+            color: var(--text-main);
         }
-        .advisor-box strong { color: var(--accent-green); font-family: 'JetBrains Mono', monospace; display: block; margin-bottom: 4px; font-size: 0.75rem; text-transform: uppercase; }
+        .advisor-box strong { color: var(--text-main); font-family: 'JetBrains Mono', monospace; display: block; margin-bottom: 4px; font-size: 0.75rem; text-transform: uppercase; font-weight: 800; }
 
-        .institutional-table, .positions-table, .market-selector-table { width: 100%; border-collapse: collapse; background: var(--bg-panel); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); margin-bottom: 25px; }
-        .institutional-table th, .institutional-table td, .positions-table th, .positions-table td, .market-selector-table th, .market-selector-table td { padding: 12px 14px; text-align: left; font-size: 0.85rem; font-family: 'JetBrains Mono', monospace; border-bottom: 1px solid var(--border-color); }
-        .institutional-table th, .positions-table th { background: rgba(255,255,255,0.03); color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; }
-        .market-selector-table th { background: rgba(0,255,102,0.05); color: var(--accent-green); font-size: 0.75rem; text-transform: uppercase; }
-        .status-badge { padding: 4px 10px; border-radius: 4px; font-weight: 800; font-size: 0.75rem; }
+        .institutional-table, .positions-table, .market-selector-table { width: 100%; border-collapse: collapse; background: #ffffff; border-radius: 8px; overflow: hidden; border: 1.5px solid var(--border-color); margin-bottom: 25px; }
+        .institutional-table th, .institutional-table td, .positions-table th, .positions-table td, .market-selector-table th, .market-selector-table td { padding: 12px 14px; text-align: left; font-size: 0.85rem; font-family: 'JetBrains Mono', monospace; border-bottom: 1px solid var(--border-color); color: var(--text-main); }
+        .institutional-table th, .positions-table th, .market-selector-table th { background: #ffffff; color: var(--text-main); font-size: 0.75rem; text-transform: uppercase; font-weight: 800; border-bottom: 2px solid var(--border-color); }
+        .status-badge { padding: 4px 10px; border-radius: 4px; font-weight: 800; font-size: 0.75rem; background: #ffffff; }
 
         .market-row { cursor: pointer; transition: background 0.2s; touch-action: manipulation; }
-        .market-row:hover { background: rgba(255,255,255,0.02); }
-        .market-row.selected { background: rgba(0,255,102,0.08); border-left: 3px solid var(--accent-green); }
+        .market-row.selected { border-left: 4px solid var(--accent-green); }
 
         .category-block { margin-bottom: 30px; }
-        .category-header { background: var(--bg-panel); border: 1px solid var(--border-color); border-left: 4px solid var(--accent-green); border-radius: 8px; padding: 12px 16px; margin-bottom: 15px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; }
+        .category-header { background: #ffffff; border: 1.5px solid var(--border-color); border-left: 5px solid var(--accent-green); border-radius: 8px; padding: 12px 16px; margin-bottom: 15px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; }
         .category-name { font-size: 1rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: var(--text-main); }
         
         .signals-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 15px; }
-        .signal-card { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 10px; padding: 16px; transition: transform 0.2s; }
-        .signal-card:hover { border-color: #2a3650; transform: translateY(-2px); }
+        .signal-card { background: #ffffff; border: 1.5px solid var(--border-color); border-radius: 10px; padding: 16px; transition: transform 0.2s; }
+        .signal-card:hover { transform: translateY(-2px); }
         .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        .asset-title { font-size: 1.1rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
-        .badge-action { padding: 4px 10px; border-radius: 4px; font-weight: 800; font-size: 0.8rem; font-family: 'JetBrains Mono', monospace; }
-        .badge-buy { background: rgba(0,255,102,0.15); color: var(--accent-green); border: 1px solid var(--accent-green); }
-        .badge-sell { background: rgba(255,30,66,0.15); color: var(--accent-red); border: 1px solid var(--accent-red); }
+        .asset-title { font-size: 1.1rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: var(--text-main); }
+        .badge-action { padding: 4px 10px; border-radius: 4px; font-weight: 800; font-size: 0.8rem; font-family: 'JetBrains Mono', monospace; background: #ffffff; }
+        .badge-buy { color: var(--accent-green); border: 1.5px solid var(--accent-green); }
+        .badge-sell { color: var(--accent-red); border: 1.5px solid var(--accent-red); }
         .pro-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; }
-        .pro-chip { background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); color: var(--accent-cyan); padding: 2px 7px; border-radius: 4px; }
-        .metrics-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 10px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; }
-        .metric-box label { font-size: 0.65rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; display: block; }
-        .metric-box span { font-size: 0.85rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+        .pro-chip { background: #ffffff; border: 1px solid var(--border-color); color: var(--text-main); padding: 2px 7px; border-radius: 4px; font-weight: 700; }
+        .metrics-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 10px; background: #ffffff; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); }
+        .metric-box label { font-size: 0.65rem; color: var(--text-main); font-family: 'JetBrains Mono', monospace; display: block; font-weight: 800; }
+        .metric-box span { font-size: 0.85rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
+        .tp-val { color: var(--accent-green) !important; }
+        .sl-val { color: var(--accent-red) !important; }
 
         .card-actions-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
         .btn-pro {
@@ -186,38 +191,38 @@
             padding: 8px 10px;
             border-radius: 6px;
             cursor: pointer;
-            border: 1px solid var(--border-color);
-            background: rgba(255,255,255,0.04);
+            border: 1.5px solid var(--border-color);
+            background: #ffffff;
             color: var(--text-main);
             transition: all 0.2s;
         }
         .btn-pro.exec {
-            background: rgba(0, 255, 102, 0.14);
             border-color: var(--accent-green);
             color: var(--accent-green);
         }
-        .btn-pro:hover { filter: brightness(1.15); }
         
         .card-advisor-box {
             margin-top: 10px;
             padding: 8px 10px;
             border-radius: 6px;
-            background: rgba(0,0,0,0.35);
-            border-left: 3px solid var(--accent-gold);
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            border-left: 4px solid var(--accent-green);
             font-size: 0.75rem;
             line-height: 1.35;
+            color: var(--text-main);
         }
         
-        .btn-close { background: rgba(255,30,66,0.2); color: var(--accent-red); border: 1px solid var(--accent-red); padding: 6px 12px; border-radius: 4px; cursor: pointer; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; font-weight: 700; touch-action: manipulation; }
+        .btn-close { background: #ffffff; color: var(--accent-red); border: 1.5px solid var(--accent-red); padding: 6px 12px; border-radius: 4px; cursor: pointer; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; font-weight: 800; touch-action: manipulation; }
         
-        .footer-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: var(--bg-panel); border-top: 1px solid var(--border-color); display: flex; justify-content: space-around; padding: 12px; z-index: 1000; }
-        .nav-item { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-muted); text-decoration: none; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; touch-action: manipulation; }
-        .nav-item.active { color: var(--accent-green); }
+        .footer-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: #ffffff; border-top: 2px solid var(--border-color); display: flex; justify-content: space-around; padding: 12px; z-index: 1000; }
+        .nav-item { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-main); text-decoration: none; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; touch-action: manipulation; font-weight: 700; }
+        .nav-item.active { color: var(--accent-green); font-weight: 800; }
     </style>
 </head>
 <body>
     <header>
-        <div class="logo">⚡ SALA SEGNALI PRO <span style="font-size:0.6rem; background:rgba(0,255,102,0.1); color:var(--accent-green); padding:2px 6px; border-radius:3px;">INSTITUTIONAL DESK</span></div>
+        <div class="logo">⚡ SALA SEGNALI PRO <span style="font-size:0.65rem; background:#ffffff; color:#009933; border:1px solid #009933; padding:2px 6px; border-radius:3px;">INSTITUTIONAL DESK</span></div>
         <div class="terminal-clock" id="clock">00:00:00 UTC</div>
     </header>
 
@@ -233,10 +238,10 @@
                 <div class="gauge-title">RPM Profilo</div>
                 <div class="gauge-container">
                     <svg class="gauge-svg" viewBox="0 0 110 65">
-                        <path d="M 15 55 A 40 40 0 0 1 95 55" fill="none" stroke="#1e2638" stroke-width="7" stroke-linecap="round"/>
-                        <path id="gaugePath1" d="M 15 55 A 40 40 0 0 1 95 55" fill="none" stroke="#00ff66" stroke-width="7" stroke-dasharray="125.6" stroke-dashoffset="50" stroke-linecap="round"/>
-                        <circle cx="55" cy="55" r="4" fill="#f0f4f8"/>
-                        <line id="gaugeNeedle1" class="gauge-needle" x1="55" y1="55" x2="55" y2="20" stroke="#ff1e42" stroke-width="2.5" stroke-linecap="round"/>
+                        <path d="M 15 55 A 40 40 0 0 1 95 55" fill="none" stroke="#d90429" stroke-width="7" stroke-linecap="round"/>
+                        <path id="gaugePath1" d="M 15 55 A 40 40 0 0 1 95 55" fill="none" stroke="#009933" stroke-width="7" stroke-dasharray="125.6" stroke-dashoffset="50" stroke-linecap="round"/>
+                        <circle cx="55" cy="55" r="4" fill="#000000"/>
+                        <line id="gaugeNeedle1" class="gauge-needle" x1="55" y1="55" x2="55" y2="20" stroke="#009933" stroke-width="2.5" stroke-linecap="round"/>
                         <text id="gaugeText1" x="55" y="45" text-anchor="middle" class="gauge-value-text">65.0%</text>
                     </svg>
                 </div>
@@ -252,10 +257,10 @@
                 <div class="gauge-title">Power Index</div>
                 <div class="gauge-container">
                     <svg class="gauge-svg" viewBox="0 0 110 65">
-                        <path d="M 15 55 A 40 40 0 0 1 95 55" fill="none" stroke="#1e2638" stroke-width="7" stroke-linecap="round"/>
-                        <path id="gaugePath2" d="M 15 55 A 40 40 0 0 1 95 55" fill="none" stroke="#00ff66" stroke-width="7" stroke-dasharray="125.6" stroke-dashoffset="0" stroke-linecap="round"/>
-                        <circle cx="55" cy="55" r="4" fill="#f0f4f8"/>
-                        <line id="gaugeNeedle2" class="gauge-needle" x1="55" y1="55" x2="90" y2="35" stroke="#00ff66" stroke-width="2.5" stroke-linecap="round"/>
+                        <path d="M 15 55 A 40 40 0 0 1 95 55" fill="none" stroke="#d90429" stroke-width="7" stroke-linecap="round"/>
+                        <path id="gaugePath2" d="M 15 55 A 40 40 0 0 1 95 55" fill="none" stroke="#009933" stroke-width="7" stroke-dasharray="125.6" stroke-dashoffset="0" stroke-linecap="round"/>
+                        <circle cx="55" cy="55" r="4" fill="#000000"/>
+                        <line id="gaugeNeedle2" class="gauge-needle" x1="55" y1="55" x2="90" y2="35" stroke="#009933" stroke-width="2.5" stroke-linecap="round"/>
                         <text id="gaugeText2" x="55" y="45" text-anchor="middle" class="gauge-value-text">0.0%</text>
                     </svg>
                 </div>
@@ -293,7 +298,7 @@
             <div class="advisor-panel" id="dashboardAdvisorPanel">
                 <div class="advisor-header">
                     <span>🧠 DESK OPERATIVO PROFESSIONALE (Confluenza, Rischio/Rendimento & Net PnL)</span>
-                    <span id="advisorTag" style="background:rgba(255,209,102,0.15); padding:2px 8px; border-radius:4px;">BINGX LIVE SYNC</span>
+                    <span id="advisorTag" style="background:#ffffff; color:#009933; border:1px solid #009933; padding:2px 8px; border-radius:4px;">BINGX + TELEGRAM SYNC</span>
                 </div>
                 <div class="advisor-grid" id="dynamicAdvisorContent"></div>
             </div>
@@ -301,16 +306,16 @@
             <div class="pro-toolbar">
                 <div class="filter-pills">
                     <button class="pill-btn active" onclick="setSideFilter('ALL', this)">TUTTI OPERATIVI</button>
-                    <button class="pill-btn" onclick="setSideFilter('BUY', this)">🟢 SOLO BUY</button>
-                    <button class="pill-btn" onclick="setSideFilter('SELL', this)">🔴 SOLO SELL</button>
-                    <button class="pill-btn" onclick="setSideFilter('HIGH', this)">⚡ SCORE >= 90%</button>
+                    <button class="pill-btn" onclick="setSideFilter('BUY', this)">SOLO BUY</button>
+                    <button class="pill-btn" onclick="setSideFilter('SELL', this)">SOLO SELL</button>
+                    <button class="pill-btn" onclick="setSideFilter('HIGH', this)">SCORE >= 90%</button>
                 </div>
-                <input type="text" id="assetSearchInput" class="search-box" placeholder="🔍 Filtra asset (es. BTC, EUR, XAG)..." oninput="renderSignalsUI()">
+                <input type="text" id="assetSearchInput" class="search-box" placeholder="Filtra asset (es. BTC, EUR, XAG)..." oninput="renderSignalsUI()">
             </div>
 
             <div class="section-title">
                 <span>📋 Tabella Parametri e Stato Borse Mondiali</span>
-                <span id="exchangeModeIndicator" style="color:var(--accent-green)">Connessione in corso...</span>
+                <span id="exchangeModeIndicator" style="color:#009933">Connessione in corso...</span>
             </div>
 
             <div style="overflow-x: auto;">
@@ -324,7 +329,7 @@
                         </tr>
                     </thead>
                     <tbody id="sessionsTableBody">
-                        <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Caricamento parametri sessioni...</td></tr>
+                        <tr><td colspan="4" style="text-align:center;">Caricamento parametri sessioni...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -345,32 +350,32 @@
                     </thead>
                     <tbody>
                         <tr class="market-row selected" onclick="filterMarket('ALL', this)">
-                            <td>⭐ <strong>TUTTI</strong></td>
+                            <td><strong>TUTTI</strong></td>
                             <td>Tutti i Mercati Globali</td>
                             <td>Crypto, Forex, Materie Prime, Azioni</td>
                             <td>Live (1s/10s)</td>
-                            <td><span style="color:var(--accent-green)">Attivo (Default)</span></td>
+                            <td><span style="color:#009933; font-weight:800;">Attivo (Default)</span></td>
                         </tr>
                         <tr class="market-row" onclick="filterMarket('Criptovalute Globali', this)">
-                            <td>🪙 <strong>CRYPTO</strong></td>
+                            <td><strong>CRYPTO</strong></td>
                             <td>Criptovalute Globali</td>
                             <td>BTC, ETH, SOL, XRP, BNB, ADA, DOGE, AVAX, LINK, SUI</td>
                             <td>24/7 Continuo</td>
-                            <td><span style="color:var(--accent-green)">🟢 Aperto</span></td>
+                            <td><span style="color:#009933; font-weight:800;">Aperto</span></td>
                         </tr>
                         <tr class="market-row" onclick="filterMarket('Materie Prime & Forex', this)">
-                            <td>💱 <strong>FOREX & COMMODITIES</strong></td>
+                            <td><strong>FOREX & COMMODITIES</strong></td>
                             <td>Materie Prime & Forex</td>
                             <td>Oro (PAXG), Argento (XAG), Petrolio WTI, Gas, Rame, GBP/USD, EUR/USD, USD/JPY</td>
                             <td>24h (Lun-Ven)</td>
-                            <td><span style="color:var(--accent-green)">🟢 Operativo</span></td>
+                            <td><span style="color:#009933; font-weight:800;">Operativo</span></td>
                         </tr>
                         <tr class="market-row" onclick="filterMarket('Azioni & Indici Globali', this)">
-                            <td>🍏 <strong>EQUITIES & INDICES</strong></td>
+                            <td><strong>EQUITIES & INDICES</strong></td>
                             <td>Azioni & Indici Globali</td>
                             <td>Apple, Tesla, Nvidia, Amazon, Microsoft, Google</td>
                             <td>NYSE/NASDAQ</td>
-                            <td><span style="color:var(--text-muted)">⏰ Orari Borsini</span></td>
+                            <td><span style="color:#000000; font-weight:700;">Orari Borsini</span></td>
                         </tr>
                     </tbody>
                 </table>
@@ -380,7 +385,7 @@
                 <span>📡 Scanner Operativo Istituzionale (Solo Setup BUY / SELL Validati)</span>
             </div>
             <div id="categorizedMarketsContainer">
-                <div style="text-align:center; padding: 40px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">
+                <div style="text-align:center; padding: 40px; font-family:'JetBrains Mono',monospace;">
                     Sincronizzazione live BingX in corso...
                 </div>
             </div>
@@ -405,7 +410,7 @@
                         </tr>
                     </thead>
                     <tbody id="positionsTableBody">
-                        <tr><td colspan="9" style="text-align:center; color:var(--text-muted);">Nessuna posizione attiva.</td></tr>
+                        <tr><td colspan="9" style="text-align:center;">Nessuna posizione attiva.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -416,7 +421,7 @@
             <div class="section-title"><span>📊 Report Performance Giornaliero & Mensile</span></div>
             
             <div style="margin-bottom: 20px;">
-                <div style="font-family:'JetBrains Mono',monospace; font-size:0.8rem; color:var(--text-muted); margin-bottom:8px;">🟢 REPORT GIORNALIERO (Oggi)</div>
+                <div style="font-family:'JetBrains Mono',monospace; font-size:0.8rem; margin-bottom:8px; font-weight:800;">REPORT GIORNALIERO (Oggi)</div>
                 <div style="overflow-x: auto;">
                     <table class="institutional-table">
                         <thead>
@@ -430,14 +435,14 @@
                             </tr>
                         </thead>
                         <tbody id="dailyPerfBody">
-                            <tr><td colspan="6" style="text-align:center; color:var(--text-muted);">Nessun dato registrato oggi.</td></tr>
+                            <tr><td colspan="6" style="text-align:center;">Nessun dato registrato oggi.</td></tr>
                         </tbody>
                     </table>
                 </div>
             </div>
 
             <div style="margin-bottom: 25px;">
-                <div style="font-family:'JetBrains Mono',monospace; font-size:0.8rem; color:var(--text-muted); margin-bottom:8px;">📅 REPORT MENSILE (Mese Corrente)</div>
+                <div style="font-family:'JetBrains Mono',monospace; font-size:0.8rem; margin-bottom:8px; font-weight:800;">REPORT MENSILE (Mese Corrente)</div>
                 <div style="overflow-x: auto;">
                     <table class="institutional-table">
                         <thead>
@@ -452,14 +457,14 @@
                             </tr>
                         </thead>
                         <tbody id="monthlyPerfBody">
-                            <tr><td colspan="7" style="text-align:center; color:var(--text-muted);">Nessun dato registrato questo mese.</td></tr>
+                            <tr><td colspan="7" style="text-align:center;">Nessun dato registrato questo mese.</td></tr>
                         </tbody>
                     </table>
                 </div>
             </div>
 
             <div class="section-title"><span>⚡ Telemetria Istituzionale & Log</span></div>
-            <div id="telemetryContainer" style="background:var(--bg-panel); border:1px solid var(--border-color); border-radius:8px; padding:15px; font-family:'JetBrains Mono',monospace; font-size:0.8rem;">
+            <div id="telemetryContainer" style="background:#ffffff; border:1.5px solid #000000; border-radius:8px; padding:15px; font-family:'JetBrains Mono',monospace; font-size:0.8rem;">
                 Caricamento dati telemetria...
             </div>
         </div>
@@ -479,7 +484,7 @@
                     <option value="TVC:USOIL">OIL / WTI</option>
                 </select>
             </div>
-            <div id="tvChartContainer" style="background:var(--bg-panel); border:1px solid var(--border-color); border-radius:8px; min-height:460px; overflow:hidden;"></div>
+            <div id="tvChartContainer" style="background:#ffffff; border:1.5px solid #000000; border-radius:8px; min-height:460px; overflow:hidden;"></div>
         </div>
     </div>
 
@@ -564,7 +569,7 @@
             const tfMap = { '5m': '5', '15m': '15', '1h': '60' };
             const interval = tfMap[document.getElementById('tfSelect')?.value] || '15';
             if (!container) return;
-            container.innerHTML = `<iframe src="https://s.tradingview.com/widgetembed/?frameElementId=tv_frame&symbol=${encodeURIComponent(sym)}&interval=${interval}&theme=dark&style=1&locale=it&toolbar_bg=0d121d" style="width:100%; height:460px; border:0;" allowfullscreen></iframe>`;
+            container.innerHTML = `<iframe src="https://s.tradingview.com/widgetembed/?frameElementId=tv_frame&symbol=${encodeURIComponent(sym)}&interval=${interval}&theme=light&style=1&locale=it" style="width:100%; height:460px; border:0;" allowfullscreen></iframe>`;
         }
 
         function updateDynamicDashboardAdvisor() {
@@ -575,15 +580,15 @@
 
             let stratAdvice = "";
             if (profile === 'aggressive') {
-                stratAdvice = `⚠️ <strong>Strategia Aggressiva:</strong> Target rapidi. Con $${balance}, verifica sempre che il Net PnL superi le fee A/R.`;
+                stratAdvice = `<strong>Strategia Aggressiva:</strong> Target rapidi. Con $${balance}, verifica sempre che il Net PnL superi le fee A/R.`;
             } else if (profile === 'conservative') {
-                stratAdvice = `🛡️ <strong>Strategia Conservativa:</strong> Target ampi e filtraggio severo. Ideale per proteggere il capitale.`;
+                stratAdvice = `<strong>Strategia Conservativa:</strong> Target ampi e filtraggio severo per proteggere il capitale.`;
             } else {
-                stratAdvice = `⚖️ <strong>Strategia Bilanciata:</strong> Confluenza trend/momentum/volume e gestione dinamica fino a TP1.`;
+                stratAdvice = `<strong>Strategia Bilanciata:</strong> Confluenza trend/momentum/volume e gestione dinamica fino a TP1.`;
             }
 
-            let tfAdvice = `⏱️ <strong>Timeframe ${tf}:</strong> Scansione multi-fattore su struttura, RSI, MACD e ATR live.`;
-            let marketAdvice = `🎯 <strong>Desk Attivo:</strong> ${opCount} setup operativi BUY/SELL validati (${selectedMarketFilter === 'ALL' ? 'Tutti i Mercati' : selectedMarketFilter}).`;
+            let tfAdvice = `<strong>Timeframe ${tf}:</strong> Scansione multi-fattore su struttura, RSI, MACD e ATR live.`;
+            let marketAdvice = `<strong>Desk Attivo:</strong> ${opCount} setup operativi BUY/SELL validati (${selectedMarketFilter === 'ALL' ? 'Tutti i Mercati' : selectedMarketFilter}).`;
 
             const container = document.getElementById('dynamicAdvisorContent');
             if (container) {
@@ -605,17 +610,26 @@
 
         function updateGauge(needleId, textId, pathId, okId, percent, exactOrMinTarget) {
             const clamped = Math.max(0, Math.min(100, percent));
+            const reached = clamped >= exactOrMinTarget;
+            const lineColor = reached ? '#009933' : '#d90429';
+
             const angle = (clamped / 100) * 180 - 90;
             const needle = document.getElementById(needleId);
-            if (needle) needle.style.transform = `rotate(${angle}deg)`;
+            if (needle) {
+                needle.style.transform = `rotate(${angle}deg)`;
+                needle.setAttribute('stroke', lineColor);
+            }
             const text = document.getElementById(textId);
             if (text) text.textContent = `${clamped.toFixed(1)}%`;
+
             const path = document.getElementById(pathId);
-            if (path) path.style.strokeDashoffset = 125.6 - (125.6 * clamped) / 100;
+            if (path) {
+                path.setAttribute('stroke', lineColor);
+                path.style.strokeDashoffset = 125.6 - (125.6 * clamped) / 100;
+            }
 
             const okEl = document.getElementById(okId);
             if (okEl) {
-                const reached = clamped >= exactOrMinTarget;
                 okEl.classList.toggle('lit', reached);
                 okEl.innerText = reached ? 'OK ✓' : 'OK';
             }
@@ -690,19 +704,19 @@
         function renderPositions(positions) {
             const tbody = document.getElementById('positionsTableBody');
             if (!positions || positions.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:var(--text-muted);">Nessuna posizione attiva.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;">Nessuna posizione attiva.</td></tr>`;
                 return;
             }
             tbody.innerHTML = positions.map(p => `
                 <tr>
                     <td><strong>${p.name}</strong></td>
-                    <td><span style="color:${p.action === 'BUY' ? 'var(--accent-green)' : 'var(--accent-red)'}; font-weight:800;">${p.action}</span></td>
+                    <td><span style="color:${p.action === 'BUY' ? '#009933' : '#d90429'}; font-weight:800;">${p.action}</span></td>
                     <td>${p.entry}</td>
                     <td>${p.size}</td>
                     <td>${p.leverage}</td>
                     <td>$${p.margin}</td>
-                    <td style="color:var(--accent-red); font-weight:700;">-$${p.fee || '0.00'}</td>
-                    <td style="color:${p.unrealized_pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}; font-weight:700;">$${p.unrealized_pnl}</td>
+                    <td style="color:#d90429; font-weight:800;">-$${p.fee || '0.00'}</td>
+                    <td style="color:${p.unrealized_pnl >= 0 ? '#009933' : '#d90429'}; font-weight:800;">$${p.unrealized_pnl}</td>
                     <td><button class="btn-close" onclick="closePosition('${p.symbol}')">CHIUDI</button></td>
                 </tr>
             `).join('');
@@ -728,11 +742,11 @@
                     document.getElementById('dailyPerfBody').innerHTML = `
                         <tr>
                             <td><strong>${daily.total_trades}</strong></td>
-                            <td><span style="color:var(--accent-green); font-weight:700;">${daily.win_pct}%</span> (${daily.wins} win)</td>
-                            <td><span style="color:var(--accent-red); font-weight:700;">${daily.loss_pct}%</span> (${daily.losses} loss)</td>
-                            <td style="color:var(--accent-green); font-weight:700;">+$${daily.won_amount}</td>
-                            <td style="color:var(--accent-red); font-weight:700;">-$${Math.abs(daily.lost_amount)}</td>
-                            <td style="color:${daily.net_pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}; font-weight:800;">$${daily.net_pnl}</td>
+                            <td><span style="color:#009933; font-weight:800;">${daily.win_pct}%</span> (${daily.wins} win)</td>
+                            <td><span style="color:#d90429; font-weight:800;">${daily.loss_pct}%</span> (${daily.losses} loss)</td>
+                            <td style="color:#009933; font-weight:800;">+$${daily.won_amount}</td>
+                            <td style="color:#d90429; font-weight:800;">-$${Math.abs(daily.lost_amount)}</td>
+                            <td style="color:${daily.net_pnl >= 0 ? '#009933' : '#d90429'}; font-weight:800;">$${daily.net_pnl}</td>
                         </tr>
                     `;
                 }
@@ -743,11 +757,11 @@
                         <tr>
                             <td><strong>${monthly.month}</strong></td>
                             <td><strong>${monthly.total_trades}</strong></td>
-                            <td><span style="color:var(--accent-green); font-weight:700;">${monthly.win_pct}%</span> (${monthly.wins} win)</td>
-                            <td><span style="color:var(--accent-red); font-weight:700;">${monthly.loss_pct}%</span> (${monthly.losses} loss)</td>
-                            <td style="color:var(--accent-green); font-weight:700;">+$${monthly.won_amount}</td>
-                            <td style="color:var(--accent-red); font-weight:700;">-$${Math.abs(monthly.lost_amount)}</td>
-                            <td style="color:${monthly.net_pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}; font-weight:800;">$${monthly.net_pnl}</td>
+                            <td><span style="color:#009933; font-weight:800;">${monthly.win_pct}%</span> (${monthly.wins} win)</td>
+                            <td><span style="color:#d90429; font-weight:800;">${monthly.loss_pct}%</span> (${monthly.losses} loss)</td>
+                            <td style="color:#009933; font-weight:800;">+$${monthly.won_amount}</td>
+                            <td style="color:#d90429; font-weight:800;">-$${Math.abs(monthly.lost_amount)}</td>
+                            <td style="color:${monthly.net_pnl >= 0 ? '#009933' : '#d90429'}; font-weight:800;">$${monthly.net_pnl}</td>
                         </tr>
                     `;
                 }
@@ -763,9 +777,9 @@
                     container.innerHTML = `
                         <p>Scansioni Globali: <strong>${data.scans_count || 0}</strong></p>
                         <p>Ordini Attivi Totali: <strong>${data.total_executions || 0}</strong></p>
-                        <p>PnL di Sessione: <strong style="color:${(data.session_pnl || 0) >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}">$${data.session_pnl || 0.0}</strong></p>
-                        <hr style="border-color:var(--border-color); margin:10px 0;">
-                        <p style="color:var(--text-muted);">Ultimi Log delle Borse:</p>
+                        <p>PnL di Sessione: <strong style="color:${(data.session_pnl || 0) >= 0 ? '#009933' : '#d90429'}">$${data.session_pnl || 0.0}</strong></p>
+                        <hr style="border-color:#000000; margin:10px 0;">
+                        <p style="font-weight:800;">Ultimi Log delle Borse:</p>
                         ${data.telemetry_logs && data.telemetry_logs.length > 0 ? data.telemetry_logs.map(l => `<div>[${l.timestamp}] - Asset Scansionati: ${l.scanned} - Stato: ${l.status}</div>`).join('') : '<div>Nessun log recente registrato.</div>'}
                     `;
                 }
@@ -847,14 +861,14 @@
                 sessionsTbody.innerHTML = categories.map(cat => {
                     const sess = sessions[cat];
                     const badgeStyle = sess.is_open 
-                        ? 'background:rgba(0,255,102,0.15); color:#00ff66; border:1px solid #00ff66;' 
-                        : 'background:rgba(255,30,66,0.15); color:#ff1e42; border:1px solid #ff1e42;';
+                        ? 'color:#009933; border:1.5px solid #009933;' 
+                        : 'color:#d90429; border:1.5px solid #d90429;';
                     return `
                         <tr>
-                            <td><strong>🏛️ ${cat}</strong></td>
-                            <td><span class="status-badge" style="${badgeStyle}">${sess.is_open ? '🟢' : '🔴'} ${sess.status}</span></td>
+                            <td><strong>${cat}</strong></td>
+                            <td><span class="status-badge" style="${badgeStyle}">${sess.status}</span></td>
                             <td>${sess.hours}</td>
-                            <td><span style="color:var(--accent-green);">BingX Pro Desk Sync</span></td>
+                            <td><span style="color:#009933; font-weight:800;">BingX + Telegram Sync</span></td>
                         </tr>
                     `;
                 }).join('');
@@ -873,7 +887,7 @@
                 : categories.filter(cat => cat === selectedMarketFilter);
 
             if (filteredCategories.length === 0) {
-                container.innerHTML = `<div style="text-align:center; padding: 40px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">Nessun segnale preciso disponibile per questa categoria.</div>`;
+                container.innerHTML = `<div style="text-align:center; padding: 40px; font-family:'JetBrains Mono',monospace;">Nessun segnale preciso disponibile per questa categoria.</div>`;
                 return;
             }
 
@@ -881,70 +895,70 @@
                 const sess = sessions[cat];
                 const catSignals = signals.filter(s => s.category === cat);
                 const badgeStyle = sess.is_open 
-                    ? 'background:rgba(0,255,102,0.15); color:#00ff66; border:1px solid #00ff66;' 
-                    : 'background:rgba(255,30,66,0.15); color:#ff1e42; border:1px solid #ff1e42;';
+                    ? 'color:#009933; border:1.5px solid #009933;' 
+                    : 'color:#d90429; border:1.5px solid #d90429;';
 
                 return `
                     <div class="category-block">
                         <div class="category-header" style="border-left-color: ${sess.badge_color};">
-                            <div class="category-name">🏛️ ${cat}</div>
+                            <div class="category-name">${cat}</div>
                             <div style="display:flex; align-items:center; gap:10px; font-family:'JetBrains Mono',monospace; font-size:0.75rem;">
-                                <span style="color:var(--text-muted);">🕒 Orari: <strong>${sess.hours}</strong></span>
-                                <span class="status-badge" style="${badgeStyle}">${sess.is_open ? '🟢' : '🔴'} ${sess.status}</span>
+                                <span>Orari: <strong>${sess.hours}</strong></span>
+                                <span class="status-badge" style="${badgeStyle}">${sess.status}</span>
                             </div>
                         </div>
                         <div class="signals-grid">
-                            ${catSignals.length === 0 ? `<div style="color:var(--text-muted); font-family:'JetBrains Mono',monospace; font-size:0.8rem;">Nessun setup operativo BUY/SELL al momento su questa borsa (i segnali neutrali sono filtrati).</div>` : 
+                            ${catSignals.length === 0 ? `<div style="font-family:'JetBrains Mono',monospace; font-size:0.8rem;">Nessun setup operativo BUY/SELL al momento su questa borsa (i segnali neutrali sono filtrati).</div>` : 
                             catSignals.map(s => `
                                 <div class="signal-card">
                                     <div class="card-header">
                                         <div>
                                             <div class="asset-title">${s.name}</div>
-                                            <div style="font-size:0.75rem; color:var(--text-muted);">Prezzo Live: <strong id="price-${s.symbol}">${s.price}</strong> | Entry: <strong>${s.entry}</strong></div>
+                                            <div style="font-size:0.75rem;">Prezzo Live: <strong id="price-${s.symbol}">${s.price}</strong> | Entry: <strong>${s.entry}</strong></div>
                                         </div>
                                         <span class="badge-action ${s.action === 'BUY' ? 'badge-buy' : 'badge-sell'}">${s.action}</span>
                                     </div>
 
                                     <div class="pro-chips">
-                                        <span class="pro-chip">🎯 ${s.confluence || 'Confluenza'}</span>
-                                        <span class="pro-chip">⚖️ R:R 1:${s.rrr}</span>
-                                        <span class="pro-chip">📊 Vol ${s.vol_ratio || 1.0}x</span>
-                                        <span class="pro-chip">🌊 ${s.vol_regime || 'Live'}</span>
+                                        <span class="pro-chip">${s.confluence || 'Confluenza'}</span>
+                                        <span class="pro-chip">R:R 1:${s.rrr}</span>
+                                        <span class="pro-chip">Vol ${s.vol_ratio || 1.0}x</span>
+                                        <span class="pro-chip">${s.vol_regime || 'Live'}</span>
                                     </div>
 
-                                    <div style="font-size:0.75rem; color:${s.sentiment_color}; font-weight:700; margin-bottom:8px; font-family:'JetBrains Mono',monospace;">${s.sentiment}</div>
+                                    <div style="font-size:0.75rem; color:${s.sentiment_color}; font-weight:800; margin-bottom:8px; font-family:'JetBrains Mono',monospace;">${s.sentiment}</div>
                                     
                                     <div class="metrics-grid">
-                                        <div class="metric-box"><label>🎯 TAKE PROFIT (TP1)</label><span id="tp1-${s.symbol}" style="color:var(--accent-green);">${s.tp1}</span></div>
-                                        <div class="metric-box"><label>🛡️ STOP LOSS (SL)</label><span id="sl-${s.symbol}" style="color:var(--accent-red);">${s.sl}</span></div>
-                                        <div class="metric-box"><label>📈 TARGET RIALZISTA</label><span id="target-up-${s.symbol}" style="color:var(--accent-green);">${s.target_rialzista}</span></div>
-                                        <div class="metric-box"><label>📉 TARGET RIBASSISTA</label><span id="target-down-${s.symbol}" style="color:var(--accent-red);">${s.target_ribassista}</span></div>
+                                        <div class="metric-box"><label>TAKE PROFIT (TP1)</label><span id="tp1-${s.symbol}" class="tp-val">${s.tp1}</span></div>
+                                        <div class="metric-box"><label>STOP LOSS (SL)</label><span id="sl-${s.symbol}" class="sl-val">${s.sl}</span></div>
+                                        <div class="metric-box"><label>TARGET RIALZISTA</label><span id="target-up-${s.symbol}" class="tp-val">${s.target_rialzista}</span></div>
+                                        <div class="metric-box"><label>TARGET RIBASSISTA</label><span id="target-down-${s.symbol}" class="sl-val">${s.target_ribassista}</span></div>
                                     </div>
 
-                                    <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; background:rgba(0,255,102,0.06); border:1px solid rgba(0,255,102,0.2); padding:6px 10px; border-radius:6px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
-                                        <span>🚀 ROI: <strong style="color:var(--accent-green); font-size:0.85rem;">${s.roi_pct}</strong></span>
-                                        <span>Net: <strong style="color:var(--accent-green);">+$${s.expected_net}</strong></span>
-                                        <span><strong style="color:var(--text-main);">${s.leverage}</strong></span>
+                                    <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; border:1.5px solid #000000; padding:6px 10px; border-radius:6px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+                                        <span>ROI: <strong style="color:#009933; font-size:0.85rem;">${s.roi_pct}</strong></span>
+                                        <span>Net: <strong style="color:#009933;">+$${s.expected_net}</strong></span>
+                                        <span><strong>${s.leverage}</strong></span>
                                     </div>
 
-                                    <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; color:var(--text-muted); margin-bottom:6px; display:flex; justify-content:space-between;">
-                                        <span>⏱️ Durata: <strong style="color:var(--accent-green);">${s.duration}</strong></span>
+                                    <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; margin-bottom:6px; display:flex; justify-content:space-between;">
+                                        <span>Durata: <strong style="color:#009933;">${s.duration}</strong></span>
                                         <span>RSI: <strong>${s.rsi}</strong> | Size: <strong>${s.size}</strong></span>
                                     </div>
-                                    <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; color:var(--text-muted);">
-                                        ⚡ Convinzione: <strong style="color:var(--accent-green);">${s.ai_score}</strong> | Trend: <strong>${s.inversion}</strong>
+                                    <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace;">
+                                        Convinzione: <strong style="color:#009933;">${s.ai_score}</strong> | Trend: <strong>${s.inversion}</strong>
                                     </div>
 
                                     <div class="card-actions-row">
-                                        <button class="btn-pro" onclick="copySetupToClipboard('${s.symbol}')">📋 COPIA SETUP</button>
-                                        <button class="btn-pro exec" onclick="manualExecuteSignal('${s.symbol}')">⚡ ESEGUI ${s.action}</button>
+                                        <button class="btn-pro" onclick="copySetupToClipboard('${s.symbol}')">COPIA SETUP</button>
+                                        <button class="btn-pro exec" onclick="manualExecuteSignal('${s.symbol}')">ESEGUI ${s.action}</button>
                                     </div>
 
                                     <div class="card-advisor-box" style="border-left-color: ${s.advisor_color};">
                                         <div style="font-family:'JetBrains Mono',monospace; font-weight:800; color:${s.advisor_color}; margin-bottom:3px;">
-                                            💡 CONSIGLIO REALE: ${s.advisor_status}
+                                            CONSIGLIO REALE: ${s.advisor_status}
                                         </div>
-                                        <div style="color:var(--text-main);">${s.advisor_msg}</div>
+                                        <div>${s.advisor_msg}</div>
                                     </div>
                                 </div>
                             `).join('')}
