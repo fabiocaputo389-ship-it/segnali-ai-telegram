@@ -468,7 +468,7 @@
                     <button type="button" class="pill-btn" onclick="setSideFilter('SELL', this)">🔴 SOLO SELL</button>
                     <button type="button" class="pill-btn" onclick="setSideFilter('HIGH', this)">⚡ SCORE >= 90%</button>
                 </div>
-                <input type="text" id="assetSearchInput" class="search-box" placeholder="🔍 Filtra asset (es. BTC, EUR, XAG)..." oninput="renderSignalsUI()">
+                <input type="text" id="assetSearchInput" class="search-box" placeholder="🔍 Filtra asset (es. BTC, EUR, XAG, SILVER)..." oninput="renderSignalsUI()">
             </div>
 
             <div class="section-title">
@@ -501,7 +501,7 @@
                         <tr>
                             <th>Seleziona Vista</th>
                             <th>Categoria di Mercato</th>
-                            <th>Asset Inclusi</th>
+                            <th>Asset Inclusi (Nomi BingX)</th>
                             <th>Frequenza Scan</th>
                             <th>Stato Attuale</th>
                         </tr>
@@ -510,30 +510,30 @@
                         <tr class="market-row selected" onclick="filterMarket('ALL', this)">
                             <td>⭐ <strong>TUTTI</strong></td>
                             <td>Tutti i Mercati Globali</td>
-                            <td>Crypto, Forex, Materie Prime, Azioni</td>
+                            <td>Crypto, Forex, Materie Prime, Azioni & Indici</td>
                             <td>Live (1s/10s)</td>
                             <td><span style="color:var(--accent-green)">Attivo (Default)</span></td>
                         </tr>
                         <tr class="market-row" onclick="filterMarket('Criptovalute Globali', this)">
                             <td>🪙 <strong>CRYPTO</strong></td>
                             <td>Criptovalute Globali</td>
-                            <td>BTC, ETH, SOL, XRP, BNB, ADA, DOGE, AVAX, LINK, SUI</td>
+                            <td>BTC-USDT, ETH-USDT, SOL-USDT, XRP-USDT, BNB-USDT, ADA-USDT, DOGE-USDT, AVAX-USDT, LINK-USDT, SUI-USDT</td>
                             <td>24/7 Continuo</td>
                             <td><span style="color:var(--accent-green)">🟢 Aperto</span></td>
                         </tr>
                         <tr class="market-row" onclick="filterMarket('Materie Prime & Forex', this)">
                             <td>💱 <strong>FOREX & COMMODITIES</strong></td>
                             <td>Materie Prime & Forex</td>
-                            <td>Oro (PAXG), Argento (XAG), Petrolio WTI, Gas, Rame, GBP/USD, EUR/USD, USD/JPY</td>
-                            <td>24h (Lun-Ven)</td>
+                            <td>SILVER(XAG)-USDT, GOLD(XAU)-USDT, PAXG-USDT, WTI-USDT, BRENT-USDT, EURUSD-USDT, GBPUSD-USDT, USDJPY-USDT</td>
+                            <td>24h (Lun-Ven / 24-7)</td>
                             <td><span style="color:var(--accent-green)">🟢 Operativo</span></td>
                         </tr>
                         <tr class="market-row" onclick="filterMarket('Azioni & Indici Globali', this)">
                             <td>🍏 <strong>EQUITIES & INDICES</strong></td>
                             <td>Azioni & Indici Globali</td>
-                            <td>Apple, Tesla, Nvidia, Amazon, Microsoft, Google</td>
-                            <td>NYSE/NASDAQ</td>
-                            <td><span style="color:var(--text-muted)">⏰ Orari Borsini</span></td>
+                            <td>AAPL-USDT, TSLA-USDT, NVDA-USDT, AMZN-USDT, MSFT-USDT, GOOGL-USDT, SP500-USDT, NASDAQ100-USDT</td>
+                            <td>BingX TradFi / NYSE</td>
+                            <td><span style="color:var(--text-muted)">⏰ Orari Borsini / TradFi</span></td>
                         </tr>
                     </tbody>
                 </table>
@@ -664,16 +664,93 @@
         let selectedSideFilter = 'ALL';
         let cachedSignalData = { sessions: {}, signals: [] };
 
-        const UNIVERSAL_BASE_ALIASES = {
-            "SILVER(XAG)": "XAG",
-            "SILVER": "XAG",
-            "ARGENTO": "XAG",
-            "GOLD(XAU)": "XAU",
-            "GOLD": "XAU",
-            "ORO": "XAU",
-            "USOIL": "WTI",
-            "OIL": "WTI",
-            "PETROLIO": "WTI"
+        // Nomi contratti / ticker BingX esatti per tutti i mercati
+        const BINGX_EXACT_SYMBOL_MAP = {
+            // Materie Prime (BingX TradFi / Perpetuals)
+            "SILVER(XAG)": "SILVER(XAG)-USDT",
+            "SILVER(XAG)-USDT": "SILVER(XAG)-USDT",
+            "SILVER": "SILVER(XAG)-USDT",
+            "ARGENTO": "SILVER(XAG)-USDT",
+            "ARGENTO (SILVER)": "SILVER(XAG)-USDT",
+            "XAG": "SILVER(XAG)-USDT",
+            "XAG-USDT": "SILVER(XAG)-USDT",
+            "XAGUSDT": "SILVER(XAG)-USDT",
+            "100XAG": "100SILVER(100XAG)-USDT",
+            "100SILVER(100XAG)": "100SILVER(100XAG)-USDT",
+
+            "GOLD(XAU)": "GOLD(XAU)-USDT",
+            "GOLD(XAU)-USDT": "GOLD(XAU)-USDT",
+            "GOLD": "GOLD(XAU)-USDT",
+            "ORO": "GOLD(XAU)-USDT",
+            "XAU": "GOLD(XAU)-USDT",
+            "XAU-USDT": "GOLD(XAU)-USDT",
+            "XAUUSDT": "GOLD(XAU)-USDT",
+            "PAXG": "PAXG-USDT",
+            "PAXG-USDT": "PAXG-USDT",
+            "XAUT": "XAUT-USDT",
+            "XAUT-USDT": "XAUT-USDT",
+
+            "WTI": "WTI-USDT",
+            "WTI-USDT": "WTI-USDT",
+            "USOIL": "WTI-USDT",
+            "USOIL-USDT": "WTI-USDT",
+            "OIL": "WTI-USDT",
+            "PETROLIO": "WTI-USDT",
+            "BRENT": "BRENT-USDT",
+            "BRENT-USDT": "BRENT-USDT",
+            "NATGAS": "NATGAS-USDT",
+            "GAS": "NATGAS-USDT",
+            "COPPER": "COPPER-USDT",
+            "RAME": "COPPER-USDT",
+
+            // Forex
+            "EURUSD": "EURUSD-USDT",
+            "EUR/USD": "EURUSD-USDT",
+            "EURUSD-USDT": "EURUSD-USDT",
+            "GBPUSD": "GBPUSD-USDT",
+            "GBP/USD": "GBPUSD-USDT",
+            "GBPUSD-USDT": "GBPUSD-USDT",
+            "USDJPY": "USDJPY-USDT",
+            "USD/JPY": "USDJPY-USDT",
+            "USDJPY-USDT": "USDJPY-USDT",
+            "AUDUSD": "AUDUSD-USDT",
+            "AUD/USD": "AUDUSD-USDT",
+            "EURJPY": "EURJPY-USDT",
+            "EUR/JPY": "EURJPY-USDT",
+            "USDCAD": "USDCAD-USDT",
+            "USD/CAD": "USDCAD-USDT",
+            "USDCHF": "USDCHF-USDT",
+            "USD/CHF": "USDCHF-USDT",
+
+            // Azioni & Indici
+            "AAPL": "AAPL-USDT",
+            "AAPL-USDT": "AAPL-USDT",
+            "APPLE": "AAPL-USDT",
+            "TSLA": "TSLA-USDT",
+            "TSLA-USDT": "TSLA-USDT",
+            "TESLA": "TSLA-USDT",
+            "NVDA": "NVDA-USDT",
+            "NVDA-USDT": "NVDA-USDT",
+            "NVIDIA": "NVDA-USDT",
+            "AMZN": "AMZN-USDT",
+            "AMZN-USDT": "AMZN-USDT",
+            "AMAZON": "AMZN-USDT",
+            "MSFT": "MSFT-USDT",
+            "MSFT-USDT": "MSFT-USDT",
+            "MICROSOFT": "MSFT-USDT",
+            "GOOGL": "GOOGL-USDT",
+            "GOOGL-USDT": "GOOGL-USDT",
+            "GOOGLE": "GOOGL-USDT",
+            "META": "META-USDT",
+            "META-USDT": "META-USDT",
+            "INTC": "INTC-USDT",
+            "INTC-USDT": "INTC-USDT",
+            "SP500": "SP500-USDT",
+            "SP500-USDT": "SP500-USDT",
+            "NASDAQ100": "NASDAQ100-USDT",
+            "NASDAQ100-USDT": "NASDAQ100-USDT",
+            "DOWJONES": "DOWJONES-USDT",
+            "NIKKEI225": "NIKKEI225-USDT"
         };
 
         // Quantità minime indicative BingX Swap per asset noti (es. 35 DOGE)
@@ -690,29 +767,45 @@
                 .filter(Boolean);
 
             for (const candidate of rawList) {
-                if (UNIVERSAL_BASE_ALIASES[candidate]) {
-                    return `${UNIVERSAL_BASE_ALIASES[candidate]}-USDT`;
+                if (BINGX_EXACT_SYMBOL_MAP[candidate]) {
+                    return BINGX_EXACT_SYMBOL_MAP[candidate];
+                }
+                const compact = candidate.replace(/\s+/g, '');
+                if (BINGX_EXACT_SYMBOL_MAP[compact]) {
+                    return BINGX_EXACT_SYMBOL_MAP[compact];
                 }
                 const parenMatch = candidate.match(/\(([A-Z0-9]+)\)/);
                 if (parenMatch && parenMatch[1]) {
                     const inner = parenMatch[1];
-                    const mappedInner = UNIVERSAL_BASE_ALIASES[inner] || inner;
-                    return `${mappedInner}-USDT`;
+                    if (BINGX_EXACT_SYMBOL_MAP[inner]) {
+                        return BINGX_EXACT_SYMBOL_MAP[inner];
+                    }
+                    if (candidate.includes('SILVER') || candidate.includes('ARGENTO')) return 'SILVER(XAG)-USDT';
+                    if (candidate.includes('GOLD') || candidate.includes('ORO')) return 'GOLD(XAU)-USDT';
+                    return `${inner}-USDT`;
                 }
                 const cleaned = candidate.replace(/[^A-Z0-9-]/g, '');
                 if (!cleaned) continue;
+                if (BINGX_EXACT_SYMBOL_MAP[cleaned]) {
+                    return BINGX_EXACT_SYMBOL_MAP[cleaned];
+                }
                 if (/^[A-Z0-9]+-(USDT|USDC)$/.test(cleaned)) {
                     return cleaned;
                 }
                 if (/^[A-Z0-9]+(USDT|USDC)$/.test(cleaned)) {
                     const quote = cleaned.endsWith('USDC') ? 'USDC' : 'USDT';
                     const base = cleaned.slice(0, -quote.length);
+                    if (BINGX_EXACT_SYMBOL_MAP[base]) {
+                        return BINGX_EXACT_SYMBOL_MAP[base];
+                    }
                     if (base) return `${base}-${quote}`;
                 }
                 const baseOnly = cleaned.replace(/-/g, '');
                 if (baseOnly) {
-                    const mappedBase = UNIVERSAL_BASE_ALIASES[baseOnly] || baseOnly;
-                    return `${mappedBase}-USDT`;
+                    if (BINGX_EXACT_SYMBOL_MAP[baseOnly]) {
+                        return BINGX_EXACT_SYMBOL_MAP[baseOnly];
+                    }
+                    return `${baseOnly}-USDT`;
                 }
             }
 
@@ -729,7 +822,6 @@
             const parsedLev = parseInt(String(signalObj.leverage || '20').replace(/[^0-9]/g, ''), 10);
             const leverage = (!isNaN(parsedLev) && parsedLev > 0) ? parsedLev : (balance <= 2.0 ? 20 : 10);
 
-            // Margine minimo richiesto da BingX: almeno 2.0$ (oppure proporzionato a capitale/rischio, mai sotto 2.0$ se il capitale lo consente)
             const targetMargin = Math.max(2.0, Math.min(balance, balance * Math.max(1.0, riskPct)));
             const notionalUsd = targetMargin * leverage;
 
@@ -991,7 +1083,8 @@
                 if (selectedSideFilter === 'BUY' && s.action !== 'BUY') return false;
                 if (selectedSideFilter === 'SELL' && s.action !== 'SELL') return false;
                 if (selectedSideFilter === 'HIGH' && parseFloat(s.ai_score) < 90.0) return false;
-                if (q && !s.symbol.toUpperCase().includes(q) && !s.name.toUpperCase().includes(q)) return false;
+                const bingxSym = normalizeUniversalBingXSymbol(s.symbol, s.name).toUpperCase();
+                if (q && !s.symbol.toUpperCase().includes(q) && !s.name.toUpperCase().includes(q) && !bingxSym.includes(q)) return false;
                 return true;
             });
         }
