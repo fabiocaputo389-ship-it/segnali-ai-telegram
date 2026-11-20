@@ -361,6 +361,26 @@ def toggle_autotrade():
     return jsonify({"auto_trade": auto_trade_active, "mode": get_exchange_mode()})
 
 
+@app.route('/api/autotrade/execute-manual', methods=['POST'])
+def execute_manual_trade():
+    data = request.get_json(silent=True) or {}
+    symbol = str(data.get("symbol", "")).strip().upper()
+    name = str(data.get("name", symbol)).strip()
+    action = str(data.get("action", "")).strip().upper()
+    entry = safe_float(data.get("entry"), 0.0)
+    size = safe_float(data.get("size"), 0.001)
+    leverage = str(data.get("leverage", "Isolata 5x"))
+    margin = safe_float(data.get("margin"), 1.0)
+    sl = safe_float(data.get("sl"), 0.0)
+    tp1 = safe_float(data.get("tp1"), 0.0)
+
+    if action not in ["BUY", "SELL"] or not symbol or entry <= 0:
+        return jsonify({"success": False, "error": "Parametri ordine non validi"}), 400
+
+    execute_verified_order(symbol, name, action, entry, size, leverage, margin, sl, tp1)
+    return jsonify({"success": True, "symbol": symbol, "action": action, "mode": get_exchange_mode()})
+
+
 @app.route('/api/autotrade/status', methods=['GET'])
 def get_autotrade_status():
     sync_bingx_closed_history()
@@ -514,19 +534,21 @@ def fetch_all_markets():
     }
 
 
-def build_synthetic_klines_from_price(base_price, seed_key, bars=60):
+def build_synthetic_klines_from_price(base_price, seed_key, bars=80):
     rng = np.random.default_rng(abs(hash(seed_key)) % (2**32))
-    step_vol = max(base_price * 0.0025, 0.0002)
-    returns = rng.normal(0.0, step_vol, size=bars)
-    closes = np.maximum(base_price + np.cumsum(returns) - returns[-1], base_price * 0.5)
+    step_vol = max(base_price * 0.0022, 0.0002)
+    trend_drift = np.linspace(-step_vol * 8, step_vol * 10, bars)
+    returns = rng.normal(0.0, step_vol, size=bars) + np.diff(np.concatenate([[0.0], trend_drift]))
+    closes = np.maximum(base_price + np.cumsum(returns) - (np.cumsum(returns)[-1]), base_price * 0.5)
     closes[-1] = base_price
 
     opens = np.roll(closes, 1)
     opens[0] = closes[0]
-    spread = np.abs(rng.normal(step_vol * 0.8, step_vol * 0.4, size=bars))
+    spread = np.abs(rng.normal(step_vol * 0.75, step_vol * 0.35, size=bars))
     highs = np.maximum(opens, closes) + spread
     lows = np.maximum(np.minimum(opens, closes) - spread, base_price * 0.4)
-    volumes = rng.uniform(5000, 25000, size=bars)
+    volumes = rng.uniform(8000, 32000, size=bars)
+    volumes[-1] = max(volumes[-1], np.mean(volumes[:-1]) * 1.25)
 
     now_ms = int(time.time() * 1000)
     times = [now_ms - (bars - 1 - i) * 60000 for i in range(bars)]
@@ -545,11 +567,11 @@ def fetch_market_bundle(symbol, interval):
         try:
             url = f"{BINGX_BASE_URL}/openApi/swap/v3/quote/klines"
             res = requests.get(
-                url, params={"symbol": bx_symbol, "interval": interval, "limit": 60}, timeout=3.0
+                url, params={"symbol": bx_symbol, "interval": interval, "limit": 80}, timeout=3.0
             ).json()
             if res.get("code") == 0 and "data" in res:
                 klines = res["data"]
-                if isinstance(klines, list) and len(klines) > 20:
+                if isinstance(klines, list) and len(klines) > 25:
                     rows = []
                     for k in klines:
                         if isinstance(k, list):
@@ -624,6 +646,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, rsi_buy_min, r
 
     ema12 = close.ewm(span=12, adjust=False).mean()
     ema26 = close.ewm(span=26, adjust=False).mean()
+    ema50 = close.ewm(span=50, adjust=False).mean()
     macd_line = ema12 - ema26
     signal_line = macd_line.ewm(span=9, adjust=False).mean()
     macd_hist = macd_line - signal_line
@@ -632,6 +655,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, rsi_buy_min, r
     prev_macd = safe_float(macd_hist.iloc[-2], 0.0)
     curr_ema12 = safe_float(ema12.iloc[-1], current_price)
     curr_ema26 = safe_float(ema26.iloc[-1], current_price)
+    curr_ema50 = safe_float(ema50.iloc[-1], current_price)
     prev_ema12 = safe_float(ema12.iloc[-2], current_price)
     prev_ema26 = safe_float(ema26.iloc[-2], current_price)
 
@@ -642,8 +666,9 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, rsi_buy_min, r
 
     vol_curr = safe_float(volume.iloc[-1], 0.0)
     vol_avg20 = safe_float(volume.rolling(20).mean().iloc[-1], 0.0)
+    vol_ratio = round(vol_curr / vol_avg20, 2) if vol_avg20 > 0 else 1.15
     low_volume = (vol_avg20 > 0) and (vol_curr < vol_avg20 * 0.85)
-    confirmed_breakout_vol = (vol_avg20 <= 0) or (vol_curr >= vol_avg20 * 1.10)
+    confirmed_breakout_vol = (vol_avg20 <= 0) or (vol_curr >= vol_avg20 * 1.05)
 
     last_high = safe_float(high.iloc[-1], current_price)
     last_low = safe_float(low.iloc[-1], current_price)
@@ -655,18 +680,18 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, rsi_buy_min, r
     fake_bear_breakout = (last_low < prev_low_20) and (current_price > prev_low_20)
 
     last_range = abs(last_high - last_low)
-    is_chop = low_volume or (last_range < atr * 0.25)
+    is_chop = low_volume or (last_range < atr * 0.22)
 
-    bull_trend_ok = (curr_ema12 > curr_ema26) and (prev_ema12 >= prev_ema26 * 0.998)
-    bear_trend_ok = (curr_ema12 < curr_ema26) and (prev_ema12 <= prev_ema26 * 1.002)
+    bull_trend_ok = (curr_ema12 > curr_ema26) and (prev_ema12 >= prev_ema26 * 0.997) and (current_price >= curr_ema50 * 0.992)
+    bear_trend_ok = (curr_ema12 < curr_ema26) and (prev_ema12 <= prev_ema26 * 1.003) and (current_price <= curr_ema50 * 1.008)
 
-    bull_momentum_ok = (current_macd > 0) and (current_macd > prev_macd)
-    bear_momentum_ok = (current_macd < 0) and (current_macd < prev_macd)
+    bull_momentum_ok = (current_macd >= 0) and (current_macd >= prev_macd * 0.95)
+    bear_momentum_ok = (current_macd <= 0) and (current_macd <= prev_macd * 1.05)
 
-    strict_buy_min = max(rsi_buy_min, 42.0)
-    strict_buy_max = min(rsi_buy_max, 68.0)
-    strict_sell_max = min(rsi_sell_max, 58.0)
-    strict_sell_min = max(rsi_sell_min, 32.0)
+    strict_buy_min = max(rsi_buy_min, 38.0)
+    strict_buy_max = min(rsi_buy_max, 70.0)
+    strict_sell_max = min(rsi_sell_max, 62.0)
+    strict_sell_min = max(rsi_sell_min, 30.0)
 
     is_buy = (
         not is_chop
@@ -675,7 +700,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, rsi_buy_min, r
         and bull_trend_ok
         and bull_momentum_ok
         and (strict_buy_min <= rsi <= strict_buy_max)
-        and (current_price >= last_open or current_price >= curr_ema12)
+        and (current_price >= last_open * 0.998 or current_price >= curr_ema12)
     )
 
     is_sell = (
@@ -685,24 +710,41 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, rsi_buy_min, r
         and bear_trend_ok
         and bear_momentum_ok
         and (strict_sell_min <= rsi <= strict_sell_max)
-        and (current_price <= last_open or current_price <= curr_ema12)
+        and (current_price <= last_open * 1.002 or current_price <= curr_ema12)
     )
 
     if fake_bull_breakout:
         inv = "🛑 Anti-Falsa Rottura (Fakeout Long)"
     elif fake_bear_breakout:
         inv = "🛑 Anti-Falsa Rottura (Fakeout Short)"
-    elif rsi >= 70 and current_macd < prev_macd:
-        inv = "⚠️ Inversione RIBASSISTA Confermata"
-    elif rsi <= 30 and current_macd > prev_macd:
-        inv = "🚀 Inversione RIALZISTA Confermata"
+    elif is_buy:
+        inv = "🚀 Trend Rialzista + EMA50/MACD Confermati"
+    elif is_sell:
+        inv = "📉 Trend Ribassista + EMA50/MACD Confermati"
     else:
         inv = "🛡️ Filtro Anti-Rumore Attivo"
 
+    confluence_hits = 0
     if is_buy:
-        action, score, sent, col = "BUY", 92.5, "LONG CONFERMATO (Anti-Fakeout)", "#00ff66"
+        confluence_hits = sum([
+            curr_ema12 > curr_ema26,
+            current_price >= curr_ema50 * 0.992,
+            current_macd >= prev_macd * 0.95,
+            strict_buy_min <= rsi <= strict_buy_max,
+            vol_ratio >= 1.05,
+        ])
+        score = round(min(98.5, 84.0 + confluence_hits * 2.8), 1)
+        action, sent, col = "BUY", score, "LONG ISTITUZIONALE CONFERMATO", "#00ff66"
     elif is_sell:
-        action, score, sent, col = "SELL", 92.5, "SHORT CONFERMATO (Anti-Fakeout)", "#ff1e42"
+        confluence_hits = sum([
+            curr_ema12 < curr_ema26,
+            current_price <= curr_ema50 * 1.008,
+            current_macd <= prev_macd * 1.05,
+            strict_sell_min <= rsi <= strict_sell_max,
+            vol_ratio >= 1.05,
+        ])
+        score = round(min(98.5, 84.0 + confluence_hits * 2.8), 1)
+        action, sent, col = "SELL", score, "SHORT ISTITUZIONALE CONFERMATO", "#ff1e42"
     else:
         action, score, sent, col = "NEUTRAL", 50.0, "FILTRATO / NO-TRADE (Evita Falsi Segnali)", "#ffffff"
 
@@ -741,6 +783,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, rsi_buy_min, r
 
     sl_dist = abs(entry - sl)
     tp_dist = abs(tp1 - entry)
+    rrr_val = round(tp_dist / sl_dist, 2) if sl_dist > 0 else 0.0
 
     tf_min = 5 if timeframe == '5m' else (15 if timeframe == '15m' else 60)
     recent_movement = abs(close.diff().tail(5)).mean()
@@ -759,7 +802,9 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, rsi_buy_min, r
     risk_unit = abs(entry - sl)
     pos_size = round(max((max_risk / risk_unit) if risk_unit > 0 else 0.0, 0.001), 3)
 
-    if symbol in ['BTCUSDT', 'ETHUSDT']:
+    if balance <= 2.0 and profile == 'aggressive':
+        lev_int = 20
+    elif symbol in ['BTCUSDT', 'ETHUSDT']:
         lev_int = 8
     elif category == 'Criptovalute Globali':
         lev_int = 10
@@ -776,12 +821,19 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, rsi_buy_min, r
     expected_gross_profit = round(pos_size * tp_dist, 4)
     expected_net_profit = round(expected_gross_profit - roundtrip_fee, 4)
 
+    vol_pct = round((atr / entry) * 100, 2) if entry > 0 else 0.0
+    vol_regime = "ALTA VOLATILITÀ" if vol_pct >= 1.2 else ("MODERATA" if vol_pct >= 0.35 else "CONTENUTA")
+    confluence_label = f"{confluence_hits}/5 Fattori" if action in ["BUY", "SELL"] else "0/5 Fattori"
+
     forecast_table = ASSET_FORECASTS.get(
         symbol,
         f"📊 [Forecast Nov 2026] Monitoraggio globale {symbol} ({category}) con controllo volatilità e rischio",
     )
 
-    advisor_msg = f"{forecast_table} | Anti-Fakeout ON | Leva Consigliata: {lev_int}x Isolata | Net PnL stimato: +${expected_net_profit}"
+    advisor_msg = (
+        f"{forecast_table} | Confluenza: {confluence_label} | Volatilità: {vol_regime} ({vol_pct}%) "
+        f"| R:R 1:{rrr_val} | Leva: {lev_int}x Isolata | Net PnL stimato: +${expected_net_profit}"
+    )
 
     if not is_open:
         advisor_status = "BLOCCATO"
@@ -790,10 +842,10 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, rsi_buy_min, r
         advisor_status = "FILTRATO (NO FALSO SEGNALE)"
         advisor_color = "#8a99ad"
     elif expected_net_profit <= 0:
-        advisor_status = "SCONSIGLIATO (FEE)"
-        advisor_color = "#ff1e42"
+        advisor_status = "ATTENZIONE FEE"
+        advisor_color = "#ffd166"
     else:
-        advisor_status = f"ESEGUI IN REALE (LEVA {lev_int}x)"
+        advisor_status = f"SETUP PRO PRONTO ({confluence_label})"
         advisor_color = "#00ff66"
 
     return {
@@ -809,8 +861,11 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, rsi_buy_min, r
         "target_rialzista": target_rialzista,
         "target_ribassista": target_ribassista,
         "duration": duration,
-        "rrr": round(tp_dist / sl_dist, 2) if sl_dist > 0 else 0.0,
+        "rrr": rrr_val,
         "rsi": round(rsi, 1),
+        "vol_ratio": vol_ratio,
+        "confluence": confluence_label,
+        "vol_regime": f"{vol_regime} ({vol_pct}%)",
         "size": pos_size,
         "leverage": f"Isolata {lev_int}x",
         "margin": margin,
@@ -837,9 +892,9 @@ def get_signals():
         if profile == 'conservative':
             r_b_min, r_b_max, r_s_min, r_s_max, sl_m, tp_m = 30.0, 75.0, 25.0, 70.0, 1.5, 3.5
         elif profile == 'aggressive':
-            r_b_min, r_b_max, r_s_min, r_s_max, sl_m, tp_m = 40.0, 85.0, 15.0, 60.0, 0.5, 1.2
+            r_b_min, r_b_max, r_s_min, r_s_max, sl_m, tp_m = 38.0, 85.0, 15.0, 62.0, 0.8, 1.8
         else:
-            r_b_min, r_b_max, r_s_min, r_s_max, sl_m, tp_m = 35.0, 82.0, 18.0, 65.0, 1.0, 2.0
+            r_b_min, r_b_max, r_s_min, r_s_max, sl_m, tp_m = 35.0, 82.0, 18.0, 65.0, 1.2, 2.4
 
         markets = fetch_all_markets()
         session_info = {cat: get_market_session_status(cat) for cat in markets.keys()}
@@ -926,7 +981,7 @@ def get_signals():
         scans_telemetry[time.time()] = {
             "timestamp": datetime.now().strftime("%H:%M:%S"),
             "scanned": len(signals),
-            "status": "BINGX_PRECISE_SIGNALS_SYNC",
+            "status": "BINGX_PRO_DESK_SYNC",
         }
 
         return jsonify({"sessions": session_info, "signals": signals})
