@@ -664,6 +664,53 @@
         let selectedSideFilter = 'ALL';
         let cachedSignalData = { sessions: {}, signals: [] };
 
+        const UNIVERSAL_BASE_ALIASES = {
+            "SILVER(XAG)": "XAG",
+            "SILVER": "XAG",
+            "ARGENTO": "XAG",
+            "GOLD(XAU)": "XAU",
+            "GOLD": "XAU",
+            "ORO": "XAU",
+            "USOIL": "WTI",
+            "OIL": "WTI",
+            "PETROLIO": "WTI"
+        };
+
+        function normalizeUniversalBingXSymbol(rawSymbol, rawName = '') {
+            const rawList = [rawSymbol, rawName]
+                .map(v => String(v || '').trim().toUpperCase())
+                .filter(Boolean);
+
+            for (const candidate of rawList) {
+                if (UNIVERSAL_BASE_ALIASES[candidate]) {
+                    return `${UNIVERSAL_BASE_ALIASES[candidate]}-USDT`;
+                }
+                const parenMatch = candidate.match(/\(([A-Z0-9]+)\)/);
+                if (parenMatch && parenMatch[1]) {
+                    const inner = parenMatch[1];
+                    const mappedInner = UNIVERSAL_BASE_ALIASES[inner] || inner;
+                    return `${mappedInner}-USDT`;
+                }
+                const cleaned = candidate.replace(/[^A-Z0-9-]/g, '');
+                if (!cleaned) continue;
+                if (/^[A-Z0-9]+-(USDT|USDC)$/.test(cleaned)) {
+                    return cleaned;
+                }
+                if (/^[A-Z0-9]+(USDT|USDC)$/.test(cleaned)) {
+                    const quote = cleaned.endsWith('USDC') ? 'USDC' : 'USDT';
+                    const base = cleaned.slice(0, -quote.length);
+                    if (base) return `${base}-${quote}`;
+                }
+                const baseOnly = cleaned.replace(/-/g, '');
+                if (baseOnly) {
+                    const mappedBase = UNIVERSAL_BASE_ALIASES[baseOnly] || baseOnly;
+                    return `${mappedBase}-USDT`;
+                }
+            }
+
+            return 'BTC-USDT';
+        }
+
         const EXACT_UI_PRESETS = {
             "5m_conservative":  { label: "5m • CONSERVATIVO", rsi_buy_min: 45.0, rsi_buy_max: 62.0, rsi_sell_min: 38.0, rsi_sell_max: 55.0, sl_m: 1.6, tp_m: 3.2, min_vol_ratio: 1.05, min_score: 85.0 },
             "5m_balanced":      { label: "5m • BILANCIATO",   rsi_buy_min: 40.0, rsi_buy_max: 66.0, rsi_sell_min: 34.0, rsi_sell_max: 60.0, sl_m: 1.2, tp_m: 2.4, min_vol_ratio: 0.90, min_score: 80.0 },
@@ -904,12 +951,13 @@
         function copySetupToClipboard(symbol) {
             const s = (cachedSignalData.signals || []).find(item => item.symbol === symbol);
             if (!s) return;
+            const execSym = normalizeUniversalBingXSymbol(s.symbol, s.name);
             const entryNum = parseFloat(document.getElementById(`price-${symbol}`)?.innerText || s.entry) || 0;
             const tpNum = parseFloat(document.getElementById(`tp1-${symbol}`)?.innerText || s.tp1) || 0;
             const slNum = parseFloat(document.getElementById(`sl-${symbol}`)?.innerText || s.sl) || 0;
             const tpPct = entryNum > 0 ? (((tpNum - entryNum) / entryNum) * 100).toFixed(2) : '0.00';
             const slPct = entryNum > 0 ? (((slNum - entryNum) / entryNum) * 100).toFixed(2) : '0.00';
-            const txt = `${s.name} (${s.symbol}) | ${s.action} | Entry: ${entryNum} | TP1: ${tpNum} (${tpPct}%) | SL: ${slNum} (${slPct}%) | R:R 1:${s.rrr}`;
+            const txt = `${s.name} (${execSym}) | ${s.action} | Entry: ${entryNum} | TP1: ${tpNum} (${tpPct}%) | SL: ${slNum} (${slPct}%) | R:R 1:${s.rrr}`;
             navigator.clipboard?.writeText(txt).catch(() => {});
             alert(`Setup copiato:\n${txt}`);
         }
@@ -926,6 +974,7 @@
                 btnEl.disabled = true;
                 btnEl.innerText = '⏳ INVIO...';
             }
+            const bingxSymbol = normalizeUniversalBingXSymbol(s.symbol, s.name);
             try {
                 const livePriceText = document.getElementById(`price-${symbol}`)?.innerText;
                 const tp1Text = document.getElementById(`tp1-${symbol}`)?.innerText;
@@ -939,7 +988,9 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        symbol: s.symbol,
+                        symbol: bingxSymbol,
+                        raw_symbol: s.symbol,
+                        category: s.category || 'ALL',
                         name: s.name,
                         action: s.action,
                         entry: entryVal,
@@ -954,9 +1005,9 @@
                 if (res.ok && out.success) {
                     loadStatus();
                     const orderId = out.bingx_response && out.bingx_response.orderId ? `\nOrder ID: ${out.bingx_response.orderId}` : '';
-                    alert(`✅ Ordine ${s.action} inviato su ${s.name} (${out.mode})${orderId}\nEntry: ${entryVal} | TP1: ${tp1Val} | SL: ${slVal}`);
+                    alert(`✅ Ordine ${s.action} inviato su ${s.name} (${bingxSymbol} • ${out.mode})${orderId}\nEntry: ${entryVal} | TP1: ${tp1Val} | SL: ${slVal}`);
                 } else {
-                    alert(`❌ Ordine ${s.action} su ${s.name} non eseguito:\n${out.error || ('Errore HTTP ' + res.status)}`);
+                    alert(`❌ Ordine ${s.action} su ${s.name} (${bingxSymbol}) non eseguito:\n${out.error || ('Errore HTTP ' + res.status)}`);
                 }
             } catch (e) {
                 console.error(e);
@@ -1220,7 +1271,7 @@
 
             for (const sig of signals) {
                 try {
-                    const res = await fetch(`/api/live-ticker/${sig.symbol}`);
+                    const res = await fetch(`/api/live-ticker/${encodeURIComponent(sig.symbol)}`);
                     const data = await res.json();
                     if (data.success && data.lastPrice > 0) {
                         const liveP = parseFloat(data.lastPrice);
@@ -1364,12 +1415,13 @@
                                 const slNum = parseFloat(s.sl) || 0;
                                 const tpDelta = entryNum > 0 ? (((tpNum - entryNum) / entryNum) * 100).toFixed(2) : '0.00';
                                 const slDelta = entryNum > 0 ? (((slNum - entryNum) / entryNum) * 100).toFixed(2) : '0.00';
+                                const bingxSym = normalizeUniversalBingXSymbol(s.symbol, s.name);
                                 return `
                                 <div class="signal-card">
                                     <div class="card-header">
                                         <div>
                                             <div class="asset-title">${s.name}</div>
-                                            <div style="font-size:0.75rem; color:var(--text-muted);">Prezzo Live: <strong id="price-${s.symbol}">${s.price}</strong> | Entry: <strong>${s.entry}</strong></div>
+                                            <div style="font-size:0.75rem; color:var(--text-muted);">Prezzo Live: <strong id="price-${s.symbol}">${s.price}</strong> | Entry: <strong>${s.entry}</strong> • <span style="color:var(--accent-cyan);">${bingxSym}</span></div>
                                         </div>
                                         <span class="badge-action ${s.action === 'BUY' ? 'badge-buy' : 'badge-sell'}">${s.action}</span>
                                     </div>
