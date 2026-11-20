@@ -51,6 +51,50 @@ sent_telegram_signals = {}
 scans_telemetry = {}
 session_realized_pnl = 0.0
 
+BINGX_SYMBOL_ALIASES = {
+    'PAXGUSDT': ['PAXG-USDT', 'XAUT-USDT', 'GOLD-USDT'],
+    'XAGUSDT': ['XAG-USDT', 'SILVER-USDT'],
+    'WTIUSDT': ['WTI-USDT', 'USOIL-USDT', 'CRUDEOIL-USDT'],
+    'NATGASUSDT': ['NATGAS-USDT', 'NGAS-USDT'],
+    'COPPERUSDT': ['COPPER-USDT', 'XCU-USDT'],
+    'EURUSDT': ['EUR-USD', 'EUR-USDT', 'NCSIFXEUR-USD'],
+    'GBPUSDT': ['GBP-USD', 'GBP-USDT', 'NCSIFXGBP-USD'],
+    'USDJPY': ['USD-JPY', 'USDJPY-USDT', 'NCSIFXUSD-JPY'],
+}
+
+BINGX_CONTRACTS_CACHE = {"ts": 0, "map": {}}
+
+def get_bingx_contract_specs():
+    now = time.time()
+    if now - BINGX_CONTRACTS_CACHE["ts"] < 300 and BINGX_CONTRACTS_CACHE["map"]:
+        return BINGX_CONTRACTS_CACHE["map"]
+    specs = {}
+    try:
+        res = requests.get(f"{BINGX_BASE_URL}/openApi/swap/v2/quote/contracts", timeout=3.0).json()
+        if res.get("code") == 0 and isinstance(res.get("data"), list):
+            for c in res["data"]:
+                sym = c.get("symbol", "")
+                if sym:
+                    specs[sym] = {
+                        "pricePrecision": int(c.get("pricePrecision", 4)),
+                        "quantityPrecision": int(c.get("quantityPrecision", 3)),
+                    }
+        if specs:
+            BINGX_CONTRACTS_CACHE["ts"] = now
+            BINGX_CONTRACTS_CACHE["map"] = specs
+    except Exception:
+        pass
+    return specs
+
+def resolve_bingx_symbol(symbol):
+    clean = symbol.replace("-", "").upper()
+    candidates = BINGX_SYMBOL_ALIASES.get(clean, [f"{clean.replace('USDT', '')}-USDT"])
+    specs = get_bingx_contract_specs()
+    for c in candidates:
+        if c in specs:
+            return c, specs[c]["pricePrecision"]
+    return candidates[0], None
+
 def get_market_session_status(category):
     now_utc = datetime.now(timezone.utc)
     weekday = now_utc.weekday()
@@ -161,7 +205,7 @@ def execute_verified_order(symbol, name, action, entry, size, leverage, margin, 
     if BINGX_API_KEY and BINGX_SECRET_KEY:
         try:
             timestamp = int(time.time() * 1000)
-            bx_symbol = f"{symbol.replace('USDT','')}-USDT"
+            bx_symbol, _ = resolve_bingx_symbol(symbol)
             pos_side = "LONG" if action == "BUY" else "SHORT"
             params = {
                 "symbol": bx_symbol, "side": action, "positionSide": pos_side,
@@ -206,12 +250,7 @@ def get_live_asset_price(symbol, bingx_prices=None):
     if bingx_prices and clean_sym in bingx_prices and bingx_prices[clean_sym] > 0:
         return float(bingx_prices[clean_sym])
 
-    candidates = [f"{clean_sym.replace('USDT', '')}-USDT"]
-    if clean_sym == 'WTIUSDT':
-        candidates.append("USOIL-USDT")
-    elif clean_sym == 'XAGUSDT':
-        candidates.append("SILVER-USDT")
-
+    candidates = BINGX_SYMBOL_ALIASES.get(clean_sym, [f"{clean_sym.replace('USDT', '')}-USDT"])
     for bx_symbol in candidates:
         try:
             r = requests.get(f"{BINGX_BASE_URL}/openApi/swap/v2/quote/ticker", params={"symbol": bx_symbol}, timeout=2.5).json()
@@ -381,11 +420,8 @@ def build_synthetic_klines_from_price(base_price, seed_key, bars=60):
     return pd.DataFrame(rows, columns=['Open_time', 'Open', 'High', 'Low', 'Close', 'Volume'])
 
 def fetch_market_bundle(symbol, interval):
-    candidates = [f"{symbol.replace('USDT','')}-USDT"]
-    if symbol == 'WTIUSDT':
-        candidates.append("USOIL-USDT")
-    elif symbol == 'XAGUSDT':
-        candidates.append("SILVER-USDT")
+    clean = symbol.replace("-", "").upper()
+    candidates = BINGX_SYMBOL_ALIASES.get(clean, [f"{clean.replace('USDT','')}-USDT"])
 
     for bx_symbol in candidates:
         try:
@@ -537,19 +573,41 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, rsi_buy_min, r
     else:
         action, score, sent, col = "NEUTRAL", 50.0, "FILTRATO / NO-TRADE (Evita Falsi Segnali)", "#ffffff"
 
-    sl_dist = atr * max(sl_m, 1.2)
-    tp_dist = atr * max(tp_m, 2.0)
-    decimals = 2 if current_price > 5 else 5
+    _, bx_precision = resolve_bingx_symbol(symbol)
+    decimals = bx_precision if bx_precision is not None else (2 if current_price > 5 else 5)
+
+    min_sl_gap = max(atr * max(sl_m, 1.2), current_price * 0.0015)
+    min_tp_gap = max(atr * max(tp_m, 2.0), current_price * 0.0025)
+    min_tick_step = 10 ** (-decimals)
+
+    entry = round(current_price, decimals)
 
     if action == "BUY":
-        entry, sl, tp1 = current_price, round(current_price - sl_dist, decimals), round(current_price + tp_dist, decimals)
-        target_rialzista, target_ribassista = round(current_price + (tp_dist * 2.5), decimals), sl
+        sl = round(entry - min_sl_gap, decimals)
+        tp1 = round(entry + min_tp_gap, decimals)
+        if sl >= entry:
+            sl = round(entry - min_tick_step * 10, decimals)
+        if tp1 <= entry:
+            tp1 = round(entry + min_tick_step * 20, decimals)
+        target_rialzista = round(entry + (min_tp_gap * 2.5), decimals)
+        target_ribassista = sl
     elif action == "SELL":
-        entry, sl, tp1 = current_price, round(current_price + sl_dist, decimals), round(current_price - tp_dist, decimals)
-        target_rialzista, target_ribassista = sl, round(current_price - (tp_dist * 2.5), decimals)
+        sl = round(entry + min_sl_gap, decimals)
+        tp1 = round(entry - min_tp_gap, decimals)
+        if sl <= entry:
+            sl = round(entry + min_tick_step * 10, decimals)
+        if tp1 >= entry:
+            tp1 = round(entry - min_tick_step * 20, decimals)
+        target_rialzista = sl
+        target_ribassista = round(entry - (min_tp_gap * 2.5), decimals)
     else:
-        entry, sl, tp1 = current_price, round(current_price - sl_dist, decimals), round(current_price + tp_dist, decimals)
-        target_rialzista, target_ribassista = round(current_price + tp_dist, decimals), round(current_price - sl_dist, decimals)
+        sl = round(entry - min_sl_gap, decimals)
+        tp1 = round(entry + min_tp_gap, decimals)
+        target_rialzista = tp1
+        target_ribassista = sl
+
+    sl_dist = abs(entry - sl)
+    tp_dist = abs(tp1 - entry)
 
     tf_min = 5 if timeframe == '5m' else (15 if timeframe == '15m' else 60)
     recent_movement = abs(close.diff().tail(5)).mean()
@@ -565,7 +623,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, rsi_buy_min, r
         duration = f"~{round(est_min / 1440, 1)} giorni ({candles_needed} candele)"
 
     max_risk = balance * (risk_pct / 100.0)
-    risk_unit = abs(current_price - sl)
+    risk_unit = abs(entry - sl)
     pos_size = round(max((max_risk / risk_unit) if risk_unit > 0 else 0.0, 0.001), 3)
 
     if symbol in ['BTCUSDT', 'ETHUSDT']:
@@ -575,12 +633,12 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, rsi_buy_min, r
     else:
         lev_int = 5
 
-    margin = round((pos_size * current_price) / lev_int, 2)
+    margin = round((pos_size * entry) / lev_int, 2)
 
-    roi_raw = round((tp_dist / current_price) * lev_int * 100, 1)
+    roi_raw = round((tp_dist / entry) * lev_int * 100, 1) if entry > 0 else 0.0
     roi_pct = f"+{roi_raw}%" if action == "BUY" else f"-{roi_raw}%" if action == "SELL" else "0.0%"
 
-    notional = pos_size * current_price
+    notional = pos_size * entry
     roundtrip_fee = round(notional * 0.001, 4)
     expected_gross_profit = round(pos_size * tp_dist, 4)
     expected_net_profit = round(expected_gross_profit - roundtrip_fee, 4)
