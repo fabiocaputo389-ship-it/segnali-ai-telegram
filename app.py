@@ -383,35 +383,20 @@ def get_real_market_dataframe(meta: dict, timeframe: str):
     return None, (live_price or 0.0)
 
 
-def build_profile_config(profile: str, timeframe: str, min_score: float, low_vol_mode: bool = False):
+def build_profile_config(profile: str, timeframe: str, min_score: float):
+    """
+    Configurazione profili con protezione anti-falsi segnali e anti-false rotture
+    sempre attiva e soglia minima di certezza >= 80.0% (almeno 5/6 fattori).
+    """
     p = (profile or "balanced").lower()
-    if p == "low_vol" or low_vol_mode:
-        return {
-            "profile": "low_vol",
-            "low_vol_mode": True,
-            "timeframe": timeframe,
-            "min_score": max(65.0, min(min_score, 74.0)),
-            "rsi_buy_min": 44.0,
-            "rsi_buy_max": 70.0,
-            "rsi_sell_min": 30.0,
-            "rsi_sell_max": 56.0,
-            "sl_m": 0.95,
-            "tp_m": 1.65,
-            "min_vol_ratio": 0.85,
-            "min_hits": 4,
-            "min_rrr": 1.25,
-            "chop_atr_mult": 0.06,
-            "chop_vol_mult": 0.55,
-            "cooldown_sec": 45.0,
-            "flip_min_cert": 75.0,
-            "check_fakeout": False,
-        }
     if p == "conservative":
         return {
             "profile": "conservative",
-            "low_vol_mode": False,
             "timeframe": timeframe,
-            "min_score": max(min_score, 82.0),
+            "min_score": max(min_score, 84.0),
+            "min_certainty": 83.3,
+            "min_hits": 5,
+            "min_rrr": 1.6,
             "rsi_buy_min": 50.0,
             "rsi_buy_max": 64.0,
             "rsi_sell_min": 36.0,
@@ -419,54 +404,43 @@ def build_profile_config(profile: str, timeframe: str, min_score: float, low_vol
             "sl_m": 1.3,
             "tp_m": 2.6,
             "min_vol_ratio": 1.15,
-            "min_hits": 5,
-            "min_rrr": 1.5,
-            "chop_atr_mult": 0.12,
-            "chop_vol_mult": 0.70,
             "cooldown_sec": DIRECTION_COOLDOWN_SEC,
             "flip_min_cert": 83.3,
-            "check_fakeout": True,
         }
     if p == "aggressive":
         return {
             "profile": "aggressive",
-            "low_vol_mode": False,
             "timeframe": timeframe,
-            "min_score": max(min_score, 76.0),
-            "rsi_buy_min": 48.0,
-            "rsi_buy_max": 67.0,
-            "rsi_sell_min": 33.0,
-            "rsi_sell_max": 52.0,
-            "sl_m": 1.1,
-            "tp_m": 2.2,
-            "min_vol_ratio": 1.05,
+            "min_score": max(min_score, 80.0),
+            "min_certainty": 80.0,
             "min_hits": 5,
             "min_rrr": 1.5,
-            "chop_atr_mult": 0.12,
-            "chop_vol_mult": 0.70,
-            "cooldown_sec": DIRECTION_COOLDOWN_SEC,
+            "rsi_buy_min": 48.0,
+            "rsi_buy_max": 66.0,
+            "rsi_sell_min": 34.0,
+            "rsi_sell_max": 52.0,
+            "sl_m": 1.15,
+            "tp_m": 2.3,
+            "min_vol_ratio": 1.05,
+            "cooldown_sec": 90.0,
             "flip_min_cert": 83.3,
-            "check_fakeout": True,
         }
     return {
         "profile": "balanced",
-        "low_vol_mode": False,
         "timeframe": timeframe,
-        "min_score": max(min_score, 80.0),
+        "min_score": max(min_score, 82.0),
+        "min_certainty": 80.0,
+        "min_hits": 5,
+        "min_rrr": 1.5,
         "rsi_buy_min": 49.0,
         "rsi_buy_max": 65.0,
         "rsi_sell_min": 35.0,
         "rsi_sell_max": 51.0,
-        "sl_m": 1.2,
-        "tp_m": 2.4,
+        "sl_m": 1.25,
+        "tp_m": 2.5,
         "min_vol_ratio": 1.10,
-        "min_hits": 5,
-        "min_rrr": 1.5,
-        "chop_atr_mult": 0.12,
-        "chop_vol_mult": 0.70,
         "cooldown_sec": DIRECTION_COOLDOWN_SEC,
         "flip_min_cert": 83.3,
-        "check_fakeout": True,
     }
 
 
@@ -481,7 +455,7 @@ def detect_market_regime_and_advice(df, current_price, category, is_open, cfg):
     elif abs(diff_pct) >= 0.45:
         regime = "TREND RIALZISTA" if diff_pct > 0 else "TREND RIBASSISTA"
     else:
-        regime = "ASSORBIMENTO / LATERALE"
+        regime = "LATERALE / CONSOLIDAMENTO"
 
     return {
         "regime": regime,
@@ -504,7 +478,6 @@ def compute_reversal_and_fakeout_metrics(
     prev_macd,
     vol_ratio,
     min_vol_ratio,
-    low_vol_mode: bool = False,
 ):
     close = df["Close"]
     high = df["High"]
@@ -525,13 +498,10 @@ def compute_reversal_and_fakeout_metrics(
     prev_high_20 = safe_float(high.iloc[-21:-1].max(), last_high) if len(df) >= 22 else last_high
     prev_low_20 = safe_float(low.iloc[-21:-1].min(), last_low) if len(df) >= 22 else last_low
 
-    wick_body_mult = 2.6 if low_vol_mode else 1.8
-    wick_atr_mult = 0.55 if low_vol_mode else 0.35
-
     fake_bull_breakout = (last_high > prev_high_20) and (current_price <= prev_high_20 * 1.0005)
     fake_bear_breakout = (last_low < prev_low_20) and (current_price >= prev_low_20 * 0.9995)
-    wick_rejection_top = (upper_wick > body_size * wick_body_mult) and (upper_wick > atr * wick_atr_mult)
-    wick_rejection_bottom = (lower_wick > body_size * wick_body_mult) and (lower_wick > atr * wick_atr_mult)
+    wick_rejection_top = (upper_wick > body_size * 1.8) and (upper_wick > atr * 0.35)
+    wick_rejection_bottom = (lower_wick > body_size * 1.8) and (lower_wick > atr * 0.35)
 
     false_breakout_detected = fake_bull_breakout or fake_bear_breakout or wick_rejection_top or wick_rejection_bottom
 
@@ -545,31 +515,49 @@ def compute_reversal_and_fakeout_metrics(
     if wick_rejection_bottom:
         fakeout_flags.append("Rejection ombra inferiore")
     if vol_ratio < min_vol_ratio:
-        fakeout_flags.append(f"Volume contenuto ({vol_ratio}x < {min_vol_ratio}x)")
+        fakeout_flags.append(f"Volume insufficiente ({vol_ratio}x < {min_vol_ratio}x)")
 
     dec = 5 if current_price < 10 else 2
-    bull_exhaustion = (rsi >= 68.0) or (curr_ema12 < curr_ema26 and current_macd < prev_macd)
-    bear_exhaustion = (rsi <= 32.0) or (curr_ema12 > curr_ema26 and current_macd > prev_macd)
+    bull_exhaustion = (rsi >= 65.0) or (curr_ema12 < curr_ema26 and current_macd < prev_macd) or fake_bull_breakout or wick_rejection_top
+    bear_exhaustion = (rsi <= 35.0) or (curr_ema12 > curr_ema26 and current_macd > prev_macd) or fake_bear_breakout or wick_rejection_bottom
 
     if curr_ema12 >= curr_ema26 and bull_exhaustion:
         rev_dir = "SELL"
-        rev_prob = min(88.0, round(32.0 + max(0.0, (rsi - 60.0) * 1.8) + (12.0 if current_macd < prev_macd else 0.0), 1))
+        rev_prob = min(
+            88.0,
+            round(
+                32.0
+                + max(0.0, (rsi - 60.0) * 1.8)
+                + (18.0 if (fake_bull_breakout or wick_rejection_top) else 0.0)
+                + (12.0 if current_macd < prev_macd else 0.0),
+                1,
+            ),
+        )
         rev_trigger = round(min(current_price - atr * 0.65, curr_ema26 * 0.999), dec)
         rev_reason = "Esaurimento spinta rialzista / possibile inversione SHORT"
     elif curr_ema12 < curr_ema26 and bear_exhaustion:
         rev_dir = "BUY"
-        rev_prob = min(88.0, round(32.0 + max(0.0, (40.0 - rsi) * 1.8) + (12.0 if current_macd > prev_macd else 0.0), 1))
+        rev_prob = min(
+            88.0,
+            round(
+                32.0
+                + max(0.0, (40.0 - rsi) * 1.8)
+                + (18.0 if (fake_bear_breakout or wick_rejection_bottom) else 0.0)
+                + (12.0 if current_macd > prev_macd else 0.0),
+                1,
+            ),
+        )
         rev_trigger = round(max(current_price + atr * 0.65, curr_ema26 * 1.001), dec)
         rev_reason = "Esaurimento spinta ribassista / possibile inversione LONG"
     else:
         rev_dir = "SELL" if curr_ema12 >= curr_ema26 else "BUY"
         rev_prob = round(min(45.0, max(12.0, abs(50.0 - rsi) * 1.1)), 1)
         rev_trigger = round(curr_ema26, dec)
-        rev_reason = "Assorbimento / trend principale in corso"
+        rev_reason = "Trend principale intatto — inversione non imminente"
 
     return {
         "false_breakout": false_breakout_detected,
-        "fakeout_label": "ASSORBIMENTO / WICK" if (false_breakout_detected or len(fakeout_flags) > 0) else "PULITO (ROTTURA VALIDA)",
+        "fakeout_label": "BLOCCATO (FAKEOUT/RUMORE)" if (false_breakout_detected or len(fakeout_flags) > 0) else "PULITO (ROTTURA VALIDA)",
         "fakeout_reason": " • ".join(fakeout_flags) if fakeout_flags else "Nessuna falsa rottura o anomalia rilevata.",
         "reversal_to": rev_dir,
         "reversal_prob_pct": rev_prob,
@@ -580,11 +568,11 @@ def compute_reversal_and_fakeout_metrics(
 
 
 def compute_math_profit_model(certainty_pct, rrr_val, pos_size, tp_dist, sl_dist, roundtrip_fee, risk_pct, min_rrr=1.5):
-    base_p = max(0.38, min(0.80, (certainty_pct / 100.0) * 0.80))
+    base_p = max(0.35, min(0.78, (certainty_pct / 100.0) * 0.78))
     if rrr_val >= 2.0:
-        p_win = round(min(0.82, base_p + 0.04), 3)
+        p_win = round(min(0.80, base_p + 0.04), 3)
     elif rrr_val < min_rrr:
-        p_win = round(max(0.32, base_p - 0.05), 3)
+        p_win = round(max(0.30, base_p - 0.06), 3)
     else:
         p_win = round(base_p, 3)
 
@@ -620,22 +608,19 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
 
     regime_info = detect_market_regime_and_advice(df, current_price, category, is_open, cfg)
 
-    low_vol_mode = bool(cfg.get("low_vol_mode", False))
-    rsi_buy_min = cfg["rsi_buy_min"]
-    rsi_buy_max = cfg["rsi_buy_max"]
-    rsi_sell_min = cfg["rsi_sell_min"]
-    rsi_sell_max = cfg["rsi_sell_max"]
+    rsi_buy_min = max(46.0, cfg["rsi_buy_min"])
+    rsi_buy_max = min(68.0, cfg["rsi_buy_max"])
+    rsi_sell_min = max(32.0, cfg["rsi_sell_min"])
+    rsi_sell_max = min(54.0, cfg["rsi_sell_max"])
     sl_m = cfg["sl_m"]
     tp_m = cfg["tp_m"]
-    min_vol_ratio = cfg["min_vol_ratio"]
+    min_vol_ratio = max(1.0, cfg["min_vol_ratio"])
     min_score = cfg["min_score"]
+    min_certainty = safe_float(cfg.get("min_certainty", 80.0), 80.0)
     min_hits = int(cfg.get("min_hits", 5))
     min_rrr = safe_float(cfg.get("min_rrr", 1.5), 1.5)
-    chop_atr_mult = safe_float(cfg.get("chop_atr_mult", 0.12), 0.12)
-    chop_vol_mult = safe_float(cfg.get("chop_vol_mult", 0.70), 0.70)
     cooldown_sec = safe_float(cfg.get("cooldown_sec", DIRECTION_COOLDOWN_SEC), DIRECTION_COOLDOWN_SEC)
     flip_min_cert = safe_float(cfg.get("flip_min_cert", 83.3), 83.3)
-    check_fakeout = bool(cfg.get("check_fakeout", True))
     timeframe = cfg["timeframe"]
     profile = cfg["profile"]
 
@@ -674,22 +659,22 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
     fake_bull_breakout = (last_high > prev_high_20) and (current_price < prev_high_20)
     fake_bear_breakout = (last_low < prev_low_20) and (current_price > prev_low_20)
     last_range = abs(last_high - last_low)
-    is_chop = (vol_avg20 > 0 and vol_curr < vol_avg20 * chop_vol_mult) or (last_range < atr * chop_atr_mult)
-    confirmed_vol = (vol_avg20 <= 0) or (vol_curr >= vol_avg20 * min_vol_ratio)
+    is_chop = (vol_avg20 > 0 and vol_curr < vol_avg20 * 0.70) or (last_range < atr * 0.12)
+    confirmed_breakout_vol = (vol_avg20 > 0) and (vol_curr >= vol_avg20 * min_vol_ratio)
 
     bull_factors = [
         curr_ema12 > curr_ema26,
-        curr_ema26 >= curr_ema50 * 0.995,
-        current_price >= curr_ema50 * 0.988,
-        current_macd >= prev_macd,
+        curr_ema26 >= curr_ema50 * 0.997,
+        current_price >= curr_ema50 * 0.992,
+        current_macd > 0 and current_macd >= prev_macd,
         rsi_buy_min <= rsi <= rsi_buy_max,
         vol_ratio >= min_vol_ratio,
     ]
     bear_factors = [
         curr_ema12 < curr_ema26,
-        curr_ema26 <= curr_ema50 * 1.005,
-        current_price <= curr_ema50 * 1.012,
-        current_macd <= prev_macd,
+        curr_ema26 <= curr_ema50 * 1.003,
+        current_price <= curr_ema50 * 1.008,
+        current_macd < 0 and current_macd <= prev_macd,
         rsi_sell_min <= rsi <= rsi_sell_max,
         vol_ratio >= min_vol_ratio,
     ]
@@ -700,21 +685,26 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
     bull_certainty = round((bull_hits / 6.0) * 100.0, 1)
     bear_certainty = round((bear_hits / 6.0) * 100.0, 1)
 
-    bull_ok = (
+    bull_strict_ok = (
         not is_chop
-        and confirmed_vol
-        and (not check_fakeout or not fake_bull_breakout)
+        and not fake_bull_breakout
+        and confirmed_breakout_vol
         and (curr_ema12 > curr_ema26)
+        and (current_price >= curr_ema50 * 0.992)
         and (rsi_buy_min <= rsi <= rsi_buy_max)
         and bull_hits >= min_hits
+        and bull_certainty >= min_certainty
     )
-    bear_ok = (
+
+    bear_strict_ok = (
         not is_chop
-        and confirmed_vol
-        and (not check_fakeout or not fake_bear_breakout)
+        and not fake_bear_breakout
+        and confirmed_breakout_vol
         and (curr_ema12 < curr_ema26)
+        and (current_price <= curr_ema50 * 1.008)
         and (rsi_sell_min <= rsi <= rsi_sell_max)
         and bear_hits >= min_hits
+        and bear_certainty >= min_certainty
     )
 
     clean_sym = canonicalize_symbol_key(symbol)
@@ -722,9 +712,9 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
     prev_dir_info = _LAST_CONFIRMED_DIRECTION.get(clean_sym)
 
     candidate_action = "NEUTRAL"
-    if bull_ok and not bear_ok:
+    if bull_strict_ok and not bear_strict_ok:
         candidate_action = "BUY"
-    elif bear_ok and not bull_ok:
+    elif bear_strict_ok and not bull_strict_ok:
         candidate_action = "SELL"
 
     if candidate_action in ["BUY", "SELL"] and prev_dir_info:
@@ -739,22 +729,22 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
     if candidate_action == "BUY":
         certainty_val = bull_certainty
         confluence_hits = bull_hits
-        score = round(min(99.0, max(min_score, 68.0 + bull_hits * 4.5)), 1)
-        action, sent, col = "BUY", "LONG CONFERMATO", "#00ff66"
-        inv = f"🚀 Preset {timeframe}/{profile} LONG"
+        score = round(min(99.0, max(min_score, 72.0 + bull_hits * 4.2)), 1)
+        action, sent, col = "BUY", "LONG CERTO CONFERMATO", "#00ff66"
+        inv = f"🚀 Segnale Certo LONG ({certainty_val}%)"
         _LAST_CONFIRMED_DIRECTION[clean_sym] = {"action": "BUY", "ts": now_ts}
     elif candidate_action == "SELL":
         certainty_val = bear_certainty
         confluence_hits = bear_hits
-        score = round(min(99.0, max(min_score, 68.0 + bear_hits * 4.5)), 1)
-        action, sent, col = "SELL", "SHORT CONFERMATO", "#ff2a4b"
-        inv = f"📉 Preset {timeframe}/{profile} SHORT"
+        score = round(min(99.0, max(min_score, 72.0 + bear_hits * 4.2)), 1)
+        action, sent, col = "SELL", "SHORT CERTO CONFERMATO", "#ff2a4b"
+        inv = f"📉 Segnale Certo SHORT ({certainty_val}%)"
         _LAST_CONFIRMED_DIRECTION[clean_sym] = {"action": "SELL", "ts": now_ts}
     else:
         certainty_val = max(bull_certainty, bear_certainty)
         confluence_hits = max(bull_hits, bear_hits)
-        action, score, sent, col = "NEUTRAL", 55.0, "FILTRATO / NO-TRADE", "#ffffff"
-        inv = "🛡️ Filtro Assorbimento & Precisione Attivo"
+        action, score, sent, col = "NEUTRAL", 55.0, "FILTRATO ANTI-FAKEOUT / NO-TRADE", "#ffffff"
+        inv = "🛡️ Solo Segnali Certi • Anti-Falsa Rottura Attivo"
 
     if certainty_val >= 80.0:
         certainty_level = "ALTA"
@@ -770,9 +760,8 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
     decimals = bx_precision if bx_precision is not None else mkt_decimals
     tick_size = 10 ** (-decimals)
 
-    effective_min_tp_vs_sl = min(min_tp_vs_sl, min_rrr) if low_vol_mode else min_tp_vs_sl
     raw_sl_dist = max(atr * sl_m, current_price * min_sl_pct)
-    raw_tp_dist = max(atr * tp_m, raw_sl_dist * effective_min_tp_vs_sl)
+    raw_tp_dist = max(atr * tp_m, raw_sl_dist * min_tp_vs_sl)
     entry = quantize_to_tick(current_price, decimals, tick_size)
 
     if action == "BUY":
@@ -806,7 +795,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
     tp_eta_utc = datetime.fromtimestamp(now_ts + (est_min * 60), tz=timezone.utc).strftime("%H:%M UTC")
     tp_eta_text = f"{duration} • {candle_tf_label} • ETA ~{tp_eta_utc}"
 
-    if balance <= 2.0 and (profile == "aggressive" or low_vol_mode):
+    if balance <= 2.0 and profile == "aggressive":
         lev_int = 20
     elif symbol in ["BTCUSDT", "ETHUSDT"]:
         lev_int = 8
@@ -838,7 +827,6 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         prev_macd=prev_macd,
         vol_ratio=vol_ratio,
         min_vol_ratio=min_vol_ratio,
-        low_vol_mode=low_vol_mode,
     )
 
     math_model = compute_math_profit_model(
@@ -852,21 +840,20 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         min_rrr=min_rrr,
     )
 
-    block_by_fakeout = check_fakeout and anti_fake["false_breakout"]
-    if action in ["BUY", "SELL"] and (block_by_fakeout or not math_model["math_approved"]):
+    if action in ["BUY", "SELL"] and (anti_fake["false_breakout"] or not math_model["math_approved"]):
         action = "NEUTRAL"
         score = 55.0
         sent = "BLOCCATO ANTI-FAKEOUT / EV"
         col = "#ffd166"
-        inv = "🛡️ Blocco Matematico / EV"
+        inv = "🛡️ Blocco Anti-Falsa Rottura & EV"
         filter_reason = (
-            f"Bloccato da filtro EV/Fakeout: {anti_fake['fakeout_reason']} | "
+            f"Bloccato da filtro anti-falsa rottura / EV: {anti_fake['fakeout_reason']} | "
             f"EV netto ${math_model['ev_net_usd']} (R:R 1:{rrr_val} vs min 1:{min_rrr})."
         )
-        trigger_condition = f"Attesa EV netto > 0 e R:R >= {min_rrr}."
+        trigger_condition = f"Attesa rottura pulita senza falsa rottura e con EV netto > 0 e R:R >= {min_rrr}."
     elif not is_open:
         filter_reason = f"Borsa {category} chiusa — in attesa riapertura sessione."
-        trigger_condition = f"Attivazione alla riapertura con >= {min_hits}/6 fattori e Score >= {min_score}%."
+        trigger_condition = f"Attivazione alla riapertura con certezza >={min_certainty}% (>={min_hits}/6 fattori) e Score >={min_score}%."
     elif (
         prev_dir_info
         and (now_ts - safe_float(prev_dir_info.get("ts"), 0.0)) < cooldown_sec
@@ -878,29 +865,28 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
             f"Protezione anti-inversione ({prev_dir_info.get('action')} recente): "
             f"attesa {rem_cd}s o certezza >={flip_min_cert}% per cambiare direzione."
         )
-        trigger_condition = f"Cambio direzione consentito dopo {rem_cd}s oppure con conferma >= {min_hits}/6 fattori."
+        trigger_condition = f"Cambio direzione consentito dopo {rem_cd}s oppure con conferma piena ({min_hits}/6 fattori)."
     elif action == "NEUTRAL":
         filter_reason = (
-            f"In attesa di {min_hits}/6 fattori (attuale: {confluence_hits}/6, Certezza {certainty_val}%, "
-            f"RSI {round(rsi, 1)}, Vol {vol_ratio}x vs {min_vol_ratio}x, chop={is_chop})."
+            f"Segnale non certo (Certezza {certainty_val}% < {min_certainty}%, {confluence_hits}/{min_hits} fattori, "
+            f"RSI {round(rsi, 1)}, Vol {vol_ratio}x vs {min_vol_ratio}x, chop={is_chop}, fakeout={anti_fake['false_breakout']})."
         )
         trigger_condition = (
-            f"LONG con EMA12>EMA26, RSI [{rsi_buy_min}-{rsi_buy_max}], Vol>={min_vol_ratio}x e >={min_hits}/6 fattori; "
-            f"SHORT con EMA12<EMA26, RSI [{rsi_sell_min}-{rsi_sell_max}], Vol>={min_vol_ratio}x e >={min_hits}/6 fattori."
+            f"Solo segnali certi (>={min_certainty}%, >={min_hits}/6 fattori, Vol>={min_vol_ratio}x) senza false rotture."
         )
     else:
         filter_reason = (
-            f"Preso in carico: {action} ({profile}) con certezza {certainty_val}% ({certainty_level}, {confluence_label}) "
+            f"Segnale certo preso in carico: {action} con certezza {certainty_val}% ({certainty_level}, {confluence_label}) "
             f"e EV netto +${math_model['ev_net_usd']}."
         )
-        trigger_condition = f"Segnale {action} confermato ({certainty_val}% certezza) con SL {sl_m}x ATR e TP1 {tp_m}x ATR."
+        trigger_condition = f"Segnale certo {action} ({certainty_val}%) con SL {sl_m}x ATR e TP1 {tp_m}x ATR."
 
     vol_pct = round((atr / entry) * 100, 2) if entry > 0 else 0.0
-    vol_regime = "ALTA VOLATILITÀ" if vol_pct >= 1.2 else ("ASSORBIMENTO / BASSA VOL" if vol_pct < 0.35 else "MODERATA")
+    vol_regime = "ALTA VOLATILITÀ" if vol_pct >= 1.2 else ("MODERATA" if vol_pct >= 0.35 else "CONTENUTA")
     trend_state = (
         "BULLISH EMA/MACD"
-        if (curr_ema12 > curr_ema26 and current_macd >= 0)
-        else ("BEARISH EMA/MACD" if (curr_ema12 < curr_ema26 and current_macd <= 0) else "ASSORBIMENTO / NO-FLIP")
+        if (curr_ema12 > curr_ema26 and current_macd > 0)
+        else ("BEARISH EMA/MACD" if (curr_ema12 < curr_ema26 and current_macd < 0) else "MISTO / NO-FLIP")
     )
 
     return {
@@ -940,7 +926,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         "tp_dist": round(tp_dist, decimals + 2),
         "roundtrip_fee": roundtrip_fee,
         "expected_net": expected_net_profit,
-        "false_breakout": block_by_fakeout,
+        "false_breakout": anti_fake["false_breakout"],
         "fakeout_label": anti_fake["fakeout_label"],
         "fakeout_reason": anti_fake["fakeout_reason"],
         "reversal_to": anti_fake["reversal_to"],
@@ -955,7 +941,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         "kelly_pct": math_model["kelly_pct"],
         "math_approved": math_model["math_approved"],
         "math_badge": math_model["math_badge"],
-        "advisor_status": f"SETUP ATTIVO ({certainty_val}%)" if action in ["BUY", "SELL"] else "FILTRATO / IN ATTESA",
+        "advisor_status": f"SEGNALE CERTO ({certainty_val}%)" if action in ["BUY", "SELL"] else "FILTRATO ANTI-FAKEOUT",
         "advisor_color": "#00ff66" if action in ["BUY", "SELL"] else "#8a99ad",
         "advisor_msg": f"BingX Live: {bx_symbol} | Certezza {certainty_val}% ({certainty_level}) | EV ${math_model['ev_net_usd']}",
         "applied_params": cfg,
@@ -1031,9 +1017,6 @@ def api_live_ticker():
 @app.route("/api/signals", methods=["GET"])
 def get_signals():
     profile = request.args.get("profile", "balanced")
-    low_vol_mode = str(request.args.get("low_vol_mode", "0")).lower() in ("1", "true", "yes", "on")
-    if profile.lower() == "low_vol":
-        low_vol_mode = True
     timeframe = request.args.get("timeframe", "15m")
     if timeframe not in ("5m", "15m", "1h"):
         timeframe = "15m"
@@ -1043,7 +1026,7 @@ def get_signals():
     market_filter = request.args.get("market", "ALL")
     symbol_filter = request.args.get("symbol", "ALL")
 
-    cfg = build_profile_config(profile, timeframe, min_score, low_vol_mode=low_vol_mode)
+    cfg = build_profile_config(profile, timeframe, min_score)
     sessions = get_session_statuses()
 
     signals_out = []
@@ -1093,7 +1076,7 @@ def get_signals():
                     "filter_reason": err_reason,
                     "why_not_taken": err_reason,
                     "when_taken": "Richiede feed live BingX attivo",
-                    "params": {"profile": cfg["profile"], "low_vol_mode": low_vol_mode, "timeframe": timeframe, "balance": balance, "risk": risk_pct, "min_score": min_score},
+                    "params": {"profile": profile, "timeframe": timeframe, "balance": balance, "risk": risk_pct, "min_score": min_score},
                 })
                 continue
 
@@ -1154,7 +1137,7 @@ def get_signals():
                 "filter_reason": res["filter_reason"],
                 "why_not_taken": res["filter_reason"],
                 "when_taken": res["trigger_condition"],
-                "params": {"profile": cfg["profile"], "low_vol_mode": low_vol_mode, "timeframe": timeframe, "balance": balance, "risk": risk_pct, "min_score": min_score},
+                "params": {"profile": profile, "timeframe": timeframe, "balance": balance, "risk": risk_pct, "min_score": min_score},
             }
             monitoring_rows.append(row_payload)
 
@@ -1179,11 +1162,11 @@ def get_signals():
         elif cat_signals == 0:
             details_str = " | ".join(top_reasons)
             diag_reason = (
-                f"Analizzati {cat_scanned} asset reali su {category} ({cfg['profile']}): 0 segnali attivi, "
-                f"{cat_filtered} filtrati (feed non disponibile: {cat_feed_errors}). {details_str}"
+                f"Analizzati {cat_scanned} asset reali su {category}: 0 segnali certi, {cat_filtered} filtrati "
+                f"(feed non disponibile: {cat_feed_errors}). {details_str}"
             )
         else:
-            diag_reason = f"{cat_signals} segnali reali attivi su {category} ({cat_filtered} filtrati, profilo {cfg['profile']})."
+            diag_reason = f"{cat_signals} segnali certi confermati su {category} ({cat_filtered} filtrati)."
 
         market_diagnostics[category] = {
             "category": category,
@@ -1206,7 +1189,7 @@ def get_signals():
         session_pnl_val = STATE["session_pnl"]
         STATE["telemetry_logs"] = ([{
             "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
-            "status": f"LIVE SCAN {timeframe} ({cfg['profile']})",
+            "status": f"LIVE SCAN {timeframe} ({profile})",
             "signals_found": len(signals_out),
             "scanned": len(monitoring_rows),
         }] + STATE["telemetry_logs"])[:40]
