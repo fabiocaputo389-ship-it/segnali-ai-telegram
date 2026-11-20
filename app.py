@@ -111,6 +111,15 @@ def quantize_to_tick(price, decimals, tick_size=None):
     return round(price, decimals)
 
 
+def parse_leverage_number(leverage_str, default=5):
+    try:
+        digits = "".join(ch for ch in str(leverage_str) if ch.isdigit())
+        val = int(digits) if digits else default
+        return max(1, min(125, val))
+    except Exception:
+        return default
+
+
 def resolve_active_params(timeframe, profile, args):
     tf = timeframe if timeframe in ["5m", "15m", "1h"] else "15m"
     prof = profile if profile in ["conservative", "balanced", "aggressive"] else "balanced"
@@ -297,6 +306,23 @@ def sign_bingx_request(params_str):
     return hmac.new(BINGX_SECRET_KEY.encode('utf-8'), params_str.encode('utf-8'), hashlib.sha256).hexdigest()
 
 
+def bingx_signed_request(method, path, params):
+    timestamp = int(time.time() * 1000)
+    signed_params = {k: v for k, v in params.items() if v is not None and v != ""}
+    signed_params["timestamp"] = timestamp
+    query_string = "&".join([f"{k}={signed_params[k]}" for k in sorted(signed_params.keys())])
+    signature = sign_bingx_request(query_string)
+    url = f"{BINGX_BASE_URL}{path}?{query_string}&signature={signature}"
+    headers = {"X-BX-APIKEY": BINGX_API_KEY}
+
+    if method.upper() == "POST":
+        resp = requests.post(url, headers=headers, timeout=5.0)
+    else:
+        resp = requests.get(url, headers=headers, timeout=5.0)
+
+    return resp.json()
+
+
 def fetch_bingx_real_positions():
     global execution_history
     if not BINGX_API_KEY or not BINGX_SECRET_KEY:
@@ -397,32 +423,75 @@ def sync_bingx_closed_history():
 
 def execute_verified_order(symbol, name, action, entry, size, leverage, margin, sl, tp1):
     global execution_history
+    lev_num = parse_leverage_number(leverage, default=5)
+    pos_side = "LONG" if action == "BUY" else "SHORT"
+    bx_result = None
+    bx_error = None
+
     if BINGX_API_KEY and BINGX_SECRET_KEY:
         try:
-            timestamp = int(time.time() * 1000)
             bx_symbol, _ = resolve_bingx_symbol(symbol)
-            pos_side = "LONG" if action == "BUY" else "SHORT"
-            params = {
+
+            try:
+                bingx_signed_request("POST", "/openApi/swap/v2/trade/marginType", {
+                    "symbol": bx_symbol,
+                    "marginType": "ISOLATED",
+                })
+            except Exception as e_margin:
+                print(f"[BingX MarginType Warning] {bx_symbol}: {e_margin}")
+
+            try:
+                bingx_signed_request("POST", "/openApi/swap/v2/trade/leverage", {
+                    "symbol": bx_symbol,
+                    "side": pos_side,
+                    "leverage": lev_num,
+                })
+            except Exception as e_lev:
+                print(f"[BingX Leverage Warning] {bx_symbol}: {e_lev}")
+
+            order_params = {
                 "symbol": bx_symbol,
-                "side": action,
+                "side": "BUY" if action == "BUY" else "SELL",
                 "positionSide": pos_side,
                 "type": "MARKET",
                 "quantity": size,
-                "timestamp": timestamp,
-                "takeProfit": json.dumps({"type": "TAKE_PROFIT_MARKET", "stopPrice": tp1}),
-                "stopLoss": json.dumps({"type": "STOP_MARKET", "stopPrice": sl}),
             }
-            query_string = "&".join([f"{k}={v}" for k, v in sorted(params.items())])
-            signature = sign_bingx_request(query_string)
-            requests.post(
-                f"{BINGX_BASE_URL}/openApi/swap/v2/trade/order?{query_string}&signature={signature}",
-                headers={"X-BX-APIKEY": BINGX_API_KEY},
-                timeout=3.0,
-            )
-        except Exception:
-            pass
 
-    if not any(h['symbol'] == symbol and h['status'] == 'OPEN' for h in execution_history):
+            if tp1 and safe_float(tp1) > 0:
+                tp_price = safe_float(tp1)
+                order_params["takeProfit"] = json.dumps({
+                    "type": "TAKE_PROFIT_MARKET",
+                    "stopPrice": tp_price,
+                    "price": tp_price,
+                    "workingType": "MARK_PRICE",
+                }, separators=(",", ":"))
+
+            if sl and safe_float(sl) > 0:
+                sl_price = safe_float(sl)
+                order_params["stopLoss"] = json.dumps({
+                    "type": "STOP_MARKET",
+                    "stopPrice": sl_price,
+                    "price": sl_price,
+                    "workingType": "MARK_PRICE",
+                }, separators=(",", ":"))
+
+            res = bingx_signed_request("POST", "/openApi/swap/v2/trade/order", order_params)
+            if isinstance(res, dict) and res.get("code") == 0:
+                data_obj = res.get("data", {})
+                order_obj = data_obj.get("order", data_obj) if isinstance(data_obj, dict) else {}
+                bx_result = {
+                    "orderId": order_obj.get("orderId", ""),
+                    "symbol": bx_symbol,
+                    "raw": res,
+                }
+            else:
+                bx_error = res.get("msg") if isinstance(res, dict) else str(res)
+                print(f"[BingX Order Error] {bx_symbol}: {res}")
+        except Exception as e:
+            bx_error = str(e)
+            print(f"[BingX Order Exception] {symbol}: {e}")
+
+    if not any(h.get('symbol') == symbol and h.get('status') == 'OPEN' for h in execution_history):
         notional = size * entry
         est_fee = round(notional * 0.0005, 4)
         order_record = {
@@ -432,7 +501,7 @@ def execute_verified_order(symbol, name, action, entry, size, leverage, margin, 
             "action": action,
             "entry": entry,
             "size": size,
-            "leverage": leverage,
+            "leverage": f"Isolata {lev_num}x",
             "margin": margin,
             "sl": sl,
             "tp1": tp1,
@@ -442,6 +511,8 @@ def execute_verified_order(symbol, name, action, entry, size, leverage, margin, 
             "opened_at": datetime.now().strftime("%H:%M:%S"),
         }
         execution_history.insert(0, order_record)
+
+    return bx_result, bx_error
 
 
 COMMODITY_FALLBACK_PRICES = {
@@ -540,8 +611,24 @@ def execute_manual_trade():
     if action not in ["BUY", "SELL"] or not symbol or entry <= 0:
         return jsonify({"success": False, "error": "Parametri ordine non validi"}), 400
 
-    execute_verified_order(symbol, name, action, entry, size, leverage, margin, sl, tp1)
-    return jsonify({"success": True, "symbol": symbol, "action": action, "mode": get_exchange_mode()})
+    bx_result, bx_error = execute_verified_order(symbol, name, action, entry, size, leverage, margin, sl, tp1)
+
+    if BINGX_API_KEY and BINGX_SECRET_KEY and bx_error and not bx_result:
+        return jsonify({
+            "success": False,
+            "symbol": symbol,
+            "action": action,
+            "mode": get_exchange_mode(),
+            "error": bx_error,
+        }), 400
+
+    return jsonify({
+        "success": True,
+        "symbol": symbol,
+        "action": action,
+        "mode": get_exchange_mode(),
+        "bingx_response": bx_result,
+    })
 
 
 @app.route('/api/autotrade/status', methods=['GET'])
