@@ -1255,22 +1255,33 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
     else:
         action, score, sent, col = "NEUTRAL", 50.0, "FILTRATO / NO-TRADE", "#ffffff"
 
+    confluence_label = f"{confluence_hits}/5 Fattori" if action in ["BUY", "SELL"] else "0/5 Fattori"
+
     if not is_open:
         filter_reason = f"Borsa chiusa ({category}) — in attesa riapertura sessione."
+        trigger_condition = f"Attivazione alla riapertura di {category} con BUY/SELL valido e Score >= {min_score}%."
     elif is_chop:
         filter_reason = f"Fase laterale/bassa volatilità o volume debole (Vol {vol_ratio}x < soglia)."
+        trigger_condition = f"Preso quando Vol Ratio >= {min_vol_ratio}x e range candela >= 0.14x ATR con RSI in fascia e trend EMA/MACD."
     elif fake_bull_breakout or fake_bear_breakout:
         filter_reason = "Falsa rottura (fakeout) rilevata sui massimi/minimi recenti."
+        trigger_condition = "Preso solo dopo chiusura confermata oltre il livello senza rientro immediato nel range."
     elif not confirmed_breakout_vol:
         filter_reason = f"Volume insufficiente (Vol {vol_ratio}x < Min Vol Ratio {min_vol_ratio}x)."
+        trigger_condition = f"Preso quando Vol Ratio raggiunge almeno {min_vol_ratio}x con RSI e trend allineati."
     elif action == "NEUTRAL":
         filter_reason = (
             f"Nessuna confluenza completa (RSI {round(rsi, 1)} | "
             f"BUY {rsi_buy_min}-{rsi_buy_max}, SELL {rsi_sell_min}-{rsi_sell_max} | "
             f"EMA/MACD non allineati)."
         )
+        trigger_condition = (
+            f"LONG se RSI in [{rsi_buy_min}-{rsi_buy_max}], Vol >= {min_vol_ratio}x, EMA12>=EMA26 e MACD in spinta; "
+            f"SHORT se RSI in [{rsi_sell_min}-{rsi_sell_max}], Vol >= {min_vol_ratio}x, EMA12<=EMA26 e MACD in discesa."
+        )
     else:
-        filter_reason = f"Setup {action} valido ({confluence_label if 'confluence_label' in locals() else f'{confluence_hits}/5 Fattori'}, Score {score}%)."
+        filter_reason = f"Preso in carico: setup {action} valido ({confluence_label}, Score {score}%)."
+        trigger_condition = f"Attivo ora ({action}) con SL {sl_m}x ATR e TP1 {tp_m}x ATR."
 
     bx_symbol, bx_precision = resolve_bingx_symbol(symbol)
     mkt_decimals, min_sl_pct, min_tp_vs_sl = get_market_calibration_spec(symbol, category, current_price)
@@ -1339,7 +1350,11 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
 
     vol_pct = round((atr / entry) * 100, 2) if entry > 0 else 0.0
     vol_regime = "ALTA VOLATILITÀ" if vol_pct >= 1.2 else ("MODERATA" if vol_pct >= 0.35 else "CONTENUTA")
-    confluence_label = f"{confluence_hits}/5 Fattori" if action in ["BUY", "SELL"] else "0/5 Fattori"
+
+    trend_state = (
+        "BULLISH EMA/MACD" if (bull_trend_ok and bull_momentum_ok)
+        else ("BEARISH EMA/MACD" if (bear_trend_ok and bear_momentum_ok) else "MISTO / NON ALLINEATO")
+    )
 
     forecast_table = ASSET_FORECASTS.get(
         symbol,
@@ -1367,6 +1382,8 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
     return {
         "action": action,
         "filter_reason": filter_reason,
+        "trigger_condition": trigger_condition,
+        "trend_state": trend_state,
         "bingx_symbol": bx_symbol,
         "ai_score": f"{score}%",
         "sentiment": sent,
@@ -1408,6 +1425,7 @@ def get_signals():
     default_sessions = {cat: get_market_session_status(cat) for cat in markets.keys()}
     cat_counts = {cat: {"BUY": 0, "SELL": 0, "NEUTRAL": 0} for cat in markets.keys()}
     cat_reasons = {cat: [] for cat in markets.keys()}
+    market_monitoring_table = []
 
     try:
         timeframe = request.args.get('timeframe', '15m')
@@ -1461,7 +1479,33 @@ def get_signals():
                     if df is not None and not df.empty and live_price > 0:
                         res_sig = calculate_setup(df, live_price, a['id'], balance, risk, cfg, cat, sess["is_open"])
                         numeric_score = float(str(res_sig.get("ai_score", "0")).replace("%", ""))
-                        if res_sig["action"] not in ["BUY", "SELL"] or numeric_score < cfg["min_score"]:
+                        dec = res_sig["decimals"]
+                        taken = (res_sig["action"] in ["BUY", "SELL"]) and (numeric_score >= cfg["min_score"])
+
+                        market_monitoring_table.append({
+                            "category": cat,
+                            "symbol": a['id'],
+                            "bingx_symbol": res_sig["bingx_symbol"],
+                            "name": a['name'],
+                            "session_status": sess["status"],
+                            "is_open": sess["is_open"],
+                            "price": f"{live_price:.{dec}f}",
+                            "action": res_sig["action"],
+                            "taken": taken,
+                            "ai_score": res_sig["ai_score"],
+                            "rsi": res_sig["rsi"],
+                            "vol_ratio": res_sig["vol_ratio"],
+                            "vol_regime": res_sig["vol_regime"],
+                            "trend_state": res_sig["trend_state"],
+                            "sl": res_sig["sl"],
+                            "tp1": res_sig["tp1"],
+                            "rrr": res_sig["rrr"],
+                            "params": cfg,
+                            "why_not_taken": "Preso — setup operativo valido." if taken else res_sig["filter_reason"],
+                            "when_taken": res_sig["trigger_condition"],
+                        })
+
+                        if not taken:
                             cat_counts[cat]["NEUTRAL"] += 1
                             reason_txt = res_sig.get("filter_reason") or f"Score {numeric_score}% < soglia {cfg['min_score']}%."
                             if len(cat_reasons[cat]) < 3:
@@ -1473,7 +1517,6 @@ def get_signals():
                         elif res_sig["action"] == "SELL":
                             cat_counts[cat]["SELL"] += 1
 
-                        dec = res_sig["decimals"]
                         sig_obj = {
                             "id": f"{a['id']}_{res_sig['action']}",
                             "category": cat,
@@ -1505,8 +1548,32 @@ def get_signals():
                         cat_counts[cat]["NEUTRAL"] += 1
                         if len(cat_reasons[cat]) < 3:
                             cat_reasons[cat].append(f"{a['name']}: dati candele o prezzo live non disponibili.")
+                        market_monitoring_table.append({
+                            "category": cat,
+                            "symbol": a['id'],
+                            "bingx_symbol": resolve_bingx_symbol(a['id'], a['name'])[0],
+                            "name": a['name'],
+                            "session_status": sess["status"],
+                            "is_open": sess["is_open"],
+                            "price": "N/D",
+                            "action": "NEUTRAL",
+                            "taken": False,
+                            "ai_score": "0.0%",
+                            "rsi": None,
+                            "vol_ratio": None,
+                            "vol_regime": "N/D",
+                            "trend_state": "N/D",
+                            "sl": None,
+                            "tp1": None,
+                            "rrr": 0.0,
+                            "params": cfg,
+                            "why_not_taken": "Dati candele o prezzo live non disponibili.",
+                            "when_taken": f"Preso quando prezzo live e candele {cfg['timeframe']} sono disponibili e rispettano i filtri.",
+                        })
                 except Exception:
                     continue
+
+        market_monitoring_table.sort(key=lambda r: (0 if r["taken"] else 1, r["category"], r["symbol"]))
 
         market_diagnostics = {}
         for cat, sess in default_sessions.items():
@@ -1545,6 +1612,7 @@ def get_signals():
             "signals": signals,
             "active_params": cfg,
             "market_diagnostics": market_diagnostics,
+            "market_monitoring_table": market_monitoring_table,
         }
         _SIGNALS_CACHE["key"] = cache_key
         _SIGNALS_CACHE["ts"] = now
@@ -1556,6 +1624,7 @@ def get_signals():
             "signals": [],
             "active_params": {},
             "market_diagnostics": {},
+            "market_monitoring_table": [],
         }
         return jsonify(fallback_payload)
 
