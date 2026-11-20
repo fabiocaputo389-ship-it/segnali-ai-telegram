@@ -676,6 +676,14 @@
             "PETROLIO": "WTI"
         };
 
+        // Quantità minime indicative BingX Swap per asset noti (es. 35 DOGE)
+        const BINGX_MIN_QTY_MAP = {
+            "DOGE-USDT": 35,
+            "XRP-USDT": 10,
+            "ADA-USDT": 10,
+            "TRX-USDT": 50
+        };
+
         function normalizeUniversalBingXSymbol(rawSymbol, rawName = '') {
             const rawList = [rawSymbol, rawName]
                 .map(v => String(v || '').trim().toUpperCase())
@@ -709,6 +717,46 @@
             }
 
             return 'BTC-USDT';
+        }
+
+        function computeOrderSizingFromParams(bingxSymbol, signalObj, entryVal) {
+            const rawBalance = parseFloat((document.getElementById('balanceInput')?.value || '2.0').replace(',', '.'));
+            const balance = (!isNaN(rawBalance) && rawBalance >= 2.0) ? rawBalance : 2.0;
+
+            const rawRisk = parseFloat((document.getElementById('riskInput')?.value || '1.0').replace(',', '.'));
+            const riskPct = (!isNaN(rawRisk) && rawRisk > 0) ? rawRisk : 1.0;
+
+            const parsedLev = parseInt(String(signalObj.leverage || '20').replace(/[^0-9]/g, ''), 10);
+            const leverage = (!isNaN(parsedLev) && parsedLev > 0) ? parsedLev : (balance <= 2.0 ? 20 : 10);
+
+            // Margine minimo richiesto da BingX: almeno 2.0$ (oppure proporzionato a capitale/rischio, mai sotto 2.0$ se il capitale lo consente)
+            const targetMargin = Math.max(2.0, Math.min(balance, balance * Math.max(1.0, riskPct)));
+            const notionalUsd = targetMargin * leverage;
+
+            const safePrice = (entryVal && entryVal > 0) ? entryVal : (parseFloat(signalObj.entry) || 0.1);
+            let qty = safePrice > 0 ? (notionalUsd / safePrice) : (parseFloat(signalObj.size) || 1);
+
+            const minAssetQty = BINGX_MIN_QTY_MAP[bingxSymbol] || 0;
+            if (minAssetQty > 0 && qty < minAssetQty) {
+                qty = minAssetQty;
+            }
+
+            if (qty < 1) {
+                qty = Number(qty.toFixed(4));
+            } else if (qty < 10) {
+                qty = Number(qty.toFixed(2));
+            } else {
+                qty = Math.ceil(qty);
+            }
+
+            const effectiveNotional = qty * safePrice;
+            const effectiveMargin = leverage > 0 ? Number((effectiveNotional / leverage).toFixed(2)) : targetMargin;
+
+            return {
+                size: qty,
+                leverage: leverage,
+                margin: Math.max(2.0, effectiveMargin)
+            };
         }
 
         const EXACT_UI_PRESETS = {
@@ -983,6 +1031,22 @@
                 const entryVal = parseFloat(livePriceText) > 0 ? parseFloat(livePriceText) : parseFloat(s.entry);
                 const tp1Val = parseFloat(tp1Text) > 0 ? parseFloat(tp1Text) : parseFloat(s.tp1);
                 const slVal = parseFloat(slText) > 0 ? parseFloat(slText) : parseFloat(s.sl);
+                const sizing = computeOrderSizingFromParams(bingxSymbol, s, entryVal);
+
+                const activeParams = {
+                    profile: document.getElementById('profileSelect')?.value || 'balanced',
+                    timeframe: document.getElementById('tfSelect')?.value || '15m',
+                    balance: parseFloat((document.getElementById('balanceInput')?.value || '2.0').replace(',', '.')) || 2.0,
+                    risk: parseFloat((document.getElementById('riskInput')?.value || '1.0').replace(',', '.')) || 1.0,
+                    min_score: getMinScoreValue(),
+                    sl_m: parseFloat((document.getElementById('pSlMult')?.value || '1.2').replace(',', '.')) || 1.2,
+                    tp_m: parseFloat((document.getElementById('pTpMult')?.value || '2.6').replace(',', '.')) || 2.6,
+                    rsi_buy_min: parseFloat((document.getElementById('pRsiBuyMin')?.value || '38.0').replace(',', '.')) || 38.0,
+                    rsi_buy_max: parseFloat((document.getElementById('pRsiBuyMax')?.value || '68.0').replace(',', '.')) || 68.0,
+                    rsi_sell_min: parseFloat((document.getElementById('pRsiSellMin')?.value || '32.0').replace(',', '.')) || 32.0,
+                    rsi_sell_max: parseFloat((document.getElementById('pRsiSellMax')?.value || '62.0').replace(',', '.')) || 62.0,
+                    min_vol_ratio: parseFloat((document.getElementById('pVolRatio')?.value || '0.85').replace(',', '.')) || 0.85
+                };
 
                 const res = await fetch('/api/autotrade/execute-manual', {
                     method: 'POST',
@@ -994,18 +1058,19 @@
                         name: s.name,
                         action: s.action,
                         entry: entryVal,
-                        size: s.size,
-                        leverage: s.leverage,
-                        margin: s.margin,
+                        size: sizing.size,
+                        leverage: sizing.leverage,
+                        margin: sizing.margin,
                         sl: slVal,
-                        tp1: tp1Val
+                        tp1: tp1Val,
+                        params: activeParams
                     })
                 });
                 const out = await res.json();
                 if (res.ok && out.success) {
                     loadStatus();
                     const orderId = out.bingx_response && out.bingx_response.orderId ? `\nOrder ID: ${out.bingx_response.orderId}` : '';
-                    alert(`✅ Ordine ${s.action} inviato su ${s.name} (${bingxSymbol} • ${out.mode})${orderId}\nEntry: ${entryVal} | TP1: ${tp1Val} | SL: ${slVal}`);
+                    alert(`✅ Ordine ${s.action} inviato su ${s.name} (${bingxSymbol} • ${out.mode})${orderId}\nSize: ${sizing.size} | Margine: $${sizing.margin} | Leva: ${sizing.leverage}x\nEntry: ${entryVal} | TP1: ${tp1Val} | SL: ${slVal}`);
                 } else {
                     alert(`❌ Ordine ${s.action} su ${s.name} (${bingxSymbol}) non eseguito:\n${out.error || ('Errore HTTP ' + res.status)}`);
                 }
@@ -1416,6 +1481,7 @@
                                 const tpDelta = entryNum > 0 ? (((tpNum - entryNum) / entryNum) * 100).toFixed(2) : '0.00';
                                 const slDelta = entryNum > 0 ? (((slNum - entryNum) / entryNum) * 100).toFixed(2) : '0.00';
                                 const bingxSym = normalizeUniversalBingXSymbol(s.symbol, s.name);
+                                const calcSizing = computeOrderSizingFromParams(bingxSym, s, entryNum);
                                 return `
                                 <div class="signal-card">
                                     <div class="card-header">
@@ -1453,12 +1519,12 @@
                                     <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; background:rgba(0,255,102,0.06); border:1px solid rgba(0,255,102,0.2); padding:6px 10px; border-radius:6px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
                                         <span>🚀 ROI: <strong style="color:var(--accent-green); font-size:0.85rem;">${s.roi_pct}</strong></span>
                                         <span>Net: <strong style="color:var(--accent-green);">+$${s.expected_net}</strong></span>
-                                        <span><strong style="color:var(--text-main);">${s.leverage}</strong></span>
+                                        <span><strong style="color:var(--text-main);">${calcSizing.leverage}x • $${calcSizing.margin}</strong></span>
                                     </div>
 
                                     <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; color:var(--text-muted); margin-bottom:6px; display:flex; justify-content:space-between;">
                                         <span>⏱️ Durata: <strong style="color:var(--accent-green);">${s.duration}</strong></span>
-                                        <span>RSI: <strong>${s.rsi}</strong> | Size: <strong>${s.size}</strong></span>
+                                        <span>RSI: <strong>${s.rsi}</strong> | Size: <strong>${calcSizing.size}</strong></span>
                                     </div>
                                     <div style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; color:var(--text-muted);">
                                         ⚡ Convinzione: <strong style="color:var(--accent-green);">${s.ai_score}</strong> | Trend: <strong>${s.inversion}</strong>
