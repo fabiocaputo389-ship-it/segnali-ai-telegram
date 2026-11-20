@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SALA SEGNALI PRO • Solo Segnali Certi &amp; Anti-Fakeout</title>
+    <title>SALA SEGNALI PRO • Institutional Big Desk</title>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -111,6 +111,8 @@
             font-size: 0.7rem;
             font-weight: 700;
             cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
         }
 
         .btn:hover {
@@ -189,12 +191,10 @@
             gap: 8px;
         }
 
-        /* Cartelli Operativi */
         .signboard-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(205px, 1fr));
             gap: 10px;
-            margin-bottom: 12px;
         }
 
         .signboard {
@@ -219,18 +219,50 @@
         }
 
         .signboard-title {
-            font-size: 0.86rem;
+            font-size: 0.85rem;
             font-weight: 800;
             margin-bottom: 3px;
         }
 
         .signboard-desc {
             font-family: 'JetBrains Mono', monospace;
-            font-size: 0.68rem;
+            font-size: 0.67rem;
             color: var(--text-muted);
         }
 
-        /* Tachimetri */
+        .risk-bar {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+            gap: 10px;
+            align-items: end;
+            background: var(--bg-subcard);
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            padding: 10px;
+            margin-top: 10px;
+        }
+
+        .macro-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .macro-card {
+            background: var(--bg-subcard);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            padding: 8px 10px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.66rem;
+        }
+
+        .macro-card.active {
+            border-color: var(--accent-gold);
+            background: rgba(255, 209, 102, 0.08);
+        }
+
         .gauges-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
@@ -386,7 +418,7 @@
 
         .signals-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(295px, 1fr));
             gap: 10px;
         }
 
@@ -434,6 +466,19 @@
             gap: 5px;
             margin-top: 6px;
             flex-wrap: wrap;
+        }
+
+        .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+            gap: 10px;
+        }
+
+        .chart-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            padding: 10px;
         }
 
         .bottom-nav {
@@ -485,43 +530,64 @@
     <div class="topbar">
         <div class="brand-left">
             <div class="brand-title">⚡ SALA<br>SEGNALI PRO</div>
-            <div class="badge-live-sync">BINGX<br>LIVE<br>SYNC</div>
+            <div class="badge-live-sync">BINGX<br>BIG DESK<br>LIVE</div>
             <div id="clockBadge" class="clock-box">--:--:-- |<br>--:--:-- UTC</div>
         </div>
         <div class="controls-row">
+            <button id="autoTradeBtn" type="button" class="btn btn-audio-off" onclick="toggleAutoTrade()">🤖 AUTO-TRADE: OFF</button>
             <button id="soundToggleBtn" type="button" class="btn btn-audio-on" onclick="toggleSignalSound()">🔊 VOCALE &amp; AUDIO: ON</button>
             <button type="button" class="btn" onclick="testVoiceAlert()">🗣️ TEST VOCALE</button>
+            <a class="btn" href="/api/export/report?format=csv">⬇ CSV</a>
             <button type="button" class="btn btn-refresh" onclick="loadAllLive(true)">↻ AGGIORNA</button>
         </div>
     </div>
 
     <div class="panel">
         <div class="section-heading">
-            <span>🚧 CARTELLI OPERATIVI DI CONTROLLO (SOLO SEGNALI CERTI)</span>
+            <span>🚧 CARTELLI ISTITUZIONALI DI CONTROLLO (PROFITTO &amp; ANTI-FAKEOUT)</span>
             <span id="liveApiStatus" class="mono" style="font-size:0.66rem; color:var(--accent-green);">LIVE BINGX FEED</span>
         </div>
         <div class="signboard-grid">
             <div class="signboard" style="border-top-color:var(--accent-green);">
-                <div class="signboard-tag">CARTELLO 01 • CERTEZZA</div>
-                <div class="signboard-title">SOLO SEGNALI CERTI (&ge;80% / &ge;5/6)</div>
-                <div class="signboard-desc">Blocco automatico dei setup incerti o incompleti.</div>
+                <div class="signboard-tag">CARTELLO 01 • SOLO CERTI</div>
+                <div class="signboard-title">CERTEZZA &ge; 80% (&ge; 5/6 FATTORI)</div>
+                <div class="signboard-desc">Conferma MTF + multi-confluenza + anti-inversione.</div>
             </div>
             <div class="signboard" style="border-top-color:var(--accent-gold);">
                 <div class="signboard-tag">CARTELLO 02 • ANTI-FAKEOUT</div>
-                <div class="signboard-title">ANTI-FALSE ROTTURE 20 CANDELE</div>
-                <div class="signboard-desc">Scarta spike/wick anomali e rientri sotto livello rotto.</div>
+                <div class="signboard-title">NO FALSE ROTTURE &amp; ATR GUARD</div>
+                <div class="signboard-desc">Blocca fakeout 20 candele, wick rejection e spike ATR.</div>
             </div>
             <div class="signboard" style="border-top-color:var(--accent-blue);">
-                <div class="signboard-tag">CARTELLO 03 • ANTI-FLIP</div>
-                <div class="signboard-title">COOLDOWN ANTI-INVERSIONE</div>
-                <div class="signboard-desc">Impedisce cambi direzione impulsivi o rumore di mercato.</div>
+                <div class="signboard-tag">CARTELLO 03 • EDGE EV+</div>
+                <div class="signboard-title">EV NETTO &gt; 0 &amp; R:R &ge; 1:1.5</div>
+                <div class="signboard-desc">Profitto atteso al netto fee + Kelly frazionato.</div>
             </div>
             <div class="signboard" style="border-top-color:var(--accent-purple);">
-                <div class="signboard-tag">CARTELLO 04 • EDGE EV+</div>
-                <div class="signboard-title">SPERANZA MATEMATICA POSITIVA</div>
-                <div class="signboard-desc">Approva solo setup con EV netto positivo al netto delle fee.</div>
+                <div class="signboard-tag">CARTELLO 04 • KILL-SWITCH &amp; BE</div>
+                <div class="signboard-title">STOP PERDITA GIORNALIERA + BE SU TP1</div>
+                <div class="signboard-desc">Auto-trade protetto + break-even automatico su TP1.</div>
             </div>
         </div>
+
+        <div class="risk-bar">
+            <div>
+                <label for="maxDailyLossInput">Max Perdita Giornaliera ($)</label>
+                <input id="maxDailyLossInput" type="number" step="0.5" min="0.5" value="5.0">
+            </div>
+            <div>
+                <label for="maxOpenPosInput">Max Posizioni Aperte</label>
+                <input id="maxOpenPosInput" type="number" step="1" min="1" max="15" value="3">
+            </div>
+            <div>
+                <button type="button" class="btn btn-refresh" style="width:100%; padding:8px 10px;" onclick="saveRiskControls()">💾 SALVA CONTROLLI RISCHIO</button>
+            </div>
+            <div id="riskSaveStatus" class="mono" style="font-size:0.68rem; color:var(--text-muted);">
+                Kill-Switch: attivo a soglia impostata
+            </div>
+        </div>
+
+        <div id="macroWindowsContainer" class="macro-grid"></div>
     </div>
 
     <div class="panel">
@@ -587,7 +653,7 @@
 
     <div class="panel">
         <div class="section-heading">
-            <span>⚡ TELEMETRIA ISTITUZIONALE &amp; LOG</span>
+            <span>⚡ TELEMETRIA ISTITUZIONALE &amp; CONTO BINGX</span>
         </div>
         <div id="telemetrySummaryBox" class="telemetry-card">
             <div>Scansioni Globali: <strong>0</strong></div>
@@ -599,7 +665,7 @@
     <div id="tab-signals" class="tab-view active">
         <div class="panel">
             <div class="section-heading">
-                <span>📡 SEGNALI OPERATIVI LIVE (BLOCCATI 90s)</span>
+                <span>📡 SEGNALI OPERATIVI CERTI LIVE (BLOCCATI 90s)</span>
                 <span id="lastScanLabel" class="mono" style="font-size:0.66rem; color:var(--text-muted);">LIVE • --:--:--</span>
             </div>
 
@@ -656,7 +722,7 @@
 
         <div class="panel">
             <div class="section-heading">
-                <span>🎯 TABELLA TRADER PROFESSIONISTA — LIVELLI, CANDELE TP, ANTI-FAKEOUT &amp; EV</span>
+                <span>🎯 TABELLA TRADER PROFESSIONISTA — TP1/TP2/TP3, ANTI-FAKEOUT, KELLY &amp; EV</span>
                 <select id="filterTakenSelect" style="max-width:220px;" onchange="renderMonitoringTable()">
                     <option value="ALL" selected>Tutti gli Asset</option>
                     <option value="TAKEN">Solo Presi (BUY/SELL)</option>
@@ -670,8 +736,8 @@
                             <th>Asset</th>
                             <th>Prezzo / Candele TP</th>
                             <th>Certezza / Score</th>
-                            <th>Entry / SL / TP1</th>
-                            <th>EV Netto / R:R</th>
+                            <th>Entry / SL / TP1-TP3</th>
+                            <th>EV Netto / Kelly / R:R</th>
                             <th>Anti-Fakeout &amp; Inversione</th>
                             <th>Stato &amp; Trigger</th>
                         </tr>
@@ -689,10 +755,10 @@
     <div id="tab-positions" class="tab-view">
         <div class="panel">
             <div class="section-heading">
-                <span>💼 POSIZIONI REALI BINGX</span>
+                <span>💼 SALDO &amp; POSIZIONI REALI BINGX</span>
                 <button type="button" class="btn" onclick="loadPositionsStatus()">↻ AGGIORNA</button>
             </div>
-            <div id="positionsContainer" class="telemetry-card">Caricamento posizioni reali BingX...</div>
+            <div id="positionsContainer" class="telemetry-card">Caricamento saldo e posizioni reali BingX...</div>
         </div>
     </div>
 
@@ -709,9 +775,9 @@
     <div id="tab-charts" class="tab-view">
         <div class="panel">
             <div class="section-heading">
-                <span>📈 PREZZI LIVE &amp; TARGET PER ASSET</span>
+                <span>📈 GRAFICI LIVE &amp; LIVELLI ENTRY / SL / TP1 / TP2 / TP3</span>
             </div>
-            <div id="chartsSummaryBox" class="telemetry-card">Seleziona un asset o osserva la tabella live.</div>
+            <div id="chartsSummaryBox" class="chart-grid">Caricamento grafici...</div>
         </div>
     </div>
 
@@ -761,6 +827,7 @@
 
         let latestPayload = {
             sessions: {},
+            macro_windows: [],
             signals: [],
             active_params: {},
             market_diagnostics: {},
@@ -769,10 +836,53 @@
             telemetry: null
         };
 
+        let autoTradeEnabled = false;
         let signalSoundEnabled = true;
         let audioCtx = null;
         const notifiedSignalKeys = new Set();
         let isFetchingSignals = false;
+        let riskInputsDirty = false;
+
+        document.getElementById('maxDailyLossInput')?.addEventListener('input', () => { riskInputsDirty = true; });
+        document.getElementById('maxOpenPosInput')?.addEventListener('input', () => { riskInputsDirty = true; });
+
+        function syncRiskInputsFromServer(maxLoss, maxOpenPos) {
+            if (riskInputsDirty) return;
+            const lossEl = document.getElementById('maxDailyLossInput');
+            const posEl = document.getElementById('maxOpenPosInput');
+            if (lossEl && typeof maxLoss === 'number') lossEl.value = maxLoss;
+            if (posEl && typeof maxOpenPos === 'number') posEl.value = maxOpenPos;
+        }
+
+        async function saveRiskControls() {
+            const maxLoss = parseFloat(document.getElementById('maxDailyLossInput')?.value || '5.0');
+            const maxOpenPos = parseInt(document.getElementById('maxOpenPosInput')?.value || '3', 10);
+            const statusEl = document.getElementById('riskSaveStatus');
+            try {
+                const res = await fetch('/api/autotrade/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        max_daily_loss_usd: Number.isFinite(maxLoss) ? maxLoss : 5.0,
+                        max_open_positions: Number.isFinite(maxOpenPos) ? maxOpenPos : 3
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    riskInputsDirty = false;
+                    syncRiskInputsFromServer(data.max_daily_loss_usd, data.max_open_positions);
+                    if (statusEl) {
+                        statusEl.style.color = 'var(--accent-green)';
+                        statusEl.textContent = `Salvato: Max Loss -$${Number(data.max_daily_loss_usd).toFixed(2)} • Max Pos ${data.max_open_positions}`;
+                    }
+                }
+            } catch (e) {
+                if (statusEl) {
+                    statusEl.style.color = 'var(--accent-red)';
+                    statusEl.textContent = 'Errore salvataggio controlli rischio.';
+                }
+            }
+        }
 
         function buildMarketBannerSvg(category) {
             if (category === 'Criptovalute Globali') {
@@ -805,6 +915,22 @@
                     <text x="8" y="47" fill="#c084fc" font-size="8" font-family="monospace">EQUITIES</text>
                 </svg>
             `;
+        }
+
+        function renderMacroWindows() {
+            const box = document.getElementById('macroWindowsContainer');
+            if (!box) return;
+            const list = latestPayload.macro_windows || [];
+            if (!list.length) return;
+            box.innerHTML = list.map(w => `
+                <div class="macro-card ${w.active ? 'active' : ''}">
+                    <div style="color:${w.active ? 'var(--accent-gold)' : 'var(--text-muted)'}; font-weight:800;">
+                        ${w.active ? '● ATTIVA ORA • ' : ''}${w.window}
+                    </div>
+                    <div style="color:var(--text-main); margin-top:2px;">${w.title}</div>
+                    <div style="color:var(--accent-blue); margin-top:2px;">Rischio: ${w.risk}</div>
+                </div>
+            `).join('');
         }
 
         function buildGaugeSvg(title, pctValue, centerText, subText, colorHex) {
@@ -852,7 +978,7 @@
                     'Certezza Setup',
                     avgCert,
                     `${avgCert.toFixed(1)}%`,
-                    `Soglia certa >= 80%`,
+                    'Soglia certa >= 80%',
                     avgCert >= 80 ? '#00ff66' : (avgCert >= 60 ? '#ffd166' : '#38bdf8')
                 ),
                 buildGaugeSvg(
@@ -873,7 +999,7 @@
                     'Segnali Certi Attivi',
                     activeRatioPct,
                     `${activeSigs.length} BUY/SELL`,
-                    `Solo confermati`,
+                    'Solo confermati',
                     activeSigs.length > 0 ? '#00ff66' : '#a855f7'
                 )
             ].join('');
@@ -969,6 +1095,29 @@
             if (tabName === 'charts') renderChartsTab();
         }
 
+        function syncAutoTradeButton(enabled) {
+            autoTradeEnabled = Boolean(enabled);
+            const btn = document.getElementById('autoTradeBtn');
+            if (btn) {
+                btn.textContent = autoTradeEnabled ? '🤖 AUTO-TRADE: ON' : '🤖 AUTO-TRADE: OFF';
+                btn.className = `btn ${autoTradeEnabled ? 'btn-audio-on' : 'btn-audio-off'}`;
+            }
+        }
+
+        async function toggleAutoTrade() {
+            try {
+                const res = await fetch('/api/autotrade/toggle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: !autoTradeEnabled })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    syncAutoTradeButton(data.auto_trade);
+                }
+            } catch (e) {}
+        }
+
         function unlockAudioContext() {
             try {
                 const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -1042,7 +1191,7 @@
             const prev = signalSoundEnabled;
             signalSoundEnabled = true;
             playToneSequence([587.33, 880, 1174.66], 0.11, 0.04, 'sine', 0.15);
-            speakItalianText('Filtri anti falsi segnali e anti false rotture attivi. Solo segnali certi.');
+            speakItalianText('Sala segnali professionale big desk attiva su feed reale BingX.');
             signalSoundEnabled = prev;
         }
 
@@ -1165,6 +1314,7 @@
                         : 'Nessun log registrato.';
                 }
             }
+            renderMacroWindows();
             renderDeskGauges();
         }
 
@@ -1179,7 +1329,10 @@
                         symbol: row.symbol,
                         name: row.name,
                         action,
-                        size: row.size || 0.001
+                        size: row.size || 0.001,
+                        leverage_num: row.leverage_num || 5,
+                        sl: row.sl || 0,
+                        tp1: row.tp1 || 0
                     })
                 });
                 const data = await res.json();
@@ -1205,6 +1358,25 @@
             if (sig) executeTradeFromPayload(sig, sig.action);
         }
 
+        async function closeBingxPosition(symbol, action, size) {
+            try {
+                const res = await fetch('/api/autotrade/close-position', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbol, action, size })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert(`Posizione ${symbol} chiusa su BingX`);
+                    await loadPositionsStatus();
+                } else {
+                    alert(data.error || 'Errore chiusura posizione');
+                }
+            } catch (e) {
+                alert('Errore di rete durante chiusura posizione.');
+            }
+        }
+
         function buildQueryUrl() {
             const params = new URLSearchParams({
                 profile: document.getElementById('profileSelect')?.value || 'balanced',
@@ -1227,10 +1399,15 @@
             try {
                 const res = await fetch(buildQueryUrl(), { signal: controller.signal, cache: 'no-store' });
                 const data = await res.json();
+                if (data.kill_switch_hit) {
+                    syncAutoTradeButton(false);
+                }
+                syncRiskInputsFromServer(data.max_daily_loss_usd, data.max_open_positions);
                 const heldSignals = mergeAndHoldSignals(Array.isArray(data.signals) ? data.signals : []);
 
                 latestPayload = {
                     sessions: data.sessions || {},
+                    macro_windows: data.macro_windows || [],
                     signals: heldSignals,
                     active_params: data.active_params || {},
                     market_diagnostics: data.market_diagnostics || {},
@@ -1319,7 +1496,8 @@
                                                 🎯 Certezza: <strong>${certText}</strong> • R:R <strong>1:${sig.rrr}</strong> • Kelly <strong>${sig.kelly_pct ?? 0}%</strong>
                                             </div>
                                             <div class="mono" style="font-size:0.7rem; color:var(--text-muted);">
-                                                Entry: ${sig.entry} | SL: <span style="color:var(--accent-red);">${sig.sl}</span> | TP1: <span style="color:var(--accent-green);">${sig.tp1}</span>
+                                                Entry: ${sig.entry} | SL: <span style="color:var(--accent-red);">${sig.sl}</span><br>
+                                                TP1: <span style="color:var(--accent-green);">${sig.tp1}</span> • TP2: <span style="color:var(--accent-green);">${sig.tp2 ?? '-'}</span> • TP3: <span style="color:var(--accent-green);">${sig.tp3 ?? '-'}</span>
                                             </div>
                                             <div class="mono" style="font-size:0.69rem; color:var(--accent-gold); margin-top:3px;">
                                                 🕯️ TP: <strong>${tpTiming}</strong>
@@ -1378,7 +1556,7 @@
                     <tr>
                         <td>
                             <strong>${r.name}</strong><br>
-                            <span class="mono" style="font-size:0.64rem; color:var(--text-muted);">${r.bingx_symbol}</span>
+                            <span class="mono" style="font-size:0.64rem; color:var(--text-muted);">${r.bingx_symbol} • HTF ${r.htf_bias || 'NEUTRAL'}</span>
                         </td>
                         <td class="mono" style="font-size:0.68rem;">
                             <strong>${r.price ?? 'N/D'}</strong><br>
@@ -1394,13 +1572,12 @@
                             </div>
                         </td>
                         <td class="mono" style="font-size:0.68rem;">
-                            E: <strong>${r.entry ?? '-'}</strong><br>
-                            SL: <span style="color:var(--accent-red);">${r.sl ?? '-'}</span><br>
-                            TP1: <span style="color:var(--accent-green);">${r.tp1 ?? '-'}</span>
+                            E: <strong>${r.entry ?? '-'}</strong> | SL: <span style="color:var(--accent-red);">${r.sl ?? '-'}</span><br>
+                            TP1: <span style="color:var(--accent-green);">${r.tp1 ?? '-'}</span> • TP2: <span style="color:var(--accent-green);">${r.tp2 ?? '-'}</span> • TP3: <span style="color:var(--accent-green);">${r.tp3 ?? '-'}</span>
                         </td>
                         <td class="mono" style="font-size:0.68rem;">
                             <strong style="color:${evVal > 0 ? 'var(--accent-green)' : 'var(--accent-red)'};">EV: ${evVal >= 0 ? '+' : '-'}$${Math.abs(evVal).toFixed(4)}</strong><br>
-                            R:R 1:${r.rrr || 0} • p ${r.p_win_pct ?? 0}%
+                            Kelly ${r.kelly_pct ?? 0}% • R:R 1:${r.rrr || 0}
                         </td>
                         <td class="mono" style="font-size:0.67rem;">
                             <span style="color:${r.false_breakout ? 'var(--accent-red)' : 'var(--accent-green)'};">${r.fakeout_label || 'PULITO'}</span><br>
@@ -1414,34 +1591,94 @@
             }).join('');
         }
 
+        function buildSparklineSvg(row) {
+            const arr = Array.isArray(row.series) && row.series.length > 1 ? row.series : [row.entry || 1, row.tp1 || 1.01];
+            const levels = [Number(row.entry), Number(row.sl), Number(row.tp1), Number(row.tp2), Number(row.tp3)].filter(v => Number.isFinite(v) && v > 0);
+            const minV = Math.min(...arr, ...levels);
+            const maxV = Math.max(...arr, ...levels);
+            const span = Math.max(maxV - minV, 0.0001);
+            const yOf = val => (96 - ((Number(val) - minV) / span) * 80).toFixed(1);
+
+            const pts = arr.map((v, i) => {
+                const x = (i / (arr.length - 1)) * 240 + 8;
+                return `${x.toFixed(1)},${yOf(v)}`;
+            }).join(' ');
+
+            const entryY = Number.isFinite(Number(row.entry)) ? yOf(row.entry) : null;
+            const slY = Number.isFinite(Number(row.sl)) ? yOf(row.sl) : null;
+            const tp1Y = Number.isFinite(Number(row.tp1)) ? yOf(row.tp1) : null;
+            const tp2Y = Number.isFinite(Number(row.tp2)) ? yOf(row.tp2) : null;
+            const tp3Y = Number.isFinite(Number(row.tp3)) ? yOf(row.tp3) : null;
+            const strokeCol = row.action === 'SELL' ? '#ff2a4b' : '#00ff66';
+
+            return `
+                <svg width="100%" height="104" viewBox="0 0 256 104" style="background:#070c16; border-radius:8px; border:1px solid rgba(148,163,184,0.14);">
+                    ${entryY !== null ? `<line x1="6" y1="${entryY}" x2="250" y2="${entryY}" stroke="#ffd166" stroke-width="0.9" stroke-dasharray="4,2"/>` : ''}
+                    ${slY !== null ? `<line x1="6" y1="${slY}" x2="250" y2="${slY}" stroke="#ff2a4b" stroke-width="1" stroke-dasharray="3,2"/>` : ''}
+                    ${tp1Y !== null ? `<line x1="6" y1="${tp1Y}" x2="250" y2="${tp1Y}" stroke="#00ff66" stroke-width="1" stroke-dasharray="3,2"/>` : ''}
+                    ${tp2Y !== null ? `<line x1="6" y1="${tp2Y}" x2="250" y2="${tp2Y}" stroke="#38bdf8" stroke-width="0.9" stroke-dasharray="2,3"/>` : ''}
+                    ${tp3Y !== null ? `<line x1="6" y1="${tp3Y}" x2="250" y2="${tp3Y}" stroke="#a855f7" stroke-width="0.9" stroke-dasharray="2,3"/>` : ''}
+                    <polyline points="${pts}" fill="none" stroke="${strokeCol}" stroke-width="2.2"/>
+                </svg>
+            `;
+        }
+
         function renderChartsTab() {
             const box = document.getElementById('chartsSummaryBox');
             if (!box) return;
-            const rows = latestPayload.market_monitoring_table || [];
+            const rows = (latestPayload.market_monitoring_table || []).filter(r => r.price !== null && r.price !== undefined);
             if (!rows.length) {
-                box.textContent = 'Nessun dato live disponibile.';
+                box.innerHTML = '<div class="telemetry-card">Nessun dato live disponibile.</div>';
                 return;
             }
-            box.innerHTML = rows.slice(0, 12).map(r =>
-                `• <strong>${r.name}</strong> (${r.bingx_symbol}): Prezzo <strong>${r.price ?? 'N/D'}</strong> | TP1 <strong>${r.tp1 ?? 'N/D'}</strong> | ${computeTpCandleEstimate(r)}`
-            ).join('<br>');
+            box.innerHTML = rows.slice(0, 9).map(r => `
+                <div class="chart-card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                        <strong>${r.name}</strong>
+                        <span class="mono" style="font-size:0.72rem; color:var(--accent-blue);">${r.price}</span>
+                    </div>
+                    ${buildSparklineSvg(r)}
+                    <div class="mono" style="font-size:0.66rem; color:var(--text-muted); margin-top:6px;">
+                        E: <span style="color:var(--accent-gold);">${r.entry}</span> | SL: <span style="color:var(--accent-red);">${r.sl}</span> | TP1: <span style="color:var(--accent-green);">${r.tp1}</span> | TP2: <span style="color:var(--accent-blue);">${r.tp2}</span> | TP3: <span style="color:var(--accent-purple);">${r.tp3}</span>
+                    </div>
+                </div>
+            `).join('');
         }
 
         async function loadPositionsStatus() {
             const box = document.getElementById('positionsContainer');
             if (!box) return;
             try {
-                const res = await fetch('/api/autotrade/status', { cache: 'no-store' });
-                const data = await res.json();
+                const [accRes, stRes] = await Promise.all([
+                    fetch('/api/account/summary', { cache: 'no-store' }),
+                    fetch('/api/autotrade/status', { cache: 'no-store' })
+                ]);
+                const acc = await accRes.json();
+                const data = await stRes.json();
+                if (typeof data.auto_trade === 'boolean') {
+                    syncAutoTradeButton(data.auto_trade);
+                }
+                syncRiskInputsFromServer(data.max_daily_loss_usd, data.max_open_positions);
                 if (data.performance) {
                     renderPerformanceAndTelemetry(data.performance, latestPayload.telemetry);
                 }
+                const bal = acc.balance;
+                const balHtml = bal
+                    ? `<div style="margin-bottom:8px; color:var(--accent-green);">Saldo BingX: Equity <strong>$${bal.equity}</strong> | Margine Libero <strong>$${bal.available_margin}</strong> | uPnL <strong>$${bal.unrealized_pnl}</strong></div>`
+                    : `<div style="margin-bottom:8px; color:var(--accent-gold);">${acc.balance_error || 'Saldo BingX non disponibile'}</div>`;
+
                 const posList = data.positions || [];
                 const errTxt = data.positions_error ? `<div style="color:var(--accent-gold); margin-bottom:6px;">${data.positions_error}</div>` : '';
-                box.innerHTML = `
-                    ${errTxt}
-                    <div><strong>Posizioni Reali Aperte su BingX (${posList.length}):</strong><br>${posList.length ? posList.map(p => `• ${p.bx_symbol || p.symbol} (${p.action}) Entry ${p.entry} Qty ${p.size} Lev ${p.leverage} uPnL ${p.unrealized_pnl}`).join('<br>') : 'Nessuna posizione aperta sul conto BingX.'}</div>
-                `;
+                const posHtml = posList.length
+                    ? posList.map(p => `
+                        <div style="margin-bottom:6px;">
+                            • ${p.bx_symbol || p.symbol} (${p.action}) Entry ${p.entry} Qty ${p.size} Lev ${p.leverage} uPnL <strong>${p.unrealized_pnl}</strong>
+                            <button type="button" class="btn btn-sell" style="margin-left:6px;" onclick="closeBingxPosition('${p.symbol}', '${p.action}', ${p.size})">CHIUDI</button>
+                        </div>
+                    `).join('')
+                    : 'Nessuna posizione aperta sul conto BingX.';
+
+                box.innerHTML = `${balHtml}${errTxt}<div><strong>Posizioni Reali Aperte su BingX (${posList.length}/${data.max_open_positions || 3}):</strong><br>${posHtml}</div>`;
             } catch (e) {
                 box.textContent = 'Errore lettura posizioni BingX.';
             }
