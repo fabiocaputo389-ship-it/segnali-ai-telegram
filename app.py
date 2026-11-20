@@ -44,7 +44,7 @@ def get_bingx_credentials():
 
 BINGX_API_KEY, BINGX_API_SECRET = get_bingx_credentials()
 
-DIRECTION_COOLDOWN_SEC = 120.0
+DIRECTION_COOLDOWN_SEC = 180.0
 _LAST_CONFIRMED_DIRECTION = {}
 _LIVE_PRICE_CACHE = {}
 
@@ -54,6 +54,7 @@ STATE = {
     "real_mode": True,
     "scans_count": 0,
     "session_pnl": 0.0,
+    "daily_loss_guard_usd": 1.0,
     "telemetry_logs": [],
     "closed_trades": [],
     "last_bingx_sync": 0.0,
@@ -329,7 +330,7 @@ def sync_bingx_real_closed_trades():
     if not (api_key and api_secret):
         return
     with STATE_LOCK:
-        if time.time() - STATE.get("last_bingx_sync", 0.0) < 10.0:
+        if time.time() - STATE.get("last_bingx_sync", 0.0) < 2.5:
             return
         STATE["last_bingx_sync"] = time.time()
 
@@ -418,7 +419,7 @@ def fetch_bingx_real_positions():
 
 def fetch_bingx_ticker(bx_symbol: str):
     cached = _LIVE_PRICE_CACHE.get(bx_symbol)
-    if cached and (time.time() - cached["ts"]) < 2.5:
+    if cached and (time.time() - cached["ts"]) < 1.0:
         return cached["price"]
     try:
         url = f"{BINGX_BASE_URL}/openApi/swap/v2/quote/ticker"
@@ -490,11 +491,30 @@ def get_real_market_dataframe(meta: dict, timeframe: str):
 
 def build_profile_config(profile: str, timeframe: str, min_score: float):
     p = (profile or "balanced").lower()
+    if p == "certain_profit":
+        return {
+            "profile": "certain_profit",
+            "timeframe": timeframe,
+            "min_score": max(min_score, 88.0),
+            "required_factors": 6,
+            "min_rrr": 2.0,
+            "max_risk_pct": 0.5,
+            "rsi_buy_min": 51.0,
+            "rsi_buy_max": 62.0,
+            "rsi_sell_min": 38.0,
+            "rsi_sell_max": 49.0,
+            "sl_m": 1.4,
+            "tp_m": 3.0,
+            "min_vol_ratio": 1.25,
+        }
     if p == "conservative":
         return {
             "profile": "conservative",
             "timeframe": timeframe,
             "min_score": max(min_score, 82.0),
+            "required_factors": 5,
+            "min_rrr": 1.5,
+            "max_risk_pct": 1.5,
             "rsi_buy_min": 50.0,
             "rsi_buy_max": 64.0,
             "rsi_sell_min": 36.0,
@@ -508,6 +528,9 @@ def build_profile_config(profile: str, timeframe: str, min_score: float):
             "profile": "aggressive",
             "timeframe": timeframe,
             "min_score": max(min_score, 76.0),
+            "required_factors": 5,
+            "min_rrr": 1.5,
+            "max_risk_pct": 3.0,
             "rsi_buy_min": 48.0,
             "rsi_buy_max": 67.0,
             "rsi_sell_min": 33.0,
@@ -520,6 +543,9 @@ def build_profile_config(profile: str, timeframe: str, min_score: float):
         "profile": "balanced",
         "timeframe": timeframe,
         "min_score": max(min_score, 80.0),
+        "required_factors": 5,
+        "min_rrr": 1.5,
+        "max_risk_pct": 2.0,
         "rsi_buy_min": 49.0,
         "rsi_buy_max": 65.0,
         "rsi_sell_min": 35.0,
@@ -698,7 +724,6 @@ def compute_exact_market_score(
     prev_macd: float,
     false_breakout: bool,
 ):
-    """Calcola lo score esatto del mercato al momento (0.0 - 99.0) e il verdetto del cervello matematico."""
     ema_spread_ratio = abs(curr_ema12 - curr_ema26) / max(abs(curr_ema26), 1e-9)
     ema_pts = min(28.0, ema_spread_ratio * 2200.0)
 
@@ -720,6 +745,40 @@ def compute_exact_market_score(
     return exact_score, dominant_side
 
 
+def build_tp_candle_cycle_info(now_ts: float, tf_min: int, candles_needed: int, tp_dist: float, recent_movement: float, atr: float):
+    now_dt = datetime.fromtimestamp(now_ts, tz=timezone.utc)
+    sec_into_day = now_dt.hour * 3600 + now_dt.minute * 60 + now_dt.second
+    tf_sec = max(60, tf_min * 60)
+
+    current_candle_idx = (sec_into_day // tf_sec) + 1
+    total_day_candles = (24 * 3600) // tf_sec
+    sec_left_in_candle = tf_sec - (sec_into_day % tf_sec)
+    min_left_in_candle = max(0.1, round(sec_left_in_candle / 60.0, 1))
+
+    target_candle_idx = current_candle_idx + max(1, candles_needed)
+    est_min_exact = max(tf_min, int(round((candles_needed * tf_sec + sec_left_in_candle) / 60.0)))
+    tp_eta_ts = now_ts + (est_min_exact * 60)
+    tp_eta_utc = datetime.fromtimestamp(tp_eta_ts, tz=timezone.utc).strftime("%H:%M UTC")
+
+    velocity_per_candle = round(max(recent_movement, atr * 0.15), 6)
+    cycle_summary = (
+        f"Ciclo Candele {tf_min}m: Candela #{current_candle_idx}/{total_day_candles} "
+        f"(chiude tra {min_left_in_candle}m) → Target Candela #{target_candle_idx} "
+        f"(+{candles_needed} candele, ~{est_min_exact}m, ETA {tp_eta_utc})"
+    )
+
+    return {
+        "current_candle_idx": current_candle_idx,
+        "total_day_candles": total_day_candles,
+        "target_candle_idx": target_candle_idx,
+        "min_left_in_candle": min_left_in_candle,
+        "est_min_exact": est_min_exact,
+        "velocity_per_candle": velocity_per_candle,
+        "tp_eta_utc": tp_eta_utc,
+        "tp_cycle_exact": cycle_summary,
+    }
+
+
 def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category, is_open):
     close = df["Close"]
     high = df["High"]
@@ -736,6 +795,9 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
     tp_m = cfg["tp_m"]
     min_vol_ratio = max(0.90, cfg["min_vol_ratio"])
     min_score = cfg["min_score"]
+    req_factors = int(cfg.get("required_factors", 5))
+    min_rrr_req = safe_float(cfg.get("min_rrr"), 1.5)
+    effective_risk_pct = min(risk_pct, safe_float(cfg.get("max_risk_pct"), risk_pct))
     timeframe = cfg["timeframe"]
     profile = cfg["profile"]
 
@@ -832,7 +894,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         and (curr_ema12 > curr_ema26)
         and (current_price >= curr_ema50 * 0.992)
         and (rsi_buy_min <= rsi <= rsi_buy_max)
-        and bull_hits >= 5
+        and bull_hits >= req_factors
         and exact_market_score >= min_score
     )
 
@@ -843,7 +905,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         and (curr_ema12 < curr_ema26)
         and (current_price <= curr_ema50 * 1.008)
         and (rsi_sell_min <= rsi <= rsi_sell_max)
-        and bear_hits >= 5
+        and bear_hits >= req_factors
         and exact_market_score >= min_score
     )
 
@@ -927,13 +989,14 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
     candle_tf_label = f"Candela {timeframe}"
     recent_movement = max(abs(close.diff().tail(5)).mean(), atr * 0.15, current_price * 0.0001)
     candles_needed = max(1, int(np.ceil(tp_dist / recent_movement)))
-    est_min = candles_needed * tf_min
+    cycle_info = build_tp_candle_cycle_info(now_ts, tf_min, candles_needed, tp_dist, recent_movement, atr)
+    est_min = cycle_info["est_min_exact"]
     duration = (
         f"~{est_min} min ({candles_needed} candele)"
         if est_min < 60
         else f"~{round(est_min / 60, 1)} ore ({candles_needed} candele)"
     )
-    tp_eta_utc = datetime.fromtimestamp(now_ts + (est_min * 60), tz=timezone.utc).strftime("%H:%M UTC")
+    tp_eta_utc = cycle_info["tp_eta_utc"]
     tp_eta_text = f"{duration} • {candle_tf_label} • ETA ~{tp_eta_utc}"
 
     if balance <= 2.0 and profile == "aggressive":
@@ -945,7 +1008,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
     else:
         lev_int = 5
 
-    max_risk = balance * (risk_pct / 100.0)
+    max_risk = balance * (effective_risk_pct / 100.0)
     risk_unit = max(abs(entry - sl), tick_size)
     pos_size = compute_order_quantity(bx_symbol, entry, max_risk / risk_unit, max(balance, 2.0), lev_int)
     margin = round((pos_size * entry) / lev_int, 2)
@@ -965,19 +1028,34 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         tp_dist=tp_dist,
         sl_dist=sl_dist,
         roundtrip_fee=roundtrip_fee,
-        risk_pct=risk_pct,
+        risk_pct=effective_risk_pct,
     )
 
-    if action in ["BUY", "SELL"] and (anti_fake["false_breakout"] or not math_model["math_approved"]):
-        action = "NEUTRAL"
-        sent = "BLOCCATO ANTI-FAKEOUT / EV"
-        col = "#ffd166"
-        inv = "🧠 Cervello Matematico: Blocco EV- / Fakeout"
-        filter_reason = (
-            f"Score Mercato {exact_market_score}% • Bloccato da Cervello Matematico: "
-            f"{anti_fake['fakeout_reason']} | EV netto ${math_model['ev_net_usd']} (R:R 1:{rrr_val})."
+    with STATE_LOCK:
+        daily_guard_limit = -abs(safe_float(STATE.get("daily_loss_guard_usd"), 1.0))
+        today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        today_net = sum(
+            safe_float(t.get("realized_pnl"))
+            for t in STATE.get("closed_trades", [])
+            if str(t.get("closed_date", "")) == today_str
         )
-        trigger_condition = "Attesa rottura pulita con EV netto > 0 al netto delle fee e R:R >= 1.5."
+
+    guard_tripped = (profile == "certain_profit") and (today_net <= daily_guard_limit)
+    math_ok = math_model["math_approved"] and (rrr_val >= min_rrr_req) and (confluence_hits >= req_factors)
+
+    if action in ["BUY", "SELL"] and (anti_fake["false_breakout"] or not math_ok or guard_tripped):
+        action = "NEUTRAL"
+        sent = "GUARDIA ATTIVA / NO-TRADE"
+        col = "#ffd166"
+        inv = "🛡️ Cervello Matematico: Filtro EV+ / Guardia"
+        if guard_tripped:
+            filter_reason = f"Guardia giornaliera attivata (Netto oggi ${today_net:.2f} <= ${daily_guard_limit:.2f}): trade bloccati."
+        else:
+            filter_reason = (
+                f"Score {exact_market_score}% • Filtro EV/Rischio: fattori {confluence_hits}/{req_factors}, "
+                f"R:R 1:{rrr_val} (min 1:{min_rrr_req}), EV netto ${math_model['ev_net_usd']}."
+            )
+        trigger_condition = f"Richiede {req_factors}/6 fattori, R:R >= {min_rrr_req}, EV netto > 0 e guardia non attiva."
     elif not is_open:
         filter_reason = f"Score Mercato {exact_market_score}% • Borsa {category} chiusa."
         trigger_condition = f"Attivazione alla riapertura con Score >= {min_score}% e EV netto > 0."
@@ -992,21 +1070,21 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
             f"Score Mercato {exact_market_score}% • Protezione anti-inversione ({prev_dir_info.get('action')}): "
             f"attesa {rem_cd}s."
         )
-        trigger_condition = f"Cambio direzione dopo {rem_cd}s con conferma piena (5/6 fattori)."
+        trigger_condition = f"Cambio direzione dopo {rem_cd}s con conferma piena ({req_factors}/6 fattori)."
     elif action == "NEUTRAL":
         filter_reason = (
             f"Score Mercato {exact_market_score}% ({dominant_side}) • Certezza {certainty_val}% ({confluence_hits}/6) "
             f"• EV ${math_model['ev_net_usd']}."
         )
         trigger_condition = (
-            f"Score >= {min_score}%, >=5/6 fattori allineati, EV netto > 0 e R:R >= 1.5."
+            f"Score >= {min_score}%, >= {req_factors}/6 fattori, R:R >= {min_rrr_req} e EV netto > 0."
         )
     else:
         filter_reason = (
-            f"Score Mercato {exact_market_score}% • Setup {action} approvato con EV netto +${math_model['ev_net_usd']} "
-            f"(p_win {math_model['p_win_pct']}%)."
+            f"Score Mercato {exact_market_score}% • Setup {action} EV+ approvato (+${math_model['ev_net_usd']}) "
+            f"• {cycle_info['tp_cycle_exact']}."
         )
-        trigger_condition = f"Segnale {action} EV+ confermato (Score {exact_market_score}%) con SL {sl_m}x ATR e TP1 {tp_m}x ATR."
+        trigger_condition = f"Segnale {action} EV+ confermato ({exact_market_score}%) con SL {sl_m}x ATR e TP1 {tp_m}x ATR."
 
     vol_pct = round((atr / entry) * 100, 2) if entry > 0 else 0.0
     vol_regime = "ALTA VOLATILITÀ" if vol_pct >= 1.2 else ("MODERATA" if vol_pct >= 0.35 else "CONTENUTA")
@@ -1042,6 +1120,10 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         "tp_candles_est": candles_needed,
         "tp_eta_utc": tp_eta_utc,
         "tp_eta_text": tp_eta_text,
+        "tp_cycle_exact": cycle_info["tp_cycle_exact"],
+        "current_candle_idx": cycle_info["current_candle_idx"],
+        "target_candle_idx": cycle_info["target_candle_idx"],
+        "min_left_in_candle": cycle_info["min_left_in_candle"],
         "rrr": rrr_val,
         "rsi": round(rsi, 1),
         "vol_ratio": vol_ratio,
@@ -1177,6 +1259,10 @@ def _scan_single_asset(category, sess, is_open, meta, timeframe, profile, balanc
         "tp_candles_est": res["tp_candles_est"],
         "tp_eta_utc": res["tp_eta_utc"],
         "tp_eta_text": res["tp_eta_text"],
+        "tp_cycle_exact": res["tp_cycle_exact"],
+        "current_candle_idx": res["current_candle_idx"],
+        "target_candle_idx": res["target_candle_idx"],
+        "min_left_in_candle": res["min_left_in_candle"],
         "confluence": res["confluence"],
         "size": res["size"],
         "leverage": res["leverage"],
@@ -1344,7 +1430,7 @@ def get_signals():
         elif cat_signals == 0:
             diag_reason = (
                 f"Score Mercato {avg_score}%{top_txt} • Analizzati {cat_scanned} asset: nessun setup ha superato "
-                f"5/6 fattori, EV netto > 0 al netto delle fee e Score >= {min_score}%."
+                f"i filtri matematici EV+, anti-fakeout e Score >= {min_score}%."
             )
         else:
             diag_reason = f"Score Mercato {avg_score}%{top_txt} • {cat_signals} segnali EV+ confermati su {category}."
@@ -1370,17 +1456,19 @@ def get_signals():
         }] + STATE["telemetry_logs"])[:40]
         logs_copy = list(STATE["telemetry_logs"])
 
+    perf_payload = build_performance_payload()
     return jsonify({
         "sessions": sessions,
         "signals": signals_out,
         "active_params": cfg,
         "market_diagnostics": market_diagnostics,
         "market_monitoring_table": monitoring_rows,
-        "performance": build_performance_payload(),
+        "performance": perf_payload,
         "telemetry": {
             "scans_count": scans_val,
             "active_orders_count": len(live_positions),
             "session_pnl": session_pnl_val,
+            "performance": perf_payload,
             "telemetry_logs": logs_copy,
         },
     })
@@ -1451,12 +1539,14 @@ def api_telemetry():
     sync_bingx_real_closed_trades()
     positions, _ = fetch_bingx_real_positions()
     bal_info, _ = fetch_bingx_real_balance()
+    perf = build_performance_payload()
     with STATE_LOCK:
         return jsonify({
             "scans_count": STATE["scans_count"],
             "active_orders_count": len(positions),
             "session_pnl": STATE["session_pnl"],
             "account": bal_info,
+            "performance": perf,
             "telemetry_logs": list(STATE["telemetry_logs"]),
         })
 
