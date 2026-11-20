@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SALA SEGNALI PRO • Institutional BingX Desk</title>
+    <title>SALA SEGNALI PRO • BingX Live Sync</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -68,13 +68,14 @@
         }
 
         .badge-desk {
-            font-size: 0.68rem;
-            font-weight: 700;
-            padding: 3px 8px;
+            font-size: 0.65rem;
+            font-weight: 800;
+            padding: 4px 8px;
             border-radius: 6px;
-            background: rgba(56, 189, 248, 0.14);
-            border: 1px solid rgba(56, 189, 248, 0.45);
-            color: var(--accent-blue);
+            background: rgba(0, 255, 102, 0.10);
+            border: 1px solid rgba(0, 255, 102, 0.45);
+            color: var(--accent-green);
+            line-height: 1.15;
         }
 
         .controls-row {
@@ -240,9 +241,17 @@
         th {
             color: var(--text-muted);
             font-family: 'JetBrains Mono', monospace;
-            font-size: 0.67rem;
+            font-size: 0.66rem;
             text-transform: uppercase;
             background: var(--bg-subcard);
+        }
+
+        .report-subblock {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            padding: 10px 12px;
+            margin-bottom: 12px;
         }
 
         .cat-block {
@@ -383,7 +392,7 @@
     <div class="topbar">
         <div class="brand-row">
             <span class="brand-title">⚡ SALA SEGNALI PRO</span>
-            <span class="badge-desk">BINGX PRO DESK • EV+ &amp; ANTI-FAKEOUT</span>
+            <span class="badge-desk">BINGX<br>LIVE<br>SYNC</span>
             <span id="clockBadge" class="mono" style="font-size:0.74rem; color:var(--text-muted);">--:--:--</span>
         </div>
         <div class="controls-row">
@@ -460,36 +469,63 @@
 
     <div class="panel">
         <div class="panel-title">
-            <span>📈 RIEPILOGO PERFORMANCE GIORNALIERA &amp; MENSILE (WIN / LOSS %)</span>
+            <span>📊 REPORT PERFORMANCE GIORNALIERO &amp; MENSILE</span>
             <button type="button" class="btn" onclick="loadPerformanceStats()">↻ AGGIORNA P&amp;L</button>
         </div>
-        <div class="sessions-table-wrap">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Periodo</th>
-                        <th>Trade Chiusi</th>
-                        <th>Vinti / Persi</th>
-                        <th>% Vincita</th>
-                        <th>% Perdita</th>
-                        <th>Guadagno Lordo</th>
-                        <th>Perdita Lorda</th>
-                        <th>Guadagno Netto Esatto</th>
-                    </tr>
-                </thead>
-                <tbody id="performanceTableBody">
-                    <tr>
-                        <td colspan="8" class="mono" style="color:var(--text-muted);">Caricamento statistiche giornaliere e mensili...</td>
-                    </tr>
-                </tbody>
-            </table>
+
+        <div class="report-subblock">
+            <div class="mono" style="font-size:0.74rem; font-weight:800; color:var(--accent-green); margin-bottom:6px;">
+                🟢 REPORT GIORNALIERO (Oggi)
+            </div>
+            <div class="sessions-table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>% Vincite</th>
+                            <th>% Perdite</th>
+                            <th>Importo Guadagnato</th>
+                            <th>Importo Perso</th>
+                            <th>Netto Giornaliero</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dailyReportTableBody">
+                        <tr>
+                            <td colspan="5" class="mono" style="color:var(--text-muted);">Caricamento report giornaliero...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="report-subblock" style="margin-bottom:0;">
+            <div class="mono" style="font-size:0.74rem; font-weight:800; color:var(--accent-red); margin-bottom:6px;">
+                📅 REPORT MENSILE (Mese Corrente)
+            </div>
+            <div class="sessions-table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>% Vincite</th>
+                            <th>% Perdite</th>
+                            <th>Totale Guadagnato</th>
+                            <th>Totale Perso</th>
+                            <th>Netto Mensile</th>
+                        </tr>
+                    </thead>
+                    <tbody id="monthlyReportTableBody">
+                        <tr>
+                            <td colspan="5" class="mono" style="color:var(--text-muted);">Caricamento report mensile...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
     <div id="tab-signals" class="tab-view active">
         <div class="panel">
             <div class="panel-title">
-                <span>📡 SEGNALI OPERATIVI (BLOCCATI 90s PER EVITARE CHE SPARISCANO)</span>
+                <span>📡 SEGNALI OPERATIVI LIVE (BLOCCATI 90s PER EVITARE CHE SPARISCANO)</span>
                 <span id="lastScanLabel" class="mono" style="font-size:0.68rem; color:var(--text-muted);">LIVE • Avvio scansione...</span>
             </div>
             <div id="marketsSignalsContainer">
@@ -513,7 +549,7 @@
                     <thead>
                         <tr>
                             <th>Mercato / Asset</th>
-                            <th>Prezzo / Durata Candela TP</th>
+                            <th>Prezzo Live / Durata Candela TP</th>
                             <th>Certezza / Score / Esecuzione</th>
                             <th>Livelli (Entry / SL / TP1 / Target)</th>
                             <th>Modello Matematico (EV / Kelly / R:R)</th>
@@ -546,7 +582,7 @@
     <div id="tab-telemetry" class="tab-view">
         <div class="panel">
             <div class="panel-title">
-                <span>⚡ TELEMETRIA SCANSIONI</span>
+                <span>⚡ TELEMETRIA SCANSIONI LIVE</span>
                 <button type="button" class="btn" onclick="loadTelemetry()">↻ AGGIORNA TELEMETRIA</button>
             </div>
             <div id="telemetryContainer" class="mono" style="font-size:0.76rem; color:var(--text-muted);">
@@ -809,7 +845,7 @@
             const prev = signalSoundEnabled;
             signalSoundEnabled = true;
             playToneSequence([587.33, 880, 1174.66], 0.11, 0.04, 'sine', 0.15);
-            speakItalianText('Voce segnali operativa. Sistema anti-falsa rottura, attesa matematica e previsione inversione attivi.');
+            speakItalianText('Voce segnali operativa. Sincronizzazione live BingX, anti-falsa rottura e attesa matematica attivi.');
             signalSoundEnabled = prev;
         }
 
@@ -856,6 +892,39 @@
             return `${sign}$${Math.abs(num).toFixed(2)}`;
         }
 
+        function renderPerformanceRow(s) {
+            const st = s || {};
+            const wins = Number(st.wins || 0);
+            const losses = Number(st.losses || 0);
+            const winPct = Number(st.win_pct || 0);
+            const lossPct = Number(st.loss_pct || 0);
+            const wonAmt = Number(st.won_amount || 0);
+            const lostAmt = Math.abs(Number(st.lost_amount || 0));
+            const netVal = Number(st.net_pnl || 0);
+            const netCol = netVal > 0 ? 'var(--accent-green)' : (netVal < 0 ? 'var(--accent-red)' : 'var(--text-main)');
+            const netFormatted = `${netVal < 0 ? '-' : ''}$${Math.abs(netVal).toFixed(2)}`;
+
+            return `
+                <tr>
+                    <td class="mono" style="color:var(--accent-green); font-weight:800;">
+                        ${winPct.toFixed(0)}%<br><span style="font-size:0.66rem; color:var(--text-muted);">(${wins} win)</span>
+                    </td>
+                    <td class="mono" style="color:var(--accent-red); font-weight:800;">
+                        ${lossPct.toFixed(0)}%<br><span style="font-size:0.66rem; color:var(--text-muted);">(${losses} loss)</span>
+                    </td>
+                    <td class="mono" style="color:var(--accent-green); font-weight:800;">
+                        +$${wonAmt.toFixed(2)}
+                    </td>
+                    <td class="mono" style="color:var(--accent-red); font-weight:800;">
+                        -$${lostAmt.toFixed(2)}
+                    </td>
+                    <td class="mono" style="color:${netCol}; font-weight:800;">
+                        ${netFormatted}
+                    </td>
+                </tr>
+            `;
+        }
+
         function renderPerformanceStats(perfData) {
             if (!perfData) return;
             latestPayload.performance = perfData;
@@ -866,7 +935,8 @@
             const monthlyEl = document.getElementById('kpiMonthlyPnl');
             const dailyWlEl = document.getElementById('kpiDailyWinLoss');
             const monthlyWlEl = document.getElementById('kpiMonthlyWinLoss');
-            const tbody = document.getElementById('performanceTableBody');
+            const dailyBody = document.getElementById('dailyReportTableBody');
+            const monthlyBody = document.getElementById('monthlyReportTableBody');
 
             const dNet = Number(d.net_pnl || 0);
             const mNet = Number(m.net_pnl || 0);
@@ -886,28 +956,11 @@
                 monthlyWlEl.textContent = `${Number(m.win_pct || 0).toFixed(1)}% / ${Number(m.loss_pct || 0).toFixed(1)}%`;
             }
 
-            if (tbody) {
-                const rows = [
-                    { label: `Oggi (${d.date || 'Giornaliero'})`, s: d },
-                    { label: `Mese (${m.month || 'Mensile'})`, s: m }
-                ];
-                tbody.innerHTML = rows.map(item => {
-                    const s = item.s || {};
-                    const netVal = Number(s.net_pnl || 0);
-                    const netCol = netVal > 0 ? 'var(--accent-green)' : (netVal < 0 ? 'var(--accent-red)' : 'var(--text-main)');
-                    return `
-                        <tr>
-                            <td class="mono"><strong>${item.label}</strong></td>
-                            <td class="mono">${s.total_trades || 0}</td>
-                            <td class="mono"><span style="color:var(--accent-green);">${s.wins || 0}W</span> / <span style="color:var(--accent-red);">${s.losses || 0}L</span></td>
-                            <td class="mono" style="color:var(--accent-green); font-weight:700;">${Number(s.win_pct || 0).toFixed(1)}%</td>
-                            <td class="mono" style="color:var(--accent-red); font-weight:700;">${Number(s.loss_pct || 0).toFixed(1)}%</td>
-                            <td class="mono" style="color:var(--accent-green);">+$${Number(s.won_amount || 0).toFixed(2)}</td>
-                            <td class="mono" style="color:var(--accent-red);">-$${Math.abs(Number(s.lost_amount || 0)).toFixed(2)}</td>
-                            <td class="mono" style="color:${netCol}; font-weight:800;">${formatSignedUsd(netVal)}</td>
-                        </tr>
-                    `;
-                }).join('');
+            if (dailyBody) {
+                dailyBody.innerHTML = renderPerformanceRow(d);
+            }
+            if (monthlyBody) {
+                monthlyBody.innerHTML = renderPerformanceRow(m);
             }
         }
 
@@ -1012,7 +1065,7 @@
                         vol_regime: 'MODERATA',
                         trend_state: 'IN ATTESA SYNC',
                         fakeout_label: 'PULITO (ROTTURA VALIDA)',
-                        fakeout_reason: 'In attesa sincronizzazione',
+                        fakeout_reason: 'In attesa sincronizzazione live',
                         reversal_summary: 'Se inverte → SELL (20.0%) @ 100.0',
                         reversal_reason: 'Trend in attesa sync',
                         p_win_pct: 55.0,
@@ -1196,7 +1249,7 @@
                                                 <span class="mono" style="color:${badgeCol}; font-weight:800;">${sig.action} • ${sig.ai_score}</span>
                                             </div>
                                             <div class="mono" style="font-size:0.74rem; margin-bottom:5px;">
-                                                Prezzo: <strong>${sig.price}</strong> | Blocco: <span style="color:var(--accent-gold);">${sig.remaining_sec || 90}s</span>
+                                                Prezzo Live: <strong>${sig.price}</strong> | Blocco: <span style="color:var(--accent-gold);">${sig.remaining_sec || 90}s</span>
                                             </div>
                                             <div class="mono" style="font-size:0.71rem; color:${certCol}; margin-bottom:4px;">
                                                 🎯 Certezza: <strong>${certLabel}</strong> • R:R <strong>1:${sig.rrr}</strong> • Kelly <strong>${sig.kelly_pct || 0}%</strong>
@@ -1358,14 +1411,14 @@
         populateAssetDropdown();
         loadPerformanceStats();
         loadSignals(true);
-        setInterval(() => loadSignals(false), 10000);
+        setInterval(() => loadSignals(false), 5000);
         setInterval(() => {
             if (pinnedSignalsMap.size > 0) {
                 latestPayload.signals = mergeAndHoldSignals([]);
                 renderSignalsAndMarkets();
             }
         }, 1000);
-        setInterval(() => loadPerformanceStats(), 15000);
+        setInterval(() => loadPerformanceStats(), 10000);
     </script>
 </body>
 </html>
