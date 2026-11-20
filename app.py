@@ -576,6 +576,41 @@ def sync_bingx_closed_history():
         pass
 
 
+def compute_performance_payload():
+    global execution_history
+    sync_bingx_closed_history()
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    current_month_str = datetime.now().strftime("%Y-%m")
+    closed_trades = [h for h in execution_history if h.get("status") == "CLOSED"]
+    today_trades = [h for h in closed_trades if h.get("date") == today_str]
+    month_trades = [h for h in closed_trades if h.get("month") == current_month_str]
+
+    def calc_stats(trades):
+        total = len(trades)
+        wins = [t for t in trades if safe_float(t.get("realized_pnl"), 0.0) > 0]
+        losses = [t for t in trades if safe_float(t.get("realized_pnl"), 0.0) <= 0]
+        win_pct = round((len(wins) / total * 100), 1) if total > 0 else 0.0
+        loss_pct = round((len(losses) / total * 100), 1) if total > 0 else 0.0
+        won_amt = sum(safe_float(t.get("realized_pnl"), 0.0) for t in wins)
+        lost_amt = sum(safe_float(t.get("realized_pnl"), 0.0) for t in losses)
+        return {
+            "total_trades": total,
+            "wins": len(wins),
+            "losses": len(losses),
+            "win_pct": win_pct,
+            "loss_pct": loss_pct,
+            "won_amount": round(won_amt, 2),
+            "lost_amount": round(lost_amt, 2),
+            "net_pnl": round(won_amt + lost_amt, 2),
+        }
+
+    daily_stats = calc_stats(today_trades)
+    daily_stats["date"] = today_str
+    monthly_stats = calc_stats(month_trades)
+    monthly_stats["month"] = current_month_str
+    return {"daily": daily_stats, "monthly": monthly_stats}
+
+
 def execute_verified_order(symbol, name, action, entry, size, leverage, margin, sl, tp1, params=None):
     global execution_history
     cfg_params = params if isinstance(params, dict) else {}
@@ -1102,6 +1137,7 @@ def get_autotrade_status():
         "mode": get_exchange_mode(),
         "positions": fetch_bingx_real_positions(),
         "history": execution_history[:20],
+        "performance": compute_performance_payload(),
     })
 
 
@@ -1113,12 +1149,12 @@ def close_position():
     for h in execution_history:
         if canonicalize_symbol_key(h.get('symbol', '')) == symbol and h.get('status') == 'OPEN':
             h['status'] = 'CLOSED'
-            pnl = h.get('unrealized_pnl', 0.0)
-            h['realized_pnl'] = pnl
+            pnl = safe_float(data.get('realized_pnl', h.get('unrealized_pnl', 0.0)), 0.0)
+            h['realized_pnl'] = round(pnl, 4)
             h['date'] = datetime.now().strftime("%Y-%m-%d")
             h['month'] = datetime.now().strftime("%Y-%m")
             session_realized_pnl += pnl
-            return jsonify({"success": True})
+            return jsonify({"success": True, "realized_pnl": h['realized_pnl'], "performance": compute_performance_payload()})
     return jsonify({"success": False}), 404
 
 
@@ -1133,30 +1169,7 @@ def get_live_prices():
 
 @app.route('/api/analytics/performance', methods=['GET'])
 def get_performance_analytics():
-    global execution_history
-    sync_bingx_closed_history()
-    today_str = datetime.now().strftime("%Y-%m-%d")
-    current_month_str = datetime.now().strftime("%Y-%m")
-    closed_trades = [h for h in execution_history if h.get("status") == "CLOSED"]
-    today_trades = [h for h in closed_trades if h.get("date") == today_str]
-    month_trades = [h for h in closed_trades if h.get("month") == current_month_str]
-
-    def calc_stats(trades):
-        total = len(trades)
-        wins = [t for t in trades if t.get("realized_pnl", 0) > 0]
-        losses = [t for t in trades if t.get("realized_pnl", 0) <= 0]
-        win_pct = round((len(wins) / total * 100), 1) if total > 0 else 0.0
-        loss_pct = round((len(losses) / total * 100), 1) if total > 0 else 0.0
-        won_amt = sum(t.get("realized_pnl", 0) for t in wins)
-        lost_amt = sum(t.get("realized_pnl", 0) for t in losses)
-        return total, len(wins), len(losses), win_pct, loss_pct, round(won_amt, 2), round(lost_amt, 2), round(won_amt + lost_amt, 2)
-
-    t_tot, t_w, t_l, t_wp, t_lp, t_won, t_lost, t_net = calc_stats(today_trades)
-    m_tot, m_w, m_l, m_wp, m_lp, m_won, m_lost, m_net = calc_stats(month_trades)
-    return jsonify({
-        "daily": {"date": today_str, "total_trades": t_tot, "wins": t_w, "losses": t_l, "win_pct": t_wp, "loss_pct": t_lp, "won_amount": t_won, "lost_amount": t_lost, "net_pnl": t_net},
-        "monthly": {"month": current_month_str, "total_trades": m_tot, "wins": m_w, "losses": m_l, "win_pct": m_wp, "loss_pct": m_lp, "won_amount": m_won, "lost_amount": m_lost, "net_pnl": m_net},
-    })
+    return jsonify(compute_performance_payload())
 
 
 @app.route('/api/telemetry', methods=['GET'])
@@ -1221,9 +1234,20 @@ def get_signals():
                 "vol_ratio": res_sig["vol_ratio"],
                 "vol_regime": res_sig["vol_regime"],
                 "trend_state": res_sig["trend_state"],
+                "entry": res_sig["entry"],
                 "sl": res_sig["sl"],
                 "tp1": res_sig["tp1"],
+                "target_rialzista": res_sig["target_rialzista"],
+                "target_ribassista": res_sig["target_ribassista"],
                 "rrr": res_sig["rrr"],
+                "roi_pct": res_sig["roi_pct"],
+                "duration": res_sig["duration"],
+                "confluence": res_sig["confluence"],
+                "size": res_sig["size"],
+                "leverage": res_sig["leverage"],
+                "margin": res_sig["margin"],
+                "roundtrip_fee": res_sig["roundtrip_fee"],
+                "expected_net": res_sig["expected_net"],
                 "params": cfg,
                 "why_not_taken": "Preso — setup operativo valido." if taken else res_sig["filter_reason"],
                 "when_taken": res_sig["trigger_condition"],
@@ -1301,6 +1325,7 @@ def get_signals():
         "active_params": cfg,
         "market_diagnostics": market_diagnostics,
         "market_monitoring_table": market_monitoring_table,
+        "performance": compute_performance_payload(),
     }
     _SIGNALS_CACHE["key"] = f"{timeframe}|{profile}|{balance}|{risk}"
     _SIGNALS_CACHE["ts"] = now
