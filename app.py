@@ -12,22 +12,25 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 app = Flask(__name__)
 
+
 def load_render_environment():
     global BINGX_API_KEY, BINGX_SECRET_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
     BINGX_API_KEY = os.environ.get('BINGX_API_KEY', '').strip()
     BINGX_SECRET_KEY = os.environ.get('BINGX_SECRET_KEY', '').strip()
     TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
     TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '').strip()
-    
+
     print("========================================")
     print("⚡ SALA SEGNALI PRO • BINGX LIVE SYNC ⚡")
     print(f"🔹 BingX API Key: {'CONFIGURATA ✅' if BINGX_API_KEY else 'NON RILEVATA (Paper Mode)'}")
     print("========================================")
 
+
 load_render_environment()
 
 BINGX_BASE_URL = "https://open-api.bingx.com"
 STATE_FILE = "autotrade_state.json"
+
 
 def get_saved_autotrade():
     if os.path.exists(STATE_FILE):
@@ -38,12 +41,14 @@ def get_saved_autotrade():
             pass
     return False
 
+
 def save_autotrade(status):
     try:
         with open(STATE_FILE, "w") as f:
             json.dump({"active": status}, f)
     except Exception as e:
         print(f"Errore salvataggio stato trade: {e}")
+
 
 auto_trade_active = get_saved_autotrade()
 execution_history = []
@@ -63,6 +68,7 @@ BINGX_SYMBOL_ALIASES = {
 }
 
 BINGX_CONTRACTS_CACHE = {"ts": 0, "map": {}}
+
 
 def get_bingx_contract_specs():
     now = time.time()
@@ -86,6 +92,7 @@ def get_bingx_contract_specs():
         pass
     return specs
 
+
 def resolve_bingx_symbol(symbol):
     clean = symbol.replace("-", "").upper()
     candidates = BINGX_SYMBOL_ALIASES.get(clean, [f"{clean.replace('USDT', '')}-USDT"])
@@ -94,6 +101,7 @@ def resolve_bingx_symbol(symbol):
         if c in specs:
             return c, specs[c]["pricePrecision"]
     return candidates[0], None
+
 
 def get_market_session_status(category):
     now_utc = datetime.now(timezone.utc)
@@ -114,13 +122,16 @@ def get_market_session_status(category):
             return {"status": "APERTO", "is_open": True, "hours": "NYSE/NASDAQ: 14:30 - 21:00 UTC", "badge_color": "#00ff66"}
         return {"status": "CHIUSO (Fuori Orario)", "is_open": False, "hours": "NYSE/NASDAQ: 14:30 - 21:00 UTC", "badge_color": "#ff1e42"}
 
+
 def get_exchange_mode():
     if not BINGX_API_KEY or not BINGX_SECRET_KEY:
         return "PAPER PROP-DESK (BINGX SYNC ACTIVE)"
     return "🔴 BINGX LIVE REALE (BINGX SYNC ACTIVE)"
 
+
 def sign_bingx_request(params_str):
     return hmac.new(BINGX_SECRET_KEY.encode('utf-8'), params_str.encode('utf-8'), hashlib.sha256).hexdigest()
+
 
 def fetch_bingx_real_positions():
     global execution_history
@@ -138,31 +149,46 @@ def fetch_bingx_real_positions():
     query_string = f"timestamp={timestamp}"
     signature = sign_bingx_request(query_string)
     try:
-        res = requests.get(f"{BINGX_BASE_URL}/openApi/swap/v2/user/positions?{query_string}&signature={signature}", headers={"X-BX-APIKEY": BINGX_API_KEY}, timeout=4.0).json()
+        res = requests.get(
+            f"{BINGX_BASE_URL}/openApi/swap/v2/user/positions?{query_string}&signature={signature}",
+            headers={"X-BX-APIKEY": BINGX_API_KEY},
+            timeout=4.0,
+        ).json()
         if res.get("code") == 0 and "data" in res:
             real_pos_list = []
             for p in res["data"]:
                 amt = float(p.get("positionAmt", 0))
                 if amt != 0:
                     sym = p.get("symbol", "").replace("-", "")
-                    side = "BUY" if p.get("positionSide") == "LONG" else ("SELL" if p.get("positionSide") == "SHORT" else ("BUY" if amt > 0 else "SELL"))
+                    side = (
+                        "BUY"
+                        if p.get("positionSide") == "LONG"
+                        else ("SELL" if p.get("positionSide") == "SHORT" else ("BUY" if amt > 0 else "SELL"))
+                    )
                     entry_p = float(p.get("avgPrice", 0))
                     size_val = abs(amt)
                     fee_val = float(p.get("fee", 0.0))
                     if fee_val == 0.0:
                         fee_val = round((size_val * entry_p) * 0.0005, 4)
-                        
+
                     real_pos_list.append({
-                        "symbol": sym, "name": p.get("symbol", ""), "action": side,
-                        "entry": entry_p, "current_price": entry_p,
-                        "size": size_val, "leverage": f"Isolata {p.get('leverage', 8)}x",
+                        "symbol": sym,
+                        "name": p.get("symbol", ""),
+                        "action": side,
+                        "entry": entry_p,
+                        "current_price": entry_p,
+                        "size": size_val,
+                        "leverage": f"Isolata {p.get('leverage', 8)}x",
                         "margin": float(p.get("initialMargin", 0)),
                         "fee": fee_val,
-                        "unrealized_pnl": round(float(p.get('unrealizedProfit', 0)), 2), "status": "OPEN"
+                        "unrealized_pnl": round(float(p.get('unrealizedProfit', 0)), 2),
+                        "status": "OPEN",
                     })
             return real_pos_list
-    except Exception: pass
+    except Exception:
+        pass
     return [h for h in execution_history if h.get("status") == "OPEN"]
+
 
 def sync_bingx_closed_history():
     global execution_history
@@ -172,7 +198,11 @@ def sync_bingx_closed_history():
     query_string = f"incomeType=REALIZED_PNL&limit=50&timestamp={timestamp}"
     signature = sign_bingx_request(query_string)
     try:
-        res = requests.get(f"{BINGX_BASE_URL}/openApi/swap/v2/user/income?{query_string}&signature={signature}", headers={"X-BX-APIKEY": BINGX_API_KEY}, timeout=4.0).json()
+        res = requests.get(
+            f"{BINGX_BASE_URL}/openApi/swap/v2/user/income?{query_string}&signature={signature}",
+            headers={"X-BX-APIKEY": BINGX_API_KEY},
+            timeout=4.0,
+        ).json()
         if res.get("code") == 0 and "data" in res:
             for inc in res["data"]:
                 pnl_val = float(inc.get("income", 0.0))
@@ -180,7 +210,7 @@ def sync_bingx_closed_history():
                 date_str = datetime.fromtimestamp(trade_time).strftime("%Y-%m-%d")
                 month_str = datetime.fromtimestamp(trade_time).strftime("%Y-%m")
                 trade_id = f"BINGX-{inc.get('tranId', int(trade_time))}"
-                
+
                 if not any(h.get('id') == trade_id for h in execution_history):
                     execution_history.append({
                         "id": trade_id,
@@ -195,10 +225,11 @@ def sync_bingx_closed_history():
                         "realized_pnl": round(pnl_val, 4),
                         "status": "CLOSED",
                         "date": date_str,
-                        "month": month_str
+                        "month": month_str,
                     })
     except Exception as e:
         print(f"Errore sync storico BingX: {e}")
+
 
 def execute_verified_order(symbol, name, action, entry, size, leverage, margin, sl, tp1):
     global execution_history
@@ -208,25 +239,46 @@ def execute_verified_order(symbol, name, action, entry, size, leverage, margin, 
             bx_symbol, _ = resolve_bingx_symbol(symbol)
             pos_side = "LONG" if action == "BUY" else "SHORT"
             params = {
-                "symbol": bx_symbol, "side": action, "positionSide": pos_side,
-                "type": "MARKET", "quantity": size, "timestamp": timestamp,
+                "symbol": bx_symbol,
+                "side": action,
+                "positionSide": pos_side,
+                "type": "MARKET",
+                "quantity": size,
+                "timestamp": timestamp,
                 "takeProfit": json.dumps({"type": "TAKE_PROFIT_MARKET", "stopPrice": tp1}),
-                "stopLoss": json.dumps({"type": "STOP_MARKET", "stopPrice": sl})
+                "stopLoss": json.dumps({"type": "STOP_MARKET", "stopPrice": sl}),
             }
             query_string = "&".join([f"{k}={v}" for k, v in sorted(params.items())])
             signature = sign_bingx_request(query_string)
-            requests.post(f"{BINGX_BASE_URL}/openApi/swap/v2/trade/order?{query_string}&signature={signature}", headers={"X-BX-APIKEY": BINGX_API_KEY}, timeout=3.0)
-        except Exception: pass
+            requests.post(
+                f"{BINGX_BASE_URL}/openApi/swap/v2/trade/order?{query_string}&signature={signature}",
+                headers={"X-BX-APIKEY": BINGX_API_KEY},
+                timeout=3.0,
+            )
+        except Exception:
+            pass
 
     if not any(h['symbol'] == symbol and h['status'] == 'OPEN' for h in execution_history):
         notional = size * entry
         est_fee = round(notional * 0.0005, 4)
         order_record = {
-            "id": f"ORD-{int(time.time()*1000)}", "symbol": symbol, "name": name, "action": action,
-            "entry": entry, "size": size, "leverage": leverage, "margin": margin,
-            "sl": sl, "tp1": tp1, "fee": est_fee, "unrealized_pnl": 0.0, "status": "OPEN", "opened_at": datetime.now().strftime("%H:%M:%S")
+            "id": f"ORD-{int(time.time()*1000)}",
+            "symbol": symbol,
+            "name": name,
+            "action": action,
+            "entry": entry,
+            "size": size,
+            "leverage": leverage,
+            "margin": margin,
+            "sl": sl,
+            "tp1": tp1,
+            "fee": est_fee,
+            "unrealized_pnl": 0.0,
+            "status": "OPEN",
+            "opened_at": datetime.now().strftime("%H:%M:%S"),
         }
         execution_history.insert(0, order_record)
+
 
 COMMODITY_FALLBACK_PRICES = {
     'XAGUSDT': 41.66,
@@ -238,12 +290,14 @@ COMMODITY_FALLBACK_PRICES = {
     'USDJPY': 159.16,
 }
 
+
 def safe_float(val, default=0.0):
     try:
         f = float(val)
         return default if (np.isnan(f) or not np.isfinite(f)) else f
     except Exception:
         return default
+
 
 def get_live_asset_price(symbol, bingx_prices=None):
     clean_sym = symbol.replace("-", "").upper()
@@ -253,7 +307,11 @@ def get_live_asset_price(symbol, bingx_prices=None):
     candidates = BINGX_SYMBOL_ALIASES.get(clean_sym, [f"{clean_sym.replace('USDT', '')}-USDT"])
     for bx_symbol in candidates:
         try:
-            r = requests.get(f"{BINGX_BASE_URL}/openApi/swap/v2/quote/ticker", params={"symbol": bx_symbol}, timeout=2.5).json()
+            r = requests.get(
+                f"{BINGX_BASE_URL}/openApi/swap/v2/quote/ticker",
+                params={"symbol": bx_symbol},
+                timeout=2.5,
+            ).json()
             if r.get("code") == 0 and "data" in r:
                 t = r["data"][0] if isinstance(r["data"], list) and len(r["data"]) > 0 else r["data"]
                 p = float(t.get("lastPrice", 0))
@@ -269,9 +327,11 @@ def get_live_asset_price(symbol, bingx_prices=None):
 
     return 0.0
 
+
 @app.route('/')
 def home():
     return render_template('index.html')
+
 
 @app.route('/api/live-ticker/<symbol>', methods=['GET'])
 def get_live_ticker(symbol):
@@ -282,23 +342,35 @@ def get_live_ticker(symbol):
                 "success": True,
                 "symbol": symbol,
                 "lastPrice": price,
-                "timestamp": int(time.time() * 1000)
+                "timestamp": int(time.time() * 1000),
             }), 200
         return jsonify({"success": False, "error": "Prezzo non disponibile"}), 404
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+
 @app.route('/api/autotrade/toggle', methods=['POST'])
 def toggle_autotrade():
     global auto_trade_active
-    auto_trade_active = not auto_trade_active if not request.json or 'enabled' not in request.json else bool(request.json['enabled'])
+    auto_trade_active = (
+        not auto_trade_active
+        if not request.json or 'enabled' not in request.json
+        else bool(request.json['enabled'])
+    )
     save_autotrade(auto_trade_active)
     return jsonify({"auto_trade": auto_trade_active, "mode": get_exchange_mode()})
+
 
 @app.route('/api/autotrade/status', methods=['GET'])
 def get_autotrade_status():
     sync_bingx_closed_history()
-    return jsonify({"auto_trade": auto_trade_active, "mode": get_exchange_mode(), "positions": fetch_bingx_real_positions(), "history": execution_history[:20]})
+    return jsonify({
+        "auto_trade": auto_trade_active,
+        "mode": get_exchange_mode(),
+        "positions": fetch_bingx_real_positions(),
+        "history": execution_history[:20],
+    })
+
 
 @app.route('/api/autotrade/close', methods=['POST'])
 def close_position():
@@ -315,6 +387,7 @@ def close_position():
             session_realized_pnl += pnl
             return jsonify({"success": True})
     return jsonify({"success": False}), 404
+
 
 @app.route('/api/live-prices', methods=['GET'])
 def get_live_prices():
@@ -335,17 +408,18 @@ def get_live_prices():
         pass
     return jsonify({})
 
+
 @app.route('/api/analytics/performance', methods=['GET'])
 def get_performance_analytics():
     global execution_history
     sync_bingx_closed_history()
     today_str = datetime.now().strftime("%Y-%m-%d")
     current_month_str = datetime.now().strftime("%Y-%m")
-    
+
     closed_trades = [h for h in execution_history if h.get("status") == "CLOSED"]
     today_trades = [h for h in closed_trades if h.get("date") == today_str]
     month_trades = [h for h in closed_trades if h.get("month") == current_month_str]
-    
+
     def calc_stats(trades):
         total = len(trades)
         wins = [t for t in trades if t.get("realized_pnl", 0) > 0]
@@ -354,15 +428,45 @@ def get_performance_analytics():
         loss_pct = round((len(losses) / total * 100), 1) if total > 0 else 0.0
         won_amt = sum(t.get("realized_pnl", 0) for t in wins)
         lost_amt = sum(t.get("realized_pnl", 0) for t in losses)
-        return total, len(wins), len(losses), win_pct, loss_pct, round(won_amt, 2), round(lost_amt, 2), round(won_amt + lost_amt, 2)
+        return (
+            total,
+            len(wins),
+            len(losses),
+            win_pct,
+            loss_pct,
+            round(won_amt, 2),
+            round(lost_amt, 2),
+            round(won_amt + lost_amt, 2),
+        )
 
     t_tot, t_w, t_l, t_wp, t_lp, t_won, t_lost, t_net = calc_stats(today_trades)
     m_tot, m_w, m_l, m_wp, m_lp, m_won, m_lost, m_net = calc_stats(month_trades)
 
     return jsonify({
-        "daily": {"date": today_str, "total_trades": t_tot, "wins": t_w, "losses": t_l, "win_pct": t_wp, "loss_pct": t_lp, "won_amount": t_won, "lost_amount": t_lost, "net_pnl": t_net},
-        "monthly": {"month": current_month_str, "total_trades": m_tot, "wins": m_w, "losses": m_l, "win_pct": m_wp, "loss_pct": m_lp, "won_amount": m_won, "lost_amount": m_lost, "net_pnl": m_net}
+        "daily": {
+            "date": today_str,
+            "total_trades": t_tot,
+            "wins": t_w,
+            "losses": t_l,
+            "win_pct": t_wp,
+            "loss_pct": t_lp,
+            "won_amount": t_won,
+            "lost_amount": t_lost,
+            "net_pnl": t_net,
+        },
+        "monthly": {
+            "month": current_month_str,
+            "total_trades": m_tot,
+            "wins": m_w,
+            "losses": m_l,
+            "win_pct": m_wp,
+            "loss_pct": m_lp,
+            "won_amount": m_won,
+            "lost_amount": m_lost,
+            "net_pnl": m_net,
+        },
     })
+
 
 @app.route('/api/telemetry', methods=['GET'])
 def get_telemetry():
@@ -371,17 +475,23 @@ def get_telemetry():
         "scans_count": len(scans_telemetry),
         "total_executions": len([h for h in execution_history if h.get("status") == "OPEN"]),
         "session_pnl": round(session_realized_pnl, 2),
-        "telemetry_logs": list(scans_telemetry.values())[-15:]
+        "telemetry_logs": list(scans_telemetry.values())[-15:],
     })
+
 
 def fetch_all_markets():
     return {
         "Criptovalute Globali": [
-            {'id': 'BTCUSDT', 'name': '₿ Bitcoin'}, {'id': 'ETHUSDT', 'name': 'Ξ Ethereum'},
-            {'id': 'SOLUSDT', 'name': '🟣 Solana'}, {'id': 'XRPUSDT', 'name': '✕ Ripple'},
-            {'id': 'BNBUSDT', 'name': '🟡 BNB'}, {'id': 'ADAUSDT', 'name': '₳ Cardano'},
-            {'id': 'DOGEUSDT', 'name': '🐕 Dogecoin'}, {'id': 'AVAXUSDT', 'name': '🔺 Avalanche'},
-            {'id': 'LINKUSDT', 'name': '🔗 Chainlink'}, {'id': 'SUIUSDT', 'name': '💧 Sui'}
+            {'id': 'BTCUSDT', 'name': '₿ Bitcoin'},
+            {'id': 'ETHUSDT', 'name': 'Ξ Ethereum'},
+            {'id': 'SOLUSDT', 'name': '🟣 Solana'},
+            {'id': 'XRPUSDT', 'name': '✕ Ripple'},
+            {'id': 'BNBUSDT', 'name': '🟡 BNB'},
+            {'id': 'ADAUSDT', 'name': '₳ Cardano'},
+            {'id': 'DOGEUSDT', 'name': '🐕 Dogecoin'},
+            {'id': 'AVAXUSDT', 'name': '🔺 Avalanche'},
+            {'id': 'LINKUSDT', 'name': '🔗 Chainlink'},
+            {'id': 'SUIUSDT', 'name': '💧 Sui'},
         ],
         "Materie Prime & Forex": [
             {'id': 'PAXGUSDT', 'name': '🥇 Oro (Gold)'},
@@ -391,14 +501,18 @@ def fetch_all_markets():
             {'id': 'COPPERUSDT', 'name': '🥉 Rame (Copper)'},
             {'id': 'GBPUSDT', 'name': '💷 GBP/USD'},
             {'id': 'EURUSDT', 'name': '💶 EUR/USD'},
-            {'id': 'USDJPY', 'name': '🇯🇵 USD/JPY'}
+            {'id': 'USDJPY', 'name': '🇯🇵 USD/JPY'},
         ],
         "Azioni & Indici Globali": [
-            {'id': 'AAPLUSDT', 'name': '🍏 Apple Inc.'}, {'id': 'TSLAUSDT', 'name': '🚗 Tesla Inc.'},
-            {'id': 'NVDAUSDT', 'name': '💻 Nvidia Corp.'}, {'id': 'AMZNUSDT', 'name': '📦 Amazon'},
-            {'id': 'MSFTUSDT', 'name': '🪟 Microsoft'}, {'id': 'GOOGLUSDT', 'name': '🔍 Alphabet (Google)'}
-        ]
+            {'id': 'AAPLUSDT', 'name': '🍏 Apple Inc.'},
+            {'id': 'TSLAUSDT', 'name': '🚗 Tesla Inc.'},
+            {'id': 'NVDAUSDT', 'name': '💻 Nvidia Corp.'},
+            {'id': 'AMZNUSDT', 'name': '📦 Amazon'},
+            {'id': 'MSFTUSDT', 'name': '🪟 Microsoft'},
+            {'id': 'GOOGLUSDT', 'name': '🔍 Alphabet (Google)'},
+        ],
     }
+
 
 def build_synthetic_klines_from_price(base_price, seed_key, bars=60):
     rng = np.random.default_rng(abs(hash(seed_key)) % (2**32))
@@ -416,8 +530,12 @@ def build_synthetic_klines_from_price(base_price, seed_key, bars=60):
 
     now_ms = int(time.time() * 1000)
     times = [now_ms - (bars - 1 - i) * 60000 for i in range(bars)]
-    rows = [[times[i], float(opens[i]), float(highs[i]), float(lows[i]), float(closes[i]), float(volumes[i])] for i in range(bars)]
+    rows = [
+        [times[i], float(opens[i]), float(highs[i]), float(lows[i]), float(closes[i]), float(volumes[i])]
+        for i in range(bars)
+    ]
     return pd.DataFrame(rows, columns=['Open_time', 'Open', 'High', 'Low', 'Close', 'Volume'])
+
 
 def fetch_market_bundle(symbol, interval):
     clean = symbol.replace("-", "").upper()
@@ -426,16 +544,32 @@ def fetch_market_bundle(symbol, interval):
     for bx_symbol in candidates:
         try:
             url = f"{BINGX_BASE_URL}/openApi/swap/v3/quote/klines"
-            res = requests.get(url, params={"symbol": bx_symbol, "interval": interval, "limit": 60}, timeout=3.0).json()
+            res = requests.get(
+                url, params={"symbol": bx_symbol, "interval": interval, "limit": 60}, timeout=3.0
+            ).json()
             if res.get("code") == 0 and "data" in res:
                 klines = res["data"]
                 if isinstance(klines, list) and len(klines) > 20:
                     rows = []
                     for k in klines:
                         if isinstance(k, list):
-                            rows.append([k[0], float(k[1]), float(k[2]), float(k[3]), float(k[4]), float(k[5])])
+                            rows.append([
+                                k[0],
+                                float(k[1]),
+                                float(k[2]),
+                                float(k[3]),
+                                float(k[4]),
+                                float(k[5]),
+                            ])
                         elif isinstance(k, dict):
-                            rows.append([k.get('time', 0), float(k.get('open', 0)), float(k.get('high', 0)), float(k.get('low', 0)), float(k.get('close', 0)), float(k.get('volume', 0))])
+                            rows.append([
+                                k.get('time', 0),
+                                float(k.get('open', 0)),
+                                float(k.get('high', 0)),
+                                float(k.get('low', 0)),
+                                float(k.get('close', 0)),
+                                float(k.get('volume', 0)),
+                            ])
                     df = pd.DataFrame(rows, columns=['Open_time', 'Open', 'High', 'Low', 'Close', 'Volume'])
                     return df, float(df['Close'].iloc[-1])
         except Exception:
@@ -448,8 +582,8 @@ def fetch_market_bundle(symbol, interval):
 
     return None, 0.0
 
+
 ASSET_FORECASTS = {
-    # Criptovalute
     'BTCUSDT': "📊 [Forecast Nov 2026] BTC intorno a 63.735 $ con fase correttiva di breve termine: attenzione a rimbalzi tecnici dai supporti e possibili test in area 60.000-62.000 $",
     'ETHUSDT': "📊 [Forecast Nov 2026] ETH in test dei supporti chiave in area $1.700-$1.750 con possibile reazione direzionale sui livelli",
     'SOLUSDT': "📊 [Forecast Nov 2026] SOL ad alta beta: volatilità marcata al seguito di BTC/ETH, reazioni rapide su supporti e resistenze intraday",
@@ -460,7 +594,6 @@ ASSET_FORECASTS = {
     'AVAXUSDT': "📊 [Forecast Nov 2026] AVAX sensibile ai flussi layer-1 e alla direzione generale del mercato crypto",
     'LINKUSDT': "📊 [Forecast Nov 2026] LINK monitorato sulle aree di domanda/offerta con movimenti impulsivi",
     'SUIUSDT': "📊 [Forecast Nov 2026] SUI ad alta reattività direzionale: privilegiare conferme di volume prima dell'ingresso",
-    # Materie Prime & Valute (Forex)
     'PAXGUSDT': "📊 [Forecast Nov 2026] Oro (PAXG) sostenuto dalla domanda rifugio e dai tassi reali: reazioni affidabili sui livelli",
     'XAGUSDT': "📊 [Forecast Nov 2026] Argento (XAG) con maggiore volatilità percentuale rispetto all'oro e movimenti impulsivi sui dati macro",
     'WTIUSDT': "📊 [Forecast Nov 2026] Petrolio WTI sensibile a scorte energetiche, domanda globale e tensioni geopolitiche",
@@ -469,7 +602,6 @@ ASSET_FORECASTS = {
     'GBPUSDT': "📊 [Forecast Nov 2026] GBP/USD guidato dal differenziale tassi BoE/Fed e dai dati macro UK/USA",
     'EURUSDT': "📊 [Forecast Nov 2026] EUR/USD sensibile alle indicazioni BCE/Fed, inflazione dell'Eurozona e flussi sul dollaro USA",
     'USDJPY': "📊 [Forecast Nov 2026] USD/JPY influenzato dai rendimenti USA, politica monetaria BoJ e flussi risk-on/risk-off",
-    # Azioni & Indici Globali
     'AAPLUSDT': "📊 [Forecast Nov 2026] Apple (AAPL) monitorata su trend tech, flussi istituzionali e livelli di supporto/resistenza",
     'TSLAUSDT': "📊 [Forecast Nov 2026] Tesla (TSLA) ad elevata volatilità intraday con ampie escursioni direzionali",
     'NVDAUSDT': "📊 [Forecast Nov 2026] Nvidia (NVDA) trainata dal comparto AI/semiconduttori con forte momentum direzionale",
@@ -477,6 +609,7 @@ ASSET_FORECASTS = {
     'MSFTUSDT': "📊 [Forecast Nov 2026] Microsoft (MSFT) con andamento istituzionale legato al settore enterprise/AI",
     'GOOGLUSDT': "📊 [Forecast Nov 2026] Alphabet (GOOGL) osservata su flussi big-tech e reazioni sui livelli tecnici",
 }
+
 
 def calculate_setup(df, current_price, symbol, balance, risk_pct, rsi_buy_min, rsi_buy_max, rsi_sell_min, rsi_sell_max, sl_m, tp_m, timeframe, profile, category, is_open):
     close = df['Close']
@@ -645,7 +778,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, rsi_buy_min, r
 
     forecast_table = ASSET_FORECASTS.get(
         symbol,
-        f"📊 [Forecast Nov 2026] Monitoraggio globale {symbol} ({category}) con controllo volatilità e rischio"
+        f"📊 [Forecast Nov 2026] Monitoraggio globale {symbol} ({category}) con controllo volatilità e rischio",
     )
 
     advisor_msg = f"{forecast_table} | Anti-Fakeout ON | Leva Consigliata: {lev_int}x Isolata | Net PnL stimato: +${expected_net_profit}"
@@ -664,15 +797,33 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, rsi_buy_min, r
         advisor_color = "#00ff66"
 
     return {
-        "action": action, "ai_score": f"{score}%", "sentiment": sent, "sentiment_color": col,
-        "inversion": inv, "entry": entry, "sl": sl, "tp1": tp1, "roi_pct": roi_pct,
-        "target_rialzista": target_rialzista, "target_ribassista": target_ribassista, "duration": duration,
-        "rrr": round(tp_dist / sl_dist, 2) if sl_dist > 0 else 0.0, "rsi": round(rsi, 1),
-        "size": pos_size, "leverage": f"Isolata {lev_int}x", "margin": margin, "decimals": decimals,
-        "sl_dist": round(sl_dist, decimals + 2), "tp_dist": round(tp_dist, decimals + 2),
-        "roundtrip_fee": roundtrip_fee, "expected_net": expected_net_profit,
-        "advisor_status": advisor_status, "advisor_color": advisor_color, "advisor_msg": advisor_msg
+        "action": action,
+        "ai_score": f"{score}%",
+        "sentiment": sent,
+        "sentiment_color": col,
+        "inversion": inv,
+        "entry": entry,
+        "sl": sl,
+        "tp1": tp1,
+        "roi_pct": roi_pct,
+        "target_rialzista": target_rialzista,
+        "target_ribassista": target_ribassista,
+        "duration": duration,
+        "rrr": round(tp_dist / sl_dist, 2) if sl_dist > 0 else 0.0,
+        "rsi": round(rsi, 1),
+        "size": pos_size,
+        "leverage": f"Isolata {lev_int}x",
+        "margin": margin,
+        "decimals": decimals,
+        "sl_dist": round(sl_dist, decimals + 2),
+        "tp_dist": round(tp_dist, decimals + 2),
+        "roundtrip_fee": roundtrip_fee,
+        "expected_net": expected_net_profit,
+        "advisor_status": advisor_status,
+        "advisor_color": advisor_color,
+        "advisor_msg": advisor_msg,
     }
+
 
 @app.route('/api/signals', methods=['GET'])
 def get_signals():
@@ -683,13 +834,16 @@ def get_signals():
         risk = safe_float(request.args.get('risk', 1.0).replace(',', '.'), 1.0)
         profile = request.args.get('profile', 'balanced')
 
-        if profile == 'conservative': r_b_min, r_b_max, r_s_min, r_s_max, sl_m, tp_m = 30.0, 75.0, 25.0, 70.0, 1.5, 3.5
-        elif profile == 'aggressive': r_b_min, r_b_max, r_s_min, r_s_max, sl_m, tp_m = 40.0, 85.0, 15.0, 60.0, 0.5, 1.2
-        else: r_b_min, r_b_max, r_s_min, r_s_max, sl_m, tp_m = 35.0, 82.0, 18.0, 65.0, 1.0, 2.0
+        if profile == 'conservative':
+            r_b_min, r_b_max, r_s_min, r_s_max, sl_m, tp_m = 30.0, 75.0, 25.0, 70.0, 1.5, 3.5
+        elif profile == 'aggressive':
+            r_b_min, r_b_max, r_s_min, r_s_max, sl_m, tp_m = 40.0, 85.0, 15.0, 60.0, 0.5, 1.2
+        else:
+            r_b_min, r_b_max, r_s_min, r_s_max, sl_m, tp_m = 35.0, 82.0, 18.0, 65.0, 1.0, 2.0
 
         markets = fetch_all_markets()
         session_info = {cat: get_market_session_status(cat) for cat in markets.keys()}
-        
+
         all_prices = {}
         try:
             res = requests.get(f"{BINGX_BASE_URL}/openApi/swap/v2/quote/ticker", timeout=2.5).json()
@@ -697,7 +851,8 @@ def get_signals():
                 for item in res["data"]:
                     sym = item.get("symbol", "").replace("-", "")
                     all_prices[sym] = float(item.get("lastPrice", 0))
-        except Exception: pass
+        except Exception:
+            pass
 
         raw_signals = []
         target_assets = [(cat, a) for cat, assets in markets.items() for a in assets]
@@ -707,7 +862,7 @@ def get_signals():
             for future in as_completed(futures):
                 cat, a = futures[future]
                 df, live_price = future.result()
-                
+
                 if a['id'] in all_prices and all_prices[a['id']] > 0:
                     live_price = all_prices[a['id']]
                     if df is not None and not df.empty:
@@ -715,33 +870,69 @@ def get_signals():
 
                 if df is not None and not df.empty and live_price > 0:
                     sess = session_info[cat]
-                    res = calculate_setup(df, live_price, a['id'], balance, risk, r_b_min, r_b_max, r_s_min, r_s_max, sl_m, tp_m, timeframe, profile, cat, sess["is_open"])
+                    res = calculate_setup(
+                        df,
+                        live_price,
+                        a['id'],
+                        balance,
+                        risk,
+                        r_b_min,
+                        r_b_max,
+                        r_s_min,
+                        r_s_max,
+                        sl_m,
+                        tp_m,
+                        timeframe,
+                        profile,
+                        cat,
+                        sess["is_open"],
+                    )
+                    numeric_score = float(str(res.get("ai_score", "0")).replace("%", ""))
+                    if res["action"] not in ["BUY", "SELL"] or numeric_score < 80.0:
+                        continue
+
                     dec = res["decimals"]
-                    
                     sig_obj = {
-                        "id": f"{a['id']}_{res['action']}", "category": cat, "symbol": a['id'],
-                        "name": a['name'], "price": f"{live_price:.{dec}f}",
-                        "market_status": sess["status"], "market_hours": sess["hours"],
-                        "market_is_open": sess["is_open"], "market_badge_color": sess["badge_color"],
-                        **res
+                        "id": f"{a['id']}_{res['action']}",
+                        "category": cat,
+                        "symbol": a['id'],
+                        "name": a['name'],
+                        "price": f"{live_price:.{dec}f}",
+                        "market_status": sess["status"],
+                        "market_hours": sess["hours"],
+                        "market_is_open": sess["is_open"],
+                        "market_badge_color": sess["badge_color"],
+                        **res,
                     }
                     raw_signals.append(sig_obj)
 
                     if auto_trade_active and sess["is_open"] and res['action'] in ["BUY", "SELL"] and res['expected_net'] > 0:
-                        execute_verified_order(a['id'], a['name'], res['action'], res['entry'], res['size'], res['leverage'], res['margin'], res['sl'], res['tp1'])
+                        execute_verified_order(
+                            a['id'],
+                            a['name'],
+                            res['action'],
+                            res['entry'],
+                            res['size'],
+                            res['leverage'],
+                            res['margin'],
+                            res['sl'],
+                            res['tp1'],
+                        )
 
         unique_map = {sig['symbol']: sig for sig in raw_signals}
         signals = list(unique_map.values())
-        signals.sort(key=lambda x: float(x['ai_score'].replace('%','')), reverse=True)
+        signals.sort(key=lambda x: float(x['ai_score'].replace('%', '')), reverse=True)
 
         scans_telemetry[time.time()] = {
             "timestamp": datetime.now().strftime("%H:%M:%S"),
-            "scanned": len(signals), "status": "BINGX_WEB_FORECAST_SYNC"
+            "scanned": len(signals),
+            "status": "BINGX_PRECISE_SIGNALS_SYNC",
         }
 
         return jsonify({"sessions": session_info, "signals": signals})
     except Exception:
         return jsonify({"sessions": {}, "signals": []})
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
