@@ -3,6 +3,8 @@ import requests
 import pandas as pd
 import numpy as np
 import os
+import re
+import math
 import time
 import hmac
 import hashlib
@@ -70,8 +72,136 @@ EXACT_PRESETS = {
     ("1h", "aggressive"):    {"rsi_buy_min": 32.0, "rsi_buy_max": 75.0, "rsi_sell_min": 25.0, "rsi_sell_max": 68.0, "sl_m": 1.0, "tp_m": 2.2, "min_vol_ratio": 0.75, "min_score": 80.0},
 }
 
-FOREX_SYMBOLS = {'EURUSDT', 'GBPUSDT', 'USDJPY'}
-COMMODITY_SYMBOLS = {'PAXGUSDT', 'XAGUSDT', 'WTIUSDT', 'NATGASUSDT', 'COPPERUSDT'}
+FOREX_SYMBOLS = {'EURUSDT', 'GBPUSDT', 'USDJPY', 'AUDUSDT', 'EURJPY', 'USDCAD', 'USDCHF'}
+COMMODITY_SYMBOLS = {'PAXGUSDT', 'XAGUSDT', 'SILVERXAGUSDT', 'GOLDXAUUSDT', 'WTIUSDT', 'BRENTUSDT', 'NATGASUSDT', 'COPPERUSDT'}
+
+# Nomi BingX esatti & candidati per tutti i mercati
+BINGX_EXACT_NAME_MAP = {
+    # Materie Prime
+    "SILVER(XAG)": "SILVER(XAG)-USDT",
+    "SILVER(XAG)-USDT": "SILVER(XAG)-USDT",
+    "SILVER": "SILVER(XAG)-USDT",
+    "ARGENTO": "SILVER(XAG)-USDT",
+    "ARGENTO (SILVER)": "SILVER(XAG)-USDT",
+    "XAG": "SILVER(XAG)-USDT",
+    "XAG-USDT": "SILVER(XAG)-USDT",
+    "XAGUSDT": "SILVER(XAG)-USDT",
+    "SILVERXAGUSDT": "SILVER(XAG)-USDT",
+    "100XAG": "100SILVER(100XAG)-USDT",
+
+    "GOLD(XAU)": "GOLD(XAU)-USDT",
+    "GOLD(XAU)-USDT": "GOLD(XAU)-USDT",
+    "GOLD": "GOLD(XAU)-USDT",
+    "ORO": "GOLD(XAU)-USDT",
+    "XAU": "GOLD(XAU)-USDT",
+    "XAU-USDT": "GOLD(XAU)-USDT",
+    "XAUUSDT": "GOLD(XAU)-USDT",
+    "GOLDXAUUSDT": "GOLD(XAU)-USDT",
+    "PAXG": "PAXG-USDT",
+    "PAXG-USDT": "PAXG-USDT",
+    "PAXGUSDT": "PAXG-USDT",
+    "XAUT": "XAUT-USDT",
+    "XAUT-USDT": "XAUT-USDT",
+
+    "WTI": "WTI-USDT",
+    "WTI-USDT": "WTI-USDT",
+    "WTIUSDT": "WTI-USDT",
+    "USOIL": "WTI-USDT",
+    "USOIL-USDT": "WTI-USDT",
+    "OIL": "WTI-USDT",
+    "PETROLIO": "WTI-USDT",
+    "PETROLIO WTI": "WTI-USDT",
+    "BRENT": "BRENT-USDT",
+    "BRENT-USDT": "BRENT-USDT",
+    "NATGAS": "NATGAS-USDT",
+    "NATGAS-USDT": "NATGAS-USDT",
+    "NATGASUSDT": "NATGAS-USDT",
+    "GAS NATURALE": "NATGAS-USDT",
+    "COPPER": "COPPER-USDT",
+    "COPPER-USDT": "COPPER-USDT",
+    "COPPERUSDT": "COPPER-USDT",
+    "RAME (COPPER)": "COPPER-USDT",
+
+    # Forex
+    "EURUSD": "EURUSD-USDT",
+    "EUR/USD": "EURUSD-USDT",
+    "EURUSD-USDT": "EURUSD-USDT",
+    "EURUSDT": "EURUSD-USDT",
+    "GBPUSD": "GBPUSD-USDT",
+    "GBP/USD": "GBPUSD-USDT",
+    "GBPUSD-USDT": "GBPUSD-USDT",
+    "GBPUSDT": "GBPUSD-USDT",
+    "USDJPY": "USDJPY-USDT",
+    "USD/JPY": "USDJPY-USDT",
+    "USDJPY-USDT": "USDJPY-USDT",
+    "AUDUSD": "AUDUSD-USDT",
+    "AUD/USD": "AUDUSD-USDT",
+    "EURJPY": "EURJPY-USDT",
+    "EUR/JPY": "EURJPY-USDT",
+    "USDCAD": "USDCAD-USDT",
+    "USD/CAD": "USDCAD-USDT",
+    "USDCHF": "USDCHF-USDT",
+    "USD/CHF": "USDCHF-USDT",
+
+    # Azioni & Indici
+    "AAPL": "AAPL-USDT",
+    "AAPL-USDT": "AAPL-USDT",
+    "AAPLUSDT": "AAPL-USDT",
+    "APPLE INC.": "AAPL-USDT",
+    "TSLA": "TSLA-USDT",
+    "TSLA-USDT": "TSLA-USDT",
+    "TSLAUSDT": "TSLA-USDT",
+    "TESLA INC.": "TSLA-USDT",
+    "NVDA": "NVDA-USDT",
+    "NVDA-USDT": "NVDA-USDT",
+    "NVDAUSDT": "NVDA-USDT",
+    "NVIDIA CORP.": "NVDA-USDT",
+    "AMZN": "AMZN-USDT",
+    "AMZN-USDT": "AMZN-USDT",
+    "AMZNUSDT": "AMZN-USDT",
+    "AMAZON": "AMZN-USDT",
+    "MSFT": "MSFT-USDT",
+    "MSFT-USDT": "MSFT-USDT",
+    "MSFTUSDT": "MSFT-USDT",
+    "MICROSOFT": "MSFT-USDT",
+    "GOOGL": "GOOGL-USDT",
+    "GOOGL-USDT": "GOOGL-USDT",
+    "GOOGLUSDT": "GOOGL-USDT",
+    "ALPHABET (GOOGLE)": "GOOGL-USDT",
+    "SP500": "SP500-USDT",
+    "NASDAQ100": "NASDAQ100-USDT",
+    "DOWJONES": "DOWJONES-USDT",
+    "NIKKEI225": "NIKKEI225-USDT",
+}
+
+BINGX_SYMBOL_ALIASES = {
+    'PAXGUSDT': ['PAXG-USDT', 'GOLD(XAU)-USDT', 'XAUT-USDT', 'GOLD-USDT'],
+    'XAGUSDT': ['SILVER(XAG)-USDT', '100SILVER(100XAG)-USDT', 'XAG-USDT', 'SILVER-USDT'],
+    'SILVERXAGUSDT': ['SILVER(XAG)-USDT', '100SILVER(100XAG)-USDT', 'XAG-USDT'],
+    'GOLDXAUUSDT': ['GOLD(XAU)-USDT', 'PAXG-USDT', 'XAU-USDT'],
+    'WTIUSDT': ['WTI-USDT', 'USOIL-USDT', 'CRUDEOIL-USDT', 'OIL-USDT'],
+    'BRENTUSDT': ['BRENT-USDT', 'UKOIL-USDT'],
+    'NATGASUSDT': ['NATGAS-USDT', 'NGAS-USDT'],
+    'COPPERUSDT': ['COPPER-USDT', 'XCU-USDT'],
+    'EURUSDT': ['EURUSD-USDT', 'EUR-USD', 'EUR-USDT', 'NCSIFXEUR-USD'],
+    'EURUSD': ['EURUSD-USDT', 'EUR-USD', 'EUR-USDT'],
+    'GBPUSDT': ['GBPUSD-USDT', 'GBP-USD', 'GBP-USDT', 'NCSIFXGBP-USD'],
+    'GBPUSD': ['GBPUSD-USDT', 'GBP-USD', 'GBP-USDT'],
+    'USDJPY': ['USDJPY-USDT', 'USD-JPY', 'USDJPY-USDT', 'NCSIFXUSD-JPY'],
+    'AAPLUSDT': ['AAPL-USDT', 'AAPL'],
+    'TSLAUSDT': ['TSLA-USDT', 'TSLA'],
+    'NVDAUSDT': ['NVDA-USDT', 'NVDA'],
+    'AMZNUSDT': ['AMZN-USDT', 'AMZN'],
+    'MSFTUSDT': ['MSFT-USDT', 'MSFT'],
+    'GOOGLUSDT': ['GOOGL-USDT', 'GOOGL'],
+}
+
+BINGX_MIN_QTY = {
+    "DOGE-USDT": 35.0,
+    "XRP-USDT": 10.0,
+    "ADA-USDT": 10.0,
+    "TRX-USDT": 50.0,
+}
 
 
 def safe_float(val, default=0.0):
@@ -82,13 +212,41 @@ def safe_float(val, default=0.0):
         return default
 
 
+def canonicalize_symbol_key(raw_symbol, raw_name=""):
+    for cand in [raw_symbol, raw_name]:
+        txt = str(cand or "").strip().upper()
+        if not txt:
+            continue
+        if txt in BINGX_EXACT_NAME_MAP:
+            return BINGX_EXACT_NAME_MAP[txt].replace("-", "").upper()
+        compact = re.sub(r"\s+", "", txt)
+        if compact in BINGX_EXACT_NAME_MAP:
+            return BINGX_EXACT_NAME_MAP[compact].replace("-", "").upper()
+        paren = re.search(r"\(([A-Z0-9]+)\)", txt)
+        if paren:
+            inner = paren.group(1)
+            if inner in BINGX_EXACT_NAME_MAP:
+                return BINGX_EXACT_NAME_MAP[inner].replace("-", "").upper()
+            if "SILVER" in txt or "ARGENTO" in txt:
+                return "SILVER(XAG)USDT"
+            if "GOLD" in txt or "ORO" in txt:
+                return "GOLD(XAU)USDT"
+            return f"{inner}USDT"
+        cleaned = re.sub(r"[^A-Z0-9-]", "", txt)
+        if cleaned in BINGX_EXACT_NAME_MAP:
+            return BINGX_EXACT_NAME_MAP[cleaned].replace("-", "").upper()
+        if cleaned:
+            return cleaned.replace("-", "").upper()
+    return "BTCUSDT"
+
+
 def get_market_calibration_spec(symbol, category, current_price):
-    clean = symbol.replace("-", "").upper()
+    clean = canonicalize_symbol_key(symbol)
     if clean in FOREX_SYMBOLS:
         decimals = 3 if clean == 'USDJPY' or current_price >= 20 else 5
         min_sl_pct = 0.0015
         min_tp_vs_sl = 1.6
-    elif clean in COMMODITY_SYMBOLS:
+    elif clean in COMMODITY_SYMBOLS or "SILVER" in clean or "GOLD" in clean:
         decimals = 2 if current_price >= 10 else 4
         min_sl_pct = 0.0025
         min_tp_vs_sl = 1.6
@@ -109,6 +267,51 @@ def quantize_to_tick(price, decimals, tick_size=None):
         steps = round(price / tick_size)
         return round(steps * tick_size, decimals)
     return round(price, decimals)
+
+
+def align_tp_sl_to_price(action, ref_price, sl_val, tp_val, sl_m=1.2, tp_m=2.6, decimals=2):
+    side = str(action or "BUY").upper()
+    price = max(safe_float(ref_price, 0.0), 0.000001)
+    dec = max(0, min(8, int(decimals if decimals is not None else (2 if price >= 10 else 4))))
+    tick = 10 ** (-dec)
+
+    min_sl_dist = max(price * 0.004 * max(sl_m, 0.5), tick * 5)
+    min_tp_dist = max(price * 0.008 * max(tp_m, 0.8), tick * 10)
+
+    sl_out = safe_float(sl_val, 0.0)
+    tp_out = safe_float(tp_val, 0.0)
+
+    if side == "BUY":
+        if not (0 < sl_out < price - tick):
+            sl_out = price - min_sl_dist
+        if not (tp_out > price + tick):
+            tp_out = price + min_tp_dist
+    else:
+        if not (sl_out > price + tick):
+            sl_out = price + min_sl_dist
+        if not (0 < tp_out < price - tick):
+            tp_out = max(tick, price - min_tp_dist)
+
+    return quantize_to_tick(sl_out, dec, tick), quantize_to_tick(tp_out, dec, tick)
+
+
+def compute_order_quantity(bingx_symbol, price, requested_size, margin, lev_num):
+    safe_price = max(safe_float(price, 0.0), 0.000001)
+    safe_margin = max(safe_float(margin, 2.0), 2.0)
+    safe_lev = max(int(lev_num or 1), 1)
+    min_qty = BINGX_MIN_QTY.get(bingx_symbol.upper(), 0.0)
+
+    qty = safe_float(requested_size, 0.0)
+    if qty <= 0:
+        qty = (safe_margin * safe_lev) / safe_price
+    if min_qty > 0 and qty < min_qty:
+        qty = min_qty
+
+    if qty < 1:
+        return round(qty, 4)
+    if qty < 10:
+        return round(qty, 2)
+    return float(math.ceil(qty))
 
 
 def parse_leverage_number(leverage_str, default=5):
@@ -229,17 +432,6 @@ def detect_market_regime_and_advice(df, current_price, category, is_open, cfg):
     }
 
 
-BINGX_SYMBOL_ALIASES = {
-    'PAXGUSDT': ['PAXG-USDT', 'XAUT-USDT', 'GOLD-USDT'],
-    'XAGUSDT': ['XAG-USDT', 'SILVER-USDT'],
-    'WTIUSDT': ['WTI-USDT', 'USOIL-USDT', 'CRUDEOIL-USDT'],
-    'NATGASUSDT': ['NATGAS-USDT', 'NGAS-USDT'],
-    'COPPERUSDT': ['COPPER-USDT', 'XCU-USDT'],
-    'EURUSDT': ['EUR-USD', 'EUR-USDT', 'NCSIFXEUR-USD'],
-    'GBPUSDT': ['GBP-USD', 'GBP-USDT', 'NCSIFXGBP-USD'],
-    'USDJPY': ['USD-JPY', 'USDJPY-USDT', 'NCSIFXUSD-JPY'],
-}
-
 BINGX_CONTRACTS_CACHE = {"ts": 0, "map": {}}
 
 
@@ -249,10 +441,10 @@ def get_bingx_contract_specs():
         return BINGX_CONTRACTS_CACHE["map"]
     specs = {}
     try:
-        res = requests.get(f"{BINGX_BASE_URL}/openApi/swap/v2/quote/contracts", timeout=3.0).json()
+        res = requests.get(f"{BINGX_BASE_URL}/openApi/swap/v2/quote/contracts", timeout=3.5).json()
         if res.get("code") == 0 and isinstance(res.get("data"), list):
             for c in res["data"]:
-                sym = c.get("symbol", "")
+                sym = str(c.get("symbol", "")).strip()
                 if sym:
                     specs[sym] = {
                         "pricePrecision": int(c.get("pricePrecision", 4)),
@@ -266,13 +458,31 @@ def get_bingx_contract_specs():
     return specs
 
 
-def resolve_bingx_symbol(symbol):
-    clean = symbol.replace("-", "").upper()
-    candidates = BINGX_SYMBOL_ALIASES.get(clean, [f"{clean.replace('USDT', '')}-USDT"])
+def build_bingx_candidates(symbol, name=""):
+    clean = canonicalize_symbol_key(symbol, name)
+    exact_mapped = BINGX_EXACT_NAME_MAP.get(str(symbol or "").strip().upper()) or BINGX_EXACT_NAME_MAP.get(clean)
+    candidates = list(BINGX_SYMBOL_ALIASES.get(clean, []))
+    if exact_mapped and exact_mapped not in candidates:
+        candidates.insert(0, exact_mapped)
+    raw_up = str(symbol or "").strip().upper()
+    if raw_up and raw_up not in candidates:
+        candidates.append(raw_up)
+    default_pair = f"{clean.replace('USDT', '')}-USDT" if clean.endswith("USDT") else f"{clean}-USDT"
+    if default_pair not in candidates:
+        candidates.append(default_pair)
+    return candidates
+
+
+def resolve_bingx_symbol(symbol, name=""):
+    candidates = build_bingx_candidates(symbol, name)
     specs = get_bingx_contract_specs()
     for c in candidates:
         if c in specs:
             return c, specs[c]["pricePrecision"]
+    base_token = canonicalize_symbol_key(symbol, name).replace("USDT", "")
+    for sym, spec in specs.items():
+        if base_token and sym.upper().startswith(base_token) and sym.upper().endswith("-USDT"):
+            return sym, spec["pricePrecision"]
     return candidates[0], None
 
 
@@ -349,7 +559,8 @@ def fetch_bingx_real_positions():
             for p in res["data"]:
                 amt = float(p.get("positionAmt", 0))
                 if amt != 0:
-                    sym = p.get("symbol", "").replace("-", "")
+                    raw_bx_sym = p.get("symbol", "")
+                    sym = canonicalize_symbol_key(raw_bx_sym)
                     side = (
                         "BUY"
                         if p.get("positionSide") == "LONG"
@@ -363,7 +574,7 @@ def fetch_bingx_real_positions():
 
                     real_pos_list.append({
                         "symbol": sym,
-                        "name": p.get("symbol", ""),
+                        "name": raw_bx_sym,
                         "action": side,
                         "entry": entry_p,
                         "current_price": entry_p,
@@ -402,10 +613,11 @@ def sync_bingx_closed_history():
                 trade_id = f"BINGX-{inc.get('tranId', int(trade_time))}"
 
                 if not any(h.get('id') == trade_id for h in execution_history):
+                    raw_bx_sym = inc.get("symbol", "")
                     execution_history.append({
                         "id": trade_id,
-                        "symbol": inc.get("symbol", "").replace("-", ""),
-                        "name": inc.get("symbol", ""),
+                        "symbol": canonicalize_symbol_key(raw_bx_sym),
+                        "name": raw_bx_sym,
                         "action": "BUY" if pnl_val >= 0 else "SELL",
                         "entry": 0.0,
                         "size": 0.0,
@@ -421,17 +633,32 @@ def sync_bingx_closed_history():
         print(f"Errore sync storico BingX: {e}")
 
 
-def execute_verified_order(symbol, name, action, entry, size, leverage, margin, sl, tp1):
+def execute_verified_order(symbol, name, action, entry, size, leverage, margin, sl, tp1, params=None):
     global execution_history
+    cfg_params = params if isinstance(params, dict) else {}
     lev_num = parse_leverage_number(leverage, default=5)
     pos_side = "LONG" if action == "BUY" else "SHORT"
     bx_result = None
     bx_error = None
 
+    bx_symbol, bx_precision = resolve_bingx_symbol(symbol, name)
+    live_p = get_live_asset_price(symbol)
+    ref_price = live_p if live_p > 0 else safe_float(entry, 0.0)
+    dec = bx_precision if bx_precision is not None else (2 if ref_price >= 10 else 4)
+
+    aligned_sl, aligned_tp1 = align_tp_sl_to_price(
+        action=action,
+        ref_price=ref_price,
+        sl_val=sl,
+        tp_val=tp1,
+        sl_m=safe_float(cfg_params.get("sl_m"), 1.2),
+        tp_m=safe_float(cfg_params.get("tp_m"), 2.6),
+        decimals=dec,
+    )
+    safe_size = compute_order_quantity(bx_symbol, ref_price, size, margin, lev_num)
+
     if BINGX_API_KEY and BINGX_SECRET_KEY:
         try:
-            bx_symbol, _ = resolve_bingx_symbol(symbol)
-
             try:
                 bingx_signed_request("POST", "/openApi/swap/v2/trade/marginType", {
                     "symbol": bx_symbol,
@@ -454,24 +681,22 @@ def execute_verified_order(symbol, name, action, entry, size, leverage, margin, 
                 "side": "BUY" if action == "BUY" else "SELL",
                 "positionSide": pos_side,
                 "type": "MARKET",
-                "quantity": size,
+                "quantity": safe_size,
             }
 
-            if tp1 and safe_float(tp1) > 0:
-                tp_price = safe_float(tp1)
+            if aligned_tp1 > 0:
                 order_params["takeProfit"] = json.dumps({
                     "type": "TAKE_PROFIT_MARKET",
-                    "stopPrice": tp_price,
-                    "price": tp_price,
+                    "stopPrice": aligned_tp1,
+                    "price": aligned_tp1,
                     "workingType": "MARK_PRICE",
                 }, separators=(",", ":"))
 
-            if sl and safe_float(sl) > 0:
-                sl_price = safe_float(sl)
+            if aligned_sl > 0:
                 order_params["stopLoss"] = json.dumps({
                     "type": "STOP_MARKET",
-                    "stopPrice": sl_price,
-                    "price": sl_price,
+                    "stopPrice": aligned_sl,
+                    "price": aligned_sl,
                     "workingType": "MARK_PRICE",
                 }, separators=(",", ":"))
 
@@ -482,6 +707,9 @@ def execute_verified_order(symbol, name, action, entry, size, leverage, margin, 
                 bx_result = {
                     "orderId": order_obj.get("orderId", ""),
                     "symbol": bx_symbol,
+                    "sl": aligned_sl,
+                    "tp1": aligned_tp1,
+                    "quantity": safe_size,
                     "raw": res,
                 }
             else:
@@ -491,20 +719,22 @@ def execute_verified_order(symbol, name, action, entry, size, leverage, margin, 
             bx_error = str(e)
             print(f"[BingX Order Exception] {symbol}: {e}")
 
-    if not any(h.get('symbol') == symbol and h.get('status') == 'OPEN' for h in execution_history):
-        notional = size * entry
+    canonical_sym = canonicalize_symbol_key(symbol, name)
+    if not any(h.get('symbol') == canonical_sym and h.get('status') == 'OPEN' for h in execution_history):
+        notional = safe_size * ref_price
         est_fee = round(notional * 0.0005, 4)
         order_record = {
             "id": f"ORD-{int(time.time()*1000)}",
-            "symbol": symbol,
-            "name": name,
+            "symbol": canonical_sym,
+            "bingx_symbol": bx_symbol,
+            "name": f"{name} ({bx_symbol})" if bx_symbol not in str(name) else name,
             "action": action,
-            "entry": entry,
-            "size": size,
+            "entry": ref_price,
+            "size": safe_size,
             "leverage": f"Isolata {lev_num}x",
-            "margin": margin,
-            "sl": sl,
-            "tp1": tp1,
+            "margin": max(safe_float(margin, 2.0), 2.0),
+            "sl": aligned_sl,
+            "tp1": aligned_tp1,
             "fee": est_fee,
             "unrealized_pnl": 0.0,
             "status": "OPEN",
@@ -517,21 +747,26 @@ def execute_verified_order(symbol, name, action, entry, size, leverage, margin, 
 
 COMMODITY_FALLBACK_PRICES = {
     'XAGUSDT': 41.66,
+    'SILVERXAGUSDT': 41.66,
+    'GOLDXAUUSDT': 2650.0,
     'WTIUSDT': 83.12,
+    'BRENTUSDT': 86.40,
     'NATGASUSDT': 3.25,
     'COPPERUSDT': 5.50,
     'GBPUSDT': 1.3107,
+    'GBPUSD': 1.3107,
     'EURUSDT': 1.0980,
+    'EURUSD': 1.0980,
     'USDJPY': 159.16,
 }
 
 
 def get_live_asset_price(symbol, bingx_prices=None):
-    clean_sym = symbol.replace("-", "").upper()
+    clean_sym = canonicalize_symbol_key(symbol)
     if bingx_prices and clean_sym in bingx_prices and bingx_prices[clean_sym] > 0:
         return float(bingx_prices[clean_sym])
 
-    candidates = BINGX_SYMBOL_ALIASES.get(clean_sym, [f"{clean_sym.replace('USDT', '')}-USDT"])
+    candidates = build_bingx_candidates(symbol)
     for bx_symbol in candidates:
         try:
             r = requests.get(
@@ -571,10 +806,12 @@ def get_presets_info():
 def get_live_ticker(symbol):
     try:
         price = get_live_asset_price(symbol)
+        bx_sym, _ = resolve_bingx_symbol(symbol)
         if price > 0:
             return jsonify({
                 "success": True,
                 "symbol": symbol,
+                "bingx_symbol": bx_sym,
                 "lastPrice": price,
                 "timestamp": int(time.time() * 1000),
             }), 200
@@ -602,16 +839,19 @@ def execute_manual_trade():
     name = str(data.get("name", symbol)).strip()
     action = str(data.get("action", "")).strip().upper()
     entry = safe_float(data.get("entry"), 0.0)
-    size = safe_float(data.get("size"), 0.001)
+    size = safe_float(data.get("size"), 0.0)
     leverage = str(data.get("leverage", "Isolata 5x"))
-    margin = safe_float(data.get("margin"), 1.0)
+    margin = safe_float(data.get("margin"), 2.0)
     sl = safe_float(data.get("sl"), 0.0)
     tp1 = safe_float(data.get("tp1"), 0.0)
+    params = data.get("params") if isinstance(data.get("params"), dict) else {}
 
     if action not in ["BUY", "SELL"] or not symbol or entry <= 0:
         return jsonify({"success": False, "error": "Parametri ordine non validi"}), 400
 
-    bx_result, bx_error = execute_verified_order(symbol, name, action, entry, size, leverage, margin, sl, tp1)
+    bx_result, bx_error = execute_verified_order(
+        symbol, name, action, entry, size, leverage, margin, sl, tp1, params=params
+    )
 
     if BINGX_API_KEY and BINGX_SECRET_KEY and bx_error and not bx_result:
         return jsonify({
@@ -646,9 +886,9 @@ def get_autotrade_status():
 def close_position():
     global session_realized_pnl, execution_history
     data = request.get_json(silent=True) or {}
-    symbol = data.get('symbol')
+    symbol = canonicalize_symbol_key(data.get('symbol', ''))
     for h in execution_history:
-        if h['symbol'] == symbol and h['status'] == 'OPEN':
+        if canonicalize_symbol_key(h.get('symbol', '')) == symbol and h.get('status') == 'OPEN':
             h['status'] = 'CLOSED'
             pnl = h.get('unrealized_pnl', 0.0)
             h['realized_pnl'] = pnl
@@ -668,11 +908,17 @@ def get_live_prices():
             data = res["data"]
             if isinstance(data, list):
                 for item in data:
-                    sym = item.get("symbol", "").replace("-", "")
-                    prices[sym] = float(item.get("lastPrice", 0))
+                    raw_s = item.get("symbol", "")
+                    sym = canonicalize_symbol_key(raw_s)
+                    p = float(item.get("lastPrice", 0))
+                    prices[sym] = p
+                    prices[raw_s.replace("-", "").upper()] = p
             elif isinstance(data, dict):
-                sym = data.get("symbol", "").replace("-", "")
-                prices[sym] = float(data.get("lastPrice", 0))
+                raw_s = data.get("symbol", "")
+                sym = canonicalize_symbol_key(raw_s)
+                p = float(data.get("lastPrice", 0))
+                prices[sym] = p
+                prices[raw_s.replace("-", "").upper()] = p
             return jsonify(prices)
     except Exception:
         pass
@@ -752,34 +998,34 @@ def get_telemetry():
 def fetch_all_markets():
     return {
         "Criptovalute Globali": [
-            {'id': 'BTCUSDT', 'name': '₿ Bitcoin'},
-            {'id': 'ETHUSDT', 'name': 'Ξ Ethereum'},
-            {'id': 'SOLUSDT', 'name': '🟣 Solana'},
-            {'id': 'XRPUSDT', 'name': '✕ Ripple'},
-            {'id': 'BNBUSDT', 'name': '🟡 BNB'},
-            {'id': 'ADAUSDT', 'name': '₳ Cardano'},
-            {'id': 'DOGEUSDT', 'name': '🐕 Dogecoin'},
-            {'id': 'AVAXUSDT', 'name': '🔺 Avalanche'},
-            {'id': 'LINKUSDT', 'name': '🔗 Chainlink'},
-            {'id': 'SUIUSDT', 'name': '💧 Sui'},
+            {'id': 'BTCUSDT', 'name': '₿ Bitcoin (BTC-USDT)'},
+            {'id': 'ETHUSDT', 'name': 'Ξ Ethereum (ETH-USDT)'},
+            {'id': 'SOLUSDT', 'name': '🟣 Solana (SOL-USDT)'},
+            {'id': 'XRPUSDT', 'name': '✕ Ripple (XRP-USDT)'},
+            {'id': 'BNBUSDT', 'name': '🟡 BNB (BNB-USDT)'},
+            {'id': 'ADAUSDT', 'name': '₳ Cardano (ADA-USDT)'},
+            {'id': 'DOGEUSDT', 'name': '🐕 Dogecoin (DOGE-USDT)'},
+            {'id': 'AVAXUSDT', 'name': '🔺 Avalanche (AVAX-USDT)'},
+            {'id': 'LINKUSDT', 'name': '🔗 Chainlink (LINK-USDT)'},
+            {'id': 'SUIUSDT', 'name': '💧 Sui (SUI-USDT)'},
         ],
         "Materie Prime & Forex": [
-            {'id': 'PAXGUSDT', 'name': '🥇 Oro (Gold)'},
-            {'id': 'XAGUSDT', 'name': '🥈 Argento (Silver)'},
-            {'id': 'WTIUSDT', 'name': '🛢️ Petrolio WTI'},
-            {'id': 'NATGASUSDT', 'name': '🔥 Gas Naturale'},
-            {'id': 'COPPERUSDT', 'name': '🥉 Rame (Copper)'},
-            {'id': 'GBPUSDT', 'name': '💷 GBP/USD'},
-            {'id': 'EURUSDT', 'name': '💶 EUR/USD'},
-            {'id': 'USDJPY', 'name': '🇯🇵 USD/JPY'},
+            {'id': 'PAXGUSDT', 'name': '🥇 Oro (GOLD(XAU)-USDT)'},
+            {'id': 'XAGUSDT', 'name': '🥈 Argento (SILVER(XAG)-USDT)'},
+            {'id': 'WTIUSDT', 'name': '🛢️ Petrolio WTI (WTI-USDT)'},
+            {'id': 'NATGASUSDT', 'name': '🔥 Gas Naturale (NATGAS-USDT)'},
+            {'id': 'COPPERUSDT', 'name': '🥉 Rame (COPPER-USDT)'},
+            {'id': 'GBPUSDT', 'name': '💷 GBP/USD (GBPUSD-USDT)'},
+            {'id': 'EURUSDT', 'name': '💶 EUR/USD (EURUSD-USDT)'},
+            {'id': 'USDJPY', 'name': '🇯🇵 USD/JPY (USDJPY-USDT)'},
         ],
         "Azioni & Indici Globali": [
-            {'id': 'AAPLUSDT', 'name': '🍏 Apple Inc.'},
-            {'id': 'TSLAUSDT', 'name': '🚗 Tesla Inc.'},
-            {'id': 'NVDAUSDT', 'name': '💻 Nvidia Corp.'},
-            {'id': 'AMZNUSDT', 'name': '📦 Amazon'},
-            {'id': 'MSFTUSDT', 'name': '🪟 Microsoft'},
-            {'id': 'GOOGLUSDT', 'name': '🔍 Alphabet (Google)'},
+            {'id': 'AAPLUSDT', 'name': '🍏 Apple Inc. (AAPL-USDT)'},
+            {'id': 'TSLAUSDT', 'name': '🚗 Tesla Inc. (TSLA-USDT)'},
+            {'id': 'NVDAUSDT', 'name': '💻 Nvidia Corp. (NVDA-USDT)'},
+            {'id': 'AMZNUSDT', 'name': '📦 Amazon (AMZN-USDT)'},
+            {'id': 'MSFTUSDT', 'name': '🪟 Microsoft (MSFT-USDT)'},
+            {'id': 'GOOGLUSDT', 'name': '🔍 Alphabet (GOOGL-USDT)'},
         ],
     }
 
@@ -810,8 +1056,7 @@ def build_synthetic_klines_from_price(base_price, seed_key, bars=80):
 
 
 def fetch_market_bundle(symbol, interval):
-    clean = symbol.replace("-", "").upper()
-    candidates = BINGX_SYMBOL_ALIASES.get(clean, [f"{clean.replace('USDT','')}-USDT"])
+    candidates = build_bingx_candidates(symbol)
 
     for bx_symbol in candidates:
         try:
@@ -866,20 +1111,20 @@ ASSET_FORECASTS = {
     'AVAXUSDT': "📊 [Forecast Nov 2026] AVAX sensibile ai flussi layer-1 e alla direzione generale del mercato crypto",
     'LINKUSDT': "📊 [Forecast Nov 2026] LINK monitorato sulle aree di domanda/offerta con movimenti impulsivi",
     'SUIUSDT': "📊 [Forecast Nov 2026] SUI ad alta reattività direzionale: privilegiare conferme di volume prima dell'ingresso",
-    'PAXGUSDT': "📊 [Forecast Nov 2026] Oro (PAXG) sostenuto dalla domanda rifugio e dai tassi reali: reazioni affidabili sui livelli",
-    'XAGUSDT': "📊 [Forecast Nov 2026] Argento (XAG) con maggiore volatilità percentuale rispetto all'oro e movimenti impulsivi sui dati macro",
+    'PAXGUSDT': "📊 [Forecast Nov 2026] Oro (GOLD(XAU)-USDT / PAXG-USDT) sostenuto dalla domanda rifugio e dai tassi reali: reazioni affidabili sui livelli",
+    'XAGUSDT': "📊 [Forecast Nov 2026] Argento (SILVER(XAG)-USDT) con maggiore volatilità percentuale rispetto all'oro e movimenti impulsivi sui dati macro",
     'WTIUSDT': "📊 [Forecast Nov 2026] Petrolio WTI sensibile a scorte energetiche, domanda globale e tensioni geopolitiche",
     'NATGASUSDT': "📊 [Forecast Nov 2026] Gas Naturale ad altissima volatilità stagionale e meteorologica: gestione rigorosa del rischio",
     'COPPERUSDT': "📊 [Forecast Nov 2026] Rame (Copper) barometro della manifattura globale e della crescita industriale",
     'GBPUSDT': "📊 [Forecast Nov 2026] GBP/USD guidato dal differenziale tassi BoE/Fed e dai dati macro UK/USA",
     'EURUSDT': "📊 [Forecast Nov 2026] EUR/USD sensibile alle indicazioni BCE/Fed, inflazione dell'Eurozona e flussi sul dollaro USA",
     'USDJPY': "📊 [Forecast Nov 2026] USD/JPY influenzato dai rendimenti USA, politica monetaria BoJ e flussi risk-on/risk-off",
-    'AAPLUSDT': "📊 [Forecast Nov 2026] Apple (AAPL) monitorata su trend tech, flussi istituzionali e livelli di supporto/resistenza",
-    'TSLAUSDT': "📊 [Forecast Nov 2026] Tesla (TSLA) ad elevata volatilità intraday con ampie escursioni direzionali",
-    'NVDAUSDT': "📊 [Forecast Nov 2026] Nvidia (NVDA) trainata dal comparto AI/semiconduttori con forte momentum direzionale",
-    'AMZNUSDT': "📊 [Forecast Nov 2026] Amazon (AMZN) seguita su trend cloud/e-commerce e tenuta dei livelli tecnici chiave",
-    'MSFTUSDT': "📊 [Forecast Nov 2026] Microsoft (MSFT) con andamento istituzionale legato al settore enterprise/AI",
-    'GOOGLUSDT': "📊 [Forecast Nov 2026] Alphabet (GOOGL) osservata su flussi big-tech e reazioni sui livelli tecnici",
+    'AAPLUSDT': "📊 [Forecast Nov 2026] Apple (AAPL-USDT) monitorata su trend tech, flussi istituzionali e livelli di supporto/resistenza",
+    'TSLAUSDT': "📊 [Forecast Nov 2026] Tesla (TSLA-USDT) ad elevata volatilità intraday con ampie escursioni direzionali",
+    'NVDAUSDT': "📊 [Forecast Nov 2026] Nvidia (NVDA-USDT) trainata dal comparto AI/semiconduttori con forte momentum direzionale",
+    'AMZNUSDT': "📊 [Forecast Nov 2026] Amazon (AMZN-USDT) seguita su trend cloud/e-commerce e tenuta dei livelli tecnici chiave",
+    'MSFTUSDT': "📊 [Forecast Nov 2026] Microsoft (MSFT-USDT) con andamento istituzionale legato al settore enterprise/AI",
+    'GOOGLUSDT': "📊 [Forecast Nov 2026] Alphabet (GOOGL-USDT) osservata su flussi big-tech e reazioni sui livelli tecnici",
 }
 
 
@@ -1003,7 +1248,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
     else:
         action, score, sent, col = "NEUTRAL", 50.0, "FILTRATO / NO-TRADE", "#ffffff"
 
-    _, bx_precision = resolve_bingx_symbol(symbol)
+    bx_symbol, bx_precision = resolve_bingx_symbol(symbol)
     mkt_decimals, min_sl_pct, min_tp_vs_sl = get_market_calibration_spec(symbol, category, current_price)
     decimals = bx_precision if bx_precision is not None else mkt_decimals
     tick_size = 10 ** (-decimals)
@@ -1014,21 +1259,11 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
     entry = quantize_to_tick(current_price, decimals, tick_size)
 
     if action == "BUY":
-        sl = quantize_to_tick(entry - raw_sl_dist, decimals, tick_size)
-        tp1 = quantize_to_tick(entry + raw_tp_dist, decimals, tick_size)
-        if sl >= entry:
-            sl = quantize_to_tick(entry - tick_size * 5, decimals, tick_size)
-        if tp1 <= entry:
-            tp1 = quantize_to_tick(entry + tick_size * 10, decimals, tick_size)
+        sl, tp1 = align_tp_sl_to_price("BUY", entry, entry - raw_sl_dist, entry + raw_tp_dist, sl_m, tp_m, decimals)
         target_rialzista = quantize_to_tick(entry + abs(tp1 - entry) * 2.0, decimals, tick_size)
         target_ribassista = sl
     elif action == "SELL":
-        sl = quantize_to_tick(entry + raw_sl_dist, decimals, tick_size)
-        tp1 = quantize_to_tick(entry - raw_tp_dist, decimals, tick_size)
-        if sl <= entry:
-            sl = quantize_to_tick(entry + tick_size * 5, decimals, tick_size)
-        if tp1 >= entry:
-            tp1 = quantize_to_tick(entry - tick_size * 10, decimals, tick_size)
+        sl, tp1 = align_tp_sl_to_price("SELL", entry, entry + raw_sl_dist, entry - raw_tp_dist, sl_m, tp_m, decimals)
         target_rialzista = sl
         target_ribassista = quantize_to_tick(entry - abs(entry - tp1) * 2.0, decimals, tick_size)
     else:
@@ -1054,10 +1289,6 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
     else:
         duration = f"~{round(est_min / 1440, 1)} giorni ({candles_needed} candele)"
 
-    max_risk = balance * (risk_pct / 100.0)
-    risk_unit = abs(entry - sl)
-    pos_size = round(max((max_risk / risk_unit) if risk_unit > 0 else 0.0, 0.001), 3)
-
     if balance <= 2.0 and profile == 'aggressive':
         lev_int = 20
     elif symbol in ['BTCUSDT', 'ETHUSDT']:
@@ -1066,6 +1297,11 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         lev_int = 10
     else:
         lev_int = 5
+
+    max_risk = balance * (risk_pct / 100.0)
+    risk_unit = max(abs(entry - sl), tick_size)
+    raw_pos_size = (max_risk / risk_unit) if risk_unit > 0 else 0.0
+    pos_size = compute_order_quantity(bx_symbol, entry, raw_pos_size, max(balance, 2.0), lev_int)
 
     margin = round((pos_size * entry) / lev_int, 2)
 
@@ -1087,7 +1323,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
     )
 
     advisor_msg = (
-        f"{forecast_table} | Regime: {regime_info['label']} | {regime_info['advice']} "
+        f"{forecast_table} | BingX: {bx_symbol} | Regime: {regime_info['label']} | {regime_info['advice']} "
         f"| R:R 1:{rrr_val} | Net PnL stimato: +${expected_net_profit}"
     )
 
@@ -1106,6 +1342,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
 
     return {
         "action": action,
+        "bingx_symbol": bx_symbol,
         "ai_score": f"{score}%",
         "sentiment": sent,
         "sentiment_color": col,
@@ -1157,8 +1394,11 @@ def get_signals():
             res = requests.get(f"{BINGX_BASE_URL}/openApi/swap/v2/quote/ticker", timeout=2.5).json()
             if res.get("code") == 0 and "data" in res:
                 for item in res["data"]:
-                    sym = item.get("symbol", "").replace("-", "")
-                    all_prices[sym] = float(item.get("lastPrice", 0))
+                    raw_s = item.get("symbol", "")
+                    sym = canonicalize_symbol_key(raw_s)
+                    p = float(item.get("lastPrice", 0))
+                    all_prices[sym] = p
+                    all_prices[raw_s.replace("-", "").upper()] = p
         except Exception:
             pass
 
@@ -1171,10 +1411,14 @@ def get_signals():
                 cat, a = futures[future]
                 df, live_price = future.result()
 
+                canon_id = canonicalize_symbol_key(a['id'], a['name'])
                 if a['id'] in all_prices and all_prices[a['id']] > 0:
                     live_price = all_prices[a['id']]
-                    if df is not None and not df.empty:
-                        df.loc[df.index[-1], 'Close'] = live_price
+                elif canon_id in all_prices and all_prices[canon_id] > 0:
+                    live_price = all_prices[canon_id]
+
+                if live_price > 0 and df is not None and not df.empty:
+                    df.loc[df.index[-1], 'Close'] = live_price
 
                 if df is not None and not df.empty and live_price > 0:
                     sess = session_info[cat]
@@ -1209,6 +1453,7 @@ def get_signals():
                             res['margin'],
                             res['sl'],
                             res['tp1'],
+                            params=cfg,
                         )
 
         unique_map = {sig['symbol']: sig for sig in raw_signals}
