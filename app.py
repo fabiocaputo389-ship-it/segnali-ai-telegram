@@ -4,6 +4,7 @@ import math
 import os
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from urllib.parse import urlencode
 
@@ -15,8 +16,33 @@ from flask import Flask, jsonify, render_template, request
 app = Flask(__name__)
 
 BINGX_BASE_URL = os.getenv("BINGX_BASE_URL", "https://open-api.bingx.com").rstrip("/")
-BINGX_API_KEY = os.getenv("BINGX_API_KEY", "").strip()
-BINGX_API_SECRET = os.getenv("BINGX_API_SECRET", "").strip()
+
+
+def _clean_env_secret(val: str) -> str:
+    s = (val or "").strip()
+    if len(s) >= 2 and ((s.startswith('"') and s.endswith('"')) or (s.startswith("'") and s.endswith("'"))):
+        s = s[1:-1].strip()
+    return s
+
+
+def get_bingx_credentials():
+    api_key = _clean_env_secret(
+        os.getenv("BINGX_API_KEY")
+        or os.getenv("BX_API_KEY")
+        or os.getenv("BINGX_KEY")
+        or ""
+    )
+    api_secret = _clean_env_secret(
+        os.getenv("BINGX_API_SECRET")
+        or os.getenv("BINGX_SECRET_KEY")
+        or os.getenv("BX_API_SECRET")
+        or os.getenv("BINGX_SECRET")
+        or ""
+    )
+    return api_key, api_secret
+
+
+BINGX_API_KEY, BINGX_API_SECRET = get_bingx_credentials()
 
 DIRECTION_COOLDOWN_SEC = 120.0
 _LAST_CONFIRMED_DIRECTION = {}
@@ -196,25 +222,28 @@ def get_session_statuses():
     }
 
 
-def sign_bingx_query(params: dict) -> str:
+def sign_bingx_query(params: dict, api_secret: str) -> str:
     query_str = urlencode(sorted(params.items()))
-    sig = hmac.new(BINGX_API_SECRET.encode("utf-8"), query_str.encode("utf-8"), hashlib.sha256).hexdigest()
+    sig = hmac.new(api_secret.encode("utf-8"), query_str.encode("utf-8"), hashlib.sha256).hexdigest()
     return f"{query_str}&signature={sig}"
 
 
 def bingx_signed_request(method: str, path: str, params: dict):
-    if not (BINGX_API_KEY and BINGX_API_SECRET):
-        return None, "API Key / Secret BingX non configurate"
+    global BINGX_API_KEY, BINGX_API_SECRET
+    api_key, api_secret = get_bingx_credentials()
+    BINGX_API_KEY, BINGX_API_SECRET = api_key, api_secret
+    if not (api_key and api_secret):
+        return None, "API Key / Secret BingX non configurate su Render"
     req_params = dict(params or {})
     req_params["timestamp"] = int(time.time() * 1000)
-    signed_qs = sign_bingx_query(req_params)
+    signed_qs = sign_bingx_query(req_params, api_secret)
     url = f"{BINGX_BASE_URL}{path}?{signed_qs}"
-    headers = {"X-BX-APIKEY": BINGX_API_KEY}
+    headers = {"X-BX-APIKEY": api_key}
     try:
         if method.upper() == "POST":
-            resp = requests.post(url, headers=headers, timeout=4.0)
+            resp = requests.post(url, headers=headers, timeout=3.0)
         else:
-            resp = requests.get(url, headers=headers, timeout=4.0)
+            resp = requests.get(url, headers=headers, timeout=3.0)
         data = resp.json()
         if resp.status_code != 200:
             return None, f"HTTP {resp.status_code}: {data}"
@@ -226,14 +255,15 @@ def bingx_signed_request(method: str, path: str, params: dict):
 
 
 def fetch_bingx_real_balance():
-    if not (BINGX_API_KEY and BINGX_API_SECRET):
+    api_key, api_secret = get_bingx_credentials()
+    if not (api_key and api_secret):
         return {
             "balance": 0.0,
             "equity": 0.0,
             "available_margin": 0.0,
             "unrealized_pnl": 0.0,
             "asset": "USDT",
-        }, "API Key / Secret BingX non configurate"
+        }, "API Key / Secret BingX non configurate su Render"
 
     payload, err = bingx_signed_request("GET", "/openApi/swap/v2/user/balance", {})
     if err or not isinstance(payload, dict):
@@ -295,7 +325,8 @@ def fetch_bingx_real_balance():
 
 
 def sync_bingx_real_closed_trades():
-    if not (BINGX_API_KEY and BINGX_API_SECRET):
+    api_key, api_secret = get_bingx_credentials()
+    if not (api_key and api_secret):
         return
     with STATE_LOCK:
         if time.time() - STATE.get("last_bingx_sync", 0.0) < 10.0:
@@ -348,8 +379,9 @@ def sync_bingx_real_closed_trades():
 
 
 def fetch_bingx_real_positions():
-    if not (BINGX_API_KEY and BINGX_API_SECRET):
-        return [], "API Key / Secret BingX non configurate"
+    api_key, api_secret = get_bingx_credentials()
+    if not (api_key and api_secret):
+        return [], "API Key / Secret BingX non configurate su Render"
     payload, err = bingx_signed_request("GET", "/openApi/swap/v2/user/positions", {})
     if err or not isinstance(payload, dict):
         return [], err or "Errore lettura posizioni BingX"
@@ -386,11 +418,11 @@ def fetch_bingx_real_positions():
 
 def fetch_bingx_ticker(bx_symbol: str):
     cached = _LIVE_PRICE_CACHE.get(bx_symbol)
-    if cached and (time.time() - cached["ts"]) < 2.0:
+    if cached and (time.time() - cached["ts"]) < 2.5:
         return cached["price"]
     try:
         url = f"{BINGX_BASE_URL}/openApi/swap/v2/quote/ticker"
-        resp = requests.get(url, params={"symbol": bx_symbol}, timeout=2.5)
+        resp = requests.get(url, params={"symbol": bx_symbol}, timeout=2.0)
         if resp.status_code == 200:
             payload = resp.json()
             data = payload.get("data")
@@ -411,7 +443,7 @@ def fetch_bingx_klines(bx_symbol: str, interval: str, limit: int = 80):
     bx_int = tf_map.get(interval, "15m")
     try:
         url = f"{BINGX_BASE_URL}/openApi/swap/v2/quote/klines"
-        resp = requests.get(url, params={"symbol": bx_symbol, "interval": bx_int, "limit": limit}, timeout=3.0)
+        resp = requests.get(url, params={"symbol": bx_symbol, "interval": bx_int, "limit": limit}, timeout=2.2)
         if resp.status_code == 200:
             rows = resp.json().get("data") or []
             if isinstance(rows, list) and len(rows) >= 35:
@@ -654,6 +686,40 @@ def compute_math_profit_model(certainty_pct, rrr_val, pos_size, tp_dist, sl_dist
     }
 
 
+def compute_exact_market_score(
+    bull_hits: int,
+    bear_hits: int,
+    rsi: float,
+    vol_ratio: float,
+    min_vol_ratio: float,
+    curr_ema12: float,
+    curr_ema26: float,
+    current_macd: float,
+    prev_macd: float,
+    false_breakout: bool,
+):
+    """Calcola lo score esatto del mercato al momento (0.0 - 99.0) e il verdetto del cervello matematico."""
+    ema_spread_ratio = abs(curr_ema12 - curr_ema26) / max(abs(curr_ema26), 1e-9)
+    ema_pts = min(28.0, ema_spread_ratio * 2200.0)
+
+    macd_accel = abs(current_macd - prev_macd) / max(abs(current_macd) + abs(prev_macd), 1e-9)
+    macd_pts = min(22.0, (12.0 if (current_macd * prev_macd > 0 or current_macd != 0) else 4.0) + macd_accel * 10.0)
+
+    rsi_dist_from_50 = min(20.0, abs(rsi - 50.0) * 0.95)
+    rsi_pts = rsi_dist_from_50
+
+    vol_pts = min(15.0, (vol_ratio / max(min_vol_ratio, 0.5)) * 11.0)
+    factor_pts = (max(bull_hits, bear_hits) / 6.0) * 15.0
+
+    raw_score = ema_pts + macd_pts + rsi_pts + vol_pts + factor_pts
+    if false_breakout:
+        raw_score *= 0.68
+
+    exact_score = round(max(5.0, min(99.0, raw_score)), 1)
+    dominant_side = "BULLISH" if bull_hits >= bear_hits else "BEARISH"
+    return exact_score, dominant_side
+
+
 def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category, is_open):
     close = df["Close"]
     high = df["High"]
@@ -734,6 +800,31 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
     bull_certainty = round((bull_hits / 6.0) * 100.0, 1)
     bear_certainty = round((bear_hits / 6.0) * 100.0, 1)
 
+    anti_fake = compute_reversal_and_fakeout_metrics(
+        df=df,
+        current_price=current_price,
+        rsi=rsi,
+        curr_ema12=curr_ema12,
+        curr_ema26=curr_ema26,
+        current_macd=current_macd,
+        prev_macd=prev_macd,
+        vol_ratio=vol_ratio,
+        min_vol_ratio=min_vol_ratio,
+    )
+
+    exact_market_score, dominant_side = compute_exact_market_score(
+        bull_hits=bull_hits,
+        bear_hits=bear_hits,
+        rsi=rsi,
+        vol_ratio=vol_ratio,
+        min_vol_ratio=min_vol_ratio,
+        curr_ema12=curr_ema12,
+        curr_ema26=curr_ema26,
+        current_macd=current_macd,
+        prev_macd=prev_macd,
+        false_breakout=anti_fake["false_breakout"],
+    )
+
     bull_strict_ok = (
         not is_chop
         and not fake_bull_breakout
@@ -742,6 +833,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         and (current_price >= curr_ema50 * 0.992)
         and (rsi_buy_min <= rsi <= rsi_buy_max)
         and bull_hits >= 5
+        and exact_market_score >= min_score
     )
 
     bear_strict_ok = (
@@ -752,6 +844,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         and (current_price <= curr_ema50 * 1.008)
         and (rsi_sell_min <= rsi <= rsi_sell_max)
         and bear_hits >= 5
+        and exact_market_score >= min_score
     )
 
     clean_sym = canonicalize_symbol_key(symbol)
@@ -776,22 +869,23 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
     if candidate_action == "BUY":
         certainty_val = bull_certainty
         confluence_hits = bull_hits
-        score = round(min(99.0, max(min_score, 72.0 + bull_hits * 4.2)), 1)
-        action, sent, col = "BUY", "LONG CONFERMATO", "#00ff66"
-        inv = f"🚀 Preset {timeframe}/{profile} LONG Alta Precisione"
+        score = exact_market_score
+        action, sent, col = "BUY", "LONG EV+ CONFERMATO", "#00ff66"
+        inv = f"🧠 Cervello Matematico LONG (Score {score}%)"
         _LAST_CONFIRMED_DIRECTION[clean_sym] = {"action": "BUY", "ts": now_ts}
     elif candidate_action == "SELL":
         certainty_val = bear_certainty
         confluence_hits = bear_hits
-        score = round(min(99.0, max(min_score, 72.0 + bear_hits * 4.2)), 1)
-        action, sent, col = "SELL", "SHORT CONFERMATO", "#ff1e42"
-        inv = f"📉 Preset {timeframe}/{profile} SHORT Alta Precisione"
+        score = exact_market_score
+        action, sent, col = "SELL", "SHORT EV+ CONFERMATO", "#ff1e42"
+        inv = f"🧠 Cervello Matematico SHORT (Score {score}%)"
         _LAST_CONFIRMED_DIRECTION[clean_sym] = {"action": "SELL", "ts": now_ts}
     else:
         certainty_val = max(bull_certainty, bear_certainty)
         confluence_hits = max(bull_hits, bear_hits)
-        action, score, sent, col = "NEUTRAL", 55.0, "FILTRATO / NO-TRADE", "#ffffff"
-        inv = "🛡️ Filtro Anti-Flip-Flop & Precisione Attivo"
+        score = exact_market_score
+        action, sent, col = "NEUTRAL", "FILTRATO / NO-TRADE", "#ffffff"
+        inv = "🧠 Cervello Matematico: Filtro EV+ & Anti-Flip-Flop"
 
     if certainty_val >= 80.0:
         certainty_level = "ALTA"
@@ -864,18 +958,6 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
     expected_gross_profit = round(pos_size * tp_dist, 4)
     expected_net_profit = round(expected_gross_profit - roundtrip_fee, 4)
 
-    anti_fake = compute_reversal_and_fakeout_metrics(
-        df=df,
-        current_price=current_price,
-        rsi=rsi,
-        curr_ema12=curr_ema12,
-        curr_ema26=curr_ema26,
-        current_macd=current_macd,
-        prev_macd=prev_macd,
-        vol_ratio=vol_ratio,
-        min_vol_ratio=min_vol_ratio,
-    )
-
     math_model = compute_math_profit_model(
         certainty_pct=certainty_val,
         rrr_val=rrr_val,
@@ -888,18 +970,17 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
 
     if action in ["BUY", "SELL"] and (anti_fake["false_breakout"] or not math_model["math_approved"]):
         action = "NEUTRAL"
-        score = 55.0
         sent = "BLOCCATO ANTI-FAKEOUT / EV"
         col = "#ffd166"
-        inv = "🛡️ Blocco Matematico Anti-Falsa Rottura"
+        inv = "🧠 Cervello Matematico: Blocco EV- / Fakeout"
         filter_reason = (
-            f"Bloccato da sistema anti-falsa rottura / EV: {anti_fake['fakeout_reason']} | "
-            f"EV netto ${math_model['ev_net_usd']} (R:R 1:{rrr_val})."
+            f"Score Mercato {exact_market_score}% • Bloccato da Cervello Matematico: "
+            f"{anti_fake['fakeout_reason']} | EV netto ${math_model['ev_net_usd']} (R:R 1:{rrr_val})."
         )
-        trigger_condition = "Attesa rottura pulita senza wick anomala e con EV netto > 0 e R:R >= 1.5."
+        trigger_condition = "Attesa rottura pulita con EV netto > 0 al netto delle fee e R:R >= 1.5."
     elif not is_open:
-        filter_reason = f"Borsa {category} chiusa — in attesa riapertura sessione."
-        trigger_condition = f"Attivazione alla riapertura con almeno 5/6 fattori allineati e Score >= {min_score}%."
+        filter_reason = f"Score Mercato {exact_market_score}% • Borsa {category} chiusa."
+        trigger_condition = f"Attivazione alla riapertura con Score >= {min_score}% e EV netto > 0."
     elif (
         prev_dir_info
         and (now_ts - safe_float(prev_dir_info.get("ts"), 0.0)) < DIRECTION_COOLDOWN_SEC
@@ -908,25 +989,24 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
     ):
         rem_cd = int(max(1, DIRECTION_COOLDOWN_SEC - (now_ts - safe_float(prev_dir_info.get("ts"), 0.0))))
         filter_reason = (
-            f"Protezione anti-inversione ({prev_dir_info.get('action')} recente): "
-            f"attesa {rem_cd}s o certezza >=83.3% per cambiare direzione."
+            f"Score Mercato {exact_market_score}% • Protezione anti-inversione ({prev_dir_info.get('action')}): "
+            f"attesa {rem_cd}s."
         )
-        trigger_condition = f"Cambio direzione consentito dopo {rem_cd}s oppure con conferma piena (5/6 fattori)."
+        trigger_condition = f"Cambio direzione dopo {rem_cd}s con conferma piena (5/6 fattori)."
     elif action == "NEUTRAL":
         filter_reason = (
-            f"Precisione non ancora raggiunta (Certezza {certainty_val}%, {confluence_hits}/6 fattori, "
-            f"RSI {round(rsi, 1)}, Vol {vol_ratio}x)."
+            f"Score Mercato {exact_market_score}% ({dominant_side}) • Certezza {certainty_val}% ({confluence_hits}/6) "
+            f"• EV ${math_model['ev_net_usd']}."
         )
         trigger_condition = (
-            f"LONG con EMA12>EMA26, RSI [{rsi_buy_min}-{rsi_buy_max}], Vol>={min_vol_ratio}x e >=5/6 fattori; "
-            f"SHORT con EMA12<EMA26, RSI [{rsi_sell_min}-{rsi_sell_max}], Vol>={min_vol_ratio}x e >=5/6 fattori."
+            f"Score >= {min_score}%, >=5/6 fattori allineati, EV netto > 0 e R:R >= 1.5."
         )
     else:
         filter_reason = (
-            f"Preso in carico: {action} con certezza {certainty_val}% ({certainty_level}, {confluence_label}) "
-            f"e EV netto +${math_model['ev_net_usd']}."
+            f"Score Mercato {exact_market_score}% • Setup {action} approvato con EV netto +${math_model['ev_net_usd']} "
+            f"(p_win {math_model['p_win_pct']}%)."
         )
-        trigger_condition = f"Segnale {action} confermato ({certainty_val}% certezza) con SL {sl_m}x ATR e TP1 {tp_m}x ATR."
+        trigger_condition = f"Segnale {action} EV+ confermato (Score {exact_market_score}%) con SL {sl_m}x ATR e TP1 {tp_m}x ATR."
 
     vol_pct = round((atr / entry) * 100, 2) if entry > 0 else 0.0
     vol_regime = "ALTA VOLATILITÀ" if vol_pct >= 1.2 else ("MODERATA" if vol_pct >= 0.35 else "CONTENUTA")
@@ -938,6 +1018,8 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
 
     return {
         "action": action,
+        "exact_market_score": exact_market_score,
+        "dominant_side": dominant_side,
         "certainty_pct": certainty_val,
         "certainty_level": certainty_level,
         "certainty_text": f"{certainty_val}% ({certainty_level})",
@@ -988,9 +1070,9 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         "kelly_pct": math_model["kelly_pct"],
         "math_approved": math_model["math_approved"],
         "math_badge": math_model["math_badge"],
-        "advisor_status": f"SETUP ALTA PRECISIONE ({certainty_val}%)" if action in ["BUY", "SELL"] else "FILTRATO (NO FALSO SEGNALE)",
-        "advisor_color": "#00ff66" if action in ["BUY", "SELL"] else "#8a99ad",
-        "advisor_msg": f"BingX Live: {bx_symbol} | Certezza {certainty_val}% ({certainty_level}) | EV ${math_model['ev_net_usd']}",
+        "advisor_status": f"CERVELLO EV+ ({exact_market_score}%)" if action in ["BUY", "SELL"] else f"SCORE MERCATO {exact_market_score}%",
+        "advisor_color": "#00ff66" if action in ["BUY", "SELL"] else "#ffd166",
+        "advisor_msg": f"BingX Live: {bx_symbol} | Score {exact_market_score}% ({dominant_side}) | EV ${math_model['ev_net_usd']}",
         "applied_params": cfg,
         "market_regime": regime_info,
         "recommended_params": regime_info["recommended_params"],
@@ -1000,6 +1082,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
 def build_performance_payload():
     sync_bingx_real_closed_trades()
     bal_info, bal_err = fetch_bingx_real_balance()
+    api_key, api_secret = get_bingx_credentials()
     now_utc = datetime.now(timezone.utc)
     today_key = now_utc.strftime("%Y-%m-%d")
     month_key = now_utc.strftime("%Y-%m")
@@ -1039,8 +1122,109 @@ def build_performance_payload():
         "monthly": monthly,
         "account": bal_info,
         "account_error": bal_err,
-        "api_configured": bool(BINGX_API_KEY and BINGX_API_SECRET),
+        "api_configured": bool(api_key and api_secret),
     }
+
+
+def _scan_single_asset(category, sess, is_open, meta, timeframe, profile, balance, risk_pct, min_score, cfg):
+    sym = meta["symbol"]
+    df, curr_price = get_real_market_dataframe(meta, timeframe)
+    if df is None or curr_price <= 0:
+        return {
+            "category": category,
+            "symbol": sym,
+            "bingx_symbol": meta["bx"],
+            "name": meta["name"],
+            "session_status": sess["status"],
+            "is_open": is_open,
+            "price": None,
+            "entry": None,
+            "sl": None,
+            "tp1": None,
+            "action": "NEUTRAL",
+            "taken": False,
+            "ai_score": "0.0%",
+            "exact_market_score": 0.0,
+            "dominant_side": "NEUTRAL",
+            "certainty_pct": 0.0,
+            "certainty_level": "BASSA",
+            "certainty_text": "0.0% (BASSA)",
+            "why_not_taken": f"Dato live BingX non disponibile per {meta['bx']}",
+            "when_taken": "Richiede feed live BingX attivo",
+            "params": {"profile": profile, "timeframe": timeframe, "balance": balance, "risk": risk_pct, "min_score": min_score},
+        }, None
+
+    res = calculate_setup(df, curr_price, sym, balance, risk_pct, cfg, category, is_open)
+    taken = res["action"] in ("BUY", "SELL") and is_open
+
+    row_payload = {
+        "category": category,
+        "symbol": sym,
+        "bingx_symbol": res["bingx_symbol"],
+        "name": meta["name"],
+        "session_status": sess["status"],
+        "is_open": is_open,
+        "price": curr_price,
+        "entry": res["entry"],
+        "sl": res["sl"],
+        "tp1": res["tp1"],
+        "target_rialzista": res["target_rialzista"],
+        "target_ribassista": res["target_ribassista"],
+        "rrr": res["rrr"],
+        "roi_pct": res["roi_pct"],
+        "duration": res["duration"],
+        "candle_tf_label": res["candle_tf_label"],
+        "tp_candles_est": res["tp_candles_est"],
+        "tp_eta_utc": res["tp_eta_utc"],
+        "tp_eta_text": res["tp_eta_text"],
+        "confluence": res["confluence"],
+        "size": res["size"],
+        "leverage": res["leverage"],
+        "margin": res["margin"],
+        "roundtrip_fee": res["roundtrip_fee"],
+        "expected_net": res["expected_net"],
+        "action": res["action"] if is_open else "NEUTRAL",
+        "taken": taken,
+        "ai_score": res["ai_score"],
+        "exact_market_score": res["exact_market_score"],
+        "dominant_side": res["dominant_side"],
+        "certainty_pct": res["certainty_pct"],
+        "certainty_level": res["certainty_level"],
+        "certainty_text": res["certainty_text"],
+        "rsi": res["rsi"],
+        "vol_ratio": res["vol_ratio"],
+        "vol_regime": res["vol_regime"],
+        "trend_state": res["trend_state"],
+        "false_breakout": res["false_breakout"],
+        "fakeout_label": res["fakeout_label"],
+        "fakeout_reason": res["fakeout_reason"],
+        "reversal_to": res["reversal_to"],
+        "reversal_prob_pct": res["reversal_prob_pct"],
+        "reversal_trigger": res["reversal_trigger"],
+        "reversal_summary": res["reversal_summary"],
+        "reversal_reason": res["reversal_reason"],
+        "p_win_pct": res["p_win_pct"],
+        "net_win_usd": res["net_win_usd"],
+        "total_loss_usd": res["total_loss_usd"],
+        "ev_net_usd": res["ev_net_usd"],
+        "kelly_pct": res["kelly_pct"],
+        "math_approved": res["math_approved"],
+        "math_badge": res["math_badge"],
+        "why_not_taken": res["filter_reason"],
+        "when_taken": res["trigger_condition"],
+        "params": {"profile": profile, "timeframe": timeframe, "balance": balance, "risk": risk_pct, "min_score": min_score},
+    }
+
+    sig_payload = None
+    if taken:
+        sig_payload = {
+            **row_payload,
+            "id": f"{sym}_{res['action']}_{timeframe}",
+            "sentiment": res["sentiment"],
+            "sentiment_color": res["sentiment_color"],
+            "applied_params": cfg,
+        }
+    return row_payload, sig_payload
 
 
 @app.route("/")
@@ -1050,15 +1234,16 @@ def index():
 
 @app.route("/api/bingx/live-account", methods=["GET"])
 def api_bingx_live_account():
+    api_key, api_secret = get_bingx_credentials()
     bal_info, bal_err = fetch_bingx_real_balance()
     positions, pos_err = fetch_bingx_real_positions()
     sync_bingx_real_closed_trades()
     with STATE_LOCK:
         session_pnl = STATE["session_pnl"]
     return jsonify({
-        "success": bool(BINGX_API_KEY and BINGX_API_SECRET) and not (bal_err and pos_err),
+        "success": bool(api_key and api_secret) and not (bal_err and pos_err),
         "mode": "BINGX REAL LIVE",
-        "api_configured": bool(BINGX_API_KEY and BINGX_API_SECRET),
+        "api_configured": bool(api_key and api_secret),
         "account": bal_info,
         "balance_error": bal_err,
         "positions": positions,
@@ -1099,130 +1284,77 @@ def get_signals():
     cfg = build_profile_config(profile, timeframe, min_score)
     sessions = get_session_statuses()
 
-    signals_out = []
-    monitoring_rows = []
-    market_diagnostics = {}
-
+    tasks = []
     for category, assets in MARKET_CATALOG.items():
         sess = sessions.get(category, {"status": "APERTO (Live)", "is_open": True, "hours": "24/7"})
         is_open = bool(sess.get("is_open", True))
-        cat_signals = 0
-        cat_scanned = 0
-
         for meta in assets:
-            sym = meta["symbol"]
             if market_filter != "ALL" and category != market_filter:
                 continue
-            if symbol_filter != "ALL" and sym != symbol_filter:
+            if symbol_filter != "ALL" and meta["symbol"] != symbol_filter:
                 continue
+            tasks.append((category, sess, is_open, meta))
 
-            cat_scanned += 1
-            df, curr_price = get_real_market_dataframe(meta, timeframe)
-            if df is None or curr_price <= 0:
-                monitoring_rows.append({
-                    "category": category,
-                    "symbol": sym,
-                    "bingx_symbol": meta["bx"],
-                    "name": meta["name"],
-                    "session_status": sess["status"],
-                    "is_open": is_open,
-                    "price": None,
-                    "entry": None,
-                    "sl": None,
-                    "tp1": None,
-                    "action": "NEUTRAL",
-                    "taken": False,
-                    "ai_score": "0.0%",
-                    "certainty_pct": 0.0,
-                    "certainty_level": "BASSA",
-                    "certainty_text": "0.0% (BASSA)",
-                    "why_not_taken": f"Dato live BingX non disponibile per {meta['bx']}",
-                    "when_taken": "Richiede feed live BingX attivo",
-                    "params": {"profile": profile, "timeframe": timeframe, "balance": balance, "risk": risk_pct, "min_score": min_score},
-                })
-                continue
+    rows_by_cat = {cat: [] for cat in MARKET_CATALOG.keys()}
+    signals_out = []
+    monitoring_rows = []
 
-            res = calculate_setup(df, curr_price, sym, balance, risk_pct, cfg, category, is_open)
-            taken = res["action"] in ("BUY", "SELL") and is_open
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        future_map = {
+            pool.submit(
+                _scan_single_asset,
+                cat,
+                sess,
+                is_open,
+                meta,
+                timeframe,
+                profile,
+                balance,
+                risk_pct,
+                min_score,
+                cfg,
+            ): (cat, meta["symbol"])
+            for (cat, sess, is_open, meta) in tasks
+        }
+        for fut in as_completed(future_map, timeout=6.5):
+            cat, _ = future_map[fut]
+            try:
+                row_p, sig_p = fut.result(timeout=1.0)
+                rows_by_cat[cat].append(row_p)
+                monitoring_rows.append(row_p)
+                if sig_p:
+                    signals_out.append(sig_p)
+            except Exception:
+                pass
 
-            row_payload = {
-                "category": category,
-                "symbol": sym,
-                "bingx_symbol": res["bingx_symbol"],
-                "name": meta["name"],
-                "session_status": sess["status"],
-                "is_open": is_open,
-                "price": curr_price,
-                "entry": res["entry"],
-                "sl": res["sl"],
-                "tp1": res["tp1"],
-                "target_rialzista": res["target_rialzista"],
-                "target_ribassista": res["target_ribassista"],
-                "rrr": res["rrr"],
-                "roi_pct": res["roi_pct"],
-                "duration": res["duration"],
-                "candle_tf_label": res["candle_tf_label"],
-                "tp_candles_est": res["tp_candles_est"],
-                "tp_eta_utc": res["tp_eta_utc"],
-                "tp_eta_text": res["tp_eta_text"],
-                "confluence": res["confluence"],
-                "size": res["size"],
-                "leverage": res["leverage"],
-                "margin": res["margin"],
-                "roundtrip_fee": res["roundtrip_fee"],
-                "expected_net": res["expected_net"],
-                "action": res["action"] if is_open else "NEUTRAL",
-                "taken": taken,
-                "ai_score": res["ai_score"],
-                "certainty_pct": res["certainty_pct"],
-                "certainty_level": res["certainty_level"],
-                "certainty_text": res["certainty_text"],
-                "rsi": res["rsi"],
-                "vol_ratio": res["vol_ratio"],
-                "vol_regime": res["vol_regime"],
-                "trend_state": res["trend_state"],
-                "false_breakout": res["false_breakout"],
-                "fakeout_label": res["fakeout_label"],
-                "fakeout_reason": res["fakeout_reason"],
-                "reversal_to": res["reversal_to"],
-                "reversal_prob_pct": res["reversal_prob_pct"],
-                "reversal_trigger": res["reversal_trigger"],
-                "reversal_summary": res["reversal_summary"],
-                "reversal_reason": res["reversal_reason"],
-                "p_win_pct": res["p_win_pct"],
-                "net_win_usd": res["net_win_usd"],
-                "total_loss_usd": res["total_loss_usd"],
-                "ev_net_usd": res["ev_net_usd"],
-                "kelly_pct": res["kelly_pct"],
-                "math_approved": res["math_approved"],
-                "math_badge": res["math_badge"],
-                "why_not_taken": res["filter_reason"],
-                "when_taken": res["trigger_condition"],
-                "params": {"profile": profile, "timeframe": timeframe, "balance": balance, "risk": risk_pct, "min_score": min_score},
-            }
-            monitoring_rows.append(row_payload)
-
-            if taken:
-                cat_signals += 1
-                signals_out.append({
-                    **row_payload,
-                    "id": f"{sym}_{res['action']}_{timeframe}",
-                    "sentiment": res["sentiment"],
-                    "sentiment_color": res["sentiment_color"],
-                    "applied_params": cfg,
-                })
+    market_diagnostics = {}
+    for category, assets in MARKET_CATALOG.items():
+        sess = sessions.get(category, {"status": "APERTO (Live)", "is_open": True, "hours": "24/7"})
+        is_open = bool(sess.get("is_open", True))
+        cat_rows = rows_by_cat.get(category, [])
+        cat_scanned = len(cat_rows)
+        cat_signals = sum(1 for r in cat_rows if r.get("taken"))
+        valid_scores = [safe_float(r.get("exact_market_score"), 0.0) for r in cat_rows if safe_float(r.get("exact_market_score"), 0.0) > 0]
+        avg_score = round(sum(valid_scores) / len(valid_scores), 1) if valid_scores else 0.0
+        top_row = max(cat_rows, key=lambda r: safe_float(r.get("exact_market_score"), 0.0), default=None)
+        top_txt = f" • Top: {top_row['symbol']} ({top_row['exact_market_score']}%)" if top_row else ""
 
         if not is_open:
-            diag_reason = f"Mercato {category} attualmente chiuso ({sess['hours']})."
+            diag_reason = f"Score Mercato {avg_score}% • Borsa {category} chiusa ({sess['hours']})."
         elif cat_signals == 0:
             diag_reason = (
-                f"Analizzati {cat_scanned} asset reali su {category}: nessun setup ha superato "
-                f"5/6 fattori direzionali, filtro anti-falsa rottura, EV netto > 0 e Score >= {min_score}%."
+                f"Score Mercato {avg_score}%{top_txt} • Analizzati {cat_scanned} asset: nessun setup ha superato "
+                f"5/6 fattori, EV netto > 0 al netto delle fee e Score >= {min_score}%."
             )
         else:
-            diag_reason = f"{cat_signals} segnali reali ad alta precisione attivi su {category}."
+            diag_reason = f"Score Mercato {avg_score}%{top_txt} • {cat_signals} segnali EV+ confermati su {category}."
 
-        market_diagnostics[category] = {"scanned": cat_scanned, "signals_count": cat_signals, "reason": diag_reason}
+        market_diagnostics[category] = {
+            "scanned": cat_scanned,
+            "signals_count": cat_signals,
+            "market_score": avg_score,
+            "reason": diag_reason,
+        }
 
     live_positions, _ = fetch_bingx_real_positions()
 
@@ -1261,10 +1393,11 @@ def api_analytics_performance():
 
 @app.route("/api/autotrade/execute-manual", methods=["POST"])
 def api_execute_manual():
-    if not (BINGX_API_KEY and BINGX_API_SECRET):
+    api_key, api_secret = get_bingx_credentials()
+    if not (api_key and api_secret):
         return jsonify({
             "success": False,
-            "error": "Modalità reale attiva: imposta BINGX_API_KEY e BINGX_API_SECRET per inviare ordini reali su BingX.",
+            "error": "Modalità reale attiva: imposta BINGX_API_KEY e BINGX_API_SECRET nelle Environment Variables di Render per inviare ordini reali su BingX.",
         }), 400
 
     body = request.get_json(silent=True) or {}
@@ -1297,6 +1430,7 @@ def api_execute_manual():
 
 @app.route("/api/autotrade/status", methods=["GET"])
 def api_autotrade_status():
+    api_key, api_secret = get_bingx_credentials()
     positions, pos_err = fetch_bingx_real_positions()
     perf = build_performance_payload()
     with STATE_LOCK:
@@ -1304,7 +1438,7 @@ def api_autotrade_status():
     return jsonify({
         "auto_trade": STATE["auto_trade"],
         "mode": "BINGX REAL LIVE",
-        "api_configured": bool(BINGX_API_KEY and BINGX_API_SECRET),
+        "api_configured": bool(api_key and api_secret),
         "positions": positions,
         "positions_error": pos_err,
         "history": closed_copy,
