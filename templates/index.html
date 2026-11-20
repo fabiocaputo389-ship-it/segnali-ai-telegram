@@ -1028,9 +1028,39 @@
                 const tp1Text = document.getElementById(`tp1-${symbol}`)?.innerText;
                 const slText = document.getElementById(`sl-${symbol}`)?.innerText;
 
-                const entryVal = parseFloat(livePriceText) > 0 ? parseFloat(livePriceText) : parseFloat(s.entry);
-                const tp1Val = parseFloat(tp1Text) > 0 ? parseFloat(tp1Text) : parseFloat(s.tp1);
-                const slVal = parseFloat(slText) > 0 ? parseFloat(slText) : parseFloat(s.sl);
+                const dec = s.decimals || (parseFloat(livePriceText) > 5 ? 2 : 5);
+                const step = Math.pow(10, -dec);
+                const slMult = parseFloat((document.getElementById('pSlMult')?.value || '1.2').replace(',', '.')) || 1.2;
+                const tpMult = parseFloat((document.getElementById('pTpMult')?.value || '2.6').replace(',', '.')) || 2.6;
+
+                let entryVal = parseFloat(livePriceText) > 0 ? parseFloat(livePriceText) : parseFloat(s.entry);
+                let tp1Val = parseFloat(tp1Text) > 0 ? parseFloat(tp1Text) : parseFloat(s.tp1);
+                let slVal = parseFloat(slText) > 0 ? parseFloat(slText) : parseFloat(s.sl);
+
+                const fallbackSlDist = Math.max(parseFloat(s.sl_dist) || 0, entryVal * 0.006 * slMult, step * 5);
+                const fallbackTpDist = Math.max(parseFloat(s.tp_dist) || 0, entryVal * 0.012 * tpMult, step * 10);
+
+                if (s.action === 'BUY') {
+                    if (!(slVal > 0 && slVal < entryVal - step)) {
+                        slVal = Number((entryVal - fallbackSlDist).toFixed(dec));
+                    }
+                    if (!(tp1Val > entryVal + step)) {
+                        tp1Val = Number((entryVal + fallbackTpDist).toFixed(dec));
+                    }
+                } else {
+                    if (!(slVal > entryVal + step)) {
+                        slVal = Number((entryVal + fallbackSlDist).toFixed(dec));
+                    }
+                    if (!(tp1Val > 0 && tp1Val < entryVal - step)) {
+                        tp1Val = Number((entryVal - fallbackTpDist).toFixed(dec));
+                    }
+                }
+
+                const slEl = document.getElementById(`sl-${symbol}`);
+                const tp1El = document.getElementById(`tp1-${symbol}`);
+                if (slEl) slEl.innerText = slVal.toFixed(dec);
+                if (tp1El) tp1El.innerText = tp1Val.toFixed(dec);
+
                 const sizing = computeOrderSizingFromParams(bingxSymbol, s, entryVal);
 
                 const activeParams = {
@@ -1039,8 +1069,8 @@
                     balance: parseFloat((document.getElementById('balanceInput')?.value || '2.0').replace(',', '.')) || 2.0,
                     risk: parseFloat((document.getElementById('riskInput')?.value || '1.0').replace(',', '.')) || 1.0,
                     min_score: getMinScoreValue(),
-                    sl_m: parseFloat((document.getElementById('pSlMult')?.value || '1.2').replace(',', '.')) || 1.2,
-                    tp_m: parseFloat((document.getElementById('pTpMult')?.value || '2.6').replace(',', '.')) || 2.6,
+                    sl_m: slMult,
+                    tp_m: tpMult,
                     rsi_buy_min: parseFloat((document.getElementById('pRsiBuyMin')?.value || '38.0').replace(',', '.')) || 38.0,
                     rsi_buy_max: parseFloat((document.getElementById('pRsiBuyMax')?.value || '68.0').replace(',', '.')) || 68.0,
                     rsi_sell_min: parseFloat((document.getElementById('pRsiSellMin')?.value || '32.0').replace(',', '.')) || 32.0,
