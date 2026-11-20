@@ -23,6 +23,7 @@ def load_render_environment():
     print("========================================")
     print("⚡ SALA SEGNALI PRO • BINGX LIVE SYNC ⚡")
     print(f"🔹 BingX API Key: {'CONFIGURATA ✅' if BINGX_API_KEY else 'NON RILEVATA (Paper Mode)'}")
+    print(f"🔹 Telegram Alert: {'ATTIVO ✅' if (TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID) else 'NON CONFIGURATO'}")
     print("========================================")
 
 
@@ -70,6 +71,43 @@ BINGX_SYMBOL_ALIASES = {
 BINGX_CONTRACTS_CACHE = {"ts": 0, "map": {}}
 
 
+def send_telegram_signal_alert(sig_obj, timeframe):
+    global sent_telegram_signals
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return
+
+    key = f"{sig_obj['symbol']}_{sig_obj['action']}_{timeframe}"
+    now_ts = time.time()
+    last_sent = sent_telegram_signals.get(key, 0)
+    if now_ts - last_sent < 900:  # Anti-duplicato ogni 15 minuti per stesso asset/direzione/TF
+        return
+
+    sent_telegram_signals[key] = now_ts
+    direction_icon = "🟢 BUY (LONG)" if sig_obj['action'] == "BUY" else "🔴 SELL (SHORT)"
+    text = (
+        f"⚡ *SALA SEGNALI PRO • SETUP OPERATIVO*\n"
+        f"• *Asset:* {sig_obj['name']} (`{sig_obj['symbol']}`)\n"
+        f"• *Direzione:* {direction_icon} | *Score:* {sig_obj['ai_score']}\n"
+        f"• *Timeframe:* `{timeframe}` | *Leva:* `{sig_obj['leverage']}`\n"
+        f"• *Prezzo Live / Entry:* `{sig_obj['price']}`\n"
+        f"• *Take Profit (TP1):* `{sig_obj['tp1']}`\n"
+        f"• *Stop Loss (SL):* `{sig_obj['sl']}`\n"
+        f"• *R:R:* `1:{sig_obj['rrr']}` | *ROI:* `{sig_obj['roi_pct']}` | *Net PnL:* `+${sig_obj['expected_net']}`"
+    )
+    try:
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            json={
+                "chat_id": TELEGRAM_CHAT_ID,
+                "text": text,
+                "parse_mode": "Markdown",
+            },
+            timeout=3.0,
+        )
+    except Exception as e:
+        print(f"Errore invio Telegram: {e}")
+
+
 def get_bingx_contract_specs():
     now = time.time()
     if now - BINGX_CONTRACTS_CACHE["ts"] < 300 and BINGX_CONTRACTS_CACHE["map"]:
@@ -109,18 +147,18 @@ def get_market_session_status(category):
     current_minutes = now_utc.hour * 60 + now_utc.minute
 
     if "Criptovalute" in category:
-        return {"status": "APERTO", "is_open": True, "hours": "24/7 Continuo (UTC)", "badge_color": "#00ff66"}
+        return {"status": "APERTO", "is_open": True, "hours": "24/7 Continuo (UTC)", "badge_color": "#009933"}
     elif "Forex" in category or "Materie Prime" in category:
         is_closed = (weekday == 5) or (weekday == 4 and current_minutes >= 1320) or (weekday == 6 and current_minutes < 1320)
         if is_closed:
-            return {"status": "CHIUSO (Weekend)", "is_open": False, "hours": "Lun-Ven 24h", "badge_color": "#ff1e42"}
-        return {"status": "APERTO", "is_open": True, "hours": "Sessione Globale 24h", "badge_color": "#00ff66"}
+            return {"status": "CHIUSO (Weekend)", "is_open": False, "hours": "Lun-Ven 24h", "badge_color": "#d90429"}
+        return {"status": "APERTO", "is_open": True, "hours": "Sessione Globale 24h", "badge_color": "#009933"}
     else:
         if weekday >= 5:
-            return {"status": "CHIUSO (Weekend)", "is_open": False, "hours": "NYSE/NASDAQ: 14:30 - 21:00 UTC", "badge_color": "#ff1e42"}
+            return {"status": "CHIUSO (Weekend)", "is_open": False, "hours": "NYSE/NASDAQ: 14:30 - 21:00 UTC", "badge_color": "#d90429"}
         if 870 <= current_minutes < 1260:
-            return {"status": "APERTO", "is_open": True, "hours": "NYSE/NASDAQ: 14:30 - 21:00 UTC", "badge_color": "#00ff66"}
-        return {"status": "CHIUSO (Fuori Orario)", "is_open": False, "hours": "NYSE/NASDAQ: 14:30 - 21:00 UTC", "badge_color": "#ff1e42"}
+            return {"status": "APERTO", "is_open": True, "hours": "NYSE/NASDAQ: 14:30 - 21:00 UTC", "badge_color": "#009933"}
+        return {"status": "CHIUSO (Fuori Orario)", "is_open": False, "hours": "NYSE/NASDAQ: 14:30 - 21:00 UTC", "badge_color": "#d90429"}
 
 
 def get_exchange_mode():
@@ -734,7 +772,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, rsi_buy_min, r
             vol_ratio >= 1.05,
         ])
         score = round(min(98.5, 84.0 + confluence_hits * 2.8), 1)
-        action, sent, col = "BUY", score, "LONG ISTITUZIONALE CONFERMATO", "#00ff66"
+        action, sent, col = "BUY", score, "LONG ISTITUZIONALE CONFERMATO", "#009933"
     elif is_sell:
         confluence_hits = sum([
             curr_ema12 < curr_ema26,
@@ -744,9 +782,9 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, rsi_buy_min, r
             vol_ratio >= 1.05,
         ])
         score = round(min(98.5, 84.0 + confluence_hits * 2.8), 1)
-        action, sent, col = "SELL", score, "SHORT ISTITUZIONALE CONFERMATO", "#ff1e42"
+        action, sent, col = "SELL", score, "SHORT ISTITUZIONALE CONFERMATO", "#d90429"
     else:
-        action, score, sent, col = "NEUTRAL", 50.0, "FILTRATO / NO-TRADE (Evita Falsi Segnali)", "#ffffff"
+        action, score, sent, col = "NEUTRAL", 50.0, "FILTRATO / NO-TRADE", "#000000"
 
     _, bx_precision = resolve_bingx_symbol(symbol)
     decimals = bx_precision if bx_precision is not None else (2 if current_price > 5 else 5)
@@ -837,16 +875,16 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, rsi_buy_min, r
 
     if not is_open:
         advisor_status = "BLOCCATO"
-        advisor_color = "#ff1e42"
+        advisor_color = "#d90429"
     elif action == "NEUTRAL":
         advisor_status = "FILTRATO (NO FALSO SEGNALE)"
-        advisor_color = "#8a99ad"
+        advisor_color = "#000000"
     elif expected_net_profit <= 0:
         advisor_status = "ATTENZIONE FEE"
-        advisor_color = "#ffd166"
+        advisor_color = "#d90429"
     else:
         advisor_status = f"SETUP PRO PRONTO ({confluence_label})"
-        advisor_color = "#00ff66"
+        advisor_color = "#009933"
 
     return {
         "action": action,
@@ -961,6 +999,9 @@ def get_signals():
                     }
                     raw_signals.append(sig_obj)
 
+                    if sess["is_open"] and numeric_score >= 85.0:
+                        send_telegram_signal_alert(sig_obj, timeframe)
+
                     if auto_trade_active and sess["is_open"] and res['action'] in ["BUY", "SELL"] and res['expected_net'] > 0:
                         execute_verified_order(
                             a['id'],
@@ -981,7 +1022,7 @@ def get_signals():
         scans_telemetry[time.time()] = {
             "timestamp": datetime.now().strftime("%H:%M:%S"),
             "scanned": len(signals),
-            "status": "BINGX_PRO_DESK_SYNC",
+            "status": "BINGX_TELEGRAM_PRO_SYNC",
         }
 
         return jsonify({"sessions": session_info, "signals": signals})
