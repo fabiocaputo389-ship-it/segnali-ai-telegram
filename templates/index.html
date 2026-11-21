@@ -167,6 +167,26 @@
     .banner.err { border-color: rgba(239, 68, 68, 0.5); color: #fca5a5; }
     .hidden { display: none; }
     .tech-sub { font-size: 11px; color: var(--muted); display: block; margin-top: 2px; }
+    .chart-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    canvas.price-chart {
+      width: 100%;
+      height: 230px;
+      background: #09101d;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      display: block;
+    }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      font-size: 11px;
+      color: var(--muted);
+    }
   </style>
 </head>
 <body>
@@ -278,6 +298,21 @@
         <div id="kpiLiveTicker" class="kpi-val">BTCUSDT —</div>
         <div id="kpiTickerTime" class="kpi-sub">Aggiornamento ogni 3s</div>
       </div>
+    </section>
+
+    <section class="card chart-wrap">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+        <h2 id="chartTitle" style="margin:0;">Grafico Serie Prezzi & Livelli Operativi</h2>
+        <div class="legend">
+          <span><strong style="color:#38bdf8;">—</strong> Prezzo</span>
+          <span><strong style="color:#e2e8f0;">--</strong> Entry</span>
+          <span><strong style="color:#ef4444;">--</strong> SL</span>
+          <span><strong style="color:#22c55e;">--</strong> TP1</span>
+          <span><strong style="color:#a3e635;">..</strong> TP2</span>
+          <span><strong style="color:#f59e0b;">..</strong> TP3</span>
+        </div>
+      </div>
+      <canvas id="priceChart" class="price-chart" width="1100" height="230"></canvas>
     </section>
 
     <section class="grid-2">
@@ -419,6 +454,107 @@
       refreshAll();
     }
 
+    function renderPriceChart(rows) {
+      const canvas = document.getElementById("priceChart");
+      const titleEl = document.getElementById("chartTitle");
+      if (!canvas || !canvas.getContext) return;
+      const ctx = canvas.getContext("2d");
+
+      const selSym = document.getElementById("symbolInput").value;
+      const targetKey = (selSym && selSym !== "ALL") ? selSym : "BTCUSDT";
+      const row = (Array.isArray(rows) ? rows.find((r) => r.symbol === targetKey) : null)
+        || (Array.isArray(rows) && rows.length ? rows[0] : null);
+
+      const series = Array.isArray(row?.series) ? row.series.map(Number).filter(Number.isFinite) : [];
+      const dispSym = row?.bingx_symbol || targetKey;
+      titleEl.textContent = `Grafico ${dispSym} — Serie & Livelli Operativi`;
+
+      const dpr = window.devicePixelRatio || 1;
+      const cssW = canvas.clientWidth || 900;
+      const cssH = canvas.clientHeight || 230;
+      if (canvas.width !== Math.round(cssW * dpr) || canvas.height !== Math.round(cssH * dpr)) {
+        canvas.width = Math.round(cssW * dpr);
+        canvas.height = Math.round(cssH * dpr);
+      }
+      ctx.save();
+      ctx.scale(dpr, dpr);
+      ctx.clearRect(0, 0, cssW, cssH);
+
+      if (series.length < 2) {
+        ctx.fillStyle = "#8fa1bd";
+        ctx.font = "13px sans-serif";
+        ctx.fillText("Serie prezzi non disponibile per il simbolo selezionato", 18, cssH / 2);
+        ctx.restore();
+        return;
+      }
+
+      const levels = [
+        { val: Number(row?.entry), color: "#e2e8f0", dash: [5, 4], label: "Entry" },
+        { val: Number(row?.sl), color: "#ef4444", dash: [5, 4], label: "SL" },
+        { val: Number(row?.tp1), color: "#22c55e", dash: [5, 4], label: "TP1" },
+        { val: Number(row?.tp2), color: "#a3e635", dash: [2, 3], label: "TP2" },
+        { val: Number(row?.tp3), color: "#f59e0b", dash: [2, 3], label: "TP3" },
+      ].filter((lv) => Number.isFinite(lv.val) && lv.val > 0);
+
+      const allVals = [...series, ...levels.map((l) => l.val)];
+      let minV = Math.min(...allVals);
+      let maxV = Math.max(...allVals);
+      const pad = Math.max((maxV - minV) * 0.12, maxV * 0.001, 1e-6);
+      minV -= pad;
+      maxV += pad;
+
+      const leftPad = 14;
+      const rightPad = 78;
+      const topPad = 14;
+      const botPad = 16;
+      const plotW = Math.max(40, cssW - leftPad - rightPad);
+      const plotH = Math.max(40, cssH - topPad - botPad);
+
+      const yFor = (v) => topPad + ((maxV - v) / (maxV - minV)) * plotH;
+      const xFor = (i) => leftPad + (i / (series.length - 1)) * plotW;
+
+      ctx.strokeStyle = "rgba(148, 163, 184, 0.12)";
+      ctx.lineWidth = 1;
+      for (let g = 0; g <= 3; g++) {
+        const gy = topPad + (g / 3) * plotH;
+        ctx.beginPath();
+        ctx.moveTo(leftPad, gy);
+        ctx.lineTo(leftPad + plotW, gy);
+        ctx.stroke();
+      }
+
+      levels.forEach((lv) => {
+        const ly = yFor(lv.val);
+        ctx.save();
+        ctx.strokeStyle = lv.color;
+        ctx.lineWidth = 1.2;
+        ctx.setLineDash(lv.dash);
+        ctx.beginPath();
+        ctx.moveTo(leftPad, ly);
+        ctx.lineTo(leftPad + plotW, ly);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = lv.color;
+        ctx.font = "10px monospace";
+        const dec = lv.val >= 100 ? 2 : 4;
+        ctx.fillText(`${lv.label} ${lv.val.toFixed(dec)}`, leftPad + plotW + 6, ly + 3);
+        ctx.restore();
+      });
+
+      ctx.strokeStyle = "#38bdf8";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      series.forEach((pt, idx) => {
+        const px = xFor(idx);
+        const py = yFor(pt);
+        if (idx === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      });
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
     async function pollLiveTicker() {
       const sel = document.getElementById("symbolInput").value;
       const targetSym = (sel && sel !== "ALL") ? sel : "BTCUSDT";
@@ -489,6 +625,7 @@
             action: sig.action,
             size: sig.size,
             leverage_num: sig.leverage_num,
+            entry: sig.entry,
             sl: sig.sl,
             tp1: sig.tp1,
           }),
@@ -540,6 +677,7 @@
           action: s.action,
           size: s.size,
           leverage_num: s.leverage_num,
+          entry: s.entry,
           sl: s.sl,
           tp1: s.tp1,
         }));
@@ -706,9 +844,11 @@
           setBanner("", "warn");
         }
 
+        const monitorRows = sigData.market_monitoring_table || [];
+        renderPriceChart(monitorRows);
         renderSignals(signals);
         renderPositions(positions);
-        renderMonitor(sigData.market_monitoring_table || []);
+        renderMonitor(monitorRows);
         renderHistory(statusData.history || []);
         renderLogs(tel.telemetry_logs || []);
       } catch (err) {
@@ -716,6 +856,7 @@
       }
     }
 
+    window.addEventListener("resize", () => refreshAll());
     pollLiveTicker();
     refreshAll();
     setInterval(pollLiveTicker, 3000);
