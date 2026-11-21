@@ -3,6 +3,7 @@ import csv
 import hashlib
 import hmac
 import io
+import json
 import math
 import os
 import threading
@@ -21,6 +22,7 @@ BINGX_BASE_URL = os.getenv("BINGX_BASE_URL", "https://open-api.bingx.com").rstri
 BINGX_API_KEY = os.getenv("BINGX_API_KEY", "").strip()
 BINGX_API_SECRET = os.getenv("BINGX_API_SECRET", "").strip()
 ALLOW_WEEKEND_TRADFI = os.getenv("ALLOW_WEEKEND_TRADFI", "false").strip().lower() in ("1", "true", "yes")
+STATE_FILE_PATH = os.getenv("TERMINAL_STATE_FILE", "terminal_state.json")
 
 BINGX_CANDIDATE_BASES = []
 for _u in [
@@ -35,6 +37,7 @@ DIRECTION_COOLDOWN_SEC = 90.0
 _LAST_CONFIRMED_DIRECTION = {}
 _LIVE_PRICE_CACHE = {}
 _KLINES_CACHE = {}
+_CONTRACT_SPECS_CACHE = {"ts": 0.0, "by_symbol": {}}
 _CACHE_LOCK = threading.Lock()
 _LAST_GOOD_SIGNALS_PAYLOAD = None
 
@@ -107,6 +110,52 @@ def safe_float(val, default=0.0):
         return float(default)
 
 
+def persist_state_locked():
+    try:
+        snapshot = {
+            "auto_trade": bool(STATE.get("auto_trade", False)),
+            "max_daily_loss_usd": safe_float(STATE.get("max_daily_loss_usd"), 5.0),
+            "max_open_positions": int(STATE.get("max_open_positions", 3)),
+            "auto_executed_keys": list(STATE.get("auto_executed_keys", []))[-300:],
+            "trailing_updated_keys": list(STATE.get("trailing_updated_keys", []))[-300:],
+            "closed_trades": list(STATE.get("closed_trades", []))[-500:],
+        }
+        tmp_path = f"{STATE_FILE_PATH}.tmp"
+        with open(tmp_path, "w", encoding="utf-8") as fh:
+            json.dump(snapshot, fh, ensure_ascii=False, indent=2)
+        os.replace(tmp_path, STATE_FILE_PATH)
+    except Exception:
+        pass
+
+
+def load_persisted_state():
+    if not os.path.exists(STATE_FILE_PATH):
+        return
+    try:
+        with open(STATE_FILE_PATH, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+        if not isinstance(data, dict):
+            return
+        with STATE_LOCK:
+            if "auto_trade" in data:
+                STATE["auto_trade"] = bool(data["auto_trade"])
+            if "max_daily_loss_usd" in data:
+                STATE["max_daily_loss_usd"] = max(0.5, safe_float(data["max_daily_loss_usd"], 5.0))
+            if "max_open_positions" in data:
+                STATE["max_open_positions"] = max(1, min(15, int(safe_float(data["max_open_positions"], 3))))
+            if isinstance(data.get("auto_executed_keys"), list):
+                STATE["auto_executed_keys"] = data["auto_executed_keys"][-300:]
+            if isinstance(data.get("trailing_updated_keys"), list):
+                STATE["trailing_updated_keys"] = data["trailing_updated_keys"][-300:]
+            if isinstance(data.get("closed_trades"), list):
+                STATE["closed_trades"] = data["closed_trades"][-500:]
+                STATE["session_pnl"] = round(
+                    sum(safe_float(t.get("realized_pnl")) for t in STATE["closed_trades"]), 4
+                )
+    except Exception:
+        pass
+
+
 def canonicalize_symbol_key(sym: str) -> str:
     s = (sym or "").upper().replace("-", "").replace("/", "").replace(":USDT", "").strip()
     if s.endswith("USDT") and len(s) > 4:
@@ -149,10 +198,51 @@ def get_bingx_symbol_candidates(meta: dict) -> list:
     return cands
 
 
-def get_market_calibration_spec(symbol: str, category: str, price: float):
+def get_bingx_contract_spec(bx_symbol: str):
+    now = time.time()
+    with _CACHE_LOCK:
+        if now - _CONTRACT_SPECS_CACHE.get("ts", 0.0) > 300.0:
+            for base in BINGX_CANDIDATE_BASES:
+                try:
+                    resp = requests.get(f"{base}/openApi/swap/v2/quote/contracts", timeout=3.0)
+                    if resp.status_code == 200:
+                        rows = resp.json().get("data") or []
+                        if isinstance(rows, list) and rows:
+                            parsed = {}
+                            for item in rows:
+                                if not isinstance(item, dict):
+                                    continue
+                                s_key = str(item.get("symbol") or "").upper()
+                                if not s_key:
+                                    continue
+                                step_val = safe_float(item.get("size"), 0.0)
+                                qty_prec = int(safe_float(item.get("quantityPrecision"), 0))
+                                price_prec = int(safe_float(item.get("pricePrecision"), 2))
+                                if step_val <= 0 and qty_prec >= 0:
+                                    step_val = 10 ** (-qty_prec) if qty_prec > 0 else 1.0
+                                parsed[s_key] = {
+                                    "pricePrecision": max(0, min(8, price_prec)),
+                                    "quantityPrecision": max(0, min(6, qty_prec)),
+                                    "stepSize": step_val if step_val > 0 else 0.001,
+                                    "tradeMinUSDT": safe_float(item.get("tradeMinUSDT"), 1.0),
+                                }
+                            if parsed:
+                                _CONTRACT_SPECS_CACHE["by_symbol"] = parsed
+                                _CONTRACT_SPECS_CACHE["ts"] = now
+                                break
+                except Exception:
+                    continue
+        return _CONTRACT_SPECS_CACHE.get("by_symbol", {}).get(str(bx_symbol or "").upper())
+
+
+def get_market_calibration_spec(symbol: str, category: str, price: float, bx_symbol: str = None):
     key = canonicalize_symbol_key(symbol)
     meta = ASSET_LOOKUP.get(key)
-    if meta:
+    bx_name = bx_symbol or (meta["bx"] if meta else resolve_bingx_symbol(symbol)[0])
+    c_spec = get_bingx_contract_spec(bx_name)
+    if c_spec and "pricePrecision" in c_spec:
+        decimals = int(c_spec["pricePrecision"])
+    elif meta:
         decimals = meta["precision"]
     elif price >= 1000:
         decimals = 1
@@ -197,18 +287,25 @@ def compute_order_quantity(bx_symbol: str, price: float, raw_qty: float, balance
         return 0.0
     max_notional = max(balance, 1.0) * max(leverage, 1) * 0.92
     capped_qty = min(max(raw_qty, 0.0), max_notional / price)
-    if "BTC" in bx_symbol:
-        step = 0.0001
-    elif "ETH" in bx_symbol or "PAXG" in bx_symbol:
-        step = 0.001
-    elif price >= 50:
-        step = 0.01
-    elif price >= 1:
-        step = 0.1
+
+    c_spec = get_bingx_contract_spec(bx_symbol)
+    if c_spec and safe_float(c_spec.get("stepSize"), 0.0) > 0:
+        step = safe_float(c_spec["stepSize"])
+        dec = int(safe_float(c_spec.get("quantityPrecision"), 0))
     else:
-        step = 1.0
+        if "BTC" in bx_symbol:
+            step = 0.0001
+        elif "ETH" in bx_symbol or "PAXG" in bx_symbol:
+            step = 0.001
+        elif price >= 50:
+            step = 0.01
+        elif price >= 1:
+            step = 0.1
+        else:
+            step = 1.0
+        dec = len(str(step).split(".")[1]) if "." in str(step) else 0
+
     qty = max(step, math.floor(capped_qty / step) * step)
-    dec = len(str(step).split(".")[1]) if "." in str(step) else 0
     return round(qty, dec)
 
 
@@ -416,11 +513,15 @@ def sync_bingx_real_closed_trades():
 
     with STATE_LOCK:
         existing_ids = {t.get("id") for t in STATE["closed_trades"]}
+        added = False
         for tr in parsed_trades:
             if tr["id"] not in existing_ids:
                 STATE["closed_trades"].append(tr)
                 existing_ids.add(tr["id"])
+                added = True
         STATE["session_pnl"] = round(sum(safe_float(t.get("realized_pnl")) for t in STATE["closed_trades"]), 4)
+        if added:
+            persist_state_locked()
 
 
 def fetch_bingx_real_positions():
@@ -503,6 +604,7 @@ def run_break_even_trailing_on_positions(positions, signals_list):
             if not err:
                 with STATE_LOCK:
                     STATE["trailing_updated_keys"].append(be_key)
+                    persist_state_locked()
                 updates.append(f"{bx_sym} -> Break-Even {be_price}")
     return updates
 
@@ -1073,8 +1175,9 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
     bx_symbol, bx_precision = resolve_bingx_symbol(symbol)
     if bx_override:
         bx_symbol = bx_override
-    mkt_decimals, min_sl_pct, min_tp_vs_sl = get_market_calibration_spec(symbol, category, current_price)
-    decimals = bx_precision if bx_precision is not None else mkt_decimals
+    mkt_decimals, min_sl_pct, min_tp_vs_sl = get_market_calibration_spec(symbol, category, current_price, bx_symbol=bx_symbol)
+    c_spec = get_bingx_contract_spec(bx_symbol)
+    decimals = int(c_spec["pricePrecision"]) if (c_spec and "pricePrecision" in c_spec) else (bx_precision if bx_precision is not None else mkt_decimals)
     tick_size = 10 ** (-decimals)
 
     raw_sl_dist = max(atr * sl_m, current_price * min_sl_pct)
@@ -1373,7 +1476,14 @@ def maybe_run_auto_trade_loop(signals_out, live_positions, kill_switch_hit, acco
         if bal_val > 0 and bal_val <= 2.0 and profile_name in ("aggressive", "pro_room"):
             lev_int = 20
 
-        qty = max(0.0001, safe_float(sig.get("size"), 0.001))
+        curr_p = safe_float(sig.get("price"), safe_float(sig.get("entry"), 0.0))
+        qty = compute_order_quantity(
+            bx_symbol,
+            curr_p if curr_p > 0 else 1.0,
+            safe_float(sig.get("size"), 0.001),
+            max(bal_val, 1.0),
+            lev_int,
+        )
         side = "BID" if action == "BUY" else "ASK"
         pos_side = "LONG" if action == "BUY" else "SHORT"
 
@@ -1394,6 +1504,7 @@ def maybe_run_auto_trade_loop(signals_out, live_positions, kill_switch_hit, acco
         if not err:
             with STATE_LOCK:
                 STATE["auto_executed_keys"].append(exec_key)
+                persist_state_locked()
             executed.append(f"{bx_symbol} {action} {lev_int}x qty={qty}")
     return executed
 
@@ -1591,6 +1702,7 @@ def api_autotrade_toggle():
         if "max_open_positions" in body:
             STATE["max_open_positions"] = max(1, min(15, int(safe_float(body["max_open_positions"], STATE["max_open_positions"]))))
 
+        persist_state_locked()
         return jsonify({
             "success": True,
             "auto_trade": STATE["auto_trade"],
@@ -1773,6 +1885,7 @@ def get_signals():
         kill_switch_hit = daily_net <= -max_loss_val
         if kill_switch_hit and STATE.get("auto_trade"):
             STATE["auto_trade"] = False
+            persist_state_locked()
 
     auto_executed = maybe_run_auto_trade_loop(signals_out, live_positions, kill_switch_hit, account_balance=effective_balance)
     be_updates = run_break_even_trailing_on_positions(live_positions, monitoring_rows)
@@ -1883,7 +1996,16 @@ def api_execute_manual():
         action = "BUY"
 
     lev_int = max(1, min(20, int(safe_float(body.get("leverage_num"), 5))))
-    qty = max(0.0001, safe_float(body.get("size"), 0.001))
+    account_bal, _ = fetch_bingx_account_balance()
+    bal_val = safe_float(account_bal.get("equity"), 2.0) if isinstance(account_bal, dict) else 2.0
+    curr_p = fetch_bingx_ticker(bx_symbol) or safe_float(body.get("entry"), 0.0)
+    qty = compute_order_quantity(
+        bx_symbol,
+        curr_p if curr_p > 0 else 1.0,
+        safe_float(body.get("size"), 0.001),
+        max(bal_val, 1.0),
+        lev_int,
+    )
     side = "BID" if action == "BUY" else "ASK"
     pos_side = "LONG" if action == "BUY" else "SHORT"
 
@@ -1942,6 +2064,8 @@ def api_telemetry():
             "telemetry_logs": list(STATE["telemetry_logs"]),
         })
 
+
+load_persisted_state()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", "5000")), debug=False)
