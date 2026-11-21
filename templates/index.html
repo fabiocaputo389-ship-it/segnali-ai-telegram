@@ -550,7 +550,7 @@
         <div class="signboard-grid">
             <div class="signboard" style="border-top-color:var(--accent-green);">
                 <div class="signboard-tag">CARTELLO 01 • SOLO CERTI</div>
-                <div class="signboard-title">CERTEZZA &ge; 80% (&ge; 5/6 FATTORI)</div>
+                <div class="signboard-title">CERTEZZA &ge; 67% (&ge; 4/6 FATTORI)</div>
                 <div class="signboard-desc">Conferma MTF + multi-confluenza + anti-inversione.</div>
             </div>
             <div class="signboard" style="border-top-color:var(--accent-gold);">
@@ -560,7 +560,7 @@
             </div>
             <div class="signboard" style="border-top-color:var(--accent-blue);">
                 <div class="signboard-tag">CARTELLO 03 • EDGE EV+</div>
-                <div class="signboard-title">EV NETTO &gt; 0 &amp; R:R &ge; 1:1.5</div>
+                <div class="signboard-title">EV NETTO &gt; 0 &amp; R:R &ge; 1:1.25</div>
                 <div class="signboard-desc">Profitto atteso al netto fee + Kelly frazionato.</div>
             </div>
             <div class="signboard" style="border-top-color:var(--accent-purple);">
@@ -665,7 +665,7 @@
     <div id="tab-signals" class="tab-view active">
         <div class="panel">
             <div class="section-heading">
-                <span>📡 SEGNALI OPERATIVI CERTI LIVE (BLOCCATI 90s)</span>
+                <span>📡 SEGNALI OPERATIVI CERTI LIVE (BLOCCATI 90S)</span>
                 <span id="lastScanLabel" class="mono" style="font-size:0.66rem; color:var(--text-muted);">LIVE • --:--:--</span>
             </div>
 
@@ -688,9 +688,10 @@
                 <div>
                     <label for="profileSelect">Profilo</label>
                     <select id="profileSelect" onchange="loadSignals(true)">
-                        <option value="conservative">Conservativo</option>
-                        <option value="balanced" selected>Bilanciato</option>
+                        <option value="pro_room" selected>Pro Room (Frequente)</option>
                         <option value="aggressive">Aggressivo</option>
+                        <option value="balanced">Bilanciato</option>
+                        <option value="conservative">Conservativo</option>
                     </select>
                 </div>
                 <div>
@@ -711,7 +712,7 @@
                 </div>
                 <div>
                     <label for="minScoreInput">Min Score (%)</label>
-                    <input id="minScoreInput" type="number" step="1" min="50" max="99" value="80" onchange="loadSignals(true)">
+                    <input id="minScoreInput" type="number" step="1" min="50" max="99" value="70" onchange="loadSignals(true)">
                 </div>
             </div>
 
@@ -843,6 +844,12 @@
         let isFetchingSignals = false;
         let riskInputsDirty = false;
 
+        function parseNumInput(id, fallback) {
+            const raw = String(document.getElementById(id)?.value ?? fallback).replace(',', '.').trim();
+            const n = parseFloat(raw);
+            return Number.isFinite(n) ? n : fallback;
+        }
+
         document.getElementById('maxDailyLossInput')?.addEventListener('input', () => { riskInputsDirty = true; });
         document.getElementById('maxOpenPosInput')?.addEventListener('input', () => { riskInputsDirty = true; });
 
@@ -855,8 +862,8 @@
         }
 
         async function saveRiskControls() {
-            const maxLoss = parseFloat(document.getElementById('maxDailyLossInput')?.value || '5.0');
-            const maxOpenPos = parseInt(document.getElementById('maxOpenPosInput')?.value || '3', 10);
+            const maxLoss = parseNumInput('maxDailyLossInput', 5.0);
+            const maxOpenPos = parseInt(String(parseNumInput('maxOpenPosInput', 3)), 10);
             const statusEl = document.getElementById('riskSaveStatus');
             try {
                 const res = await fetch('/api/autotrade/config', {
@@ -978,8 +985,8 @@
                     'Certezza Setup',
                     avgCert,
                     `${avgCert.toFixed(1)}%`,
-                    'Soglia certa >= 80%',
-                    avgCert >= 80 ? '#00ff66' : (avgCert >= 60 ? '#ffd166' : '#38bdf8')
+                    'Soglia certa >= 67%',
+                    avgCert >= 67 ? '#00ff66' : (avgCert >= 50 ? '#ffd166' : '#38bdf8')
                 ),
                 buildGaugeSvg(
                     'Anti-Fakeout Puliti',
@@ -1171,7 +1178,7 @@
             if (!sig) return;
             const cleanName = String(sig.name || sig.symbol || '').replace(/[^\w\s/()-]/g, '').trim();
             const dirLabel = sig.action === 'BUY' ? 'acquisto long certo' : 'vendita short certo';
-            const certText = sig.certainty_text || `${Number(sig.certainty_pct || 80).toFixed(1)}%`;
+            const certText = sig.certainty_text || `${Number(sig.certainty_pct || 75).toFixed(1)}%`;
             const etaText = computeTpCandleEstimate(sig).replace(/•/g, ',');
             const evText = `attesa matematica ${Number(sig.ev_net_usd || 0).toFixed(2)} dollari`;
             const revText = sig.reversal_summary ? sig.reversal_summary.replace('→', 'verso') : '';
@@ -1379,11 +1386,11 @@
 
         function buildQueryUrl() {
             const params = new URLSearchParams({
-                profile: document.getElementById('profileSelect')?.value || 'balanced',
+                profile: document.getElementById('profileSelect')?.value || 'pro_room',
                 timeframe: document.getElementById('timeframeSelect')?.value || '15m',
-                balance: document.getElementById('balanceInput')?.value || '2.0',
-                risk: document.getElementById('riskInput')?.value || '1.0',
-                min_score: document.getElementById('minScoreInput')?.value || '80',
+                balance: String(parseNumInput('balanceInput', 2.0)),
+                risk: String(parseNumInput('riskInput', 1.0)),
+                min_score: String(parseNumInput('minScoreInput', 70)),
                 market: document.getElementById('marketSelect')?.value || 'ALL',
                 symbol: document.getElementById('assetSelect')?.value || 'ALL'
             });
@@ -1394,24 +1401,31 @@
             if (isFetchingSignals && !force) return;
             isFetchingSignals = true;
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 9000);
+            const timeoutId = setTimeout(() => controller.abort(), 14000);
 
             try {
                 const res = await fetch(buildQueryUrl(), { signal: controller.signal, cache: 'no-store' });
                 const data = await res.json();
+                if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
                 if (data.kill_switch_hit) {
                     syncAutoTradeButton(false);
                 }
                 syncRiskInputsFromServer(data.max_daily_loss_usd, data.max_open_positions);
                 const heldSignals = mergeAndHoldSignals(Array.isArray(data.signals) ? data.signals : []);
+                const incomingRows = Array.isArray(data.market_monitoring_table) ? data.market_monitoring_table : [];
 
                 latestPayload = {
-                    sessions: data.sessions || {},
-                    macro_windows: data.macro_windows || [],
+                    sessions: data.sessions || latestPayload.sessions,
+                    macro_windows: data.macro_windows || latestPayload.macro_windows,
                     signals: heldSignals,
-                    active_params: data.active_params || {},
-                    market_diagnostics: data.market_diagnostics || {},
-                    market_monitoring_table: Array.isArray(data.market_monitoring_table) ? data.market_monitoring_table : [],
+                    active_params: data.active_params || latestPayload.active_params,
+                    market_diagnostics: Object.keys(data.market_diagnostics || {}).length
+                        ? data.market_diagnostics
+                        : latestPayload.market_diagnostics,
+                    market_monitoring_table: incomingRows.length
+                        ? incomingRows
+                        : latestPayload.market_monitoring_table,
                     performance: data.performance || latestPayload.performance,
                     telemetry: data.telemetry || latestPayload.telemetry
                 };
@@ -1424,11 +1438,17 @@
 
                 const nowTime = new Date().toLocaleTimeString('it-IT', { hour12: false });
                 const scanLbl = document.getElementById('lastScanLabel');
-                if (scanLbl) scanLbl.textContent = `LIVE • ${nowTime}`;
+                if (scanLbl) {
+                    scanLbl.style.color = 'var(--accent-green)';
+                    scanLbl.textContent = `LIVE • ${nowTime}`;
+                }
             } catch (e) {
                 const nowTime = new Date().toLocaleTimeString('it-IT', { hour12: false });
                 const scanLbl = document.getElementById('lastScanLabel');
-                if (scanLbl) scanLbl.textContent = `SYNC RETRY • ${nowTime}`;
+                if (scanLbl) {
+                    scanLbl.style.color = 'var(--accent-gold)';
+                    scanLbl.textContent = `SYNC RETRY • ${nowTime}`;
+                }
             } finally {
                 clearTimeout(timeoutId);
                 isFetchingSignals = false;
@@ -1481,7 +1501,7 @@
                                     const isBuy = sig.action === 'BUY';
                                     const col = isBuy ? 'var(--accent-green)' : 'var(--accent-red)';
                                     const tpTiming = computeTpCandleEstimate(sig);
-                                    const certText = sig.certainty_text || `${Number(sig.certainty_pct || 80).toFixed(1)}%`;
+                                    const certText = sig.certainty_text || `${Number(sig.certainty_pct || 75).toFixed(1)}%`;
                                     const evVal = Number(sig.ev_net_usd || 0);
                                     return `
                                         <div class="signal-card" style="border-left:4px solid ${col};">
