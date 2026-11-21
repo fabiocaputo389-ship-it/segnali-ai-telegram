@@ -762,7 +762,7 @@
                 </div>
                 <div>
                     <label for="profileSelect">Profilo</label>
-                    <select id="profileSelect" onchange="loadSignals(true)">
+                    <select id="profileSelect" onchange="onParamSelectChange()">
                         <option value="pro_room" selected>Pro Room (Frequente)</option>
                         <option value="aggressive">Aggressivo</option>
                         <option value="balanced">Bilanciato</option>
@@ -771,7 +771,7 @@
                 </div>
                 <div>
                     <label for="timeframeSelect">Timeframe</label>
-                    <select id="timeframeSelect" onchange="loadSignals(true)">
+                    <select id="timeframeSelect" onchange="onParamSelectChange()">
                         <option value="5m">5m</option>
                         <option value="15m" selected>15m</option>
                         <option value="1h">1h</option>
@@ -779,20 +779,20 @@
                 </div>
                 <div>
                     <label for="balanceInput">Capitale ($)</label>
-                    <input id="balanceInput" type="number" step="0.5" min="1" value="2.0" onchange="loadSignals(true)">
+                    <input id="balanceInput" type="number" step="0.5" min="1" value="2.0" oninput="onScoreParamChange(false)" onchange="onScoreParamChange(true)">
                 </div>
                 <div>
                     <label for="riskInput">Rischio (%)</label>
-                    <input id="riskInput" type="number" step="0.25" min="0.25" max="20" value="1.0" onchange="loadSignals(true)">
+                    <input id="riskInput" type="number" step="0.25" min="0.25" max="20" value="1.0" oninput="onScoreParamChange(false)" onchange="onScoreParamChange(true)">
                 </div>
                 <div>
                     <label for="minScoreInput">Min Score (%)</label>
-                    <input id="minScoreInput" type="number" step="1" min="50" max="99" value="70" onchange="loadSignals(true)">
+                    <input id="minScoreInput" type="number" step="1" min="1" max="99" value="70" oninput="onScoreParamChange(false)" onchange="onScoreParamChange(true)">
                 </div>
             </div>
 
             <div id="activeParamsStrip" class="active-params-strip">
-                Parametri attivi: Profilo Pro Room • TF 15m • Capitale $2.00 • Rischio 1.0% • Min Score 70%
+                Parametri attivi: Profilo PRO_ROOM • TF 15m • Capitale $2.00 • Rischio 1.00% • Min Score 70%
             </div>
 
             <div id="marketsSignalsContainer">
@@ -911,6 +911,7 @@
             'Azioni & Indici Globali'
         ];
 
+        const USER_PREFS_STORAGE_KEY = 'bingx_hft_user_prefs_v1';
         const SIGNAL_HOLD_MS = 90000;
         const pinnedSignalsMap = new Map();
 
@@ -931,11 +932,75 @@
         const notifiedSignalKeys = new Set();
         let isFetchingSignals = false;
         let riskInputsDirty = false;
+        let scoreDebounceTimer = null;
 
         function parseNumInput(id, fallback) {
             const raw = String(document.getElementById(id)?.value ?? fallback).replace(',', '.').trim();
             const n = parseFloat(raw);
             return Number.isFinite(n) ? n : fallback;
+        }
+
+        function saveUserPreferencesToStorage() {
+            try {
+                const prefs = {
+                    market: document.getElementById('marketSelect')?.value || 'ALL',
+                    symbol: document.getElementById('assetSelect')?.value || 'ALL',
+                    profile: document.getElementById('profileSelect')?.value || 'pro_room',
+                    timeframe: document.getElementById('timeframeSelect')?.value || '15m',
+                    balance: String(document.getElementById('balanceInput')?.value ?? '2.0'),
+                    risk: String(document.getElementById('riskInput')?.value ?? '1.0'),
+                    min_score: String(document.getElementById('minScoreInput')?.value ?? '70')
+                };
+                localStorage.setItem(USER_PREFS_STORAGE_KEY, JSON.stringify(prefs));
+            } catch (e) {}
+        }
+
+        function restoreUserPreferencesFromStorage() {
+            try {
+                const raw = localStorage.getItem(USER_PREFS_STORAGE_KEY);
+                if (!raw) return;
+                const prefs = JSON.parse(raw);
+                if (prefs.market && document.getElementById('marketSelect')) {
+                    document.getElementById('marketSelect').value = prefs.market;
+                }
+                populateAssetDropdown();
+                if (prefs.symbol && document.getElementById('assetSelect')) {
+                    const exists = Array.from(document.getElementById('assetSelect').options).some(o => o.value === prefs.symbol);
+                    if (exists) document.getElementById('assetSelect').value = prefs.symbol;
+                }
+                if (prefs.profile && document.getElementById('profileSelect')) {
+                    document.getElementById('profileSelect').value = prefs.profile;
+                }
+                if (prefs.timeframe && document.getElementById('timeframeSelect')) {
+                    document.getElementById('timeframeSelect').value = prefs.timeframe;
+                }
+                if (prefs.balance !== undefined && document.getElementById('balanceInput')) {
+                    document.getElementById('balanceInput').value = prefs.balance;
+                }
+                if (prefs.risk !== undefined && document.getElementById('riskInput')) {
+                    document.getElementById('riskInput').value = prefs.risk;
+                }
+                if (prefs.min_score !== undefined && document.getElementById('minScoreInput')) {
+                    document.getElementById('minScoreInput').value = prefs.min_score;
+                }
+            } catch (e) {}
+        }
+
+        function onScoreParamChange(immediate = false) {
+            saveUserPreferencesToStorage();
+            updateActiveParamsStrip();
+            if (scoreDebounceTimer) clearTimeout(scoreDebounceTimer);
+            if (immediate) {
+                loadSignals(true);
+            } else {
+                scoreDebounceTimer = setTimeout(() => loadSignals(true), 350);
+            }
+        }
+
+        function onParamSelectChange() {
+            saveUserPreferencesToStorage();
+            updateActiveParamsStrip();
+            loadSignals(true);
         }
 
         function computeClientTpProgress(row, tpField, fallbackPctField) {
@@ -1167,8 +1232,8 @@
                     'Certezza Setup',
                     avgCert,
                     `${avgCert.toFixed(1)}%`,
-                    'Soglia certa >= 67%',
-                    avgCert >= 67 ? '#15803d' : '#dc2626'
+                    'Soglia certa >= 50%',
+                    avgCert >= 50 ? '#15803d' : '#dc2626'
                 ),
                 buildGaugeSvg(
                     'Anti-Fakeout Puliti',
@@ -1259,6 +1324,7 @@
 
         function onMarketOrAssetChange() {
             populateAssetDropdown();
+            saveUserPreferencesToStorage();
             updateActiveParamsStrip();
             renderSignalsAndMarkets();
             renderMonitoringTable();
@@ -1573,11 +1639,22 @@
             return `/api/signals?${params.toString()}`;
         }
 
+        function renderScanFallbackMessage(msgText) {
+            const container = document.getElementById('marketsSignalsContainer');
+            if (container && !(latestPayload.market_monitoring_table || []).length) {
+                container.innerHTML = `<div class="diag-box">${msgText}</div>`;
+            }
+            const tbody = document.getElementById('monitoringTableBody');
+            if (tbody && !(latestPayload.market_monitoring_table || []).length) {
+                tbody.innerHTML = `<tr><td colspan="7" class="mono">${msgText}</td></tr>`;
+            }
+        }
+
         async function loadSignals(force = false) {
             if (isFetchingSignals && !force) return;
             isFetchingSignals = true;
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 14000);
+            const timeoutId = setTimeout(() => controller.abort(), 25000);
 
             try {
                 const res = await fetch(buildQueryUrl(), { signal: controller.signal, cache: 'no-store' });
@@ -1625,6 +1702,7 @@
                     scanLbl.style.color = 'var(--accent-red)';
                     scanLbl.textContent = `SYNC RETRY • ${nowTime}`;
                 }
+                renderScanFallbackMessage(`Sincronizzazione Render/BingX in corso (${e?.name === 'AbortError' ? 'timeout rete' : (e?.message || 'attesa risposta')}) — nuovo tentativo automatico tra 5s.`);
             } finally {
                 clearTimeout(timeoutId);
                 isFetchingSignals = false;
@@ -1885,6 +1963,7 @@
         }
 
         populateAssetDropdown();
+        restoreUserPreferencesFromStorage();
         updateActiveParamsStrip();
         renderMarketScheduleGrid();
         renderDeskGauges();
