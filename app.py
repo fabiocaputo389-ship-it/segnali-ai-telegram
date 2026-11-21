@@ -4,7 +4,7 @@ Dati reali da BingX Perpetual Swap (API pubbliche + endpoint privati firmati HMA
 motore di segnali multi-timeframe, tracciamento TP/SL, flussi balene/liquidazioni reali,
 report giornaliero/mensile live, notifiche Telegram e dashboard servita su "/".
 
-Variabili d'ambiente su Render:
+Variabili d'ambiente:
   BINGX_API_KEY, BINGX_API_SECRET       -> lettura saldo, posizioni e income history su BingX
   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID  -> invio segnali su Telegram
   DASHBOARD_PASSWORD                    -> protegge la dashboard con password (Basic Auth)
@@ -129,7 +129,6 @@ def _safe(fn, *a):
 PRICES = {}
 FUNDING = {"avg": 0.0}
 PLOCK = threading.Lock()
-SCAN_CYCLES = 0
 
 
 def _fetch_single_ticker(sym: str):
@@ -155,7 +154,6 @@ def _fetch_single_ticker(sym: str):
 
 
 def refresh_prices():
-    global SCAN_CYCLES
     results = list(POOL.map(lambda s: _safe(_fetch_single_ticker, s), PAIRS))
     out, fund = {}, []
     for item in results:
@@ -170,7 +168,6 @@ def refresh_prices():
     with PLOCK:
         PRICES.update(out)
         FUNDING["avg"] = (sum(fund) / len(fund)) if fund else 0.0
-        SCAN_CYCLES += 1
 
 
 # ------------------------------------------------------------------ candele reali
@@ -192,6 +189,7 @@ def _parse_candle_row(r):
 
 
 def candles(sym, tf, ttl=20):
+    """Righe reali: [ts, open, high, low, close, volume], ordinate per tempo."""
     k = (sym, tf)
     now = time.time()
     with CLOCK:
@@ -805,9 +803,8 @@ def state():
         except Exception:
             log.exception("query signals")
     with PLOCK:
-        prices = {k: dict(v) for k, v in PRICES.items() if v.get("p") and float(v["p"]) > 0}
+        prices = {k: dict(v) for k, v in PRICES.items()}
         fund = FUNDING["avg"]
-        scans = SCAN_CYCLES
     with ELOCK:
         fg = EXTRA["fg"]
         news = list(EXTRA["news"])
@@ -818,7 +815,6 @@ def state():
         mode="live",
         exchange="BingX",
         api_configured=bool(BINGX_API_KEY and BINGX_API_SECRET),
-        scan_cycles=scans,
         prices=prices,
         signals=[to_sig(r) for r in rows],
         sentiment={"fg": fg, "funding": fund},
