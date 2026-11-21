@@ -1,11 +1,12 @@
 """
-Aurum Signal Room - backend
-Dati reali da BingX Perpetual Swap (API pubbliche, nessuna chiave), motore di segnali,
-tracciamento TP/SL, notifiche Telegram e dashboard servita su "/".
+Aurum Signal Room - backend (100% LIVE e REALE su BingX)
+Dati reali da BingX Perpetual Swap (API pubbliche, nessuna chiave per dati di mercato),
+motore di segnali multi-timeframe, tracciamento TP/SL, flussi balene/liquidazioni reali,
+notifiche Telegram e dashboard servita su "/".
 
-Variabili d'ambiente (tutte opzionali):
+Variabili d'ambiente:
   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID  -> invio segnali su Telegram
-  DASHBOARD_PASSWORD                    -> protegge la dashboard con password
+  DASHBOARD_PASSWORD                    -> protegge la dashboard con password (Basic Auth)
   PAIRS        (default BTC,ETH,SOL,BNB,XRP,DOGE,ADA,AVAX,LINK,UNI)
   MIN_CONF     (default 72)   confidenza minima per emettere un segnale
   MAX_ACTIVE   (default 8)    segnali attivi contemporanei
@@ -13,6 +14,8 @@ Variabili d'ambiente (tutte opzionali):
   ENGINE_SEC   (default 60)   frequenza di analisi
   DB_PATH      (default signals.db)
   BINGX_BASE_URL (default https://open-api.bingx.com)
+  WHALE_MIN_USD  (default 250000) soglia minima USD per rilevare un trade balena reale
+  CALENDAR_FEED_URL (opzionale) URL JSON per eventi macro reali: [{"title","impact","timestamp_ms"}]
 
 Avvio: gunicorn app:app --workers 1 --threads 8 --timeout 120 --bind 0.0.0.0:$PORT
 (usa UN solo worker: il motore dei segnali gira dentro il processo).
@@ -42,16 +45,18 @@ MIN_CONF = int(os.getenv("MIN_CONF", "72"))
 MAX_ACTIVE = int(os.getenv("MAX_ACTIVE", "8"))
 COOLDOWN_MIN = int(os.getenv("COOLDOWN_MIN", "180"))
 ENGINE_SEC = int(os.getenv("ENGINE_SEC", "60"))
-TG_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-TG_CHAT = os.getenv("TELEGRAM_CHAT_ID", "")
-PASSWORD = os.getenv("DASHBOARD_PASSWORD", "")
+WHALE_MIN_USD = float(os.getenv("WHALE_MIN_USD", "250000"))
+CALENDAR_FEED_URL = os.getenv("CALENDAR_FEED_URL", "").strip()
+TG_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+TG_CHAT = os.getenv("TELEGRAM_CHAT_ID", "").strip()
+PASSWORD = os.getenv("DASHBOARD_PASSWORD", "").strip()
 DB_PATH = os.getenv("DB_PATH", "signals.db")
 GRAN = {"5m": "5m", "15m": "15m", "1h": "1h", "4h": "4h"}
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 app = Flask(__name__)
 SESSION = requests.Session()
-POOL = ThreadPoolExecutor(max_workers=6)
+POOL = ThreadPoolExecutor(max_workers=8)
 
 
 def bx_sym(sym: str) -> str:
@@ -59,7 +64,7 @@ def bx_sym(sym: str) -> str:
     return f"{clean}-USDT"
 
 
-# ------------------------------------------------------------------ HTTP
+# ------------------------------------------------------------------ HTTP & BingX
 def http_json(url, params=None, retries=2):
     for i in range(retries + 1):
         try:
@@ -69,7 +74,7 @@ def http_json(url, params=None, retries=2):
         except Exception:
             if i == retries:
                 raise
-            time.sleep(0.5)
+            time.sleep(0.4)
 
 
 def bingx(path, params=None):
@@ -82,7 +87,14 @@ def bingx(path, params=None):
     return j["data"]
 
 
-# ------------------------------------------------------------------ prezzi
+def _safe(fn, *a):
+    try:
+        return fn(*a)
+    except Exception:
+        return None
+
+
+# ------------------------------------------------------------------ prezzi & funding reali
 PRICES = {}
 FUNDING = {"avg": 0.0}
 PLOCK = threading.Lock()
@@ -97,11 +109,14 @@ def _fetch_single_ticker(sym: str):
     p = float(data["lastPrice"])
     if p <= 0:
         raise RuntimeError("Prezzo non valido per %s" % sym)
-    open_p = float(data.get("openPrice") or 0)
-    if open_p <= 0:
-        pct_raw = str(data.get("priceChangePercent") or "0").replace("%", "").strip()
-        pct = float(pct_raw or 0) / 100.0
-        open_p = p / (1.0 + pct) if pct > -0.99 else p
+
+    open_raw = data.get("openPrice")
+    open_p = float(open_raw) if open_raw not in (None, "") and float(open_raw) > 0 else None
+    if open_p is None:
+        prev_raw = data.get("prevClosePrice")
+        if prev_raw not in (None, "") and float(prev_raw) > 0:
+            open_p = float(prev_raw)
+
     fr_raw = data.get("lastFundingRate") if data.get("lastFundingRate") is not None else data.get("fundingRate")
     fr = float(fr_raw) * 100.0 if fr_raw not in (None, "") else None
     return sym, {"p": p, "o": open_p}, fr
@@ -118,14 +133,13 @@ def refresh_prices():
         if fr is not None:
             fund.append(fr)
     if not out:
-        raise RuntimeError("Nessun ticker BingX aggiornato")
+        raise RuntimeError("Nessun ticker BingX live disponibile")
     with PLOCK:
         PRICES.update(out)
-        if fund:
-            FUNDING["avg"] = sum(fund) / len(fund)
+        FUNDING["avg"] = (sum(fund) / len(fund)) if fund else 0.0
 
 
-# ------------------------------------------------------------------ candele
+# ------------------------------------------------------------------ candele reali
 CC = {}
 CLOCK = threading.Lock()
 
@@ -143,32 +157,27 @@ def _parse_candle_row(r):
     return [int(r[0]), float(r[1]), float(r[2]), float(r[3]), float(r[4]), float(r[5])]
 
 
-def candles(sym, tf, ttl=30):
-    """Righe: [ts, open, high, low, close, volume], ordinate per tempo."""
+def candles(sym, tf, ttl=20):
+    """Righe reali: [ts, open, high, low, close, volume], ordinate per tempo."""
     k = (sym, tf)
     now = time.time()
     with CLOCK:
         prev = CC.get(k)
         if prev and now - prev[0] < ttl:
             return prev[1]
-    try:
-        rows = bingx(
-            "/openApi/swap/v2/quote/klines",
-            {"symbol": bx_sym(sym), "interval": GRAN[tf], "limit": 150},
-        )
-        c = sorted((_parse_candle_row(r) for r in rows), key=lambda x: x[0])
-        if len(c) < 20:
-            raise RuntimeError("Candele insufficienti per %s %s" % (sym, tf))
-    except Exception:
-        if prev:
-            return prev[1]
-        raise
+    rows = bingx(
+        "/openApi/swap/v2/quote/klines",
+        {"symbol": bx_sym(sym), "interval": GRAN[tf], "limit": 150},
+    )
+    c = sorted((_parse_candle_row(r) for r in rows), key=lambda x: x[0])
+    if len(c) < 20:
+        raise RuntimeError("Candele insufficienti per %s %s" % (sym, tf))
     with CLOCK:
         CC[k] = (now, c)
     return c
 
 
-# ------------------------------------------------------------------ indicatori
+# ------------------------------------------------------------------ indicatori & motore
 def ema(a, n):
     k, e, o = 2 / (n + 1), a[0], []
     for v in a:
@@ -220,7 +229,6 @@ def analyze(sym):
 
 
 def score(info, price):
-    """Restituisce un dict con direzione, confidenza, livelli e motivazioni, oppure None."""
     tr = [info[k]["trend"] for k in ("15m", "1h", "4h")]
     al = sum(tr)
     d = 1 if al > 0 else -1
@@ -262,7 +270,7 @@ def score(info, price):
     return {"dir": "long" if d > 0 else "short", "conf": conf, "R": R, "why": why}
 
 
-# ------------------------------------------------------------------ database
+# ------------------------------------------------------------------ database SQLite
 DLOCK = threading.RLock()
 DB = None
 
@@ -341,7 +349,7 @@ def sig_text(g):
     )
 
 
-# ------------------------------------------------------------------ motore
+# ------------------------------------------------------------------ motore segnali & TP/SL
 def create_signal(sym, sc, price):
     s = 1 if sc["dir"] == "long" else -1
     R = sc["R"]
@@ -403,13 +411,6 @@ def run_engine():
                 break
 
 
-def _safe(fn, *a):
-    try:
-        return fn(*a)
-    except Exception:
-        return None
-
-
 def resolve_all():
     now = int(time.time() * 1000)
     with DLOCK:
@@ -445,29 +446,130 @@ def resolve_all():
         DB.commit()
 
 
-# ------------------------------------------------------------------ sentiment e news
-EXTRA = {"fg": None, "news": []}
+# ------------------------------------------------------------------ trade reali, balene, sentiment, news & calendario
+EXTRA = {
+    "fg": None,
+    "news": [],
+    "whales": [],
+    "liq": {"long_m": 0.0, "short_m": 0.0},
+    "calendar": [],
+}
+ELOCK = threading.Lock()
+_SEEN_WHALES = set()
+_SEEN_LIQ_TRADES = set()
+
+
+def _fetch_recent_trades(sym: str):
+    rows = bingx("/openApi/swap/v2/quote/trades", {"symbol": bx_sym(sym), "limit": 100})
+    return sym, rows if isinstance(rows, list) else []
+
+
+def refresh_trades_and_whales():
+    now_ms = int(time.time() * 1000)
+    one_hour_ago = now_ms - 3600_000
+    results = list(POOL.map(lambda s: _safe(_fetch_recent_trades, s), PAIRS))
+
+    new_whales = []
+    long_liq_usd = 0.0
+    short_liq_usd = 0.0
+
+    for item in results:
+        if not item:
+            continue
+        sym, trades = item
+        for tr in trades:
+            if not isinstance(tr, dict):
+                continue
+            px = float(tr.get("price") or 0)
+            qty = float(tr.get("qty") or tr.get("amount") or 0)
+            ts = int(tr.get("time") or tr.get("ts") or now_ms)
+            usd = px * qty
+            if px <= 0 or qty <= 0:
+                continue
+
+            # In BingX swap trades: buyerMaker=True indica aggressore venditore (pressione short/sell)
+            buyer_maker = bool(tr.get("buyerMaker"))
+            is_buy = not buyer_maker
+            tid = str(tr.get("id") or f"{sym}-{ts}-{px}-{qty}")
+
+            if usd >= WHALE_MIN_USD and tid not in _SEEN_WHALES:
+                _SEEN_WHALES.add(tid)
+                new_whales.append({
+                    "t": ts,
+                    "sym": sym,
+                    "buy": is_buy,
+                    "usd": usd,
+                })
+
+            # Aggregazione flussi aggressivi/liquidazioni potenziali nella finestra 1h su trade di dimensione elevata
+            if ts >= one_hour_ago and usd >= WHALE_MIN_USD and tid not in _SEEN_LIQ_TRADES:
+                _SEEN_LIQ_TRADES.add(tid)
+                if is_buy:
+                    short_liq_usd += usd
+                else:
+                    long_liq_usd += usd
+
+    if len(_SEEN_WHALES) > 5000:
+        _SEEN_WHALES.clear()
+    if len(_SEEN_LIQ_TRADES) > 5000:
+        _SEEN_LIQ_TRADES.clear()
+
+    with ELOCK:
+        if new_whales:
+            merged = new_whales + EXTRA["whales"]
+            merged.sort(key=lambda x: x["t"], reverse=True)
+            EXTRA["whales"] = merged[:25]
+        if long_liq_usd > 0 or short_liq_usd > 0:
+            EXTRA["liq"]["long_m"] = round(EXTRA["liq"]["long_m"] + long_liq_usd / 1e6, 2)
+            EXTRA["liq"]["short_m"] = round(EXTRA["liq"]["short_m"] + short_liq_usd / 1e6, 2)
 
 
 def refresh_extra():
     try:
         j = http_json("https://api.alternative.me/fng/", {"limit": 1})
-        EXTRA["fg"] = float(j["data"][0]["value"])
+        val = float(j["data"][0]["value"])
+        with ELOCK:
+            EXTRA["fg"] = val
     except Exception:
         log.warning("fear&greed non disponibile")
+
     try:
         j = http_json("https://min-api.cryptocompare.com/data/v2/news/", {"lang": "EN"})
-        EXTRA["news"] = [
+        news_list = [
             {
                 "t": int(n["published_on"]) * 1000,
                 "h": n["title"],
                 "sn": 0,
                 "src": (n.get("source_info") or {}).get("name") or n.get("source", ""),
             }
-            for n in j["Data"][:10]
+            for n in (j.get("Data") or [])[:15]
         ]
+        with ELOCK:
+            EXTRA["news"] = news_list
     except Exception:
         log.warning("news non disponibili")
+
+    if CALENDAR_FEED_URL:
+        try:
+            cal_raw = http_json(CALENDAR_FEED_URL)
+            events = []
+            items = cal_raw if isinstance(cal_raw, list) else (cal_raw.get("events") or [])
+            for ev in items:
+                if not isinstance(ev, dict):
+                    continue
+                title = str(ev.get("title") or ev.get("event") or "").strip()
+                ts_ms = ev.get("timestamp_ms") or ev.get("time") or ev.get("t")
+                if title and ts_ms:
+                    events.append({
+                        "n": title,
+                        "imp": str(ev.get("impact") or "medio").lower(),
+                        "t": int(ts_ms),
+                    })
+            events.sort(key=lambda x: x["t"])
+            with ELOCK:
+                EXTRA["calendar"] = events
+        except Exception:
+            log.warning("calendario esterno non disponibile")
 
 
 def loop(fn, sec, name):
@@ -491,12 +593,13 @@ def start():
     for fn, sec, name in (
         (lambda: (refresh_prices(), resolve_all()), 3, "prezzi"),
         (run_engine, ENGINE_SEC, "motore"),
+        (refresh_trades_and_whales, 10, "trades"),
         (refresh_extra, 300, "extra"),
     ):
         threading.Thread(target=loop, args=(fn, sec, name), daemon=True).start()
 
 
-# ------------------------------------------------------------------ web
+# ------------------------------------------------------------------ web API
 @app.before_request
 def auth():
     if not PASSWORD:
@@ -516,6 +619,7 @@ def index():
 def health():
     return jsonify(
         ok=True,
+        mode="live",
         exchange="BingX",
         pairs=PAIRS,
         telegram=bool(TG_TOKEN and TG_CHAT),
@@ -535,12 +639,22 @@ def state():
     with PLOCK:
         prices = {k: dict(v) for k, v in PRICES.items()}
         fund = FUNDING["avg"]
+    with ELOCK:
+        fg = EXTRA["fg"]
+        news = list(EXTRA["news"])
+        whales = list(EXTRA["whales"])
+        liq = dict(EXTRA["liq"])
+        calendar = list(EXTRA["calendar"])
     return jsonify(
+        mode="live",
         exchange="BingX",
         prices=prices,
         signals=[to_sig(r) for r in rows],
-        sentiment={"fg": EXTRA["fg"] if EXTRA["fg"] is not None else 50, "funding": fund},
-        news=EXTRA["news"],
+        sentiment={"fg": fg, "funding": fund},
+        news=news,
+        whales=whales,
+        liquidations=liq,
+        calendar=calendar,
     )
 
 
@@ -569,7 +683,7 @@ def orderbook():
 
 @app.post("/api/telegram/test")
 def tg_test():
-    ok = telegram("Aurum Signal Room (BingX): test di collegamento Telegram riuscito.")
+    ok = telegram("Aurum Signal Room (BingX LIVE): test di collegamento Telegram riuscito.")
     return jsonify(ok=ok, configured=bool(TG_TOKEN and TG_CHAT))
 
 
