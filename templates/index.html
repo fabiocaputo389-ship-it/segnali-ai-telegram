@@ -225,6 +225,27 @@
             color: var(--text-muted);
         }
 
+        .schedule-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .schedule-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-left: 4px solid var(--accent-green);
+            border-radius: 8px;
+            padding: 9px 10px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.66rem;
+        }
+
+        .schedule-card.closed-mkt {
+            border-left-color: var(--accent-red);
+        }
+
         .risk-bar {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
@@ -596,10 +617,13 @@
 
     <div class="panel">
         <div class="section-heading">
-            <span>CONTROLLI RISCHIO &amp; REGOLE OPERATIVE</span>
+            <span>MERCATI, GIORNI DI APERTURA/CHIUSURA &amp; CONTROLLI RISCHIO</span>
             <span id="liveApiStatus" class="mono" style="font-size:0.66rem; font-weight:800; color:var(--accent-green);">RENDER BINGX FEED</span>
         </div>
-        <div class="signboard-grid">
+
+        <div id="marketScheduleGrid" class="schedule-grid"></div>
+
+        <div class="signboard-grid" style="margin-top:10px;">
             <div class="signboard">
                 <div class="signboard-tag">CARTELLO 01 • CERTEZZA</div>
                 <div class="signboard-title">CONFLUENZA &amp; SCORE DINAMICO</div>
@@ -725,7 +749,8 @@
                     <select id="marketSelect" onchange="onMarketOrAssetChange()">
                         <option value="ALL" selected>Tutti i Mercati</option>
                         <option value="Criptovalute Globali">Criptovalute Globali</option>
-                        <option value="Materie Prime & Forex">Materie Prime &amp; Forex</option>
+                        <option value="Forex & Valute">Forex &amp; Valute</option>
+                        <option value="Materie Prime">Materie Prime</option>
                         <option value="Azioni & Indici Globali">Azioni &amp; Indici Globali</option>
                     </select>
                 </div>
@@ -857,15 +882,17 @@
                 { id: 'LINKUSDT', name: 'Chainlink (LINK-USDT)' },
                 { id: 'SUIUSDT', name: 'Sui (SUI-USDT)' }
             ],
-            'Materie Prime & Forex': [
+            'Forex & Valute': [
+                { id: 'EURUSDT', name: 'EUR/USD (EUR-USDT)' },
+                { id: 'GBPUSDT', name: 'GBP/USD (GBP-USDT)' },
+                { id: 'USDJPY', name: 'USD/JPY (USDJPY-USDT)' }
+            ],
+            'Materie Prime': [
                 { id: 'PAXGUSDT', name: 'Oro (GOLD(XAU)-USDT)' },
                 { id: 'XAGUSDT', name: 'Argento (SILVER(XAG)-USDT)' },
                 { id: 'WTIUSDT', name: 'Petrolio WTI (WTI-USDT)' },
                 { id: 'NATGASUSDT', name: 'Gas Naturale (NATGAS-USDT)' },
-                { id: 'COPPERUSDT', name: 'Rame (COPPER-USDT)' },
-                { id: 'GBPUSDT', name: 'GBP/USD (GBPUSD-USDT)' },
-                { id: 'EURUSDT', name: 'EUR/USD (EURUSD-USDT)' },
-                { id: 'USDJPY', name: 'USD/JPY (USDJPY-USDT)' }
+                { id: 'COPPERUSDT', name: 'Rame (COPPER-USDT)' }
             ],
             'Azioni & Indici Globali': [
                 { id: 'AAPLUSDT', name: 'Apple Inc. (AAPL-USDT)' },
@@ -876,6 +903,13 @@
                 { id: 'GOOGLUSDT', name: 'Alphabet (GOOGL-USDT)' }
             ]
         };
+
+        const ALL_CATEGORIES = [
+            'Criptovalute Globali',
+            'Forex & Valute',
+            'Materie Prime',
+            'Azioni & Indici Globali'
+        ];
 
         const SIGNAL_HOLD_MS = 90000;
         const pinnedSignalsMap = new Map();
@@ -947,6 +981,32 @@
             `;
         }
 
+        function renderMarketScheduleGrid() {
+            const box = document.getElementById('marketScheduleGrid');
+            if (!box) return;
+            const sessions = latestPayload.sessions || {};
+            box.innerHTML = ALL_CATEGORIES.map(cat => {
+                const s = sessions[cat] || {
+                    status: 'APERTO LIVE',
+                    is_open: true,
+                    days_label: 'Live',
+                    schedule_detail: 'Sincronizzazione in corso...',
+                    badge_color: '#15803d'
+                };
+                const isOpen = Boolean(s.is_open);
+                return `
+                    <div class="schedule-card ${isOpen ? '' : 'closed-mkt'}">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+                            <strong style="color:var(--text-main);">${cat}</strong>
+                            <span style="color:${isOpen ? 'var(--accent-green)' : 'var(--accent-red)'}; font-weight:800;">${s.status}</span>
+                        </div>
+                        <div style="color:var(--text-main); font-weight:700; margin-top:3px;">${s.days_label || ''}</div>
+                        <div style="color:var(--text-muted); margin-top:2px;">${s.schedule_detail || ''}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
         function updateActiveParamsStrip() {
             const strip = document.getElementById('activeParamsStrip');
             if (!strip) return;
@@ -1015,13 +1075,22 @@
                     </svg>
                 `;
             }
-            if (category === 'Materie Prime & Forex') {
+            if (category === 'Forex & Valute') {
+                return `
+                    <svg class="cat-thumb" viewBox="0 0 80 52">
+                        <rect width="80" height="52" fill="#ffffff"/>
+                        <polyline points="6,22 24,28 42,18 60,24 74,14" fill="none" stroke="#15803d" stroke-width="2.5"/>
+                        <text x="8" y="47" fill="#0f172a" font-size="8" font-weight="bold" font-family="monospace">FOREX</text>
+                    </svg>
+                `;
+            }
+            if (category === 'Materie Prime') {
                 return `
                     <svg class="cat-thumb" viewBox="0 0 80 52">
                         <rect width="80" height="52" fill="#ffffff"/>
                         <rect x="14" y="14" width="22" height="14" rx="2" fill="#15803d"/>
                         <rect x="42" y="20" width="24" height="14" rx="2" fill="#dc2626"/>
-                        <text x="8" y="47" fill="#0f172a" font-size="8" font-weight="bold" font-family="monospace">GOLD/FX</text>
+                        <text x="8" y="47" fill="#0f172a" font-size="7.5" font-weight="bold" font-family="monospace">COMMOD</text>
                     </svg>
                 `;
             }
@@ -1048,7 +1117,7 @@
                         ${w.active ? 'ATTIVA ORA • ' : ''}${w.window}
                     </div>
                     <div style="color:var(--text-main); margin-top:2px;">${w.title}</div>
-                    <div style="color:${w.active ? 'var(--accent-green)' : 'var(--text-muted)'}; font-weight:700; margin-top:2px;">Rischio: ${w.risk}</div>
+                    <div style="color:${w.active ? 'var(--accent-green)' : 'var(--text-muted)'}; font-weight:700; margin-top:2px;">Stato: ${w.risk}</div>
                 </div>
             `).join('');
         }
@@ -1426,6 +1495,7 @@
                         : 'Nessun log registrato.';
                 }
             }
+            renderMarketScheduleGrid();
             renderMacroWindows();
             renderDeskGauges();
         }
@@ -1567,8 +1637,7 @@
 
             const selectedMarket = document.getElementById('marketSelect')?.value || 'ALL';
             const selectedAsset = document.getElementById('assetSelect')?.value || 'ALL';
-            const allCats = ['Criptovalute Globali', 'Materie Prime & Forex', 'Azioni & Indici Globali'];
-            const cats = selectedMarket === 'ALL' ? allCats : [selectedMarket];
+            const cats = selectedMarket === 'ALL' ? ALL_CATEGORIES : [selectedMarket];
 
             const sessions = latestPayload.sessions || {};
             const diagnostics = latestPayload.market_diagnostics || {};
@@ -1577,7 +1646,7 @@
             const monitored = latestPayload.market_monitoring_table || [];
 
             container.innerHTML = cats.map(cat => {
-                const sess = sessions[cat] || { status: 'APERTO', is_open: true, hours: '', badge_color: '#15803d' };
+                const sess = sessions[cat] || { status: 'APERTO LIVE', is_open: true, days_label: '', hours: '', badge_color: '#15803d' };
                 const diag = diagnostics[cat] || {};
                 const catSignals = allSignals.filter(s => s.category === cat && (selectedAsset === 'ALL' || s.symbol === selectedAsset));
                 const catCount = monitored.filter(r => r.category === cat && (selectedAsset === 'ALL' || r.symbol === selectedAsset)).length;
@@ -1589,7 +1658,7 @@
                                 ${buildMarketBannerSvg(cat)}
                                 <div>
                                     <strong>${cat}</strong><br>
-                                    <span class="mono" style="font-size:0.68rem; color:var(--text-muted);">${sess.hours || ''}</span>
+                                    <span class="mono" style="font-size:0.68rem; color:var(--text-muted);">${sess.days_label || ''} • ${sess.hours || ''}</span>
                                 </div>
                             </div>
                             <span class="status-pill" style="color:${sess.badge_color || '#15803d'};">
@@ -1680,7 +1749,7 @@
                     <tr>
                         <td>
                             <strong>${r.name}</strong><br>
-                            <span class="mono" style="font-size:0.64rem; color:var(--text-muted);">${r.bingx_symbol} • HTF ${r.htf_bias || 'NEUTRAL'}</span>
+                            <span class="mono" style="font-size:0.64rem; color:var(--text-muted);">${r.bingx_symbol} • ${r.session_status || ''}</span>
                         </td>
                         <td class="mono" style="font-size:0.68rem; min-width:140px;">
                             <strong>${r.price ?? 'N/D'}</strong>
@@ -1817,6 +1886,7 @@
 
         populateAssetDropdown();
         updateActiveParamsStrip();
+        renderMarketScheduleGrid();
         renderDeskGauges();
         loadAllLive(true);
         setInterval(() => loadSignals(false), 5000);
