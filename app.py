@@ -129,6 +129,7 @@ def _safe(fn, *a):
 PRICES = {}
 FUNDING = {"avg": 0.0}
 PLOCK = threading.Lock()
+SCAN_CYCLES = 0
 
 
 def _fetch_single_ticker(sym: str):
@@ -154,6 +155,7 @@ def _fetch_single_ticker(sym: str):
 
 
 def refresh_prices():
+    global SCAN_CYCLES
     results = list(POOL.map(lambda s: _safe(_fetch_single_ticker, s), PAIRS))
     out, fund = {}, []
     for item in results:
@@ -168,6 +170,7 @@ def refresh_prices():
     with PLOCK:
         PRICES.update(out)
         FUNDING["avg"] = (sum(fund) / len(fund)) if fund else 0.0
+        SCAN_CYCLES += 1
 
 
 # ------------------------------------------------------------------ candele reali
@@ -189,7 +192,6 @@ def _parse_candle_row(r):
 
 
 def candles(sym, tf, ttl=20):
-    """Righe reali: [ts, open, high, low, close, volume], ordinate per tempo."""
     k = (sym, tf)
     now = time.time()
     with CLOCK:
@@ -271,7 +273,7 @@ def score(info, price):
     name = "rialzista" if d > 0 else "ribassista"
     if abs(al) == 3:
         conf += 8
-        why.append("EMA20 sopra EMA50 su 15m, 1h e 4h (trend %s)" % name)
+        why.append("Trend %s concorde su 15m, 1h e 4h (EMA20/EMA50)" % name)
     else:
         why.append("Trend %s su 1h e almeno un altro timeframe" % name)
     if h["hist"] * d > 0:
@@ -280,10 +282,10 @@ def score(info, price):
     r = h["rsi"]
     if (d > 0 and 40 <= r <= 65) or (d < 0 and 35 <= r <= 60):
         conf += 5
-        why.append("RSI(14) a %.0f: zona neutra con spazio nella direzione" % r)
+        why.append("RSI(14) a %.0f: spazio di movimento nella direzione" % r)
     elif (d > 0 and r > 72) or (d < 0 and r < 28):
         conf -= 8
-        why.append("RSI(14) a %.0f: movimento esteso, rischio ritracciamento" % r)
+        why.append("RSI(14) a %.0f: movimento esteso, rischio di ritracciamento" % r)
     prev = c[-21:-1]
     if d > 0 and c[-1][4] > max(x[2] for x in prev):
         conf += 6
@@ -294,10 +296,10 @@ def score(info, price):
     vols = [x[5] for x in c[-21:-1]]
     if vols and c[-2][5] > 1.3 * (sum(vols) / len(vols)):
         conf += 5
-        why.append("Volume superiore alla media delle ultime 20 candele")
+        why.append("Volume sopra la media delle ultime 20 candele")
     conf = int(max(50, min(97, conf)))
     R = min(max(h["atr"] * 1.5, price * 0.004), price * 0.02)
-    why.append("Stop a 1,5×ATR (%.2f%%), rapporto R:R fino a 1:3" % (R / price * 100))
+    why.append("Stop a 1,5×ATR (%.2f%%), target a 1R, 2R e 3R" % (R / price * 100))
     return {"dir": "long" if d > 0 else "short", "conf": conf, "R": R, "why": why}
 
 
@@ -803,8 +805,9 @@ def state():
         except Exception:
             log.exception("query signals")
     with PLOCK:
-        prices = {k: dict(v) for k, v in PRICES.items()}
+        prices = {k: dict(v) for k, v in PRICES.items() if v.get("p") and float(v["p"]) > 0}
         fund = FUNDING["avg"]
+        scans = SCAN_CYCLES
     with ELOCK:
         fg = EXTRA["fg"]
         news = list(EXTRA["news"])
@@ -815,6 +818,7 @@ def state():
         mode="live",
         exchange="BingX",
         api_configured=bool(BINGX_API_KEY and BINGX_API_SECRET),
+        scan_cycles=scans,
         prices=prices,
         signals=[to_sig(r) for r in rows],
         sentiment={"fg": fg, "funding": fund},
