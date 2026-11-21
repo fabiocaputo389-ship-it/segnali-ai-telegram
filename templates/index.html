@@ -22,7 +22,6 @@
             --accent-red-dark: #dc2626;
             --accent-red-bg: rgba(239, 68, 68, 0.14);
             --accent-blue: #3b82f6;
-            --accent-blue-bg: rgba(59, 130, 246, 0.15);
             --accent-amber: #f59e0b;
             --accent-amber-bg: rgba(245, 158, 11, 0.15);
         }
@@ -54,12 +53,12 @@
             justify-content: space-between;
             align-items: center;
             gap: 10px;
-            background: rgba(13, 19, 32, 0.95);
+            background: rgba(13, 19, 32, 0.96);
             backdrop-filter: blur(10px);
             border: 1px solid var(--border-subtle);
             border-radius: 12px;
             padding: 12px 14px;
-            margin-bottom: 14px;
+            margin-bottom: 10px;
             position: sticky;
             top: 8px;
             z-index: 50;
@@ -91,6 +90,12 @@
             border: 1px solid rgba(34, 197, 94, 0.45);
             color: var(--accent-green);
             text-transform: uppercase;
+        }
+
+        .badge-warn {
+            background: var(--accent-amber-bg);
+            border-color: rgba(245, 158, 11, 0.45);
+            color: var(--accent-amber);
         }
 
         .clock-box {
@@ -176,6 +181,42 @@
             color: var(--text-muted);
             padding: 5px 7px;
             font-size: 0.65rem;
+        }
+
+        .alert-tape {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            padding: 8px 12px;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            overflow-x: auto;
+            white-space: nowrap;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.68rem;
+        }
+
+        .tape-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 3px 8px;
+            border-radius: 6px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            cursor: pointer;
+        }
+
+        .tape-pill.buy {
+            border-color: rgba(34, 197, 94, 0.45);
+            color: var(--accent-green);
+        }
+
+        .tape-pill.sell {
+            border-color: rgba(239, 68, 68, 0.45);
+            color: var(--accent-red);
         }
 
         .panel {
@@ -391,7 +432,7 @@
 
         .grid-params {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
             gap: 10px;
             margin-bottom: 12px;
         }
@@ -472,7 +513,7 @@
 
         .signals-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(295px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 10px;
         }
 
@@ -627,7 +668,7 @@
     <div class="topbar">
         <div class="brand-left">
             <div class="brand-title">SALA SEGNALI PRO</div>
-            <div class="badge-live-sync">RENDER • BINGX LIVE</div>
+            <div id="feedBadge" class="badge-live-sync">RENDER • BINGX LIVE</div>
             <div id="clockBadge" class="clock-box">--:--:-- | --:--:-- UTC</div>
         </div>
         <div class="controls-row">
@@ -639,10 +680,15 @@
         </div>
     </div>
 
+    <div id="liveAlertTape" class="alert-tape">
+        <span style="color:var(--text-muted); font-weight:800;">TAPE SEGNALI REALI:</span>
+        <span style="color:var(--text-muted);">In attesa di conferme live dal feed BingX...</span>
+    </div>
+
     <div class="panel">
         <div class="section-heading">
             <span>MERCATI, GIORNI DI APERTURA/CHIUSURA &amp; CONTROLLI RISCHIO</span>
-            <span id="liveApiStatus" class="mono" style="font-size:0.66rem; font-weight:800; color:var(--accent-green);">RENDER BINGX FEED</span>
+            <span id="liveApiStatus" class="mono" style="font-size:0.66rem; font-weight:800; color:var(--text-muted);">STATO FEED: IN ATTESA</span>
         </div>
 
         <div id="marketScheduleGrid" class="schedule-grid"></div>
@@ -650,23 +696,23 @@
         <div class="signboard-grid" style="margin-top:10px;">
             <div class="signboard">
                 <div class="signboard-tag">CARTELLO 01 • CERTEZZA PROFITTO</div>
-                <div class="signboard-title">MODELLO EV + P(WIN) + KELLY</div>
-                <div class="signboard-desc">Calcola probabilità calibrata di profitto netto, edge sopra break-even e size sicura.</div>
+                <div class="signboard-title">PROBABILITÀ REALE + EV NETTO</div>
+                <div class="signboard-desc">Calcola la probabilità di profitto netto sui dati reali di mercato, fee, SL/TP e score.</div>
             </div>
             <div class="signboard alert-card">
                 <div class="signboard-tag">CARTELLO 02 • ANTI-FAKEOUT</div>
                 <div class="signboard-title">FILTRO FALSE ROTTURE &amp; ATR</div>
-                <div class="signboard-desc">Blocca rotture anomale, spike ATR e rejection deboli per proteggere il capitale.</div>
+                <div class="signboard-desc">Evidenzia anomalie di volatilità e falsi breakout rilevate sui dati live.</div>
             </div>
             <div class="signboard">
                 <div class="signboard-tag">CARTELLO 03 • SIZING &amp; TP1-TP3</div>
                 <div class="signboard-title">CAPITALE ($) &amp; RISCHIO (%)</div>
-                <div class="signboard-desc">Calcola size, margine, SL/TP1-TP3 e progresso verso target in tempo reale.</div>
+                <div class="signboard-desc">Mostra size, margine, livelli operativi e avanzamento reale verso TP1/TP2/TP3.</div>
             </div>
             <div class="signboard alert-card">
                 <div class="signboard-tag">CARTELLO 04 • KILL-SWITCH</div>
                 <div class="signboard-title">MAX PERDITA &amp; MAX POSIZIONI</div>
-                <div class="signboard-desc">Blocca automaticamente l'auto-trade al raggiungimento della perdita massima giornaliera.</div>
+                <div class="signboard-desc">Sincronizzato con i limiti reali impostati sul backend per bloccare l'auto-trade.</div>
             </div>
         </div>
 
@@ -682,8 +728,8 @@
             <div>
                 <button type="button" class="btn btn-refresh" style="width:100%; padding:8px 10px;" onclick="saveRiskControls()">SALVA CONTROLLI RISCHIO</button>
             </div>
-            <div id="riskSaveStatus" class="mono" style="font-size:0.68rem; font-weight:700; color:var(--text-main);">
-                Kill-Switch: attivo a soglia impostata
+            <div id="riskSaveStatus" class="mono" style="font-size:0.68rem; font-weight:700; color:var(--text-muted);">
+                In attesa sincronizzazione limiti backend
             </div>
         </div>
 
@@ -692,7 +738,7 @@
 
     <div class="panel">
         <div class="section-heading">
-            <span>TACHIMETRI QUANTITATIVI DI DESK &amp; CERTEZZA PROFITTO</span>
+            <span>TACHIMETRI QUANTITATIVI DI DESK (DATI REALI)</span>
         </div>
         <div id="deskGaugesContainer" class="gauges-grid"></div>
     </div>
@@ -719,7 +765,7 @@
                 </thead>
                 <tbody id="dailyReportBody">
                     <tr>
-                        <td colspan="6" class="mono">Sincronizzazione dati reali in corso...</td>
+                        <td colspan="6" class="mono">In attesa dati reali dal server...</td>
                     </tr>
                 </tbody>
             </table>
@@ -742,7 +788,7 @@
                 </thead>
                 <tbody id="monthlyReportBody">
                     <tr>
-                        <td colspan="6" class="mono">Sincronizzazione dati reali in corso...</td>
+                        <td colspan="6" class="mono">In attesa dati reali dal server...</td>
                     </tr>
                 </tbody>
             </table>
@@ -754,9 +800,9 @@
             <span>TELEMETRIA ISTITUZIONALE &amp; CONTO BINGX</span>
         </div>
         <div id="telemetrySummaryBox" class="telemetry-card">
-            <div>Scansioni Globali: <strong>0</strong></div>
-            <div>Ordini Attivi Totali: <strong>0</strong></div>
-            <div>PnL di Sessione: <strong>$0.00</strong></div>
+            <div>Scansioni Globali: <strong>N/D</strong></div>
+            <div>Ordini Attivi Totali: <strong>N/D</strong></div>
+            <div>PnL di Sessione: <strong>N/D</strong></div>
         </div>
     </div>
 
@@ -764,7 +810,7 @@
         <div class="panel">
             <div class="section-heading">
                 <span>SEGNALI OPERATIVI LIVE (BLOCCATI 90S • ORDINATI PER CERTEZZA PROFITTO)</span>
-                <span id="lastScanLabel" class="mono" style="font-size:0.68rem; font-weight:800; color:var(--accent-green);">LIVE • --:--:--</span>
+                <span id="lastScanLabel" class="mono" style="font-size:0.68rem; font-weight:800; color:var(--text-muted);">SYNC • --:--:--</span>
             </div>
 
             <div class="grid-params">
@@ -782,6 +828,14 @@
                     <label for="assetSelect">Asset</label>
                     <select id="assetSelect" onchange="onMarketOrAssetChange()">
                         <option value="ALL" selected>Tutti gli Asset</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="directionSelect">Direzione</label>
+                    <select id="directionSelect" onchange="renderSignalsAndMarkets(); renderMonitoringTable();">
+                        <option value="ALL" selected>BUY &amp; SELL</option>
+                        <option value="BUY">Solo BUY (Long)</option>
+                        <option value="SELL">Solo SELL (Short)</option>
                     </select>
                 </div>
                 <div>
@@ -820,7 +874,7 @@
             </div>
 
             <div id="marketsSignalsContainer">
-                <div class="diag-box">Scansione live in corso...</div>
+                <div class="diag-box">In attesa dei dati reali da /api/signals...</div>
             </div>
         </div>
 
@@ -829,8 +883,8 @@
                 <span>TABELLA OPERATIVA — CERTEZZA PROFITTO, BARRE TP1/TP2/TP3, KELLY &amp; EV</span>
                 <select id="filterTakenSelect" style="max-width:220px;" onchange="renderMonitoringTable()">
                     <option value="ALL" selected>Tutti gli Asset</option>
-                    <option value="TAKEN">Solo Presi (BUY/SELL)</option>
-                    <option value="NOT_TAKEN">Solo Non Presi</option>
+                    <option value="TAKEN">Solo Certi (BUY/SELL)</option>
+                    <option value="NOT_TAKEN">Solo Filtrati</option>
                 </select>
             </div>
             <div class="table-wrap" style="margin-bottom:0;">
@@ -848,7 +902,7 @@
                     </thead>
                     <tbody id="monitoringTableBody">
                         <tr>
-                            <td colspan="7" class="mono">Caricamento monitoraggio live...</td>
+                            <td colspan="7" class="mono">In attesa dati reali di monitoraggio...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -862,7 +916,7 @@
                 <span>SALDO &amp; POSIZIONI REALI BINGX</span>
                 <button type="button" class="btn" onclick="loadPositionsStatus()">AGGIORNA</button>
             </div>
-            <div id="positionsContainer" class="telemetry-card">Caricamento saldo e posizioni reali BingX...</div>
+            <div id="positionsContainer" class="telemetry-card">In attesa lettura saldo e posizioni reali BingX...</div>
         </div>
     </div>
 
@@ -872,7 +926,7 @@
                 <span>LOG TELEMETRIA LIVE</span>
                 <button type="button" class="btn" onclick="loadTelemetry()">AGGIORNA</button>
             </div>
-            <div id="telemetryLogsBox" class="telemetry-card">Nessun log registrato.</div>
+            <div id="telemetryLogsBox" class="telemetry-card">In attesa log reali dal server...</div>
         </div>
     </div>
 
@@ -881,7 +935,7 @@
             <div class="section-heading">
                 <span>GRAFICI LIVE &amp; LIVELLI ENTRY / SL / TP1 / TP2 / TP3</span>
             </div>
-            <div id="chartsSummaryBox" class="chart-grid">Caricamento grafici...</div>
+            <div id="chartsSummaryBox" class="chart-grid">In attesa serie prezzi reali...</div>
         </div>
     </div>
 
@@ -947,7 +1001,8 @@
             market_diagnostics: {},
             market_monitoring_table: [],
             performance: null,
-            telemetry: null
+            telemetry: null,
+            hasRealFeed: false
         };
 
         let autoTradeEnabled = false;
@@ -957,6 +1012,14 @@
         let isFetchingSignals = false;
         let riskInputsDirty = false;
         let scoreDebounceTimer = null;
+
+        function hasNum(v) {
+            return v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v));
+        }
+
+        function fmtNum(v, decimals = 2, fallback = 'N/D') {
+            return hasNum(v) ? Number(v).toFixed(decimals) : fallback;
+        }
 
         function parseNumInput(id, fallback) {
             const raw = String(document.getElementById(id)?.value ?? fallback).replace(',', '.').trim();
@@ -969,6 +1032,7 @@
                 const prefs = {
                     market: document.getElementById('marketSelect')?.value || 'ALL',
                     symbol: document.getElementById('assetSelect')?.value || 'ALL',
+                    direction: document.getElementById('directionSelect')?.value || 'ALL',
                     profile: document.getElementById('profileSelect')?.value || 'pro_room',
                     timeframe: document.getElementById('timeframeSelect')?.value || '15m',
                     balance: String(document.getElementById('balanceInput')?.value ?? '2.0'),
@@ -991,6 +1055,9 @@
                 if (prefs.symbol && document.getElementById('assetSelect')) {
                     const exists = Array.from(document.getElementById('assetSelect').options).some(o => o.value === prefs.symbol);
                     if (exists) document.getElementById('assetSelect').value = prefs.symbol;
+                }
+                if (prefs.direction && document.getElementById('directionSelect')) {
+                    document.getElementById('directionSelect').value = prefs.direction;
                 }
                 if (prefs.profile && document.getElementById('profileSelect')) {
                     document.getElementById('profileSelect').value = prefs.profile;
@@ -1027,24 +1094,32 @@
             loadSignals(true);
         }
 
+        function getProfitCertainty(row) {
+            if (hasNum(row?.profit_certainty_pct)) return Number(row.profit_certainty_pct);
+            if (hasNum(row?.certainty_pct)) return Number(row.certainty_pct);
+            return null;
+        }
+
         function computeClientTpProgress(row, tpField, fallbackPctField) {
-            const directPct = Number(row?.[fallbackPctField]);
+            if (hasNum(row?.[fallbackPctField])) {
+                return Math.max(0, Math.min(100, Number(row[fallbackPctField])));
+            }
             const entry = Number(row?.entry);
             const price = Number(row?.price);
             const tp = Number(row?.[tpField]);
             if (!Number.isFinite(entry) || !Number.isFinite(price) || !Number.isFinite(tp) || tp === entry) {
-                return Number.isFinite(directPct) ? Math.max(0, Math.min(100, directPct)) : 0;
+                return 0;
             }
             const isShort = row?.action === 'SELL' || (row?.action !== 'BUY' && tp < entry);
             const denom = isShort ? (entry - tp) : (tp - entry);
-            if (denom <= 0) return Number.isFinite(directPct) ? Math.max(0, Math.min(100, directPct)) : 0;
+            if (denom <= 0) return 0;
             const num = isShort ? (entry - price) : (price - entry);
             return Math.round(Math.max(0, Math.min(100, (num / denom) * 100)) * 10) / 10;
         }
 
         function buildTpBarsHtml(row) {
-            if (!row || row.price === null || row.price === undefined) {
-                return `<div class="tp-bars mono" style="font-size:0.64rem; color:var(--accent-red);">In attesa prezzo live</div>`;
+            if (!row || !hasNum(row.price)) {
+                return `<div class="tp-bars mono" style="font-size:0.64rem; color:var(--text-muted);">Prezzo live N/D</div>`;
             }
             const p1 = computeClientTpProgress(row, 'tp1', 'tp1_progress_pct');
             const p2 = computeClientTpProgress(row, 'tp2', 'tp2_progress_pct');
@@ -1055,19 +1130,45 @@
             return `
                 <div class="tp-bars">
                     <div class="tp-row">
-                        <div class="tp-label-line"><span>TP1 (${row.tp1 ?? '-'})</span><span>${p1.toFixed(0)}%</span></div>
+                        <div class="tp-label-line"><span>TP1 (${hasNum(row.tp1) ? row.tp1 : 'N/D'})</span><span>${p1.toFixed(0)}%</span></div>
                         <div class="tp-track"><div class="${fillClass}" style="width:${p1}%;"></div></div>
                     </div>
                     <div class="tp-row">
-                        <div class="tp-label-line"><span>TP2 (${row.tp2 ?? '-'})</span><span>${p2.toFixed(0)}%</span></div>
+                        <div class="tp-label-line"><span>TP2 (${hasNum(row.tp2) ? row.tp2 : 'N/D'})</span><span>${p2.toFixed(0)}%</span></div>
                         <div class="tp-track"><div class="${fillClass}" style="width:${p2}%;"></div></div>
                     </div>
                     <div class="tp-row" style="margin-bottom:0;">
-                        <div class="tp-label-line"><span>TP3 (${row.tp3 ?? '-'})</span><span>${p3.toFixed(0)}%</span></div>
+                        <div class="tp-label-line"><span>TP3 (${hasNum(row.tp3) ? row.tp3 : 'N/D'})</span><span>${p3.toFixed(0)}%</span></div>
                         <div class="tp-track"><div class="${fillClass}" style="width:${p3}%;"></div></div>
                     </div>
                 </div>
             `;
+        }
+
+        function renderAlertTape() {
+            const tape = document.getElementById('liveAlertTape');
+            if (!tape) return;
+            const sigs = latestPayload.signals || [];
+            if (!sigs.length) {
+                tape.innerHTML = `
+                    <span style="color:var(--text-muted); font-weight:800;">TAPE SEGNALI REALI:</span>
+                    <span style="color:var(--text-muted);">Nessun segnale confermato al momento sul feed reale.</span>
+                `;
+                return;
+            }
+            tape.innerHTML = `<span style="color:var(--accent-green); font-weight:800;">TAPE LIVE (${sigs.length}):</span>` + sigs.map(s => {
+                const isBuy = s.action === 'BUY';
+                const cert = getProfitCertainty(s);
+                const certStr = cert !== null ? `${cert.toFixed(1)}%` : 'N/D';
+                return `
+                    <span class="tape-pill ${isBuy ? 'buy' : 'sell'}" onclick="speakSignalBySymbol('${s.symbol}')">
+                        <strong>${s.symbol}</strong>
+                        <span>${s.action}</span>
+                        <span>Cert. ${certStr}</span>
+                        <span>E: ${hasNum(s.entry) ? s.entry : 'N/D'}</span>
+                    </span>
+                `;
+            }).join('');
         }
 
         function renderMarketScheduleGrid() {
@@ -1075,18 +1176,24 @@
             if (!box) return;
             const sessions = latestPayload.sessions || {};
             box.innerHTML = ALL_CATEGORIES.map(cat => {
-                const s = sessions[cat] || {
-                    status: 'APERTO LIVE',
-                    is_open: true,
-                    days_label: 'Live',
-                    schedule_detail: 'Sincronizzazione in corso...'
-                };
+                const s = sessions[cat];
+                if (!s) {
+                    return `
+                        <div class="schedule-card closed-mkt">
+                            <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+                                <strong style="color:var(--text-main);">${cat}</strong>
+                                <span style="color:var(--text-muted); font-weight:800;">IN ATTESA</span>
+                            </div>
+                            <div style="color:var(--text-muted); margin-top:3px;">Stato sessione reale non ricevuto</div>
+                        </div>
+                    `;
+                }
                 const isOpen = Boolean(s.is_open);
                 return `
                     <div class="schedule-card ${isOpen ? '' : 'closed-mkt'}">
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
                             <strong style="color:var(--text-main);">${cat}</strong>
-                            <span style="color:${isOpen ? 'var(--accent-green)' : 'var(--accent-red)'}; font-weight:800;">${s.status}</span>
+                            <span style="color:${isOpen ? 'var(--accent-green)' : 'var(--accent-red)'}; font-weight:800;">${s.status || (isOpen ? 'APERTO' : 'CHIUSO')}</span>
                         </div>
                         <div style="color:var(--text-main); font-weight:700; margin-top:3px;">${s.days_label || ''}</div>
                         <div style="color:var(--text-muted); margin-top:2px;">${s.schedule_detail || ''}</div>
@@ -1112,11 +1219,16 @@
         document.getElementById('maxOpenPosInput')?.addEventListener('input', () => { riskInputsDirty = true; updateActiveParamsStrip(); });
 
         function syncRiskInputsFromServer(maxLoss, maxOpenPos) {
+            const statusEl = document.getElementById('riskSaveStatus');
             if (!riskInputsDirty) {
                 const lossEl = document.getElementById('maxDailyLossInput');
                 const posEl = document.getElementById('maxOpenPosInput');
-                if (lossEl && typeof maxLoss === 'number') lossEl.value = maxLoss;
-                if (posEl && typeof maxOpenPos === 'number') posEl.value = maxOpenPos;
+                if (lossEl && hasNum(maxLoss)) lossEl.value = Number(maxLoss);
+                if (posEl && hasNum(maxOpenPos)) posEl.value = parseInt(String(maxOpenPos), 10);
+            }
+            if (statusEl && hasNum(maxLoss) && hasNum(maxOpenPos)) {
+                statusEl.style.color = 'var(--accent-green)';
+                statusEl.textContent = `Attivo su backend: Max Loss -$${Number(maxLoss).toFixed(2)} • Max Pos ${parseInt(String(maxOpenPos), 10)}`;
             }
             updateActiveParamsStrip();
         }
@@ -1143,11 +1255,14 @@
                         statusEl.textContent = `Salvato: Max Loss -$${Number(data.max_daily_loss_usd).toFixed(2)} • Max Pos ${data.max_open_positions}`;
                     }
                     await loadSignals(true);
+                } else if (statusEl) {
+                    statusEl.style.color = 'var(--accent-red)';
+                    statusEl.textContent = data.error || 'Salvataggio non riuscito.';
                 }
             } catch (e) {
                 if (statusEl) {
                     statusEl.style.color = 'var(--accent-red)';
-                    statusEl.textContent = 'Errore salvataggio controlli rischio.';
+                    statusEl.textContent = 'Errore di rete durante salvataggio controlli rischio.';
                 }
             }
         }
@@ -1198,20 +1313,24 @@
             const box = document.getElementById('macroWindowsContainer');
             if (!box) return;
             const list = latestPayload.macro_windows || [];
-            if (!list.length) return;
+            if (!list.length) {
+                box.innerHTML = '';
+                return;
+            }
             box.innerHTML = list.map(w => `
                 <div class="macro-card ${w.active ? 'active' : ''}">
                     <div style="color:${w.active ? 'var(--accent-green)' : 'var(--text-main)'}; font-weight:800;">
-                        ${w.active ? 'ATTIVA ORA • ' : ''}${w.window}
+                        ${w.active ? 'ATTIVA ORA • ' : ''}${w.window || ''}
                     </div>
-                    <div style="color:var(--text-main); margin-top:2px;">${w.title}</div>
-                    <div style="color:${w.active ? 'var(--accent-green)' : 'var(--text-muted)'}; font-weight:700; margin-top:2px;">Stato: ${w.risk}</div>
+                    <div style="color:var(--text-main); margin-top:2px;">${w.title || ''}</div>
+                    <div style="color:${w.active ? 'var(--accent-green)' : 'var(--text-muted)'}; font-weight:700; margin-top:2px;">Stato: ${w.risk || 'N/D'}</div>
                 </div>
             `).join('');
         }
 
         function buildGaugeSvg(title, pctValue, centerText, subText, colorHex) {
-            const clamped = Math.max(0, Math.min(100, Number(pctValue) || 0));
+            const hasVal = pctValue !== null && pctValue !== undefined && Number.isFinite(Number(pctValue));
+            const clamped = hasVal ? Math.max(0, Math.min(100, Number(pctValue))) : 0;
             const r = 42;
             const circ = Math.PI * r;
             const dashOffset = circ * (1 - clamped / 100);
@@ -1237,40 +1356,56 @@
         function renderDeskGauges() {
             const box = document.getElementById('deskGaugesContainer');
             if (!box) return;
-            const rows = latestPayload.market_monitoring_table || [];
+            const rows = (latestPayload.market_monitoring_table || []).filter(r => getProfitCertainty(r) !== null || hasNum(r.ev_net_usd));
             const activeSigs = latestPayload.signals || [];
 
-            const avgProfitCert = rows.length
-                ? (rows.reduce((acc, r) => acc + (Number(r.profit_certainty_pct ?? r.certainty_pct) || 0), 0) / rows.length)
-                : 0;
-            const bestRow = [...rows].sort((a, b) => (Number(b.ev_net_usd) || -999) - (Number(a.ev_net_usd) || -999))[0];
-            const bestEv = bestRow ? Number(bestRow.ev_net_usd || 0) : 0;
-            const bestRrr = bestRow ? Number(bestRow.rrr || 0) : 0;
-            const cleanCount = rows.filter(r => !r.false_breakout).length;
-            const cleanPct = rows.length ? (cleanCount / rows.length) * 100 : 0;
-            const activeRatioPct = rows.length ? Math.min(100, (activeSigs.length / rows.length) * 100) : 0;
+            if (!rows.length) {
+                box.innerHTML = [
+                    buildGaugeSvg('Certezza Profitto', null, 'N/D', 'In attesa dati reali', '#94a3b8'),
+                    buildGaugeSvg('Anti-Fakeout Puliti', null, 'N/D', 'In attesa dati reali', '#94a3b8'),
+                    buildGaugeSvg('Miglior EV Netto', null, 'N/D', 'In attesa dati reali', '#94a3b8'),
+                    buildGaugeSvg('Segnali Certi Attivi', null, `${activeSigs.length} BUY/SELL`, 'Feed live', activeSigs.length > 0 ? '#22c55e' : '#94a3b8')
+                ].join('');
+                return;
+            }
+
+            const certRows = rows.filter(r => getProfitCertainty(r) !== null);
+            const avgProfitCert = certRows.length
+                ? (certRows.reduce((acc, r) => acc + getProfitCertainty(r), 0) / certRows.length)
+                : null;
+
+            const evRows = rows.filter(r => hasNum(r.ev_net_usd));
+            const bestRow = [...evRows].sort((a, b) => Number(b.ev_net_usd) - Number(a.ev_net_usd))[0] || null;
+            const bestEv = bestRow ? Number(bestRow.ev_net_usd) : null;
+            const bestRrr = bestRow && hasNum(bestRow.rrr) ? Number(bestRow.rrr) : null;
+
+            const fakeoutKnownRows = rows.filter(r => typeof r.false_breakout === 'boolean');
+            const cleanCount = fakeoutKnownRows.filter(r => !r.false_breakout).length;
+            const cleanPct = fakeoutKnownRows.length ? (cleanCount / fakeoutKnownRows.length) * 100 : null;
+
+            const activeRatioPct = Math.min(100, (activeSigs.length / rows.length) * 100);
 
             box.innerHTML = [
                 buildGaugeSvg(
                     'Certezza Profitto',
                     avgProfitCert,
-                    `${avgProfitCert.toFixed(1)}%`,
-                    'Modello EV + P(Win)',
-                    avgProfitCert >= 55 ? '#22c55e' : '#ef4444'
+                    avgProfitCert !== null ? `${avgProfitCert.toFixed(1)}%` : 'N/D',
+                    avgProfitCert !== null ? `${certRows.length} asset calcolati` : 'N/D',
+                    avgProfitCert !== null && avgProfitCert >= 55 ? '#22c55e' : '#ef4444'
                 ),
                 buildGaugeSvg(
                     'Anti-Fakeout Puliti',
                     cleanPct,
-                    `${cleanPct.toFixed(0)}%`,
-                    `${cleanCount}/${rows.length} senza fakeout`,
-                    cleanPct >= 70 ? '#22c55e' : '#ef4444'
+                    cleanPct !== null ? `${cleanPct.toFixed(0)}%` : 'N/D',
+                    cleanPct !== null ? `${cleanCount}/${fakeoutKnownRows.length} senza fakeout` : 'N/D',
+                    cleanPct !== null && cleanPct >= 70 ? '#22c55e' : '#ef4444'
                 ),
                 buildGaugeSvg(
                     'Miglior EV Netto',
-                    Math.min(100, Math.max(0, (bestEv + 0.05) * 400)),
-                    `${bestEv >= 0 ? '+' : '-'}$${Math.abs(bestEv).toFixed(4)}`,
-                    bestRow ? `${bestRow.symbol} • R:R 1:${bestRrr}` : 'In attesa feed',
-                    bestEv > 0 ? '#22c55e' : '#ef4444'
+                    bestEv !== null ? Math.min(100, Math.max(0, (bestEv + 0.05) * 400)) : null,
+                    bestEv !== null ? `${bestEv >= 0 ? '+' : '-'}$${Math.abs(bestEv).toFixed(4)}` : 'N/D',
+                    bestRow ? `${bestRow.symbol}${bestRrr !== null ? ` • R:R 1:${bestRrr}` : ''}` : 'N/D',
+                    bestEv !== null && bestEv > 0 ? '#22c55e' : '#ef4444'
                 ),
                 buildGaugeSvg(
                     'Segnali Certi Attivi',
@@ -1286,12 +1421,14 @@
             if (row && row.tp_eta_text) return row.tp_eta_text;
             const tfVal = (row && row.params && row.params.timeframe) || document.getElementById('timeframeSelect')?.value || '15m';
             const tfMin = tfVal === '5m' ? 5 : (tfVal === '1h' ? 60 : 15);
-            const entry = parseFloat(row?.entry || row?.price || 0);
+            const entry = parseFloat(row?.entry || 0);
             const tp1 = parseFloat(row?.tp1 || 0);
-            if (!entry || !tp1) return `Candela ${tfVal}`;
-            const dist = Math.max(Math.abs(tp1 - entry), entry * 0.002);
-            const perCandle = Math.max(entry * 0.002, 0.0001);
-            const candles = Math.max(1, Math.ceil(dist / perCandle));
+            const atr = parseFloat(row?.atr || 0);
+            if (!Number.isFinite(entry) || entry <= 0 || !Number.isFinite(tp1) || tp1 <= 0 || !Number.isFinite(atr) || atr <= 0) {
+                return `Candela ${tfVal} • N/D`;
+            }
+            const dist = Math.abs(tp1 - entry);
+            const candles = Math.max(1, Math.ceil(dist / atr));
             const totalMin = candles * tfMin;
             const durText = totalMin < 60 ? `~${totalMin} min (${candles} candele)` : `~${(totalMin / 60).toFixed(1)} ore (${candles} candele)`;
             const etaUtc = new Date(Date.now() + totalMin * 60000).toISOString().substr(11, 5) + ' UTC';
@@ -1321,7 +1458,7 @@
                     remaining_sec: Math.max(1, Math.ceil((entry.expiresAt - now) / 1000))
                 });
             }
-            merged.sort((a, b) => (Number(b.profit_certainty_pct ?? b.certainty_pct) || 0) - (Number(a.profit_certainty_pct ?? a.certainty_pct) || 0));
+            merged.sort((a, b) => (getProfitCertainty(b) ?? -1) - (getProfitCertainty(a) ?? -1));
             return merged;
         }
 
@@ -1330,6 +1467,7 @@
             latestPayload.signals = mergeAndHoldSignals([]);
             renderSignalsAndMarkets();
             renderDeskGauges();
+            renderAlertTape();
         }
 
         function populateAssetDropdown() {
@@ -1450,14 +1588,15 @@
         function speakSignal(sig) {
             if (!sig) return;
             const cleanName = String(sig.name || sig.symbol || '').replace(/[^\w\s/()-]/g, '').trim();
-            const dirLabel = sig.action === 'BUY' ? 'acquisto long certo' : 'vendita short certo';
-            const pCert = Number(sig.profit_certainty_pct ?? sig.certainty_pct ?? 75).toFixed(1);
+            const dirLabel = sig.action === 'BUY' ? 'acquisto long' : 'vendita short';
+            const cert = getProfitCertainty(sig);
+            const certText = cert !== null ? `${cert.toFixed(1)} per cento` : 'non disponibile';
             const etaText = computeTpCandleEstimate(sig).replace(/•/g, ',');
-            const evText = `attesa matematica ${Number(sig.ev_net_usd || 0).toFixed(2)} dollari`;
+            const evText = hasNum(sig.ev_net_usd) ? `attesa matematica ${Number(sig.ev_net_usd).toFixed(4)} dollari` : '';
             const prev = signalSoundEnabled;
             signalSoundEnabled = true;
             playToneSequence(sig.action === 'SELL' ? [660, 440] : [587.33, 880], 0.11, 0.04, 'sine', 0.14);
-            speakItalianText(`Segnale ${dirLabel} su ${cleanName}, certezza profitto ${pCert} per cento. Entry ${sig.entry}, SL ${sig.sl}, TP1 ${sig.tp1}. Durata: ${etaText}. ${evText}.`);
+            speakItalianText(`Segnale ${dirLabel} su ${cleanName}, certezza profitto ${certText}. Entry ${sig.entry ?? 'N/D'}, SL ${sig.sl ?? 'N/D'}, TP1 ${sig.tp1 ?? 'N/D'}. Durata: ${etaText}. ${evText}.`);
             signalSoundEnabled = prev;
         }
 
@@ -1497,45 +1636,31 @@
             if (newly.length > 0 && signalSoundEnabled) {
                 const first = newly[0];
                 playToneSequence(first.action === 'SELL' ? [660, 440] : [587.33, 880], 0.12, 0.04, 'sine', 0.15);
-                speakItalianText(`Nuovo segnale certo ${first.action} su ${first.symbol}.`);
+                speakItalianText(`Nuovo segnale ${first.action} su ${first.symbol}.`);
             }
         }
 
-        function renderDailyRow(d) {
-            const st = d || {};
-            const total = Number(st.total_trades || 0);
-            const wins = Number(st.wins || 0);
-            const losses = Number(st.losses || 0);
-            const winPct = Number(st.win_pct || 0);
-            const lossPct = Number(st.loss_pct || 0);
-            const wonAmt = Number(st.won_amount || 0);
-            const lostAmt = Math.abs(Number(st.lost_amount || 0));
-            const netVal = Number(st.net_pnl || 0);
-            const netCol = netVal >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
-            const netStr = `${netVal < 0 ? '-' : ''}$${Math.abs(netVal).toFixed(2)}`;
-
-            return `
-                <tr>
-                    <td class="mono" style="font-weight:800;">${total}</td>
-                    <td class="mono" style="color:var(--accent-green); font-weight:800;">${winPct.toFixed(0)}% (${wins})</td>
-                    <td class="mono" style="color:var(--accent-red); font-weight:800;">${lossPct.toFixed(0)}% (${losses})</td>
-                    <td class="mono" style="color:var(--accent-green); font-weight:800;">+$${wonAmt.toFixed(2)}</td>
-                    <td class="mono" style="color:var(--accent-red); font-weight:800;">-$${lostAmt.toFixed(2)}</td>
-                    <td class="mono" style="color:${netCol}; font-weight:800;">${netStr}</td>
-                </tr>
-            `;
-        }
-
-        function renderMonthlyRow(m) {
-            const st = m || {};
-            const total = Number(st.total_trades || 0);
-            const wins = Number(st.wins || 0);
-            const losses = Number(st.losses || 0);
-            const winPct = Number(st.win_pct || 0);
-            const lossPct = Number(st.loss_pct || 0);
-            const wonAmt = Number(st.won_amount || 0);
-            const lostAmt = Math.abs(Number(st.lost_amount || 0));
-            const netVal = Number(st.net_pnl || 0);
+        function renderPeriodRow(st) {
+            if (!st || !hasNum(st.total_trades)) {
+                return `
+                    <tr>
+                        <td class="mono">N/D</td>
+                        <td class="mono">N/D</td>
+                        <td class="mono">N/D</td>
+                        <td class="mono">N/D</td>
+                        <td class="mono">N/D</td>
+                        <td class="mono">N/D</td>
+                    </tr>
+                `;
+            }
+            const total = Number(st.total_trades);
+            const wins = hasNum(st.wins) ? Number(st.wins) : 0;
+            const losses = hasNum(st.losses) ? Number(st.losses) : 0;
+            const winPct = hasNum(st.win_pct) ? Number(st.win_pct) : (total > 0 ? (wins / total) * 100 : 0);
+            const lossPct = hasNum(st.loss_pct) ? Number(st.loss_pct) : (total > 0 ? (losses / total) * 100 : 0);
+            const wonAmt = hasNum(st.won_amount) ? Number(st.won_amount) : 0;
+            const lostAmt = hasNum(st.lost_amount) ? Math.abs(Number(st.lost_amount)) : 0;
+            const netVal = hasNum(st.net_pnl) ? Number(st.net_pnl) : (wonAmt - lostAmt);
             const netCol = netVal >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
             const netStr = `${netVal < 0 ? '-' : ''}$${Math.abs(netVal).toFixed(2)}`;
 
@@ -1556,38 +1681,47 @@
                 latestPayload.performance = perfData;
                 const dBody = document.getElementById('dailyReportBody');
                 const mBody = document.getElementById('monthlyReportBody');
-                if (dBody) dBody.innerHTML = renderDailyRow(perfData.daily);
-                if (mBody) mBody.innerHTML = renderMonthlyRow(perfData.monthly);
+                if (dBody) dBody.innerHTML = renderPeriodRow(perfData.daily);
+                if (mBody) mBody.innerHTML = renderPeriodRow(perfData.monthly);
 
                 const apiBadge = document.getElementById('liveApiStatus');
+                const topBadge = document.getElementById('feedBadge');
                 if (apiBadge) {
-                    apiBadge.textContent = perfData.api_configured ? 'RENDER BINGX API CONNESSA' : 'RENDER BINGX LIVE (NO API KEY)';
-                    apiBadge.style.color = perfData.api_configured ? 'var(--accent-green)' : 'var(--accent-red)';
+                    const configured = Boolean(perfData.api_configured);
+                    apiBadge.textContent = configured ? 'BINGX API CONNESSA (REALE)' : 'BINGX LIVE FEED (SOLO LETTURA / NO KEY)';
+                    apiBadge.style.color = configured ? 'var(--accent-green)' : 'var(--accent-amber)';
+                }
+                if (topBadge) {
+                    const configured = Boolean(perfData.api_configured);
+                    topBadge.textContent = configured ? 'RENDER • BINGX REALE' : 'RENDER • BINGX FEED';
+                    topBadge.className = configured ? 'badge-live-sync' : 'badge-live-sync badge-warn';
                 }
             }
 
             if (teleData) {
                 latestPayload.telemetry = teleData;
                 const box = document.getElementById('telemetrySummaryBox');
-                const pnlNum = Number(teleData.session_pnl || 0);
+                const hasPnl = hasNum(teleData.session_pnl);
+                const pnlNum = hasPnl ? Number(teleData.session_pnl) : 0;
                 if (box) {
                     box.innerHTML = `
-                        <div>Scansioni Globali: <strong>${Number(teleData.scans_count || 0)}</strong></div>
-                        <div>Ordini Attivi Totali: <strong>${Number(teleData.active_orders_count || 0)}</strong></div>
-                        <div>PnL di Sessione: <strong style="color:${pnlNum >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'};">${pnlNum < 0 ? '-' : ''}$${Math.abs(pnlNum).toFixed(2)}</strong></div>
+                        <div>Scansioni Globali: <strong>${hasNum(teleData.scans_count) ? Number(teleData.scans_count) : 'N/D'}</strong></div>
+                        <div>Ordini Attivi Totali: <strong>${hasNum(teleData.active_orders_count) ? Number(teleData.active_orders_count) : 'N/D'}</strong></div>
+                        <div>PnL di Sessione: <strong style="color:${!hasPnl ? 'var(--text-muted)' : (pnlNum >= 0 ? 'var(--accent-green)' : 'var(--accent-red)')};">${hasPnl ? `${pnlNum < 0 ? '-' : ''}$${Math.abs(pnlNum).toFixed(2)}` : 'N/D'}</strong></div>
                     `;
                 }
                 const logsBox = document.getElementById('telemetryLogsBox');
                 const logs = teleData.telemetry_logs || [];
                 if (logsBox) {
                     logsBox.innerHTML = logs.length
-                        ? logs.map(l => `• [${l.timestamp}] ${l.status} — Segnali: ${l.signals_found}/${l.scanned}`).join('<br>')
-                        : 'Nessun log registrato.';
+                        ? logs.map(l => `• [${l.timestamp || 'N/D'}] ${l.status || 'LOG'} — Segnali: ${l.signals_found ?? 'N/D'}/${l.scanned ?? 'N/D'}`).join('<br>')
+                        : 'Nessun log reale registrato finora.';
                 }
             }
             renderMarketScheduleGrid();
             renderMacroWindows();
             renderDeskGauges();
+            renderAlertTape();
         }
 
         async function executeTradeFromPayload(row, sideOverride = null) {
@@ -1601,16 +1735,16 @@
                         symbol: row.symbol,
                         name: row.name,
                         action,
-                        size: row.size || 0.001,
-                        leverage_num: row.leverage_num || 5,
-                        sl: row.sl || 0,
-                        tp1: row.tp1 || 0
+                        size: row.size,
+                        leverage_num: row.leverage_num,
+                        sl: row.sl,
+                        tp1: row.tp1
                     })
                 });
                 const data = await res.json();
                 if (data.success) {
                     releasePinnedSignal(row.symbol);
-                    alert(`Ordine REALE ${action} inviato su ${row.bingx_symbol}`);
+                    alert(`Ordine REALE ${action} inviato su ${data.bingx_symbol || row.bingx_symbol || row.symbol}`);
                     await loadPositionsStatus();
                 } else {
                     alert(data.error || 'Impossibile inviare ordine reale');
@@ -1704,7 +1838,8 @@
                         ? incomingRows
                         : latestPayload.market_monitoring_table,
                     performance: data.performance || latestPayload.performance,
-                    telemetry: data.telemetry || latestPayload.telemetry
+                    telemetry: data.telemetry || latestPayload.telemetry,
+                    hasRealFeed: true
                 };
 
                 renderPerformanceAndTelemetry(latestPayload.performance, latestPayload.telemetry);
@@ -1726,7 +1861,7 @@
                     scanLbl.style.color = 'var(--accent-red)';
                     scanLbl.textContent = `SYNC RETRY • ${nowTime}`;
                 }
-                renderScanFallbackMessage(`Sincronizzazione Render/BingX in corso (${e?.name === 'AbortError' ? 'timeout rete' : (e?.message || 'attesa risposta')}) — nuovo tentativo automatico tra 5s.`);
+                renderScanFallbackMessage(`Sincronizzazione feed reale in corso (${e?.name === 'AbortError' ? 'timeout rete' : (e?.message || 'attesa risposta')}) — nuovo tentativo tra 5s.`);
             } finally {
                 clearTimeout(timeoutId);
                 isFetchingSignals = false;
@@ -1739,6 +1874,7 @@
 
             const selectedMarket = document.getElementById('marketSelect')?.value || 'ALL';
             const selectedAsset = document.getElementById('assetSelect')?.value || 'ALL';
+            const selectedDir = document.getElementById('directionSelect')?.value || 'ALL';
             const cats = selectedMarket === 'ALL' ? ALL_CATEGORIES : [selectedMarket];
 
             const sessions = latestPayload.sessions || {};
@@ -1748,10 +1884,18 @@
             const monitored = latestPayload.market_monitoring_table || [];
 
             container.innerHTML = cats.map(cat => {
-                const sess = sessions[cat] || { status: 'APERTO LIVE', is_open: true, days_label: '', hours: '' };
+                const sess = sessions[cat] || { status: 'STATO N/D', is_open: false, days_label: '', hours: '' };
                 const diag = diagnostics[cat] || {};
-                const catSignals = allSignals.filter(s => s.category === cat && (selectedAsset === 'ALL' || s.symbol === selectedAsset));
-                const catCount = monitored.filter(r => r.category === cat && (selectedAsset === 'ALL' || r.symbol === selectedAsset)).length;
+                const catSignals = allSignals.filter(s =>
+                    s.category === cat &&
+                    (selectedAsset === 'ALL' || s.symbol === selectedAsset) &&
+                    (selectedDir === 'ALL' || s.action === selectedDir)
+                );
+                const catCount = monitored.filter(r =>
+                    r.category === cat &&
+                    (selectedAsset === 'ALL' || r.symbol === selectedAsset) &&
+                    (selectedDir === 'ALL' || r.action === selectedDir)
+                ).length;
 
                 return `
                     <div class="cat-block">
@@ -1770,7 +1914,7 @@
                         ${catSignals.length === 0 ? `
                             <div class="diag-box">
                                 <div style="color:var(--accent-red); font-weight:800; margin-bottom:3px;">NESSUN SEGNALE CONFERMATO SU ${cat.toUpperCase()}</div>
-                                <div>${diag.filter_reason || diag.reason || 'In attesa di setup conforme ai parametri impostati.'}</div>
+                                <div>${diag.filter_reason || diag.reason || 'In attesa di setup reale conforme ai parametri impostati.'}</div>
                             </div>
                         ` : `
                             <div class="signals-grid">
@@ -1778,30 +1922,32 @@
                                     const isBuy = sig.action === 'BUY';
                                     const col = isBuy ? 'var(--accent-green)' : 'var(--accent-red)';
                                     const tpTiming = computeTpCandleEstimate(sig);
-                                    const pCert = Number(sig.profit_certainty_pct ?? sig.certainty_pct ?? 75).toFixed(1);
-                                    const evVal = Number(sig.ev_net_usd || 0);
+                                    const cert = getProfitCertainty(sig);
+                                    const certStr = cert !== null ? `${cert.toFixed(1)}%` : 'N/D';
+                                    const hasEv = hasNum(sig.ev_net_usd);
+                                    const evVal = hasEv ? Number(sig.ev_net_usd) : 0;
                                     return `
                                         <div class="signal-card" style="border-left:4px solid ${col};">
                                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
-                                                <strong>${sig.name}</strong>
-                                                <span class="mono" style="color:${col}; font-weight:800;">${sig.action} • Cert. Profitto ${pCert}%</span>
+                                                <strong>${sig.name || sig.symbol}</strong>
+                                                <span class="mono" style="color:${col}; font-weight:800;">${sig.action} • Cert. Profitto ${certStr}</span>
                                             </div>
                                             <div class="mono" style="font-size:0.71rem; margin-bottom:4px; color:var(--text-muted);">
-                                                Prezzo Live: <strong style="color:var(--text-main);">${sig.price}</strong> | Score: <strong style="color:var(--text-main);">${sig.ai_score}</strong> | Blocco: <strong>${sig.remaining_sec || 90}s</strong>
+                                                Prezzo Live: <strong style="color:var(--text-main);">${hasNum(sig.price) ? sig.price : 'N/D'}</strong> | Score: <strong style="color:var(--text-main);">${sig.ai_score || 'N/D'}</strong> | Blocco: <strong>${sig.remaining_sec || 90}s</strong>
                                             </div>
                                             <div class="mono" style="font-size:0.7rem; font-weight:700; margin-bottom:3px;">
-                                                P(Win): <span style="color:${col};">${sig.p_win_pct ?? '-'}%</span> • R:R <strong>1:${sig.rrr}</strong> • Qty <strong>${sig.size}</strong> • Kelly <strong>${sig.kelly_pct ?? 0}%</strong>
+                                                P(Win): <span style="color:${col};">${hasNum(sig.p_win_pct) ? `${Number(sig.p_win_pct).toFixed(1)}%` : 'N/D'}</span> • R:R <strong>${hasNum(sig.rrr) ? `1:${sig.rrr}` : 'N/D'}</strong> • Qty <strong>${hasNum(sig.size) ? sig.size : 'N/D'}</strong> • Kelly <strong>${hasNum(sig.kelly_pct) ? `${sig.kelly_pct}%` : 'N/D'}</strong>
                                             </div>
                                             <div class="mono" style="font-size:0.7rem; color:var(--text-main);">
-                                                Entry: <strong>${sig.entry}</strong> | SL: <strong style="color:var(--accent-red);">${sig.sl}</strong><br>
-                                                TP1: <strong style="color:var(--accent-green);">${sig.tp1}</strong> • TP2: <strong style="color:var(--accent-green);">${sig.tp2 ?? '-'}</strong> • TP3: <strong style="color:var(--accent-green);">${sig.tp3 ?? '-'}</strong>
+                                                Entry: <strong>${hasNum(sig.entry) ? sig.entry : 'N/D'}</strong> | SL: <strong style="color:var(--accent-red);">${hasNum(sig.sl) ? sig.sl : 'N/D'}</strong><br>
+                                                TP1: <strong style="color:var(--accent-green);">${hasNum(sig.tp1) ? sig.tp1 : 'N/D'}</strong> • TP2: <strong style="color:var(--accent-green);">${hasNum(sig.tp2) ? sig.tp2 : 'N/D'}</strong> • TP3: <strong style="color:var(--accent-green);">${hasNum(sig.tp3) ? sig.tp3 : 'N/D'}</strong>
                                             </div>
                                             ${buildTpBarsHtml(sig)}
                                             <div class="mono" style="font-size:0.69rem; margin-top:6px;">
                                                 Stima TP: <strong>${tpTiming}</strong>
                                             </div>
                                             <div class="mono" style="font-size:0.69rem; color:${sig.false_breakout ? 'var(--accent-red)' : 'var(--accent-green)'}; font-weight:700; margin-top:2px;">
-                                                ${sig.fakeout_label || 'PULITO'} • EV Netto: <strong>${evVal >= 0 ? '+' : '-'}$${Math.abs(evVal).toFixed(4)}</strong>
+                                                ${sig.fakeout_label || (sig.false_breakout ? 'FAKEOUT RILEVATO' : 'PULITO')} • EV Netto: <strong>${hasEv ? `${evVal >= 0 ? '+' : '-'}$${Math.abs(evVal).toFixed(4)}` : 'N/D'}</strong>
                                             </div>
                                             <div class="action-btns">
                                                 <button type="button" class="btn ${isBuy ? 'btn-buy' : 'btn-sell'}" onclick="executeTradeFromSignalSymbol('${sig.symbol}')">PRENDI ${sig.action}</button>
@@ -1816,6 +1962,7 @@
                     </div>
                 `;
             }).join('');
+            renderAlertTape();
         }
 
         function renderMonitoringTable() {
@@ -1823,6 +1970,7 @@
             if (!tbody) return;
             const selectedMarket = document.getElementById('marketSelect')?.value || 'ALL';
             const selectedAsset = document.getElementById('assetSelect')?.value || 'ALL';
+            const selectedDir = document.getElementById('directionSelect')?.value || 'ALL';
             const filterTaken = document.getElementById('filterTakenSelect')?.value || 'ALL';
             const rows = latestPayload.market_monitoring_table || [];
 
@@ -1831,57 +1979,60 @@
                 .filter(({ r }) => {
                     if (selectedMarket !== 'ALL' && r.category !== selectedMarket) return false;
                     if (selectedAsset !== 'ALL' && r.symbol !== selectedAsset) return false;
+                    if (selectedDir !== 'ALL' && r.action !== selectedDir) return false;
                     if (filterTaken === 'TAKEN' && !r.taken) return false;
                     if (filterTaken === 'NOT_TAKEN' && r.taken) return false;
                     return true;
                 });
 
             if (!filtered.length) {
-                tbody.innerHTML = `<tr><td colspan="7" class="mono">Nessun asset nel filtro corrente.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" class="mono">Nessun asset reale nel filtro corrente.</td></tr>`;
                 return;
             }
 
             tbody.innerHTML = filtered.map(({ r, idx }) => {
-                const actCol = r.action === 'BUY' ? 'var(--accent-green)' : (r.action === 'SELL' ? 'var(--accent-red)' : 'var(--text-main)');
+                const actCol = r.action === 'BUY' ? 'var(--accent-green)' : (r.action === 'SELL' ? 'var(--accent-red)' : 'var(--text-muted)');
                 const tag = r.taken
                     ? `<span class="tag-taken">CERTO (${r.action})</span>`
-                    : `<span class="tag-filtered">FILTRATO (${r.action})</span>`;
-                const evVal = Number(r.ev_net_usd || 0);
-                const pCert = Number(r.profit_certainty_pct ?? r.certainty_pct ?? 0).toFixed(1);
+                    : `<span class="tag-filtered">FILTRATO (${r.action || 'N/D'})</span>`;
+                const hasEv = hasNum(r.ev_net_usd);
+                const evVal = hasEv ? Number(r.ev_net_usd) : 0;
+                const cert = getProfitCertainty(r);
+                const pCert = cert !== null ? `${cert.toFixed(1)}%` : 'N/D';
                 return `
                     <tr>
                         <td>
-                            <strong>${r.name}</strong><br>
-                            <span class="mono" style="font-size:0.64rem; color:var(--text-muted);">${r.bingx_symbol} • ${r.session_status || ''}</span>
+                            <strong>${r.name || r.symbol}</strong><br>
+                            <span class="mono" style="font-size:0.64rem; color:var(--text-muted);">${r.bingx_symbol || r.symbol} • ${r.session_status || 'N/D'}</span>
                         </td>
                         <td class="mono" style="font-size:0.68rem; min-width:140px;">
-                            <strong>${r.price ?? 'N/D'}</strong>
+                            <strong>${hasNum(r.price) ? r.price : 'N/D'}</strong>
                             ${buildTpBarsHtml(r)}
                         </td>
                         <td class="mono" style="font-size:0.68rem;">
                             ${tag}<br>
-                            <span style="color:var(--accent-green); font-weight:800;">Cert. Profitto: ${pCert}%</span><br>
-                            <span style="color:${actCol}; font-weight:700;">Score ${r.ai_score || '0%'}</span>
+                            <span style="color:var(--accent-green); font-weight:800;">Cert. Profitto: ${pCert}</span><br>
+                            <span style="color:${actCol}; font-weight:700;">Score ${r.ai_score || 'N/D'}</span>
                             <div class="action-btns">
                                 <button type="button" class="btn btn-buy" onclick="executeTradeFromRow(${idx}, 'BUY')">BUY</button>
                                 <button type="button" class="btn btn-sell" onclick="executeTradeFromRow(${idx}, 'SELL')">SELL</button>
                             </div>
                         </td>
                         <td class="mono" style="font-size:0.68rem;">
-                            E: <strong>${r.entry ?? '-'}</strong> | SL: <strong style="color:var(--accent-red);">${r.sl ?? '-'}</strong><br>
-                            TP1: <strong style="color:var(--accent-green);">${r.tp1 ?? '-'}</strong> • TP2: <strong style="color:var(--accent-green);">${r.tp2 ?? '-'}</strong> • TP3: <strong style="color:var(--accent-green);">${r.tp3 ?? '-'}</strong>
+                            E: <strong>${hasNum(r.entry) ? r.entry : 'N/D'}</strong> | SL: <strong style="color:var(--accent-red);">${hasNum(r.sl) ? r.sl : 'N/D'}</strong><br>
+                            TP1: <strong style="color:var(--accent-green);">${hasNum(r.tp1) ? r.tp1 : 'N/D'}</strong> • TP2: <strong style="color:var(--accent-green);">${hasNum(r.tp2) ? r.tp2 : 'N/D'}</strong> • TP3: <strong style="color:var(--accent-green);">${hasNum(r.tp3) ? r.tp3 : 'N/D'}</strong>
                         </td>
                         <td class="mono" style="font-size:0.68rem;">
-                            Qty <strong>${r.size ?? '-'}</strong> • Margine <strong>$${r.margin ?? '-'}</strong><br>
-                            <strong style="color:${evVal > 0 ? 'var(--accent-green)' : 'var(--accent-red)'};">EV: ${evVal >= 0 ? '+' : '-'}$${Math.abs(evVal).toFixed(4)}</strong><br>
-                            Kelly ${r.kelly_pct ?? 0}% • R:R 1:${r.rrr || 0}
+                            Qty <strong>${hasNum(r.size) ? r.size : 'N/D'}</strong> • Margine <strong>${hasNum(r.margin) ? `$${r.margin}` : 'N/D'}</strong><br>
+                            <strong style="color:${!hasEv ? 'var(--text-muted)' : (evVal > 0 ? 'var(--accent-green)' : 'var(--accent-red)')};">EV: ${hasEv ? `${evVal >= 0 ? '+' : '-'}$${Math.abs(evVal).toFixed(4)}` : 'N/D'}</strong><br>
+                            Kelly ${hasNum(r.kelly_pct) ? `${r.kelly_pct}%` : 'N/D'} • R:R ${hasNum(r.rrr) ? `1:${r.rrr}` : 'N/D'}
                         </td>
                         <td class="mono" style="font-size:0.67rem;">
-                            <span style="color:${r.false_breakout ? 'var(--accent-red)' : 'var(--accent-green)'}; font-weight:700;">${r.fakeout_label || 'PULITO'}</span><br>
-                            <span>${r.reversal_summary || ''}</span>
+                            <span style="color:${r.false_breakout ? 'var(--accent-red)' : 'var(--accent-green)'}; font-weight:700;">${r.fakeout_label || (r.false_breakout ? 'FAKEOUT' : 'PULITO')}</span><br>
+                            <span>${r.reversal_summary || 'N/D'}</span>
                         </td>
                         <td class="mono" style="font-size:0.67rem;">
-                            <span style="color:${r.taken ? 'var(--accent-green)' : 'var(--text-muted)'};">${r.filter_reason || r.why_not_taken || '-'}</span>
+                            <span style="color:${r.taken ? 'var(--accent-green)' : 'var(--text-muted)'};">${r.filter_reason || r.why_not_taken || 'N/D'}</span>
                         </td>
                     </tr>
                 `;
@@ -1889,21 +2040,24 @@
         }
 
         function buildSparklineSvg(row) {
-            const arr = Array.isArray(row.series) && row.series.length > 1 ? row.series : [row.entry || 1, row.tp1 || 1.01];
+            const rawArr = Array.isArray(row.series) ? row.series.map(Number).filter(v => Number.isFinite(v) && v > 0) : [];
+            if (rawArr.length < 2) {
+                return `<div class="mono" style="height:104px; display:flex; align-items:center; justify-content:center; background:#0a0f1a; border-radius:8px; border:1px solid #1e2a42; font-size:0.68rem; color:var(--text-muted);">Serie candele reali N/D</div>`;
+            }
             const levels = [Number(row.entry), Number(row.sl), Number(row.tp1), Number(row.tp2), Number(row.tp3)].filter(v => Number.isFinite(v) && v > 0);
-            const minV = Math.min(...arr, ...levels);
-            const maxV = Math.max(...arr, ...levels);
-            const span = Math.max(maxV - minV, 0.0001);
+            const minV = Math.min(...rawArr, ...levels);
+            const maxV = Math.max(...rawArr, ...levels);
+            const span = Math.max(maxV - minV, 0.000001);
             const yOf = val => (96 - ((Number(val) - minV) / span) * 80).toFixed(1);
 
-            const pts = arr.map((v, i) => {
-                const x = (i / (arr.length - 1)) * 240 + 8;
+            const pts = rawArr.map((v, i) => {
+                const x = (i / (rawArr.length - 1)) * 240 + 8;
                 return `${x.toFixed(1)},${yOf(v)}`;
             }).join(' ');
 
-            const entryY = Number.isFinite(Number(row.entry)) ? yOf(row.entry) : null;
-            const slY = Number.isFinite(Number(row.sl)) ? yOf(row.sl) : null;
-            const tp1Y = Number.isFinite(Number(row.tp1)) ? yOf(row.tp1) : null;
+            const entryY = Number.isFinite(Number(row.entry)) && Number(row.entry) > 0 ? yOf(row.entry) : null;
+            const slY = Number.isFinite(Number(row.sl)) && Number(row.sl) > 0 ? yOf(row.sl) : null;
+            const tp1Y = Number.isFinite(Number(row.tp1)) && Number(row.tp1) > 0 ? yOf(row.tp1) : null;
             const strokeCol = row.action === 'SELL' ? '#ef4444' : '#22c55e';
 
             return `
@@ -1919,15 +2073,15 @@
         function renderChartsTab() {
             const box = document.getElementById('chartsSummaryBox');
             if (!box) return;
-            const rows = (latestPayload.market_monitoring_table || []).filter(r => r.price !== null && r.price !== undefined);
+            const rows = (latestPayload.market_monitoring_table || []).filter(r => hasNum(r.price));
             if (!rows.length) {
-                box.innerHTML = '<div class="telemetry-card">Nessun dato live disponibile.</div>';
+                box.innerHTML = '<div class="telemetry-card">Nessun prezzo live reale disponibile al momento.</div>';
                 return;
             }
             box.innerHTML = rows.slice(0, 9).map(r => `
                 <div class="chart-card">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                        <strong>${r.name}</strong>
+                        <strong>${r.name || r.symbol}</strong>
                         <span class="mono" style="font-size:0.72rem; font-weight:800;">${r.price}</span>
                     </div>
                     ${buildSparklineSvg(r)}
@@ -1956,7 +2110,7 @@
                 const bal = acc.balance;
                 const balHtml = bal
                     ? `<div style="margin-bottom:8px; color:var(--accent-green); font-weight:700;">Saldo BingX: Equity <strong>$${bal.equity}</strong> | Margine Libero <strong>$${bal.available_margin}</strong> | uPnL <strong>$${bal.unrealized_pnl}</strong></div>`
-                    : `<div style="margin-bottom:8px; color:var(--accent-red); font-weight:700;">${acc.balance_error || 'Saldo BingX non disponibile'}</div>`;
+                    : `<div style="margin-bottom:8px; color:var(--accent-red); font-weight:700;">${acc.balance_error || 'Saldo BingX non disponibile (verifica API Key/Secret o connessione)'}</div>`;
 
                 const posList = data.positions || [];
                 const errTxt = data.positions_error ? `<div style="color:var(--accent-red); margin-bottom:6px;">${data.positions_error}</div>` : '';
@@ -1969,7 +2123,7 @@
                     `).join('')
                     : 'Nessuna posizione aperta sul conto BingX.';
 
-                box.innerHTML = `${balHtml}${errTxt}<div><strong>Posizioni Reali Aperte su BingX (${posList.length}/${data.max_open_positions || 3}):</strong><br>${posHtml}</div>`;
+                box.innerHTML = `${balHtml}${errTxt}<div><strong>Posizioni Reali Aperte su BingX (${posList.length}/${data.max_open_positions ?? 'N/D'}):</strong><br>${posHtml}</div>`;
             } catch (e) {
                 box.textContent = 'Errore lettura posizioni BingX.';
             }
@@ -1992,6 +2146,7 @@
         updateActiveParamsStrip();
         renderMarketScheduleGrid();
         renderDeskGauges();
+        renderAlertTape();
         loadAllLive(true);
         setInterval(() => loadSignals(false), 5000);
         setInterval(() => loadTelemetry(), 10000);
@@ -2000,6 +2155,7 @@
                 latestPayload.signals = mergeAndHoldSignals([]);
                 renderSignalsAndMarkets();
                 renderDeskGauges();
+                renderAlertTape();
             }
         }, 1000);
     </script>
