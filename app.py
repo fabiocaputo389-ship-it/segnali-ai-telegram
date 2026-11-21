@@ -1,1001 +1,1874 @@
-"""
-Aurum Signal Room - backend (100% LIVE e REALE su BingX)
-Dati reali da BingX Perpetual Swap (API pubbliche, nessuna chiave per dati di mercato),
-motore di segnali multi-timeframe, tracciamento TP/SL, flussi balene/liquidazioni reali,
-notifiche Telegram e dashboard servita su "/".
-
-Variabili d'ambiente:
-  TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID  -> invio segnali su Telegram
-  DASHBOARD_PASSWORD                    -> protegge la dashboard con password (Basic Auth)
-  PAIRS        (default BTC,ETH,SOL,BNB,XRP,DOGE,ADA,AVAX,LINK,UNI)
-  MIN_CONF     (default 72)   confidenza minima per emettere un segnale
-  MAX_ACTIVE   (default 8)    segnali attivi contemporanei
-  COOLDOWN_MIN (default 180)  minuti di pausa per coppia dopo un segnale
-  ENGINE_SEC   (default 60)   frequenza di analisi
-  DB_PATH      (default /tmp/signals.db)
-  BINGX_BASE_URL (default https://open-api.bingx.com)
-  WHALE_MIN_USD  (default 250000) soglia minima USD per rilevare un trade balena reale
-  CALENDAR_FEED_URL (opzionale) URL JSON per eventi macro reali: [{"title","impact","timestamp_ms"}]
-
-Avvio: gunicorn app:app --workers 1 --threads 8 --timeout 120 --bind 0.0.0.0:$PORT
-(usa UN solo worker: il motore dei segnali gira dentro il processo).
-"""
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import csv
+import hashlib
 import hmac
-import json
-import logging
+import io
+import math
 import os
-import sqlite3
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
+from urllib.parse import urlencode
 
+import numpy as np
+import pandas as pd
 import requests
-from flask import Flask, Response, jsonify, request, send_file
+from flask import Flask, Response, jsonify, render_template, request
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-log = logging.getLogger("aurum")
+app = Flask(__name__)
 
-BASE = os.getenv("BINGX_BASE_URL", "https://open-api.bingx.com").rstrip("/")
-PAIRS = [
-    p.strip().upper().replace("-USDT", "").replace("USDT", "")
-    for p in os.getenv("PAIRS", "BTC,ETH,SOL,BNB,XRP,DOGE,ADA,AVAX,LINK,UNI").split(",")
-    if p.strip()
-]
-MIN_CONF = int(os.getenv("MIN_CONF", "72"))
-MAX_ACTIVE = int(os.getenv("MAX_ACTIVE", "8"))
-COOLDOWN_MIN = int(os.getenv("COOLDOWN_MIN", "180"))
-ENGINE_SEC = int(os.getenv("ENGINE_SEC", "60"))
-WHALE_MIN_USD = float(os.getenv("WHALE_MIN_USD", "250000"))
-CALENDAR_FEED_URL = os.getenv("CALENDAR_FEED_URL", "").strip()
-TG_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
-TG_CHAT = os.getenv("TELEGRAM_CHAT_ID", "").strip()
-PASSWORD = os.getenv("DASHBOARD_PASSWORD", "").strip()
-DB_PATH = os.getenv("DB_PATH", "/tmp/signals.db")
-GRAN = {"5m": "5m", "15m": "15m", "1h": "1h", "4h": "4h"}
-HERE = os.path.dirname(os.path.abspath(__file__))
+BINGX_BASE_URL = os.getenv("BINGX_BASE_URL", "https://open-api.bingx.com").rstrip("/")
+BINGX_API_KEY = os.getenv("BINGX_API_KEY", "").strip()
+BINGX_API_SECRET = os.getenv("BINGX_API_SECRET", "").strip()
+ALLOW_WEEKEND_TRADFI = os.getenv("ALLOW_WEEKEND_TRADFI", "false").strip().lower() in ("1", "true", "yes")
 
-FALLBACK_HTML = """<!DOCTYPE html>
-<html lang="it">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Aurum Signal Room · BingX LIVE</title>
-<meta name="claude:viewport-fit-sides" content="cover">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap">
-<style>
-:root{--bg:#f4efe4;--panel:#fbf8f0;--panel2:#efe8d8;--line:#d9ceb4;--fg:#2a2417;--mute:#7a6f58;--gold:#8f6a14;--goldbg:#e9d9a6;--up:#0f7b4f;--down:#b8322f;--warn:#a86a00;--font-d:'Cinzel',Georgia,serif;--font-b:'Inter',system-ui,sans-serif;--font-m:'JetBrains Mono',ui-monospace,Menlo,monospace}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0d0c09;--panel:#16140f;--panel2:#1e1b14;--line:#322d20;--fg:#ece4cf;--mute:#9a907a;--gold:#d4a73a;--goldbg:#3a2f12;--up:#3ccf8e;--down:#f0605b;--warn:#e7a43a;color-scheme:dark}}
-:root[data-theme="dark"]{--bg:#0d0c09;--panel:#16140f;--panel2:#1e1b14;--line:#322d20;--fg:#ece4cf;--mute:#9a907a;--gold:#d4a73a;--goldbg:#3a2f12;--up:#3ccf8e;--down:#f0605b;--warn:#e7a43a;color-scheme:dark}
-*{box-sizing:border-box}
-body{background:var(--bg);color:var(--fg);font:14px/1.45 var(--font-b);padding-block:0 32px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
-.wrap{max-width:1440px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
-.mono,.num{font-family:var(--font-m);font-variant-numeric:tabular-nums}
-button{font:inherit;color:inherit;cursor:pointer}
-:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
-.up{color:var(--up)}.down{color:var(--down)}.mute{color:var(--mute)}
-header{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;justify-content:space-between;padding-top:14px}
-.brand{font-family:var(--font-d);font-weight:700;font-size:22px;letter-spacing:.14em;color:var(--gold)}
-.brand small{display:block;font:500 10px var(--font-m);letter-spacing:.18em;color:var(--mute)}
-.hr{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.chip{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:4px 11px;font:500 11px var(--font-m);display:inline-flex;gap:6px;align-items:center;white-space:nowrap}
-.dot{width:7px;height:7px;border-radius:50%;background:var(--mute)}.on .dot{background:var(--up);box-shadow:0 0 0 3px color-mix(in srgb,var(--up) 25%,transparent)}
-.chip.live{border-color:var(--up);color:var(--up)}.chip.err{border-color:var(--down);color:var(--down)}
-.tape{overflow:hidden;border-block:1px solid var(--line);background:var(--panel);white-space:nowrap;margin-inline:calc(-1*max(16px,env(safe-area-inset-left,0px)));padding-inline:16px}
-.tape-in{display:inline-flex;gap:26px;padding:8px 0;animation:scroll 60s linear infinite;font:500 12px var(--font-m)}
-@keyframes scroll{to{transform:translateX(-50%)}}
-@media (prefers-reduced-motion:reduce){.tape-in{animation:none}.tape{overflow-x:auto}}
-.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
-.kpi{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 14px}
-.kpi b{display:block;font:700 22px var(--font-m);margin-top:2px}
-.lbl{font:500 10px var(--font-m);letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
-nav{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--line)}
-nav button{background:none;border:0;border-bottom:2px solid transparent;padding:10px 16px;font:600 12px var(--font-m);letter-spacing:.1em;text-transform:uppercase;color:var(--mute);white-space:nowrap}
-nav button[aria-selected="true"]{color:var(--gold);border-color:var(--gold)}
-.grid{display:grid;grid-template-columns:minmax(300px,420px) minmax(0,1fr);gap:14px;align-items:start}
-@media (max-width:900px){.grid{grid-template-columns:minmax(0,1fr)}}
-.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;min-width:0}
-.panel h3{margin:0 0 10px;font:700 13px var(--font-d);letter-spacing:.12em;text-transform:uppercase;color:var(--gold)}
-.filters{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:10px}
-.fbtn{border:1px solid var(--line);background:var(--panel2);border-radius:6px;padding:4px 10px;font:500 11px var(--font-m)}
-.fbtn[aria-pressed="true"]{background:var(--goldbg);border-color:var(--gold);color:var(--gold)}
-.feed{display:flex;flex-direction:column;gap:8px;max-height:760px;overflow-y:auto;padding-right:2px}
-.sig{border:1px solid var(--line);background:var(--panel2);border-radius:8px;padding:10px 12px;text-align:left;width:100%;display:grid;gap:6px}
-.sig[aria-current="true"]{border-color:var(--gold)}
-.row{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
-.pair{font:700 15px var(--font-m)}
-.tag{font:700 10px var(--font-m);padding:2px 7px;border-radius:4px;letter-spacing:.08em}
-.tag.long{background:color-mix(in srgb,var(--up) 18%,transparent);color:var(--up)}
-.tag.short{background:color-mix(in srgb,var(--down) 18%,transparent);color:var(--down)}
-.tag.st{background:var(--panel);border:1px solid var(--line);color:var(--mute)}
-.tag.win{color:var(--up);border-color:var(--up)}.tag.loss{color:var(--down);border-color:var(--down)}
-.lv{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;font:500 11px var(--font-m)}
-.lv span{display:block;font-size:9px;color:var(--mute);letter-spacing:.1em}
-.bar{height:4px;border-radius:2px;background:var(--line);overflow:hidden}.bar i{display:block;height:100%;background:var(--gold)}
-.detail{display:grid;gap:14px}
-.dhead{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;justify-content:space-between}
-.dhead .big{font:700 26px var(--font-m)}
-canvas{width:100%;display:block;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
-.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
-.stat{display:grid;grid-template-columns:1fr auto;gap:5px 10px;font:500 12px var(--font-m)}
-.stat dt{color:var(--mute);margin:0}.stat dd{margin:0;text-align:right}
-ul.why{margin:0;padding-left:18px;display:grid;gap:4px}
-.tfs{display:flex;gap:4px}
-.btn{border:1px solid var(--gold);background:var(--goldbg);color:var(--gold);border-radius:6px;padding:7px 14px;font:700 11px var(--font-m);letter-spacing:.08em;text-transform:uppercase}
-.btn.ghost{background:none;border-color:var(--line);color:var(--fg)}
-.tblw{overflow-x:auto}
-table{border-collapse:collapse;width:100%;font:500 12px var(--font-m);min-width:640px}
-th{font:500 10px var(--font-m);letter-spacing:.12em;text-transform:uppercase;color:var(--mute);text-align:right;padding:8px;border-bottom:1px solid var(--line);white-space:nowrap}
-td{padding:8px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
-th:first-child,td:first-child{text-align:left}
-tr.clk{cursor:pointer}tr.clk:hover td{background:var(--panel2)}
-.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
-label{display:grid;gap:4px;font:500 10px var(--font-m);letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
-input,select{background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:8px;font:500 13px var(--font-m);width:100%;min-width:0}
-.gauge{width:150px;max-width:100%}
-.toasts{position:fixed;right:max(12px,env(safe-area-inset-right,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));display:grid;gap:8px;z-index:20;max-width:min(340px,calc(100vw - 24px))}
-.toast{background:var(--panel);border:1px solid var(--gold);border-radius:8px;padding:10px 12px;font:500 12px var(--font-m);box-shadow:0 6px 24px rgba(0,0,0,.35)}
-.note{font-size:12px;color:var(--mute)}
-.sent{display:grid;gap:10px}
-.meter{display:grid;gap:3px;font:500 11px var(--font-m)}
-.meter .bar{height:8px}
-.heat{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px}
-.tile{border-radius:6px;padding:12px;font:700 13px var(--font-m);border:1px solid var(--line);text-align:left;color:var(--fg)}
-.ob{display:grid;grid-template-columns:1fr 1fr;gap:12px;font:500 11px var(--font-m)}
-.obr{position:relative;display:flex;justify-content:space-between;padding:2px 6px}
-.obr i{position:absolute;inset:0 auto 0 0;opacity:.2}.obr span{position:relative}
-#corr td,#corr th{text-align:center;padding:6px}
-textarea{background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:8px;font:500 13px var(--font-m);width:100%;resize:vertical}
-[hidden]{display:none!important}
-</style>
-</head>
-<body>
-<div class="wrap">
-<header>
-  <div class="brand">AURUM<small>SIGNAL ROOM · BINGX LIVE</small></div>
-  <div class="hr">
-    <span class="chip live" id="mode">● LIVE · BingX</span>
-    <span class="chip" id="sessT"><i class="dot"></i>Tokyo</span>
-    <span class="chip" id="sessL"><i class="dot"></i>Londra</span>
-    <span class="chip" id="sessN"><i class="dot"></i>New York</span>
-    <span class="chip mono" id="clock">--:--:--</span>
-    <button class="fbtn" id="snd" aria-pressed="false">Suono: off</button>
-    <button class="fbtn" id="thm">Tema</button>
-  </div>
-</header>
-<div class="tape" aria-label="Prezzi reali BingX"><div class="tape-in" id="tape"></div></div>
-<section class="kpis" id="kpis"></section>
-<nav role="tablist" id="tabs">
-  <button role="tab" data-t="sig" aria-selected="true">Segnali live</button>
-  <button role="tab" data-t="scan" aria-selected="false">Scanner</button>
-  <button role="tab" data-t="mkt" aria-selected="false">Mercato</button>
-  <button role="tab" data-t="cal" aria-selected="false">Calendario e news</button>
-  <button role="tab" data-t="port" aria-selected="false">Portafoglio</button>
-  <button role="tab" data-t="alert" aria-selected="false">Alert prezzo</button>
-  <button role="tab" data-t="perf" aria-selected="false">Performance</button>
-  <button role="tab" data-t="calc" aria-selected="false">Calcolatore rischio</button>
-  <button role="tab" data-t="hist" aria-selected="false">Storico</button>
-</nav>
-<main>
-<section id="t-sig" class="grid">
-  <div class="panel"><h3>Feed segnali</h3><div class="filters" id="filters"><button class="fbtn" data-f="all" aria-pressed="true">Tutti</button><button class="fbtn" data-f="active" aria-pressed="false">Attivi</button><button class="fbtn" data-f="long" aria-pressed="false">Long</button><button class="fbtn" data-f="short" aria-pressed="false">Short</button><button class="fbtn" data-f="closed" aria-pressed="false">Chiusi</button></div><label class="filters" style="grid-template-columns:auto 1fr auto;display:grid">Conf. min <input type="range" id="minconf" min="60" max="95" value="72"><span class="mono" id="mcv">72%</span></label><div class="feed" id="feed" style="margin-top:10px"></div></div>
-  <div class="detail" id="detail"></div>
-</section>
-<section id="t-scan" hidden class="grid" style="grid-template-columns:minmax(0,1fr)"><div class="panel"><h3>Scanner multi-timeframe live</h3><div class="tblw"><table id="scanTbl"></table></div></div><div class="cols"><div class="panel sent"><h3>Sentiment di mercato</h3><div id="sentiment"></div></div><div class="panel"><h3>Sessioni di mercato (UTC)</h3><div id="sessions" class="meter"></div></div></div></section>
-<section id="t-mkt" hidden style="display:grid;gap:14px"><div class="panel"><h3>Heatmap di mercato (variazione reale)</h3><div class="heat" id="heat"></div></div><div class="cols"><div class="panel"><h3>Migliori</h3><div id="gain" class="meter"></div></div><div class="panel"><h3>Peggiori</h3><div id="lose" class="meter"></div></div><div class="panel"><h3>Flussi aggressivi 1h (BingX, M$)</h3><div id="liq" class="meter"></div></div></div><div class="panel"><h3>Correlazione rendimenti 1h</h3><div class="tblw"><table id="corr"></table></div></div><div class="panel"><h3>Flussi balene live (BingX)</h3><div id="whales" class="meter"></div></div></section>
-<section id="t-cal" hidden style="display:grid;gap:14px"><div class="panel"><h3>Calendario economico</h3><div class="tblw"><table id="calTbl"></table></div></div><div class="panel"><h3>News live</h3><div id="news" class="meter"></div></div></section>
-<section id="t-port" hidden style="display:grid;gap:14px"><div class="kpis" id="portK"></div><div class="panel"><h3>Risk manager</h3><dl class="stat" id="riskM" style="max-width:560px"></dl></div><div class="panel"><h3>Segnali presi</h3><div class="tblw"><table id="portTbl"></table></div></div></section>
-<section id="t-alert" hidden style="display:grid;gap:14px"><div class="panel"><h3>Nuovo alert di prezzo</h3><div class="form"><label>Coppia<select id="al-sym"></select></label><label>Condizione<select id="al-cond"><option value="above">Prezzo sopra</option><option value="below">Prezzo sotto</option></select></label><label>Prezzo<input id="al-price" type="number" step="any"></label></div><div style="margin-top:12px"><button class="btn" id="al-add">Aggiungi alert</button></div></div><div class="panel"><h3>Alert attivi</h3><div class="tblw"><table><thead><tr><th>Coppia</th><th>Condizione</th><th>Livello</th><th>Prezzo ora</th><th>Stato</th><th></th></tr></thead><tbody id="al-list"></tbody></table></div></div></section>
-<section id="t-perf" hidden style="display:grid;gap:14px"><div class="panel"><h3>Curva equity (rischio 1% su conto 10.000 $)</h3><canvas id="eq" style="height:260px"></canvas></div><div class="cols"><div class="panel"><h3>Statistiche</h3><dl class="stat" id="pstats"></dl></div><div class="panel"><h3>Risultato per coppia (R)</h3><div id="bypair" class="meter"></div></div><div class="panel"><h3>Win rate per timeframe e lato</h3><div id="byTf" class="meter"></div></div><div class="panel"><h3>Distribuzione risultati</h3><div id="dist" class="meter"></div></div><div class="panel"><h3>Risultato per giorno</h3><div id="days" class="meter"></div></div></div></section>
-<section id="t-calc" hidden class="panel"><h3>Calcolatore posizione e rischio</h3><div class="form"><label>Capitale ($)<input id="c-bal" type="number" value="10000" min="1"></label><label>Rischio (%)<input id="c-risk" type="number" value="1" step="0.1" min="0.1"></label><label>Direzione<select id="c-dir"><option value="long">Long</option><option value="short">Short</option></select></label><label>Entrata<input id="c-entry" type="number" step="any"></label><label>Stop loss<input id="c-sl" type="number" step="any"></label><label>Take profit<input id="c-tp" type="number" step="any"></label><label>Leva (x)<input id="c-lev" type="number" value="10" min="1" max="125"></label></div><div style="display:flex;gap:8px;margin:12px 0;flex-wrap:wrap"><button class="btn" id="c-use">Usa segnale selezionato</button></div><dl class="stat" id="c-out" style="max-width:520px"></dl></section>
-<section id="t-hist" hidden class="panel"><h3>Storico segnali chiusi</h3><div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" id="csv">Copia CSV</button><span class="note" id="csvmsg"></span></div><div class="tblw"><table id="histTbl"></table></div></section>
-</main>
-<p class="note" id="foot">Dati reali in tempo reale da BingX Perpetual Swap. Non costituisce consulenza finanziaria: il trading con leva comporta rischio di perdita del capitale.</p>
-</div>
-<div class="toasts" id="toasts" aria-live="polite"></div>
-<script>
-const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
-let PAIRS=[];const P={},P0={},cache={},TF={'5m':5,'15m':15,'1h':60,'4h':240};
-const BAL=10000,RISK=0.01;let SIGS=[],SEL=null,FILT='all',MINC=72,SOUND=false,CTF='15m';
-let OBL=null,SENT=null,NEWS=[],WHALES=[],LIQ={long_m:0,short_m:0},CAL=[];
-let PREV={},FAILS=0,HOLD=false,TAB='sig';const TAKEN=new Set();let ALERTS=[],AID=1;
-const dec=p=>(+p)>=10?2:(+p)>=1?3:5,fmt=p=>Number.isFinite(+p)?(+p).toFixed(dec(+p)):'—';
-const pctChg=s=>{const p=P[s],o=P0[s];return(Number.isFinite(p)&&Number.isFinite(o)&&o>0)?((p-o)/o)*100:null};
-const fmtPct=v=>v===null?'—':(v>=0?'+':'')+v.toFixed(2)+'%';
-const money=n=>(n<0?'-':'+')+Math.abs(n).toFixed(0)+' $';
-const hm=t=>new Date(t).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
-const dm=t=>new Date(t).toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit'})+' '+hm(t);
-const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
-function ema(a,n){if(!a||!a.length)return[];const k=2/(n+1);let e=a[0];return a.map(v=>e=v*k+e*(1-k))}
-function rsiArr(a,n=14){if(!a||a.length<n+2)return a.map(()=>50);const o=[];let g=0,l=0;for(let i=1;i<a.length;i++){const d=a[i]-a[i-1];if(i<=n){g+=Math.max(d,0);l+=Math.max(-d,0);if(i===n){g/=n;l/=n}o.push(50);continue}g=(g*(n-1)+Math.max(d,0))/n;l=(l*(n-1)+Math.max(-d,0))/n;o.push(100-100/(1+g/(l||1e-9)))}return[50,...o]}
-function ind(sym,tf){const arr=(cache[sym+tf]&&cache[sym+tf].c)||[];const cl=arr.map(x=>x.c);if(cl.length<2)return{cl,e20:[],e50:[],rs:[],rsi:50,trend:0,hist:0,atr:0};const e20=ema(cl,20),e50=ema(cl,50),rs=rsiArr(cl),m=ema(cl,12).map((v,i)=>v-ema(cl,26)[i]);const sig=ema(m,9),i=cl.length-1;return{cl,e20,e50,rs,rsi:rs[i],trend:e20[i]>e50[i]?1:-1,hist:m[i]-sig[i],atr:arr.slice(-14).reduce((a,x)=>a+(x.h-x.l),0)/Math.min(14,arr.length)}}
-function status(g){if(g.closed)return g.res>0?['TP'+g.hits+' · +'+g.res.toFixed(2)+'R','win']:g.res<0?['SL · -1R','loss']:['BE','st'];return[g.hits?`TP${g.hits} preso`:'Attivo','st']}
-function pnlR(g){const p=P[g.sym];if(!Number.isFinite(p)||!g.R)return 0;const s=g.dir==='long'?1:-1;return s*(p-g.entry)/g.R}
-function visible(){return SIGS.filter(g=>g.conf>=MINC&&(FILT==='all'||(FILT==='active'&&!g.closed)||(FILT==='closed'&&g.closed)||g.dir===FILT)).slice(0,50)}
-function toast(m){const d=document.createElement('div');d.className='toast';d.textContent=m;$('#toasts').appendChild(d);setTimeout(()=>d.remove(),5000)}
-let AC;function beep(f){if(!SOUND)return;try{AC=AC||new AudioContext();const o=AC.createOscillator(),g=AC.createGain();o.frequency.value=f;g.gain.value=.05;o.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+.15)}catch(e){}}
-function copy(t,done){const f=()=>{const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();try{document.execCommand('copy')}catch(e){}a.remove();done()};navigator.clipboard?.writeText(t).then(done,f)||f()}
-function tgText(g){return`${g.dir==='long'?'🟢':'🔴'} ${g.sym}/USDT ${g.dir.toUpperCase()} · ${g.tf}\nEntry: ${fmt(g.entry)}\nSL: ${fmt(g.sl)}\nTP1: ${fmt(g.tp[0])}\nTP2: ${fmt(g.tp[1])}\nTP3: ${fmt(g.tp[2])}\nConfidenza: ${g.conf}%\nRischio consigliato: 1%\nDati: BingX`}
-function renderTape(){if(!PAIRS.length){$('#tape').innerHTML='<span>In attesa di dati live BingX...</span>';return}const h=PAIRS.map(s=>{const ch=pctChg(s),cls=ch===null?'mute':(ch>=0?'up':'down'),ar=ch===null?'':(ch>=0?'▲':'▼');return`<span>${s} <b>${fmt(P[s])}</b> <span class="${cls}">${ar}${ch===null?'—':Math.abs(ch).toFixed(2)+'%'}</span></span>`}).join('');$('#tape').innerHTML=h+h}
-function renderKpis(){const c=SIGS.filter(s=>s.closed),w=c.filter(s=>s.res>0),gw=w.reduce((a,s)=>a+s.res,0),gl=Math.abs(c.filter(s=>s.res<0).reduce((a,s)=>a+s.res,0)),tot=c.reduce((a,s)=>a+s.res,0),act=SIGS.filter(s=>!s.closed);
-  $('#kpis').innerHTML=[['Win rate',c.length?(w.length/c.length*100).toFixed(1)+'%':'—'],['Profit factor',gl?(gw/gl).toFixed(2):'—'],['R totale',c.length?((tot>=0?'+':'')+tot.toFixed(1)+'R'):'—',c.length?(tot>=0?'up':'down'):''],['P&L stimato',c.length?money(tot*BAL*RISK):'—',c.length?(tot>=0?'up':'down'):''],['Segnali attivi',act.length],['Confidenza media',act.length?Math.round(act.reduce((a,s)=>a+s.conf,0)/act.length)+'%':'—']].map(([l,v,cls])=>`<div class="kpi"><span class="lbl">${l}</span><b class="${cls||''}">${v}</b></div>`).join('')}
-function renderFeed(){const now=Date.now();$('#feed').innerHTML=visible().map(g=>{const[st,c]=status(g),left=g.valid-now,live=!g.closed,r=pnlR(g);
-  return`<button class="sig" data-id="${g.id}" aria-current="${g.id===SEL}"><div class="row"><span class="pair">${g.sym}/USDT <span class="tag ${g.dir}">${g.dir.toUpperCase()}</span></span><span class="tag st ${c}">${st}</span></div><div class="lv"><div><span>ENTRY</span>${fmt(g.entry)}</div><div><span>SL</span>${fmt(g.sl)}</div><div><span>TP1</span>${fmt(g.tp[0])}</div><div><span>TP2</span>${fmt(g.tp[1])}</div><div><span>TP3</span>${fmt(g.tp[2])}</div></div><div class="row mono" style="font-size:11px"><span class="mute">${g.tf} · ${hm(g.t)}</span><span>${live?`PnL <b class="${r>=0?'up':'down'}">${r>=0?'+':''}${r.toFixed(2)}R</b>`:''}</span><span class="${left>0&&live?'':'mute'}">${live?(left>0?'Ingresso '+Math.floor(left/60000)+':'+String(Math.floor(left%60000/1000)).padStart(2,'0'):'Ingresso scaduto'):''}</span></div><div class="row" style="gap:10px"><div class="bar" style="flex:1"><i style="width:${g.conf}%"></i></div><span class="mono" style="font-size:11px">${g.conf}%</span></div></button>`}).join('')||'<p class="note">Nessun segnale live con questi filtri.</p>'}
-function gauge(v){const a=-90+v*1.8;return`<svg class="gauge" viewBox="0 0 120 72" role="img" aria-label="Confidenza ${v}%"><path d="M10 64A50 50 0 0 1 40 18" fill="none" stroke="var(--down)" stroke-width="9" opacity=".8"/><path d="M40 18A50 50 0 0 1 80 18" fill="none" stroke="var(--warn)" stroke-width="9" opacity=".8"/><path d="M80 18A50 50 0 0 1 110 64" fill="none" stroke="var(--up)" stroke-width="9" opacity=".8"/><g transform="rotate(${a} 60 64)"><path d="M58 64L60 20L62 64Z" fill="var(--fg)"/></g><circle cx="60" cy="64" r="5" fill="var(--gold)"/><text x="60" y="52" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="13" font-weight="700" fill="var(--fg)">${v}</text></svg>`}
-function renderDetail(){const g=SIGS.find(s=>s.id===SEL);if(!g){$('#detail').innerHTML='<div class="panel"><p class="note">Seleziona un segnale dal feed per visualizzare grafico, indicatori e order book live BingX.</p></div>';return}
-  const I=ind(g.sym,CTF),[st,c]=status(g),p=P[g.sym],ch=pctChg(g.sym),el=$('#detail');
-  if(el.dataset.id!=g.id){el.dataset.id=g.id;el.innerHTML=`<div class="panel"><div class="dhead"><div><div class="pair" style="font-size:20px">${g.sym}/USDT <span class="tag ${g.dir}">${g.dir.toUpperCase()}</span> <span class="tag st" id="d-st"></span></div><div class="note">Segnale #${g.id} · ${dm(g.t)} · timeframe ${g.tf}</div></div><div style="text-align:right"><div class="big" id="d-p"></div><div class="mono" id="d-c"></div></div></div></div><div class="panel"><div class="row" style="margin-bottom:8px"><div class="tfs" id="d-tf">${Object.keys(TF).map(t=>`<button class="fbtn" data-tf="${t}" aria-pressed="${t===CTF}">${t}</button>`).join('')}</div><span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn ghost" id="d-take"></button><button class="btn" id="d-tg">Copia messaggio Telegram</button></span></div><canvas id="chart" style="height:380px"></canvas></div><div class="cols"><div class="panel"><h3>Livelli operativi</h3><dl class="stat" id="d-lv"></dl></div><div class="panel" style="display:grid;justify-items:center;gap:6px"><h3 style="justify-self:start">Potenza segnale</h3>${gauge(g.conf)}<span class="note" style="text-align:center">Confidenza del modello su ${g.tf}</span></div><div class="panel"><h3>Indicatori <span class="mute">${CTF}</span></h3><dl class="stat" id="d-ind"></dl></div></div><div class="panel"><h3>Motivazione</h3><ul class="why">${g.why.map(w=>`<li>${w}</li>`).join('')}</ul></div><div class="cols"><div class="panel"><h3>Order book (BingX live)</h3><div class="ob" id="d-ob"></div></div><div class="panel"><h3>Gestione del trade</h3><ul class="why" id="d-log" style="list-style:none;padding:0"></ul></div></div><div class="panel"><h3>Note del journal</h3><textarea id="d-note" rows="3" placeholder="Annota setup, emozioni, errori da evitare"></textarea></div>`;
-  try{$('#d-note').value=localStorage.getItem('aurum-note-'+g.id)||''}catch(e){}$('#d-note').oninput=e=>{try{localStorage.setItem('aurum-note-'+g.id,e.target.value)}catch(x){}}}
-  $('#d-st').textContent=st;$('#d-st').className='tag st '+c;$('#d-p').textContent=fmt(p);$('#d-c').innerHTML=ch===null?'<span class="mute">—</span>':`<span class="${ch>=0?'up':'down'}">${fmtPct(ch)}</span> <span class="mute">24h</span>`;
-  const r=pnlR(g);$('#d-lv').innerHTML=`<dt>Entrata</dt><dd>${fmt(g.entry)}</dd><dt>Stop loss</dt><dd class="down">${fmt(g.sl)} (${(-g.R/g.entry*100).toFixed(2)}%)</dd>`+g.tp.map((t,i)=>`<dt>TP${i+1} · R:R 1:${i+1}</dt><dd class="up">${fmt(t)} ${g.hits>i?'✓':''}</dd>`).join('')+`<dt>PnL aperto</dt><dd class="${r>=0?'up':'down'}">${g.closed?'—':(r>=0?'+':'')+r.toFixed(2)+'R'}</dd><dt>Gestione</dt><dd>1/3 a ogni TP · SL a BE dopo TP1</dd>`;
-  $('#d-ind').innerHTML=`<dt>RSI(14)</dt><dd class="${I.rsi>70?'down':I.rsi<30?'up':''}">${I.rsi.toFixed(1)}</dd><dt>EMA20 / EMA50</dt><dd class="${I.trend>0?'up':'down'}">${I.trend>0?'rialzista':'ribassista'}</dd><dt>MACD hist.</dt><dd class="${I.hist>0?'up':'down'}">${I.hist>0?'+':''}${I.hist.toPrecision(3)}</dd><dt>ATR(14)</dt><dd>${fmt(I.atr)}</dd>`;
-  drawChart($('#chart'),g);liveDetail(g)}
-function drawChart(cv,g){const dpr=devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;if(!W)return;cv.width=W*dpr;cv.height=H*dpr;const x=cv.getContext('2d');x.scale(dpr,dpr);
-  const S=((cache[g.sym+CTF]&&cache[g.sym+CTF].c)||[]).slice(-70);const I=ind(g.sym,CTF);if(!S.length){x.font='12px JetBrains Mono,monospace';x.fillStyle=css('--mute');x.fillText('Candele live in caricamento...',14,24);return}
-  const n=S.length,off=Math.max(0,I.cl.length-n),mh=H*.74,rt=H*.8,rh=H*.17,pr=62,cw=(W-pr)/n;
-  let hi=Math.max(...S.map(c=>c.h),...g.tp),lo=Math.min(...S.map(c=>c.l),g.sl);const pad=(hi-lo)*.05;hi+=pad;lo-=pad;
-  const Y=v=>mh*(1-(v-lo)/(hi-lo)),up=css('--up'),dn=css('--down'),mu=css('--mute'),ln=css('--line'),gd=css('--gold'),fg=css('--fg');
-  x.font='11px JetBrains Mono,monospace';x.lineWidth=1;
-  for(let i=0;i<=5;i++){const v=lo+(hi-lo)*i/5,y=Y(v);x.strokeStyle=ln;x.beginPath();x.moveTo(0,y);x.lineTo(W-pr,y);x.stroke();x.fillStyle=mu;x.fillText(fmt(v),W-pr+6,y+4)}
-  S.forEach((c,i)=>{const cx=i*cw+cw/2,u=c.c>=c.o;x.strokeStyle=x.fillStyle=u?up:dn;x.beginPath();x.moveTo(cx,Y(c.h));x.lineTo(cx,Y(c.l));x.stroke();const t=Y(Math.max(c.o,c.c)),b=Math.max(1,Math.abs(Y(c.o)-Y(c.c)));x.fillRect(cx-cw*.34,t,cw*.68,b)});
-  [[I.e20,gd],[I.e50,mu]].forEach(([a,col])=>{x.strokeStyle=col;x.lineWidth=1.5;x.beginPath();a.slice(off).forEach((v,i)=>{const px=i*cw+cw/2;i?x.lineTo(px,Y(v)):x.moveTo(px,Y(v))});x.stroke()});x.lineWidth=1;
-  [[g.entry,fg,'ENTRY'],[g.sl,dn,'SL'],...g.tp.map((t,i)=>[t,up,'TP'+(i+1)])].forEach(([v,col,l])=>{const y=Y(v);x.strokeStyle=col;x.setLineDash([5,4]);x.beginPath();x.moveTo(0,y);x.lineTo(W-pr,y);x.stroke();x.setLineDash([]);x.fillStyle=col;x.fillText(l,6,y-4)});
-  if(Number.isFinite(P[g.sym])){const py=Y(P[g.sym]);x.fillStyle=gd;x.fillRect(W-pr,py-9,pr,18);x.fillStyle=css('--bg');x.fillText(fmt(P[g.sym]),W-pr+4,py+4)}
-  x.strokeStyle=ln;x.strokeRect(0,rt,W-pr,rh);const RY=v=>rt+rh*(1-v/100);[30,70].forEach(v=>{x.setLineDash([3,3]);x.beginPath();x.moveTo(0,RY(v));x.lineTo(W-pr,RY(v));x.stroke();x.setLineDash([]);x.fillStyle=mu;x.fillText(v,W-pr+6,RY(v)+4)});
-  x.strokeStyle=gd;x.beginPath();I.rs.slice(off).forEach((v,i)=>{const px=i*cw+cw/2;i?x.lineTo(px,RY(v)):x.moveTo(px,RY(v))});x.stroke();x.fillStyle=mu;x.fillText('RSI',6,rt+12)}
-function renderScan(){const rows=PAIRS.map(s=>{const t=['15m','1h','4h'].map(tf=>ind(s,tf)),sum=t.reduce((a,i)=>a+i.trend,0),rs=t[1].rsi,sc=Math.round(50+sum*12+(rs<35?8:rs>65?-8:0)*Math.sign(sum||1)),dir=sum>=2?'LONG':sum<=-2?'SHORT':'NEUTRO',ch=pctChg(s);
-  return`<tr class="clk" data-sym="${s}"><td><b>${s}/USDT</b></td><td>${fmt(P[s])}</td><td class="${ch===null?'mute':(ch>=0?'up':'down')}">${fmtPct(ch)}</td>${t.map(i=>`<td class="${i.trend>0?'up':'down'}">${i.trend>0?'▲':'▼'}</td>`).join('')}<td class="${rs>70?'down':rs<30?'up':''}">${rs.toFixed(0)}</td><td><span class="tag ${dir==='LONG'?'long':dir==='SHORT'?'short':'st'}">${dir}</span></td><td>${Math.min(95,Math.max(40,sc))}%</td></tr>`}).join('');
-  $('#scanTbl').innerHTML=`<thead><tr><th>Coppia</th><th>Prezzo</th><th>Var. 24h</th><th>15m</th><th>1h</th><th>4h</th><th>RSI 1h</th><th>Bias</th><th>Score</th></tr></thead><tbody>${rows}</tbody>`}
-function renderSent(){const fg=SENT&&typeof SENT.fg==='number'?SENT.fg:null,fr=SENT&&typeof SENT.funding==='number'?SENT.funding:0,lab=fg===null?'Non disponibile':fg>75?'Avidità estrema':fg>55?'Avidità':fg>45?'Neutrale':fg>25?'Paura':'Paura estrema';
-  const m=(l,v,t,pct)=>`<div class="meter"><div class="row"><span class="mute">${l}</span><b>${v}</b></div><div class="bar"><i style="width:${Math.max(0,Math.min(100,pct))}%"></i></div>${t?`<span class="mute">${t}</span>`:''}</div>`;
-  $('#sentiment').innerHTML=m('Fear & Greed (live)',fg===null?'—':Math.round(fg),lab,fg||0)+m('Funding rate medio (BingX)',(fr>=0?'+':'')+fr.toFixed(4)+'%','tasso perpetuo reale',Math.abs(fr)*3000);
-  const h=new Date().getUTCHours()+new Date().getUTCMinutes()/60;$('#sessions').innerHTML=[['Tokyo',0,9],['Londra',7,16],['New York',13,22]].map(([n,a,b])=>{const on=h>=a&&h<b;return`<div class="row"><span>${n}</span><span class="${on?'up':'mute'}">${on?'APERTA':'chiusa'} · ${a}:00–${b}:00</span></div><div class="bar"><i style="width:${on?Math.round((h-a)/(b-a)*100):0}%"></i></div>`}).join('')}
-function renderMkt(){const arr=PAIRS.map(s=>[s,pctChg(s)]).filter(([,v])=>v!==null),so=[...arr].sort((a,b)=>b[1]-a[1]);
-  $('#heat').innerHTML=arr.map(([s,c])=>`<button class="tile" data-sym="${s}" style="background:color-mix(in srgb,var(${c>=0?'--up':'--down'}) ${Math.min(55,8+Math.abs(c)*14).toFixed(0)}%,var(--panel2))">${s}<br><span>${fmtPct(c)}</span></button>`).join('')||'<span class="mute">In attesa di prezzi live.</span>';
-  const li=x=>x.map(([s,c])=>`<div class="row"><span class="mono">${s}/USDT</span><b class="mono ${c>=0?'up':'down'}">${fmtPct(c)}</b></div>`).join('')||'<span class="mute">—</span>';
-  $('#gain').innerHTML=li(so.slice(0,4));$('#lose').innerHTML=li(so.slice(-4).reverse());
-  const lLong=+(LIQ.long_m||0),lShort=+(LIQ.short_m||0),mx=Math.max(1,lLong,lShort);
-  $('#liq').innerHTML=[['Flussi sell/long 1h',lLong,'--down'],['Flussi buy/short 1h',lShort,'--up']].map(([l,v,c])=>`<div class="row"><span>${l}</span><b>${v.toFixed(2)} M$</b></div><div class="bar"><i style="width:${v/mx*100}%;background:var(${c})"></i></div>`).join('');
-  const R=PAIRS.map(s=>{const c=((cache[s+'1h']&&cache[s+'1h'].c)||[]).map(x=>x.c);return c.length>2?c.slice(1).map((v,i)=>Math.log(v/c[i])):[]});
-  const cor=(a,b)=>{const n=Math.min(a.length,b.length);if(n<3)return 0;const aa=a.slice(-n),bb=b.slice(-n),ma=aa.reduce((x,y)=>x+y)/n,mb=bb.reduce((x,y)=>x+y)/n;let q=0,x2=0,y2=0;for(let i=0;i<n;i++){q+=(aa[i]-ma)*(bb[i]-mb);x2+=(aa[i]-ma)**2;y2+=(bb[i]-mb)**2}return q/Math.sqrt(x2*y2||1)};
-  $('#corr').innerHTML=`<thead><tr><th></th>${PAIRS.map(s=>`<th>${s}</th>`).join('')}</tr></thead><tbody>${R.map((a,i)=>`<tr><td><b>${PAIRS[i]}</b></td>${R.map((b,j)=>{const v=cor(a,b);return`<td style="background:color-mix(in srgb,var(--gold) ${Math.max(0,v)*70}%,transparent)">${v.toFixed(2)}</td>`}).join('')}</tr>`).join('')}</tbody>`;
-  $('#whales').innerHTML=WHALES.length?WHALES.map(w=>`<div class="row"><span class="${w.buy?'up':'down'}"><b>${w.buy?'ACQUISTO':'VENDITA'}</b> ${w.sym}</span><span>${(w.usd/1e6).toFixed(2)} M$</span><span class="mute">${hm(w.t)}</span></div>`).join(''):'<span class="mute">Nessun trade balena reale rilevato nella finestra corrente.</span>'}
-function renderCal(){const n=Date.now();$('#calTbl').innerHTML=CAL.length?`<thead><tr><th>Ora</th><th>Evento</th><th>Impatto</th><th>Tempo</th></tr></thead><tbody>${CAL.map(e=>{const d=e.t-n,cd=d<0?'concluso':'tra '+(Math.floor(d/3600000)?Math.floor(d/3600000)+'h ':'')+(Math.floor((d%3600000)/60000))+'m';return`<tr><td>${dm(e.t)}</td><td style="text-align:left">${e.n}</td><td><span class="tag ${e.imp==='alto'?'short':'st'}">${String(e.imp||'').toUpperCase()}</span></td><td class="${d<0?'mute':''}">${cd}</td></tr>`).join('')}</tbody>`:'<tbody><tr><td class="mute">Nessun feed calendario esterno configurato (imposta CALENDAR_FEED_URL per eventi reali).</td></tr></tbody>';
-  $('#news').innerHTML=NEWS.length?NEWS.map(x=>`<div class="row"><span>${x.h}${x.src?` <span class="mute">· ${x.src}</span>`:''}</span><span class="mute">${hm(x.t)}</span></div>`).join(''):'<span class="mute">Nessuna news live disponibile al momento.</span>'}
-function renderPort(){const t=SIGS.filter(s=>TAKEN.has(s.id)),op=t.filter(s=>!s.closed),cl=t.filter(s=>s.closed),k=BAL*RISK,today=new Date().toDateString();
-  const live=op.reduce((a,s)=>a+pnlR(s),0)*k,real=cl.reduce((a,s)=>a+s.res,0)*k,dl=cl.filter(s=>new Date(s.ct).toDateString()===today).reduce((a,s)=>a+Math.min(0,s.res),0)*RISK*100,orisk=op.filter(s=>s.hits===0).length*RISK*100,L=op.filter(s=>s.dir==='long').length;
-  $('#portK').innerHTML=[['Posizioni aperte',op.length],['PnL aperto',money(live),live>=0?'up':'down'],['PnL realizzato',money(real),real>=0?'up':'down'],['Rischio aperto',orisk.toFixed(1)+'%']].map(([l,v,cls])=>`<div class="kpi"><span class="lbl">${l}</span><b class="${cls||''}">${v}</b></div>`).join('');
-  const chk=(a,ok)=>`<span class="${ok?'up':'down'}">${a}</span>`;
-  $('#riskM').innerHTML=`<dt>Posizioni (max 5)</dt><dd>${chk(op.length+' / 5',op.length<=5)}</dd><dt>Rischio aperto (max 3%)</dt><dd>${chk(orisk.toFixed(1)+'%',orisk<=3)}</dd><dt>Perdita giornaliera (max 3%)</dt><dd>${chk(dl.toFixed(1)+'%',dl>-3)}</dd><dt>Esposizione long / short</dt><dd>${L} / ${op.length-L}</dd><dt>Stato</dt><dd>${orisk<=3&&dl>-3&&op.length<=5?'<span class="up">Operativo</span>':'<span class="down">Limite raggiunto</span>'}</dd>`;
-  $('#portTbl').innerHTML=`<thead><tr><th>Coppia</th><th>Lato</th><th>Entry</th><th>Prezzo</th><th>Dimensione</th><th>PnL R</th><th>PnL $</th><th>Stato</th><th></th></tr></thead><tbody>${t.map(s=>{const r=s.closed?s.res:pnlR(s);return`<tr><td><b>${s.sym}</b></td><td class="${s.dir==='long'?'up':'down'}">${s.dir.toUpperCase()}</td><td>${fmt(s.entry)}</td><td>${fmt(P[s.sym])}</td><td>${(k/s.R).toPrecision(4)}</td><td class="${r>=0?'up':'down'}">${r>=0?'+':''}${r.toFixed(2)}R</td><td class="${r>=0?'up':'down'}">${money(r*k)}</td><td>${status(s)[0]}</td><td><button class="fbtn" data-rm="${s.id}">Rimuovi</button></td></tr>`}).join('')||'<tr><td colspan="9" class="mute">Nessuna posizione aggiunta.</td></tr>'}</tbody>`}
-function renderAlerts(){$('#al-list').innerHTML=ALERTS.map(a=>`<tr><td><b>${a.sym}</b></td><td>${a.cond==='above'?'sopra':'sotto'}</td><td>${fmt(a.price)}</td><td>${fmt(P[a.sym])}</td><td class="${a.done?'up':'mute'}">${a.done?'scattato '+hm(a.at):'in attesa'}</td><td><button class="fbtn" data-rm="${a.id}">Elimina</button></td></tr>`).join('')||'<tr><td colspan="6" class="mute">Nessun alert attivo.</td></tr>'}
-function perf2(){const c=SIGS.filter(s=>s.closed);
-  const grp=(f,keys)=>keys.map(k=>{const a=c.filter(s=>f(s)===k),w=a.filter(s=>s.res>0).length,pc=a.length?w/a.length*100:0;return`<div class="row"><span>${k}</span><b>${Math.round(pc)}% <span class="mute">(${a.length})</span></b></div><div class="bar"><i style="width:${pc}%"></i></div>`}).join('');
-  $('#byTf').innerHTML=grp(s=>s.tf,['15m','1h','4h'])+grp(s=>s.dir.toUpperCase(),['LONG','SHORT']);
-  const b=[['Stop loss -1R',s=>s.res<0],['Break-even +0,33R',s=>s.res>0&&s.res<.5],['TP2 +1R',s=>s.res===1],['TP3 +2R',s=>s.res===2]],mx=Math.max(1,...b.map(([,f])=>c.filter(f).length));
-  $('#dist').innerHTML=b.map(([l,f],i)=>{const n=c.filter(f).length;return`<div class="row"><span>${l}</span><b>${n}</b></div><div class="bar"><i style="width:${n/mx*100}%;background:var(${i?'--up':'--down'})"></i></div>`}).join('');
-  const d={};c.forEach(s=>{if(!s.ct)return;const k=new Date(s.ct).toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit'});d[k]=(d[k]||0)+s.res});
-  $('#days').innerHTML=Object.entries(d).map(([k,v])=>`<div class="row"><span>${k}</span><b class="${v>=0?'up':'down'}">${v>=0?'+':''}${v.toFixed(1)}R · ${money(v*BAL*RISK)}</b></div>`).join('')||'<span class="mute">Nessun trade chiuso.</span>'}
-function renderPerf(){perf2();const c=SIGS.filter(s=>s.closed).sort((a,b)=>a.ct-b.ct);let e=BAL,pk=BAL,dd=0;const pts=[BAL];c.forEach(s=>{e+=s.res*BAL*RISK;pts.push(e);pk=Math.max(pk,e);dd=Math.max(dd,(pk-e)/pk*100)});
-  const cv=$('#eq'),W=cv.clientWidth,H=cv.clientHeight;if(W){const d=devicePixelRatio||1;cv.width=W*d;cv.height=H*d;const x=cv.getContext('2d');x.scale(d,d);const lo=Math.min(...pts)*.995,hi=Math.max(...pts)*1.005,X=i=>40+(W-52)*i/(pts.length-1||1),Y=v=>H-24-(H-40)*(v-lo)/(hi-lo||1);
-    x.font='11px JetBrains Mono,monospace';x.fillStyle=css('--mute');x.strokeStyle=css('--line');for(let i=0;i<=4;i++){const v=lo+(hi-lo)*i/4;x.beginPath();x.moveTo(40,Y(v));x.lineTo(W-12,Y(v));x.stroke();x.fillText(Math.round(v),2,Y(v)+4)}
-    const col=e>=BAL?css('--up'):css('--down');x.beginPath();pts.forEach((v,i)=>i?x.lineTo(X(i),Y(v)):x.moveTo(X(i),Y(v)));x.strokeStyle=col;x.lineWidth=2;x.stroke();x.lineTo(X(pts.length-1),H-24);x.lineTo(X(0),H-24);x.fillStyle=col+'22';x.fill();x.beginPath();x.arc(X(pts.length-1),Y(e),4,0,7);x.fillStyle=col;x.fill()}
-  const w=c.filter(s=>s.res>0),l=c.filter(s=>s.res<0),aw=w.length?w.reduce((a,s)=>a+s.res,0)/w.length:0,tot=c.reduce((a,s)=>a+s.res,0),row=(a,b,cl='')=>`<dt>${a}</dt><dd class="${cl}">${b}</dd>`;
-  $('#pstats').innerHTML=row('Segnali chiusi',c.length)+row('Vincenti / perdenti',w.length+' / '+l.length)+row('Win rate',c.length?(w.length/c.length*100).toFixed(1)+'%':'—')+row('Expectancy',c.length?(tot/c.length).toFixed(2)+'R':'—')+row('Media vincita',aw.toFixed(2)+'R','up')+row('Max drawdown',dd.toFixed(1)+'%','down')+row('Capitale live',e.toFixed(0)+' $',e>=BAL?'up':'down')+row('Raggiunto TP3',c.filter(s=>s.hits===3).length);
-  const by={};c.forEach(s=>by[s.sym]=(by[s.sym]||0)+s.res);const mx=Math.max(1,...Object.values(by).map(Math.abs));
-  $('#bypair').innerHTML=Object.entries(by).sort((a,b)=>b[1]-a[1]).map(([s,v])=>`<div class="row"><span>${s}</span><b class="${v>=0?'up':'down'}">${v>=0?'+':''}${v.toFixed(1)}R</b></div><div class="bar"><i style="width:${Math.abs(v)/mx*100}%;background:var(${v>=0?'--up':'--down'})"></i></div>`).join('')||'<span class="mute">—</span>'}
-function renderHist(){const c=SIGS.filter(s=>s.closed).sort((a,b)=>b.ct-a.ct);$('#histTbl').innerHTML=`<thead><tr><th>Chiuso</th><th>Coppia</th><th>Lato</th><th>TF</th><th>Entry</th><th>SL</th><th>TP raggiunti</th><th>Conf.</th><th>Risultato</th></tr></thead><tbody>${c.map(s=>`<tr class="clk" data-id="${s.id}"><td>${dm(s.ct)}</td><td><b>${s.sym}</b></td><td class="${s.dir==='long'?'up':'down'}">${s.dir.toUpperCase()}</td><td>${s.tf}</td><td>${fmt(s.entry)}</td><td>${fmt(s.sl)}</td><td>${s.hits}/3</td><td>${s.conf}%</td><td class="${s.res>0?'up':'down'}"><b>${s.res>0?'+':''}${s.res.toFixed(2)}R</b></td></tr>`).join('')||'<tr><td colspan="9" class="mute">Nessun segnale chiuso.</td></tr>'}</tbody>`}
-function calc(){const b=+$('#c-bal').value,r=+$('#c-risk').value/100,e=+$('#c-entry').value,sl=+$('#c-sl').value,tp=+$('#c-tp').value,lv=+$('#c-lev').value,d=$('#c-dir').value==='long'?1:-1;
-  const dist=d*(e-sl),out=$('#c-out');if(!(e>0&&sl>0)||dist<=0){out.innerHTML='<dt>Controlla i livelli</dt><dd>lo SL deve stare dal lato giusto</dd>';return}
-  const risk=b*r,units=risk/dist,not=units*e,mar=not/lv,liq=e*(1-d/lv*.9),rew=tp?d*(tp-e)*units:0;
-  out.innerHTML=`<dt>Rischio in $</dt><dd class="down">${risk.toFixed(2)}</dd><dt>Dimensione (unità)</dt><dd>${units.toPrecision(5)}</dd><dt>Valore nozionale</dt><dd>${not.toFixed(2)} $</dd><dt>Margine richiesto</dt><dd>${mar.toFixed(2)} $ ${mar>b?'<span class="down">(oltre il capitale)</span>':''}</dd><dt>Liquidazione indicativa</dt><dd>${fmt(liq)}</dd>${tp?`<dt>Guadagno al TP</dt><dd class="up">+${rew.toFixed(2)} $</dd><dt>R:R</dt><dd>1:${(rew/risk).toFixed(2)}</dd>`:''}`}
-function liveDetail(g){let a=[],b=[];if(OBL&&OBL.sym===g.sym){a=(OBL.asks||[]).slice(0,7).map(x=>[+x[0],+x[1]]);b=(OBL.bids||[]).slice(0,7).map(x=>[+x[0],+x[1]])}
-  const mx=Math.max(1e-9,...a.map(x=>x[1]),...b.map(x=>x[1])),row=(x,c)=>`<div class="obr"><i style="width:${x[1]/mx*100}%;background:var(${c})"></i><span>${fmt(x[0])}</span><span>${x[1].toFixed(2)}</span></div>`,bs=b.reduce((s,x)=>s+x[1],0),as=a.reduce((s,x)=>s+x[1],0);
-  $('#d-ob').innerHTML=!a.length||!b.length?'<span class="mute">Order book live in caricamento...</span>':`<div>${[...a].reverse().map(x=>row(x,'--down')).join('')}</div><div>${b.map(x=>row(x,'--up')).join('')}</div><div style="grid-column:1/-1" class="mute">Pressione acquisto ${Math.round(bs/((bs+as)||1)*100)}% · vendita ${Math.round(as/((bs+as)||1)*100)}%</div>`;
-  $('#d-log').innerHTML=(g.log||[]).slice().reverse().map(l=>`<li class="row mono" style="font-size:12px"><span>${l.m}</span><span class="mute">${hm(l.t)}</span></li>`).join('');
-  $('#d-take').textContent=TAKEN.has(g.id)?'Nel portafoglio ✓':'Prendi segnale'}
-async function api(p){const r=await fetch(p,{cache:'no-store'});if(!r.ok)throw new Error(r.status);return r.json()}
-function setConn(ok){const m=$('#mode');m.textContent=ok?'● LIVE · BingX':'● CONNESSIONE BINGX PERSA';m.className='chip '+(ok?'live':'err')}
-async function initPairs(){const j=await api('api/health');PAIRS=Array.isArray(j.pairs)?j.pairs:[];if(typeof j.min_conf==='number'){MINC=j.min_conf;$('#minconf').value=MINC;$('#mcv').textContent=MINC+'%'}$('#al-sym').innerHTML=PAIRS.map(s=>`<option>${s}</option>`).join('');if(PAIRS.length&&!+$('#al-price').value&&Number.isFinite(P[PAIRS[0]]))$('#al-price').value=fmt(P[PAIRS[0]])}
-async function loadAllCandles(){for(const tf of Object.keys(TF)){try{const j=await api('api/candles?tf='+tf);for(const s in j){cache[s+tf]={c:j[s].map(x=>({o:+x[0],h:+x[1],l:+x[2],c:+x[3]}))}}}catch(e){}}}
-async function pull(first){try{const j=await api('api/state');
-  for(const s in (j.prices||{})){P[s]=Number(j.prices[s].p);P0[s]=j.prices[s].o===null||j.prices[s].o===undefined?null:Number(j.prices[s].o)}
-  PAIRS.forEach(s=>{if(!Number.isFinite(P[s]))return;for(const tf in TF){const S=cache[s+tf];if(S&&S.c.length){const l=S.c[S.c.length-1];l.c=P[s];l.h=Math.max(l.h,P[s]);l.l=Math.min(l.l,P[s])}}});
-  if(PAIRS.length&&!+$('#al-price').value&&Number.isFinite(P[PAIRS[0]]))$('#al-price').value=fmt(P[PAIRS[0]]);
-  const prev=PREV;PREV={};SIGS=(j.signals||[]).sort((a,b)=>b.t-a.t);SIGS.forEach(g=>PREV[g.id]=g.hits+(g.closed?10:0));
-  if(first){SEL=(SIGS.find(s=>!s.closed)||SIGS[0]||{}).id}
-  else SIGS.forEach(g=>{const o=prev[g.id];if(o===undefined){toast(`Nuovo segnale ${g.dir.toUpperCase()} ${g.sym} · confidenza ${g.conf}%`);beep(660)}else if(o!==PREV[g.id]){toast(`${g.sym}: ${g.log[g.log.length-1].m}`);beep(880)}});
-  SENT=j.sentiment||null;NEWS=Array.isArray(j.news)?j.news:[];WHALES=Array.isArray(j.whales)?j.whales:[];LIQ=j.liquidations||{long_m:0,short_m:0};CAL=Array.isArray(j.calendar)?j.calendar:[];
-  ALERTS.forEach(a=>{if(a.done)return;const p=P[a.sym];if(!Number.isFinite(p))return;if(a.cond==='above'?p>=a.price:p<=a.price){a.done=true;a.at=Date.now();toast(`Alert ${a.sym}: prezzo ${a.cond==='above'?'sopra':'sotto'} ${fmt(a.price)}`);beep(990)}});
-  FAILS=0;setConn(true);const g=SIGS.find(s=>s.id===SEL);if(g&&TAB==='sig'){try{const ob=await api('api/orderbook?sym='+g.sym);OBL={...ob,sym:g.sym}}catch(e){OBL=null}}
- }catch(e){if(++FAILS>=2)setConn(false)}}
-function setTab(t){TAB=t;$$('#tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.t===t));['sig','scan','mkt','cal','port','alert','perf','calc','hist'].forEach(k=>$('#t-'+k).hidden=k!==t);full()}
-function select(id){SEL=id;$('#detail').dataset.id='';setTab('sig')}
-function full(){renderKpis();if(TAB==='sig'){renderFeed();renderDetail()}if(TAB==='scan'){renderScan();renderSent()}if(TAB==='mkt')renderMkt();if(TAB==='cal')renderCal();if(TAB==='port')renderPort();if(TAB==='alert')renderAlerts();if(TAB==='perf')renderPerf();if(TAB==='hist')renderHist();if(TAB==='calc')calc()}
-function clock(){const d=new Date();$('#clock').textContent=d.toLocaleTimeString('it-IT');const h=d.getUTCHours();[['#sessT',0,9],['#sessL',7,16],['#sessN',13,22]].forEach(([s,a,b])=>$(s).classList.toggle('on',h>=a&&h<b))}
-addEventListener('pointerdown',()=>HOLD=true,true);addEventListener('pointerup',()=>setTimeout(()=>HOLD=false,60),true);addEventListener('pointercancel',()=>HOLD=false,true);
-$('#tabs').onclick=e=>{const b=e.target.closest('button');if(b)setTab(b.dataset.t)};
-$('#filters').onclick=e=>{const b=e.target.closest('button');if(!b)return;FILT=b.dataset.f;$$('#filters button').forEach(x=>x.setAttribute('aria-pressed',x===b));renderFeed()};
-$('#minconf').oninput=e=>{MINC=+e.target.value;$('#mcv').textContent=MINC+'%';renderFeed()};
-$('#feed').onclick=e=>{const b=e.target.closest('.sig');if(b){SEL=+b.dataset.id;$('#detail').dataset.id='';renderFeed();renderDetail()}};
-$('#detail').onclick=e=>{const t=e.target.closest('[data-tf]');if(t){CTF=t.dataset.tf;$('#detail').dataset.id='';renderDetail()}
-  if(e.target.id==='d-take'){const g=SIGS.find(s=>s.id===SEL);if(!g)return;if(TAKEN.has(g.id)){TAKEN.delete(g.id)}else{TAKEN.add(g.id);toast('Aggiunto al portafoglio: '+g.sym)}liveDetail(g)}
-  if(e.target.id==='d-tg'){const g=SIGS.find(s=>s.id===SEL);if(g)copy(tgText(g),()=>toast('Messaggio Telegram copiato'))}};
-$('#scanTbl').onclick=e=>{const r=e.target.closest('tr[data-sym]');if(!r)return;const g=SIGS.find(s=>s.sym===r.dataset.sym&&!s.closed)||SIGS.find(s=>s.sym===r.dataset.sym);if(g)select(g.id);else toast('Nessun segnale per '+r.dataset.sym)};
-$('#histTbl').onclick=e=>{const r=e.target.closest('tr[data-id]');if(r)select(+r.dataset.id)};
-$('#heat').onclick=e=>{const b=e.target.closest('[data-sym]');if(b){const g=SIGS.find(x=>x.sym===b.dataset.sym&&!x.closed)||SIGS.find(x=>x.sym===b.dataset.sym);if(g)select(g.id);else toast('Nessun segnale per '+b.dataset.sym)}};
-$('#t-port').onclick=e=>{const b=e.target.closest('[data-rm]');if(b){TAKEN.delete(+b.dataset.rm);renderPort()}};
-$('#t-alert').onclick=e=>{const b=e.target.closest('[data-rm]');if(b){ALERTS=ALERTS.filter(a=>a.id!==+b.dataset.rm);renderAlerts()}};
-$('#al-sym').onchange=()=>{$('#al-price').value=fmt(P[$('#al-sym').value])};
-$('#al-add').onclick=()=>{const p=+$('#al-price').value;if(!(p>0)){toast('Inserisci un prezzo valido');return}ALERTS.push({id:AID++,sym:$('#al-sym').value,cond:$('#al-cond').value,price:p,done:false});renderAlerts()};
-$('#snd').onclick=e=>{SOUND=!SOUND;e.target.textContent='Suono: '+(SOUND?'on':'off');e.target.setAttribute('aria-pressed',SOUND);beep(520)};
-$('#thm').onclick=()=>{const d=document.documentElement,dark=css('color-scheme').includes('dark');d.dataset.theme=dark?'light':'dark';full()};
-$('#csv').onclick=()=>{const c=SIGS.filter(s=>s.closed).map(s=>[new Date(s.ct).toISOString(),s.sym,s.dir,s.tf,s.entry,s.sl,s.hits,s.conf,s.res].join(','));copy('chiuso,coppia,lato,tf,entry,sl,tp_raggiunti,confidenza,R\n'+c.join('\n'),()=>$('#csvmsg').textContent='CSV copiato negli appunti')};
-$$('#t-calc input,#t-calc select').forEach(i=>i.oninput=calc);
-$('#c-use').onclick=()=>{const g=SIGS.find(s=>s.id===SEL);if(!g)return;$('#c-dir').value=g.dir;$('#c-entry').value=fmt(g.entry);$('#c-sl').value=fmt(g.sl);$('#c-tp').value=fmt(g.tp[1]);calc()};
-(async()=>{clock();try{await initPairs();await loadAllCandles();await pull(true)}catch(e){setConn(false);toast('Errore connessione iniziale al backend BingX live')}
-  setTab('sig');renderTape();setInterval(async()=>{await pull(false);clock();renderTape();renderKpis();if(HOLD)return;if(TAB==='sig'){renderFeed();renderDetail()}else if(TAB==='scan'){renderScan();renderSent()}else if(TAB==='mkt')renderMkt();else if(TAB==='cal')renderCal();else if(TAB==='port')renderPort();else if(TAB==='alert')renderAlerts();else if(TAB==='perf')renderPerf();else if(TAB==='hist')renderHist()},3000);
-  setInterval(loadAllCandles,30000);setInterval(clock,1000)})();
-addEventListener('resize',()=>{TAB==='perf'?renderPerf():TAB==='sig'&&renderDetail()});
-</script>
-</body>
-</html>
-"""
+BINGX_CANDIDATE_BASES = []
+for _u in [
+    BINGX_BASE_URL,
+    "https://open-api.bingx.com",
+    "https://open-api-swap.bingx.com",
+]:
+    if _u and _u not in BINGX_CANDIDATE_BASES:
+        BINGX_CANDIDATE_BASES.append(_u)
+
+DIRECTION_COOLDOWN_SEC = 90.0
+_LAST_CONFIRMED_DIRECTION = {}
+_LIVE_PRICE_CACHE = {}
+_KLINES_CACHE = {}
+_CACHE_LOCK = threading.Lock()
+_LAST_GOOD_SIGNALS_PAYLOAD = None
+
+STATE_LOCK = threading.Lock()
+STATE = {
+    "auto_trade": False,
+    "real_mode": True,
+    "max_daily_loss_usd": 5.0,
+    "max_open_positions": 3,
+    "auto_executed_keys": [],
+    "trailing_updated_keys": [],
+    "scans_count": 0,
+    "session_pnl": 0.0,
+    "telemetry_logs": [],
+    "closed_trades": [],
+    "last_bingx_sync": 0.0,
+}
+
+MARKET_CATALOG = {
+    "Criptovalute Globali": [
+        {"symbol": "BTCUSDT", "bx": "BTC-USDT", "name": "Bitcoin (BTC-USDT)", "precision": 1},
+        {"symbol": "ETHUSDT", "bx": "ETH-USDT", "name": "Ethereum (ETH-USDT)", "precision": 2},
+        {"symbol": "SOLUSDT", "bx": "SOL-USDT", "name": "Solana (SOL-USDT)", "precision": 2},
+        {"symbol": "XRPUSDT", "bx": "XRP-USDT", "name": "Ripple (XRP-USDT)", "precision": 4},
+        {"symbol": "BNBUSDT", "bx": "BNB-USDT", "name": "BNB (BNB-USDT)", "precision": 2},
+        {"symbol": "ADAUSDT", "bx": "ADA-USDT", "name": "Cardano (ADA-USDT)", "precision": 4},
+        {"symbol": "DOGEUSDT", "bx": "DOGE-USDT", "name": "Dogecoin (DOGE-USDT)", "precision": 5},
+        {"symbol": "AVAXUSDT", "bx": "AVAX-USDT", "name": "Avalanche (AVAX-USDT)", "precision": 2},
+        {"symbol": "LINKUSDT", "bx": "LINK-USDT", "name": "Chainlink (LINK-USDT)", "precision": 3},
+        {"symbol": "SUIUSDT", "bx": "SUI-USDT", "name": "Sui (SUI-USDT)", "precision": 4},
+    ],
+    "Forex & Valute": [
+        {"symbol": "EURUSDT", "bx": "EUR-USDT", "name": "EUR/USD (EUR-USDT)", "precision": 4},
+        {"symbol": "GBPUSDT", "bx": "GBP-USDT", "name": "GBP/USD (GBP-USDT)", "precision": 4},
+        {"symbol": "USDJPY", "bx": "USDJPY-USDT", "name": "USD/JPY (USDJPY-USDT)", "precision": 2},
+    ],
+    "Materie Prime": [
+        {"symbol": "PAXGUSDT", "bx": "PAXG-USDT", "name": "Oro (GOLD(XAU)-USDT)", "precision": 2},
+        {"symbol": "XAGUSDT", "bx": "XAG-USDT", "name": "Argento (SILVER(XAG)-USDT)", "precision": 3},
+        {"symbol": "WTIUSDT", "bx": "WTI-USDT", "name": "Petrolio WTI (WTI-USDT)", "precision": 2},
+        {"symbol": "NATGASUSDT", "bx": "NATGAS-USDT", "name": "Gas Naturale (NATGAS-USDT)", "precision": 3},
+        {"symbol": "COPPERUSDT", "bx": "COPPER-USDT", "name": "Rame (COPPER-USDT)", "precision": 3},
+    ],
+    "Azioni & Indici Globali": [
+        {"symbol": "AAPLUSDT", "bx": "AAPL-USDT", "name": "Apple Inc. (AAPL-USDT)", "precision": 2},
+        {"symbol": "TSLAUSDT", "bx": "TSLA-USDT", "name": "Tesla Inc. (TSLA-USDT)", "precision": 2},
+        {"symbol": "NVDAUSDT", "bx": "NVDA-USDT", "name": "Nvidia Corp. (NVDA-USDT)", "precision": 2},
+        {"symbol": "AMZNUSDT", "bx": "AMZN-USDT", "name": "Amazon (AMZN-USDT)", "precision": 2},
+        {"symbol": "MSFTUSDT", "bx": "MSFT-USDT", "name": "Microsoft (MSFT-USDT)", "precision": 2},
+        {"symbol": "GOOGLUSDT", "bx": "GOOGL-USDT", "name": "Alphabet (GOOGL-USDT)", "precision": 2},
+    ],
+}
+
+ASSET_LOOKUP = {}
+for _cat, _items in MARKET_CATALOG.items():
+    for _it in _items:
+        ASSET_LOOKUP[_it["symbol"]] = {**_it, "category": _cat}
 
 
-def bx_sym(sym: str) -> str:
-    clean = sym.strip().upper().replace("-USDT", "").replace("USDT", "")
-    return f"{clean}-USDT"
-
-
-# ------------------------------------------------------------------ HTTP & BingX
-def http_json(url, params=None, retries=2):
-    for i in range(retries + 1):
-        try:
-            r = SESSION.get(url, params=params, timeout=8)
-            r.raise_for_status()
-            return r.json()
-        except Exception:
-            if i == retries:
-                raise
-            time.sleep(0.4)
-
-
-def bingx(path, params=None):
-    j = http_json(BASE + path, params)
-    code = j.get("code") if isinstance(j, dict) else None
-    if code not in (0, "0", None):
-        raise RuntimeError("BingX: %s" % (j.get("msg") if isinstance(j, dict) else j))
-    if not isinstance(j, dict) or "data" not in j:
-        raise RuntimeError("BingX: risposta priva di 'data'")
-    return j["data"]
-
-
-def _safe(fn, *a):
+def safe_float(val, default=0.0):
+    if isinstance(val, str):
+        val = val.replace(",", ".").strip()
     try:
-        return fn(*a)
+        if val is None or (isinstance(val, float) and (math.isnan(val) or math.isinf(val))):
+            return float(default)
+        out = float(val)
+        return float(default) if (math.isnan(out) or math.isinf(out)) else out
     except Exception:
-        return None
+        return float(default)
 
 
-# ------------------------------------------------------------------ prezzi & funding reali
-PRICES = {}
-FUNDING = {"avg": 0.0}
-PLOCK = threading.Lock()
+def canonicalize_symbol_key(sym: str) -> str:
+    s = (sym or "").upper().replace("-", "").replace("/", "").replace(":USDT", "").strip()
+    if s.endswith("USDT") and len(s) > 4:
+        return s
+    return f"{s}USDT" if s else "BTCUSDT"
 
 
-def _fetch_single_ticker(sym: str):
-    data = bingx("/openApi/swap/v2/quote/ticker", {"symbol": bx_sym(sym)})
-    if isinstance(data, list) and data:
-        data = data[0]
-    if not isinstance(data, dict):
-        raise RuntimeError("Formato ticker non valido per %s" % sym)
-    p = float(data["lastPrice"])
-    if p <= 0:
-        raise RuntimeError("Prezzo non valido per %s" % sym)
-
-    open_raw = data.get("openPrice")
-    open_p = float(open_raw) if open_raw not in (None, "") and float(open_raw) > 0 else None
-    if open_p is None:
-        prev_raw = data.get("prevClosePrice")
-        if prev_raw not in (None, "") and float(prev_raw) > 0:
-            open_p = float(prev_raw)
-
-    fr_raw = data.get("lastFundingRate") if data.get("lastFundingRate") is not None else data.get("fundingRate")
-    fr = float(fr_raw) * 100.0 if fr_raw not in (None, "") else None
-    return sym, {"p": p, "o": open_p}, fr
+def resolve_bingx_symbol(symbol: str):
+    key = canonicalize_symbol_key(symbol)
+    meta = ASSET_LOOKUP.get(key)
+    if meta:
+        return meta["bx"], meta["precision"]
+    base = key[:-4] if key.endswith("USDT") else key
+    return f"{base}-USDT", 2
 
 
-def refresh_prices():
-    results = list(POOL.map(lambda s: _safe(_fetch_single_ticker, s), PAIRS))
-    out, fund = {}, []
-    for item in results:
-        if not item:
-            continue
-        sym, pdata, fr = item
-        out[sym] = pdata
-        if fr is not None:
-            fund.append(fr)
-    if not out:
-        raise RuntimeError("Nessun ticker BingX live disponibile")
-    with PLOCK:
-        PRICES.update(out)
-        FUNDING["avg"] = (sum(fund) / len(fund)) if fund else 0.0
+def get_bingx_symbol_candidates(meta: dict) -> list:
+    bx_main = meta.get("bx") or resolve_bingx_symbol(meta.get("symbol", "BTCUSDT"))[0]
+    base = bx_main.replace("-USDT", "").replace("USDT", "")
+    cands = [bx_main]
+    alt_map = {
+        "PAXG": ["PAXG-USDT", "XAU-USDT", "GOLD-USDT"],
+        "XAG": ["XAG-USDT", "SILVER-USDT"],
+        "WTI": ["WTI-USDT", "USOIL-USDT", "CL-USDT"],
+        "NATGAS": ["NATGAS-USDT", "NG-USDT"],
+        "COPPER": ["COPPER-USDT", "HG-USDT"],
+        "EUR": ["EUR-USDT", "EURUSD-USDT"],
+        "GBP": ["GBP-USDT", "GBPUSD-USDT"],
+        "USDJPY": ["USDJPY-USDT", "USDJPY"],
+        "AAPL": ["AAPL-USDT", "AAPL"],
+        "TSLA": ["TSLA-USDT", "TSLA"],
+        "NVDA": ["NVDA-USDT", "NVDA"],
+        "AMZN": ["AMZN-USDT", "AMZN"],
+        "MSFT": ["MSFT-USDT", "MSFT"],
+        "GOOGL": ["GOOGL-USDT", "GOOGL"],
+    }
+    for extra in alt_map.get(base, [f"{base}-USDT"]):
+        if extra not in cands:
+            cands.append(extra)
+    return cands
 
 
-# ------------------------------------------------------------------ candele reali
-CC = {}
-CLOCK = threading.Lock()
-
-
-def _parse_candle_row(r):
-    if isinstance(r, dict):
-        return [
-            int(r["time"]),
-            float(r["open"]),
-            float(r["high"]),
-            float(r["low"]),
-            float(r["close"]),
-            float(r.get("volume", 0.0)),
-        ]
-    return [int(r[0]), float(r[1]), float(r[2]), float(r[3]), float(r[4]), float(r[5])]
-
-
-def candles(sym, tf, ttl=20):
-    """Righe reali: [ts, open, high, low, close, volume], ordinate per tempo."""
-    k = (sym, tf)
-    now = time.time()
-    with CLOCK:
-        prev = CC.get(k)
-        if prev and now - prev[0] < ttl:
-            return prev[1]
-    rows = bingx(
-        "/openApi/swap/v2/quote/klines",
-        {"symbol": bx_sym(sym), "interval": GRAN[tf], "limit": 150},
-    )
-    c = sorted((_parse_candle_row(r) for r in rows), key=lambda x: x[0])
-    if len(c) < 20:
-        raise RuntimeError("Candele insufficienti per %s %s" % (sym, tf))
-    with CLOCK:
-        CC[k] = (now, c)
-    return c
-
-
-# ------------------------------------------------------------------ indicatori & motore
-def ema(a, n):
-    k, e, o = 2 / (n + 1), a[0], []
-    for v in a:
-        e = v * k + e * (1 - k)
-        o.append(e)
-    return o
-
-
-def rsi(a, n=14):
-    if len(a) < n + 2:
-        return 50.0
-    g = l = 0.0
-    for i in range(1, n + 1):
-        d = a[i] - a[i - 1]
-        g += max(d, 0)
-        l += max(-d, 0)
-    g /= n
-    l /= n
-    for i in range(n + 1, len(a)):
-        d = a[i] - a[i - 1]
-        g = (g * (n - 1) + max(d, 0)) / n
-        l = (l * (n - 1) + max(-d, 0)) / n
-    return 100 - 100 / (1 + g / (l or 1e-9))
-
-
-def macd_hist(a):
-    m = [x - y for x, y in zip(ema(a, 12), ema(a, 26))]
-    s = ema(m, 9)
-    return m[-1] - s[-1]
-
-
-def atr(c, n=14):
-    return sum(x[2] - x[3] for x in c[-n:]) / n
-
-
-def analyze(sym):
-    info = {}
-    for tf in ("15m", "1h", "4h"):
-        c = candles(sym, tf)
-        cl = [x[4] for x in c]
-        info[tf] = {
-            "trend": 1 if ema(cl, 20)[-1] > ema(cl, 50)[-1] else -1,
-            "rsi": rsi(cl),
-            "hist": macd_hist(cl),
-            "atr": atr(c),
-            "c": c,
-        }
-    return info
-
-
-def score(info, price):
-    tr = [info[k]["trend"] for k in ("15m", "1h", "4h")]
-    al = sum(tr)
-    d = 1 if al > 0 else -1
-    if abs(al) < 2 or info["1h"]["trend"] != d:
-        return None
-    h = info["1h"]
-    c = h["c"]
-    conf, why = 60, []
-    name = "rialzista" if d > 0 else "ribassista"
-    if abs(al) == 3:
-        conf += 8
-        why.append("Trend %s concorde su 15m, 1h e 4h (EMA20/EMA50)" % name)
+def get_market_calibration_spec(symbol: str, category: str, price: float):
+    key = canonicalize_symbol_key(symbol)
+    meta = ASSET_LOOKUP.get(key)
+    if meta:
+        decimals = meta["precision"]
+    elif price >= 1000:
+        decimals = 1
+    elif price >= 10:
+        decimals = 2
+    elif price >= 1:
+        decimals = 4
     else:
-        why.append("Trend %s su 1h e almeno un altro timeframe" % name)
-    if h["hist"] * d > 0:
-        conf += 5
-        why.append("Istogramma MACD %s su 1h" % ("positivo" if d > 0 else "negativo"))
-    r = h["rsi"]
-    if (d > 0 and 40 <= r <= 65) or (d < 0 and 35 <= r <= 60):
-        conf += 5
-        why.append("RSI(14) a %.0f: spazio di movimento nella direzione" % r)
-    elif (d > 0 and r > 72) or (d < 0 and r < 28):
-        conf -= 8
-        why.append("RSI(14) a %.0f: movimento esteso, rischio di ritracciamento" % r)
-    prev = c[-21:-1]
-    if d > 0 and c[-1][4] > max(x[2] for x in prev):
-        conf += 6
-        why.append("Rottura del massimo delle ultime 20 candele 1h")
-    elif d < 0 and c[-1][4] < min(x[3] for x in prev):
-        conf += 6
-        why.append("Rottura del minimo delle ultime 20 candele 1h")
-    vols = [x[5] for x in c[-21:-1]]
-    if vols and c[-2][5] > 1.3 * (sum(vols) / len(vols)):
-        conf += 5
-        why.append("Volume sopra la media delle ultime 20 candele")
-    conf = int(max(50, min(97, conf)))
-    R = min(max(h["atr"] * 1.5, price * 0.004), price * 0.02)
-    why.append("Stop a 1,5×ATR (%.2f%%), target a 1R, 2R e 3R" % (R / price * 100))
-    return {"dir": "long" if d > 0 else "short", "conf": conf, "R": R, "why": why}
+        decimals = 5
+
+    if category == "Criptovalute Globali":
+        return decimals, 0.0040, 1.65
+    if category in ("Forex & Valute", "Materie Prime"):
+        return decimals, 0.0030, 1.65
+    return decimals, 0.0035, 1.65
 
 
-# ------------------------------------------------------------------ database SQLite
-DLOCK = threading.RLock()
-DB = None
+def quantize_to_tick(value: float, decimals: int, tick_size: float) -> float:
+    if tick_size <= 0:
+        return round(value, decimals)
+    quantized = round(value / tick_size) * tick_size
+    return round(quantized, decimals)
 
 
-def init_db():
-    global DB
-    parent = os.path.dirname(os.path.abspath(DB_PATH))
-    if parent and not os.path.exists(parent):
-        os.makedirs(parent, exist_ok=True)
-    DB = sqlite3.connect(DB_PATH, check_same_thread=False)
-    DB.row_factory = sqlite3.Row
-    DB.execute("""CREATE TABLE IF NOT EXISTS signals(
-        id INTEGER PRIMARY KEY AUTOINCREMENT, sym TEXT, dir TEXT, tf TEXT,
-        entry REAL, sl REAL, tp1 REAL, tp2 REAL, tp3 REAL, conf INTEGER,
-        t INTEGER, valid INTEGER, hits INTEGER DEFAULT 0, closed INTEGER DEFAULT 0,
-        res REAL, ct INTEGER, why TEXT, R REAL, log TEXT)""")
-    DB.commit()
+def align_tp_sl_to_price(action: str, entry: float, raw_sl: float, raw_tp: float, decimals: int):
+    tick = 10 ** (-decimals)
+    min_step = max(tick * 2, entry * 0.0012)
+    if action == "BUY":
+        sl_val = min(raw_sl, entry - min_step)
+        tp_val = max(raw_tp, entry + min_step * 1.5)
+    elif action == "SELL":
+        sl_val = max(raw_sl, entry + min_step)
+        tp_val = min(raw_tp, entry - min_step * 1.5)
+    else:
+        sl_val = min(raw_sl, entry - min_step)
+        tp_val = max(raw_tp, entry + min_step * 1.5)
+    return quantize_to_tick(sl_val, decimals, tick), quantize_to_tick(tp_val, decimals, tick)
 
 
-def to_sig(r):
+def compute_order_quantity(bx_symbol: str, price: float, raw_qty: float, balance: float, leverage: int) -> float:
+    if price <= 0:
+        return 0.0
+    max_notional = max(balance, 1.0) * max(leverage, 1) * 0.92
+    capped_qty = min(max(raw_qty, 0.0), max_notional / price)
+    if "BTC" in bx_symbol:
+        step = 0.0001
+    elif "ETH" in bx_symbol or "PAXG" in bx_symbol:
+        step = 0.001
+    elif price >= 50:
+        step = 0.01
+    elif price >= 1:
+        step = 0.1
+    else:
+        step = 1.0
+    qty = max(step, math.floor(capped_qty / step) * step)
+    dec = len(str(step).split(".")[1]) if "." in str(step) else 0
+    return round(qty, dec)
+
+
+def get_session_statuses():
+    now_utc = datetime.now(timezone.utc)
+    weekday = now_utc.weekday()  # 0=Lun .. 4=Ven, 5=Sab, 6=Dom
+    hour_float = now_utc.hour + now_utc.minute / 60.0
+
+    crypto_open = True
+    forex_open = True
+    commodities_open = True
+    equities_open = ALLOW_WEEKEND_TRADFI or ((weekday < 5) and (14.5 <= hour_float <= 21.0))
+
+    forex_schedule_note = (
+        "APERTO LIVE (Attivo 24/7 • Sessione FX Lun-Ven, apertura Dom ~22:00 UTC, chiusura Ven ~22:00 UTC)"
+        if weekday >= 5
+        else "APERTO LIVE (Lun-Ven 24h • Rollover 21:00-22:00 UTC)"
+    )
+    commodities_schedule_note = (
+        "APERTO LIVE (Attivo 24/7 • Metalli/Energia Lun-Ven, chiusura Ven ~22:00 UTC, riapertura Dom ~22:00 UTC)"
+        if weekday >= 5
+        else "APERTO LIVE (Lun-Ven quasi 24h • Breve pausa tecnica giornaliera)"
+    )
+    equities_schedule_note = (
+        "APERTO LIVE (Forzato attivo)"
+        if ALLOW_WEEKEND_TRADFI
+        else "APERTO (Lun-Ven 14:30-21:00 UTC) • CHIUSO Sab-Dom e fuori orario NYSE/NASDAQ"
+    )
+
     return {
-        "id": r["id"],
-        "sym": r["sym"],
-        "dir": r["dir"],
-        "tf": r["tf"],
-        "entry": r["entry"],
-        "sl": r["sl"],
-        "tp": [r["tp1"], r["tp2"], r["tp3"]],
-        "conf": r["conf"],
-        "t": r["t"],
-        "valid": r["valid"],
-        "hits": r["hits"],
-        "closed": bool(r["closed"]),
-        "res": r["res"],
-        "ct": r["ct"],
-        "why": json.loads(r["why"] or "[]"),
-        "R": r["R"],
-        "log": json.loads(r["log"] or "[]"),
+        "Criptovalute Globali": {
+            "status": "APERTO LIVE (24/7)",
+            "is_open": crypto_open,
+            "days_label": "Lun - Dom (Sempre Aperto)",
+            "hours": "24/7 Continuo (UTC)",
+            "schedule_detail": "Aperto tutti i giorni 00:00-24:00 UTC senza chiusure settimanali.",
+            "badge_color": "#15803d",
+        },
+        "Forex & Valute": {
+            "status": "APERTO LIVE",
+            "is_open": forex_open,
+            "days_label": "Aperto Live • FX Lun-Ven (Dom 22:00 - Ven 22:00 UTC)",
+            "hours": "Operativo Live 24/7 • Finestra FX Dom 22:00 - Ven 22:00 UTC",
+            "schedule_detail": forex_schedule_note,
+            "badge_color": "#15803d",
+        },
+        "Materie Prime": {
+            "status": "APERTO LIVE",
+            "is_open": commodities_open,
+            "days_label": "Aperto Live • Metalli/WTI/Gas (Chiusura Ven ~22:00 UTC)",
+            "hours": "Operativo Live 24/7 • Sessione Spot/Perp continua",
+            "schedule_detail": commodities_schedule_note,
+            "badge_color": "#15803d",
+        },
+        "Azioni & Indici Globali": {
+            "status": "APERTO LIVE" if equities_open else "CHIUSO (Sab-Dom / Fuori Orario)",
+            "is_open": equities_open,
+            "days_label": "Lun - Ven (Chiuso Sabato & Domenica)",
+            "hours": "NYSE/NASDAQ: Lun-Ven 14:30 - 21:00 UTC",
+            "schedule_detail": equities_schedule_note,
+            "badge_color": "#15803d" if equities_open else "#dc2626",
+        },
     }
 
 
-def fmt(p):
-    return ("%.2f" if p >= 10 else "%.3f" if p >= 1 else "%.5f") % p
+def get_macro_windows(now_utc: datetime):
+    h = now_utc.hour + now_utc.minute / 60.0
+    wd = now_utc.weekday()
+    return [
+        {
+            "window": "Lun - Ven • 08:00 - 11:30 UTC",
+            "title": "Sessione Londra (FX & Oro)",
+            "risk": "MEDIA-ALTA",
+            "active": (wd < 5) and (8.0 <= h <= 11.5),
+        },
+        {
+            "window": "Lun - Ven • 13:30 - 21:00 UTC",
+            "title": "Sessione USA & Borse NYSE/NASDAQ (14:30-21:00 UTC)",
+            "risk": "ALTA VOLATILITÀ",
+            "active": (wd < 5) and (13.5 <= h <= 21.0),
+        },
+        {
+            "window": "Ven 22:00 - Dom 22:00 UTC",
+            "title": "Weekend TradFi (Crypto, FX & Materie Prime Live)",
+            "risk": "MERCATO LIVE",
+            "active": (wd == 5) or (wd == 6 and h < 22.0) or (wd == 4 and h >= 22.0),
+        },
+        {
+            "window": "Lun - Dom • 00:00 - 24:00 UTC",
+            "title": "Criptovalute & Contratti Attivi 24/7",
+            "risk": "OPERATIVO H24",
+            "active": True,
+        },
+    ]
 
 
-# ------------------------------------------------------------------ Telegram
-def telegram(text):
-    if not TG_TOKEN or not TG_CHAT:
-        return False
-    try:
-        r = SESSION.post(
-            "https://api.telegram.org/bot%s/sendMessage" % TG_TOKEN,
-            json={"chat_id": TG_CHAT, "text": text},
-            timeout=8,
-        )
-        return r.ok
-    except Exception:
-        log.exception("telegram")
-        return False
+def sign_bingx_query(params: dict) -> str:
+    query_str = urlencode(sorted(params.items()))
+    sig = hmac.new(BINGX_API_SECRET.encode("utf-8"), query_str.encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"{query_str}&signature={sig}"
 
 
-def sig_text(g):
-    icon = "🟢" if g["dir"] == "long" else "🔴"
-    return (
-        "%s %s/USDT %s · %s\nEntry: %s\nSL: %s\nTP1: %s\nTP2: %s\nTP3: %s\n"
-        "Confidenza: %d%%\nRischio consigliato: 1%%\nDati: BingX"
-        % (
-            icon,
-            g["sym"],
-            g["dir"].upper(),
-            g["tf"],
-            fmt(g["entry"]),
-            fmt(g["sl"]),
-            fmt(g["tp"][0]),
-            fmt(g["tp"][1]),
-            fmt(g["tp"][2]),
-            g["conf"],
-        )
+def bingx_signed_request(method: str, path: str, params: dict):
+    if not (BINGX_API_KEY and BINGX_API_SECRET):
+        return None, "API Key / Secret BingX non configurate su Render"
+    headers = {"X-BX-APIKEY": BINGX_API_KEY}
+    last_err = "Errore connessione BingX"
+    for base in BINGX_CANDIDATE_BASES:
+        req_params = dict(params or {})
+        req_params["timestamp"] = int(time.time() * 1000)
+        signed_qs = sign_bingx_query(req_params)
+        url = f"{base}{path}?{signed_qs}"
+        try:
+            if method.upper() == "POST":
+                resp = requests.post(url, headers=headers, timeout=4.0)
+            else:
+                resp = requests.get(url, headers=headers, timeout=4.0)
+            data = resp.json()
+            if resp.status_code != 200:
+                last_err = f"HTTP {resp.status_code}: {data}"
+                continue
+            if isinstance(data, dict) and data.get("code") not in (0, "0", None):
+                last_err = str(data.get("msg") or data)
+                continue
+            return data, None
+        except Exception as exc:
+            last_err = str(exc)
+    return None, last_err
+
+
+def sync_bingx_leverage_and_margin(bx_symbol: str, lev_int: int, pos_side: str):
+    bingx_signed_request(
+        "POST",
+        "/openApi/swap/v2/trade/marginType",
+        {"symbol": bx_symbol, "marginType": "ISOLATED"},
+    )
+    bingx_signed_request(
+        "POST",
+        "/openApi/swap/v2/trade/leverage",
+        {"symbol": bx_symbol, "side": pos_side, "leverage": int(lev_int)},
     )
 
 
-# ------------------------------------------------------------------ motore segnali & TP/SL
-def create_signal(sym, sc, price):
-    if DB is None:
+def fetch_bingx_account_balance():
+    if not (BINGX_API_KEY and BINGX_API_SECRET):
+        return None, "API Key / Secret BingX non configurate su Render"
+    payload, err = bingx_signed_request("GET", "/openApi/swap/v2/user/balance", {})
+    if err or not isinstance(payload, dict):
+        return None, err or "Errore lettura saldo BingX"
+    bal_obj = payload.get("data", {}).get("balance", payload.get("data", {}))
+    if isinstance(bal_obj, list) and bal_obj:
+        bal_obj = bal_obj[0]
+    if not isinstance(bal_obj, dict):
+        return None, "Formato saldo BingX non valido"
+    return {
+        "equity": round(safe_float(bal_obj.get("equity"), safe_float(bal_obj.get("balance"), 0.0)), 4),
+        "available_margin": round(safe_float(bal_obj.get("availableMargin"), safe_float(bal_obj.get("free"), 0.0)), 4),
+        "unrealized_pnl": round(safe_float(bal_obj.get("unrealizedProfit"), 0.0), 4),
+    }, None
+
+
+def sync_bingx_real_closed_trades():
+    if not (BINGX_API_KEY and BINGX_API_SECRET):
         return
-    s = 1 if sc["dir"] == "long" else -1
-    R = sc["R"]
-    now = int(time.time() * 1000)
-    tp = [price + s * R * m for m in (1, 2, 3)]
-    sl = price - s * R
-    lg = [{"t": now, "m": "Segnale emesso · %s @ %s" % (sc["dir"].upper(), fmt(price))}]
-    with DLOCK:
-        cur = DB.execute(
-            "INSERT INTO signals(sym,dir,tf,entry,sl,tp1,tp2,tp3,conf,t,valid,why,R,log) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (
-                sym,
-                sc["dir"],
-                "1h",
-                price,
-                sl,
-                tp[0],
-                tp[1],
-                tp[2],
-                sc["conf"],
-                now,
-                now + 15 * 60000,
-                json.dumps(sc["why"], ensure_ascii=False),
-                R,
-                json.dumps(lg),
-            ),
-        )
-        DB.commit()
-        row = DB.execute("SELECT * FROM signals WHERE id=?", (cur.lastrowid,)).fetchone()
-    g = to_sig(row)
-    telegram(sig_text(g))
-    log.info("Nuovo segnale %s %s conf %d", sym, sc["dir"], sc["conf"])
+    with STATE_LOCK:
+        if time.time() - STATE.get("last_bingx_sync", 0.0) < 12.0:
+            return
+        STATE["last_bingx_sync"] = time.time()
 
-
-def run_engine():
-    if DB is None:
-        return
-    with DLOCK:
-        active = [r["sym"] for r in DB.execute("SELECT sym FROM signals WHERE closed=0")]
-    if len(active) >= MAX_ACTIVE:
-        return
-    jobs = [(s, tf) for s in PAIRS for tf in ("15m", "1h", "4h")]
-    list(POOL.map(lambda a: _safe(candles, *a), jobs))
-    now = int(time.time() * 1000)
-    for sym in PAIRS:
-        if sym in active or sym not in PRICES:
-            continue
-        with DLOCK:
-            last = DB.execute("SELECT MAX(t) m FROM signals WHERE sym=?", (sym,)).fetchone()["m"] or 0
-        if now - last < COOLDOWN_MIN * 60000:
-            continue
-        try:
-            sc = score(analyze(sym), PRICES[sym]["p"])
-        except Exception:
-            log.warning("analisi %s non riuscita", sym)
-            continue
-        if sc and sc["conf"] >= MIN_CONF:
-            create_signal(sym, sc, PRICES[sym]["p"])
-            active.append(sym)
-            if len(active) >= MAX_ACTIVE:
-                break
-
-
-def resolve_all():
-    if DB is None:
-        return
-    now = int(time.time() * 1000)
-    with DLOCK:
-        rows = DB.execute("SELECT * FROM signals WHERE closed=0").fetchall()
-        for r in rows:
-            g = to_sig(r)
-            pr = PRICES.get(g["sym"])
-            if not pr:
-                continue
-            p, s, hits = pr["p"], (1 if g["dir"] == "long" else -1), g["hits"]
-            lg, closed, res, ct, msgs = g["log"], False, None, None, []
-            sl = g["entry"] if hits >= 1 else g["sl"]
-            if s * (p - sl) <= 0:
-                closed, ct = True, now
-                res = -1.0 if hits == 0 else (0.33 if hits == 1 else 1.0)
-                msgs.append("Stop loss colpito · -1R" if hits == 0 else "Chiuso a break-even · %+.2fR" % res)
-            else:
-                while hits < 3 and s * (p - g["tp"][hits]) >= 0:
-                    hits += 1
-                    msgs.append("TP%d raggiunto%s" % (hits, " · SL spostato a break-even" if hits == 1 else ""))
-                if hits == 3:
-                    closed, ct, res = True, now, 2.0
-                    msgs.append("Chiuso a TP3 · +2R")
-            if not msgs:
-                continue
-            for m in msgs:
-                lg.append({"t": now, "m": m})
-                telegram("%s %s: %s" % (g["sym"], g["dir"].upper(), m))
-            DB.execute(
-                "UPDATE signals SET hits=?,closed=?,res=?,ct=?,log=? WHERE id=?",
-                (hits, int(closed), res, ct, json.dumps(lg), g["id"]),
-            )
-        DB.commit()
-
-
-# ------------------------------------------------------------------ trade reali, balene, sentiment, news & calendario
-EXTRA = {
-    "fg": None,
-    "news": [],
-    "whales": [],
-    "liq": {"long_m": 0.0, "short_m": 0.0},
-    "calendar": [],
-}
-ELOCK = threading.Lock()
-_SEEN_WHALES = set()
-_SEEN_LIQ_TRADES = set()
-
-
-def _fetch_recent_trades(sym: str):
-    rows = bingx("/openApi/swap/v2/quote/trades", {"symbol": bx_sym(sym), "limit": 100})
-    return sym, rows if isinstance(rows, list) else []
-
-
-def refresh_trades_and_whales():
     now_ms = int(time.time() * 1000)
-    one_hour_ago = now_ms - 3600_000
-    results = list(POOL.map(lambda s: _safe(_fetch_recent_trades, s), PAIRS))
-
-    new_whales = []
-    long_liq_usd = 0.0
-    short_liq_usd = 0.0
-
-    for item in results:
-        if not item:
-            continue
-        sym, trades = item
-        for tr in trades:
-            if not isinstance(tr, dict):
-                continue
-            px = float(tr.get("price") or 0)
-            qty = float(tr.get("qty") or tr.get("amount") or 0)
-            ts = int(tr.get("time") or tr.get("ts") or now_ms)
-            usd = px * qty
-            if px <= 0 or qty <= 0:
-                continue
-
-            buyer_maker = bool(tr.get("buyerMaker"))
-            is_buy = not buyer_maker
-            tid = str(tr.get("id") or f"{sym}-{ts}-{px}-{qty}")
-
-            if usd >= WHALE_MIN_USD and tid not in _SEEN_WHALES:
-                _SEEN_WHALES.add(tid)
-                new_whales.append({
-                    "t": ts,
-                    "sym": sym,
-                    "buy": is_buy,
-                    "usd": usd,
-                })
-
-            if ts >= one_hour_ago and usd >= WHALE_MIN_USD and tid not in _SEEN_LIQ_TRADES:
-                _SEEN_LIQ_TRADES.add(tid)
-                if is_buy:
-                    short_liq_usd += usd
-                else:
-                    long_liq_usd += usd
-
-    if len(_SEEN_WHALES) > 5000:
-        _SEEN_WHALES.clear()
-    if len(_SEEN_LIQ_TRADES) > 5000:
-        _SEEN_LIQ_TRADES.clear()
-
-    with ELOCK:
-        if new_whales:
-            merged = new_whales + EXTRA["whales"]
-            merged.sort(key=lambda x: x["t"], reverse=True)
-            EXTRA["whales"] = merged[:25]
-        if long_liq_usd > 0 or short_liq_usd > 0:
-            EXTRA["liq"]["long_m"] = round(EXTRA["liq"]["long_m"] + long_liq_usd / 1e6, 2)
-            EXTRA["liq"]["short_m"] = round(EXTRA["liq"]["short_m"] + short_liq_usd / 1e6, 2)
-
-
-def refresh_extra():
-    try:
-        j = http_json("https://api.alternative.me/fng/", {"limit": 1})
-        val = float(j["data"][0]["value"])
-        with ELOCK:
-            EXTRA["fg"] = val
-    except Exception:
-        log.warning("fear&greed non disponibile")
-
-    try:
-        j = http_json("https://min-api.cryptocompare.com/data/v2/news/", {"lang": "EN"})
-        news_list = [
-            {
-                "t": int(n["published_on"]) * 1000,
-                "h": n["title"],
-                "sn": 0,
-                "src": (n.get("source_info") or {}).get("name") or n.get("source", ""),
-            }
-            for n in (j.get("Data") or [])[:15]
-        ]
-        with ELOCK:
-            EXTRA["news"] = news_list
-    except Exception:
-        log.warning("news non disponibili")
-
-    if CALENDAR_FEED_URL:
-        try:
-            cal_raw = http_json(CALENDAR_FEED_URL)
-            events = []
-            items = cal_raw if isinstance(cal_raw, list) else (cal_raw.get("events") or [])
-            for ev in items:
-                if not isinstance(ev, dict):
-                    continue
-                title = str(ev.get("title") or ev.get("event") or "").strip()
-                ts_ms = ev.get("timestamp_ms") or ev.get("time") or ev.get("t")
-                if title and ts_ms:
-                    events.append({
-                        "n": title,
-                        "imp": str(ev.get("impact") or "medio").lower(),
-                        "t": int(ts_ms),
-                    })
-            events.sort(key=lambda x: x["t"])
-            with ELOCK:
-                EXTRA["calendar"] = events
-        except Exception:
-            log.warning("calendario esterno non disponibile")
-
-
-def loop(fn, sec, name):
-    while True:
-        try:
-            fn()
-        except Exception:
-            log.warning("%s: errore temporaneo", name)
-        time.sleep(sec)
-
-
-_started = False
-
-
-def start():
-    global _started
-    if _started:
+    start_ms = now_ms - (31 * 86400 * 1000)
+    payload, err = bingx_signed_request(
+        "GET",
+        "/openApi/swap/v2/user/income",
+        {"startTime": start_ms, "endTime": now_ms, "limit": 200},
+    )
+    if err or not isinstance(payload, dict):
         return
-    _started = True
-    try:
-        init_db()
-    except Exception:
-        log.exception("init_db")
-    for fn, sec, name in (
-        (lambda: (refresh_prices(), resolve_all()), 3, "prezzi"),
-        (run_engine, ENGINE_SEC, "motore"),
-        (refresh_trades_and_whales, 10, "trades"),
-        (refresh_extra, 300, "extra"),
-    ):
-        threading.Thread(target=loop, args=(fn, sec, name), daemon=True).start()
+
+    rows = payload.get("data") or []
+    if not isinstance(rows, list):
+        return
+
+    parsed_trades = []
+    for item in rows:
+        if not isinstance(item, dict):
+            continue
+        inc_type = str(item.get("incomeType") or "").upper()
+        if inc_type not in ("REALIZED_PNL", "PROFIT", "TRADE_PNL"):
+            continue
+        pnl_val = safe_float(item.get("income"), 0.0)
+        if pnl_val == 0.0:
+            continue
+        t_ms = int(safe_float(item.get("time"), now_ms))
+        dt_utc = datetime.fromtimestamp(t_ms / 1000.0, tz=timezone.utc)
+        trade_id = str(item.get("tranId") or item.get("orderId") or f"bx_{t_ms}_{pnl_val}")
+        parsed_trades.append({
+            "id": trade_id,
+            "symbol": canonicalize_symbol_key(item.get("symbol") or "BTCUSDT"),
+            "realized_pnl": round(pnl_val, 4),
+            "closed_date": dt_utc.strftime("%Y-%m-%d"),
+            "closed_month": dt_utc.strftime("%Y-%m"),
+            "closed_at": dt_utc.strftime("%Y-%m-%d %H:%M:%S UTC"),
+        })
+
+    with STATE_LOCK:
+        existing_ids = {t.get("id") for t in STATE["closed_trades"]}
+        for tr in parsed_trades:
+            if tr["id"] not in existing_ids:
+                STATE["closed_trades"].append(tr)
+                existing_ids.add(tr["id"])
+        STATE["session_pnl"] = round(sum(safe_float(t.get("realized_pnl")) for t in STATE["closed_trades"]), 4)
 
 
-# ------------------------------------------------------------------ web API
-@app.before_request
-def auth():
-    if not PASSWORD:
-        return None
-    a = request.authorization
-    if not a or not hmac.compare_digest(a.password or "", PASSWORD):
-        return Response("Accesso riservato", 401, {"WWW-Authenticate": 'Basic realm="Aurum"'})
+def fetch_bingx_real_positions():
+    if not (BINGX_API_KEY and BINGX_API_SECRET):
+        return [], "API Key / Secret BingX non configurate su Render"
+    payload, err = bingx_signed_request("GET", "/openApi/swap/v2/user/positions", {})
+    if err or not isinstance(payload, dict):
+        return [], err or "Errore lettura posizioni BingX"
+    raw_pos = payload.get("data") or []
+    if not isinstance(raw_pos, list):
+        return [], None
+
+    active = []
+    for p in raw_pos:
+        if not isinstance(p, dict):
+            continue
+        amt = abs(safe_float(p.get("positionAmt"), 0.0))
+        if amt <= 0:
+            continue
+        side_raw = str(p.get("positionSide") or "").upper()
+        if side_raw in ("LONG", "BUY"):
+            action = "BUY"
+        elif side_raw in ("SHORT", "SELL"):
+            action = "SELL"
+        else:
+            action = "BUY" if safe_float(p.get("positionAmt"), 0.0) > 0 else "SELL"
+
+        active.append({
+            "symbol": canonicalize_symbol_key(p.get("symbol") or ""),
+            "bx_symbol": p.get("symbol") or "",
+            "action": action,
+            "entry": safe_float(p.get("avgPrice"), 0.0),
+            "size": amt,
+            "leverage": f"{int(safe_float(p.get('leverage'), 1))}x",
+            "unrealized_pnl": round(safe_float(p.get("unrealizedProfit"), 0.0), 4),
+        })
+    return active, None
+
+
+def run_break_even_trailing_on_positions(positions, signals_list):
+    if not (BINGX_API_KEY and BINGX_API_SECRET) or not positions:
+        return []
+    sig_by_sym = {s.get("symbol"): s for s in (signals_list or [])}
+    updates = []
+
+    for pos in positions:
+        sym = pos.get("symbol")
+        bx_sym = pos.get("bx_symbol") or resolve_bingx_symbol(sym)[0]
+        action = pos.get("action")
+        entry = safe_float(pos.get("entry"), 0.0)
+        sig = sig_by_sym.get(sym)
+        if not sig or entry <= 0:
+            continue
+        curr_p = safe_float(sig.get("price"), 0.0)
+        tp1 = safe_float(sig.get("tp1"), 0.0)
+        if curr_p <= 0 or tp1 <= 0:
+            continue
+
+        be_key = f"BE_{sym}_{action}_{round(entry, 5)}"
+        with STATE_LOCK:
+            if be_key in STATE["trailing_updated_keys"]:
+                continue
+
+        reached_tp1 = (action == "BUY" and curr_p >= tp1) or (action == "SELL" and curr_p <= tp1)
+        if reached_tp1:
+            be_price = round(entry * (1.0012 if action == "BUY" else 0.9988), 6)
+            _, err = bingx_signed_request(
+                "POST",
+                "/openApi/swap/v2/trade/order",
+                {
+                    "symbol": bx_sym,
+                    "side": "ASK" if action == "BUY" else "BID",
+                    "positionSide": "LONG" if action == "BUY" else "SHORT",
+                    "type": "STOP_MARKET",
+                    "stopPrice": be_price,
+                    "quantity": pos.get("size"),
+                    "reduceOnly": "true",
+                },
+            )
+            if not err:
+                with STATE_LOCK:
+                    STATE["trailing_updated_keys"].append(be_key)
+                updates.append(f"{bx_sym} -> Break-Even {be_price}")
+    return updates
+
+
+def fetch_bingx_ticker(bx_symbol: str):
+    with _CACHE_LOCK:
+        cached = _LIVE_PRICE_CACHE.get(bx_symbol)
+        if cached and (time.time() - cached["ts"]) < 3.0:
+            return cached["price"]
+
+    for base in BINGX_CANDIDATE_BASES:
+        try:
+            url = f"{base}/openApi/swap/v2/quote/ticker"
+            resp = requests.get(url, params={"symbol": bx_symbol}, timeout=2.2)
+            if resp.status_code == 200:
+                payload = resp.json()
+                data = payload.get("data")
+                if isinstance(data, list) and data:
+                    data = data[0]
+                if isinstance(data, dict):
+                    price = safe_float(data.get("lastPrice"), 0.0)
+                    if price > 0:
+                        with _CACHE_LOCK:
+                            _LIVE_PRICE_CACHE[bx_symbol] = {"price": price, "ts": time.time()}
+                        return price
+        except Exception:
+            continue
+
+    with _CACHE_LOCK:
+        if cached:
+            return cached["price"]
     return None
 
 
-@app.get("/")
-def index():
-    candidates = [
-        os.path.join(HERE, "index.html"),
-        os.path.join(os.getcwd(), "index.html"),
+def fetch_bingx_klines(bx_symbol: str, interval: str, limit: int = 55):
+    tf_map = {"5m": "5m", "15m": "15m", "1h": "1h"}
+    bx_int = tf_map.get(interval, "15m")
+    cache_key = f"{bx_symbol}_{bx_int}_{limit}"
+    with _CACHE_LOCK:
+        cached = _KLINES_CACHE.get(cache_key)
+        if cached and (time.time() - cached["ts"]) < 8.0:
+            return cached["df"].copy()
+
+    for base in BINGX_CANDIDATE_BASES:
+        try:
+            url = f"{base}/openApi/swap/v2/quote/klines"
+            resp = requests.get(url, params={"symbol": bx_symbol, "interval": bx_int, "limit": limit}, timeout=2.6)
+            if resp.status_code == 200:
+                rows = resp.json().get("data") or []
+                if isinstance(rows, list) and len(rows) >= 20:
+                    parsed = []
+                    for r in rows[-limit:]:
+                        if isinstance(r, dict):
+                            o = safe_float(r.get("open"))
+                            h = safe_float(r.get("high"))
+                            l = safe_float(r.get("low"))
+                            c = safe_float(r.get("close"))
+                            v = safe_float(r.get("volume"), 0.0)
+                        elif isinstance(r, (list, tuple)) and len(r) >= 6:
+                            o = safe_float(r[1])
+                            h = safe_float(r[2])
+                            l = safe_float(r[3])
+                            c = safe_float(r[4])
+                            v = safe_float(r[5], 0.0)
+                        else:
+                            continue
+                        if c > 0 and h >= l > 0:
+                            parsed.append({"Open": o or c, "High": h, "Low": l, "Close": c, "Volume": max(v, 0.0)})
+                    if len(parsed) >= 20:
+                        df_out = pd.DataFrame(parsed)
+                        with _CACHE_LOCK:
+                            _KLINES_CACHE[cache_key] = {"df": df_out, "ts": time.time()}
+                        return df_out.copy()
+        except Exception:
+            continue
+
+    with _CACHE_LOCK:
+        if cached:
+            return cached["df"].copy()
+    return None
+
+
+def fetch_bingx_ticker_multi(candidates: list):
+    for bx_symbol in candidates:
+        p = fetch_bingx_ticker(bx_symbol)
+        if p and p > 0:
+            return p, bx_symbol
+    return None, candidates[0]
+
+
+def fetch_bingx_klines_multi(candidates: list, interval: str, limit: int = 55):
+    for bx_symbol in candidates:
+        df = fetch_bingx_klines(bx_symbol, interval, limit=limit)
+        if df is not None and len(df) >= 20:
+            return df, bx_symbol
+    return None, candidates[0]
+
+
+def get_real_market_dataframe(meta: dict, timeframe: str):
+    candidates = get_bingx_symbol_candidates(meta)
+    live_price, matched_ticker_sym = fetch_bingx_ticker_multi(candidates)
+    klines_df, matched_kline_sym = fetch_bingx_klines_multi(candidates, timeframe, limit=55)
+    resolved_bx = matched_kline_sym if klines_df is not None else matched_ticker_sym
+
+    if klines_df is not None and len(klines_df) >= 20:
+        price_out = live_price if (live_price and live_price > 0) else safe_float(klines_df["Close"].iloc[-1], 0.0)
+        if price_out > 0:
+            klines_df.iloc[-1, klines_df.columns.get_loc("Close")] = price_out
+            klines_df.iloc[-1, klines_df.columns.get_loc("High")] = max(klines_df.iloc[-1]["High"], price_out)
+            klines_df.iloc[-1, klines_df.columns.get_loc("Low")] = min(klines_df.iloc[-1]["Low"], price_out)
+        return klines_df, price_out, resolved_bx
+
+    return None, (live_price or 0.0), resolved_bx
+
+
+def build_profile_config(profile: str, timeframe: str, min_score: float, risk_pct: float = 1.0):
+    p = (profile or "pro_room").lower()
+    risk_scale = max(0.5, min(2.0, risk_pct / 1.0))
+    if p == "conservative":
+        return {
+            "profile": "conservative",
+            "timeframe": timeframe,
+            "min_score": max(min_score, 75.0),
+            "min_certainty": 83.3,
+            "min_hits": 5,
+            "min_rrr": 1.35,
+            "rsi_buy_min": 48.0,
+            "rsi_buy_max": 68.0,
+            "rsi_sell_min": 32.0,
+            "rsi_sell_max": 52.0,
+            "sl_m": round(1.25 / max(0.85, min(1.2, risk_scale)), 2),
+            "tp_m": 2.2,
+            "min_vol_ratio": 0.9,
+            "cooldown_sec": DIRECTION_COOLDOWN_SEC,
+            "flip_min_cert": 80.0,
+            "strict_ev_gate": True,
+        }
+    if p == "aggressive":
+        return {
+            "profile": "aggressive",
+            "timeframe": timeframe,
+            "min_score": min_score,
+            "min_certainty": 66.7,
+            "min_hits": 4,
+            "min_rrr": 1.15,
+            "rsi_buy_min": 40.0,
+            "rsi_buy_max": 75.0,
+            "rsi_sell_min": 25.0,
+            "rsi_sell_max": 60.0,
+            "sl_m": round(1.10 / max(0.85, min(1.2, risk_scale)), 2),
+            "tp_m": 1.9,
+            "min_vol_ratio": 0.5,
+            "cooldown_sec": 45.0,
+            "flip_min_cert": 70.0,
+            "strict_ev_gate": False,
+        }
+    if p == "pro_room":
+        return {
+            "profile": "pro_room",
+            "timeframe": timeframe,
+            "min_score": min_score,
+            "min_certainty": 50.0,
+            "min_hits": 3,
+            "min_rrr": 1.10,
+            "rsi_buy_min": 35.0,
+            "rsi_buy_max": 78.0,
+            "rsi_sell_min": 22.0,
+            "rsi_sell_max": 65.0,
+            "sl_m": round(1.10 / max(0.85, min(1.2, risk_scale)), 2),
+            "tp_m": 1.85,
+            "min_vol_ratio": 0.25,
+            "cooldown_sec": 30.0,
+            "flip_min_cert": 66.7,
+            "strict_ev_gate": False,
+        }
+    return {
+        "profile": "balanced",
+        "timeframe": timeframe,
+        "min_score": min_score,
+        "min_certainty": 66.7,
+        "min_hits": 4,
+        "min_rrr": 1.25,
+        "rsi_buy_min": 42.0,
+        "rsi_buy_max": 72.0,
+        "rsi_sell_min": 28.0,
+        "rsi_sell_max": 58.0,
+        "sl_m": round(1.20 / max(0.85, min(1.2, risk_scale)), 2),
+        "tp_m": 2.0,
+        "min_vol_ratio": 0.65,
+        "cooldown_sec": DIRECTION_COOLDOWN_SEC,
+        "flip_min_cert": 75.0,
+        "strict_ev_gate": True,
+    }
+
+
+def detect_market_regime_and_advice(df, current_price, is_open, cfg):
+    close = df["Close"]
+    ema20 = safe_float(close.ewm(span=20, adjust=False).mean().iloc[-1], current_price)
+    ema50 = safe_float(close.ewm(span=50, adjust=False).mean().iloc[-1], current_price)
+    diff_pct = ((ema20 - ema50) / ema50 * 100.0) if ema50 > 0 else 0.0
+
+    if not is_open:
+        regime = "MERCATO CHIUSO"
+    elif abs(diff_pct) >= 0.35:
+        regime = "TREND RIALZISTA" if diff_pct > 0 else "TREND RIBASSISTA"
+    else:
+        regime = "LATERALE / CONSOLIDAMENTO"
+
+    return {
+        "regime": regime,
+        "ema_spread_pct": round(diff_pct, 3),
+        "recommended_params": {
+            "timeframe": cfg["timeframe"],
+            "profile": cfg["profile"],
+            "min_score": cfg["min_score"],
+        },
+    }
+
+
+def compute_reversal_and_fakeout_metrics(
+    df,
+    current_price,
+    rsi,
+    curr_ema12,
+    curr_ema26,
+    current_macd,
+    prev_macd,
+    vol_ratio,
+    min_vol_ratio,
+    strict_fakeout=True,
+):
+    close = df["Close"]
+    high = df["High"]
+    low = df["Low"]
+
+    tr = pd.concat([high - low, np.abs(high - close.shift()), np.abs(low - close.shift())], axis=1).max(axis=1)
+    atr_series = tr.rolling(14).mean()
+    atr = safe_float(atr_series.iloc[-1], current_price * 0.005)
+    atr_prev = safe_float(atr_series.iloc[-6], atr) if len(atr_series) >= 6 else atr
+    if atr <= 0:
+        atr = current_price * 0.005
+
+    atr_spike = (atr_prev > 0) and (atr > atr_prev * 2.15)
+
+    last_open = safe_float(df["Open"].iloc[-1], current_price)
+    last_high = safe_float(high.iloc[-1], current_price)
+    last_low = safe_float(low.iloc[-1], current_price)
+    body_size = abs(current_price - last_open)
+    upper_wick = max(0.0, last_high - max(current_price, last_open))
+    lower_wick = max(0.0, min(current_price, last_open) - last_low)
+
+    prev_high_20 = safe_float(high.iloc[-21:-1].max(), last_high) if len(df) >= 22 else last_high
+    prev_low_20 = safe_float(low.iloc[-21:-1].min(), last_low) if len(df) >= 22 else last_low
+
+    fake_bull_breakout = (last_high > prev_high_20) and (current_price < prev_high_20 * 0.999)
+    fake_bear_breakout = (last_low < prev_low_20) and (current_price > prev_low_20 * 1.001)
+    wick_rejection_top = (upper_wick > max(body_size * 2.4, atr * 0.45)) and (current_price < last_open)
+    wick_rejection_bottom = (lower_wick > max(body_size * 2.4, atr * 0.45)) and (current_price > last_open)
+
+    hard_fakeout = fake_bull_breakout or fake_bear_breakout or wick_rejection_top or wick_rejection_bottom or atr_spike
+
+    fakeout_flags = []
+    if fake_bull_breakout:
+        fakeout_flags.append("Falsa rottura massimo 20 candele")
+    if fake_bear_breakout:
+        fakeout_flags.append("Falsa rottura minimo 20 candele")
+    if wick_rejection_top:
+        fakeout_flags.append("Rejection ombra superiore")
+    if wick_rejection_bottom:
+        fakeout_flags.append("Rejection ombra inferiore")
+    if atr_spike:
+        fakeout_flags.append("Spike anomalo ATR")
+    if vol_ratio < min_vol_ratio:
+        fakeout_flags.append(f"Volume {vol_ratio}x < {min_vol_ratio}x")
+
+    dec = 5 if current_price < 10 else 2
+    bull_exhaustion = (rsi >= 68.0) or (curr_ema12 < curr_ema26 and current_macd < prev_macd) or fake_bull_breakout or wick_rejection_top
+    bear_exhaustion = (rsi <= 32.0) or (curr_ema12 > curr_ema26 and current_macd > prev_macd) or fake_bear_breakout or wick_rejection_bottom
+
+    if curr_ema12 >= curr_ema26 and bull_exhaustion:
+        rev_dir = "SELL"
+        rev_prob = min(88.0, round(32.0 + max(0.0, (rsi - 60.0) * 1.8) + (18.0 if (fake_bull_breakout or wick_rejection_top) else 0.0), 1))
+        rev_trigger = round(min(current_price - atr * 0.65, curr_ema26 * 0.999), dec)
+        rev_reason = "Esaurimento spinta rialzista / possibile inversione SHORT"
+    elif curr_ema12 < curr_ema26 and bear_exhaustion:
+        rev_dir = "BUY"
+        rev_prob = min(88.0, round(32.0 + max(0.0, (40.0 - rsi) * 1.8) + (18.0 if (fake_bear_breakout or wick_rejection_bottom) else 0.0), 1))
+        rev_trigger = round(max(current_price + atr * 0.65, curr_ema26 * 1.001), dec)
+        rev_reason = "Esaurimento spinta ribassista / possibile inversione LONG"
+    else:
+        rev_dir = "SELL" if curr_ema12 >= curr_ema26 else "BUY"
+        rev_prob = round(min(45.0, max(12.0, abs(50.0 - rsi) * 1.1)), 1)
+        rev_trigger = round(curr_ema26, dec)
+        rev_reason = "Trend principale intatto — inversione non imminente"
+
+    blocked_flag = hard_fakeout if strict_fakeout else (fake_bull_breakout or fake_bear_breakout or atr_spike)
+
+    return {
+        "false_breakout": blocked_flag,
+        "fakeout_label": "BLOCCATO (FAKEOUT/RUMORE)" if blocked_flag else ("ATTENZIONE VOLUME" if fakeout_flags else "PULITO (ROTTURA VALIDA)"),
+        "fakeout_reason": " • ".join(fakeout_flags) if fakeout_flags else "Nessuna falsa rottura o anomalia rilevata.",
+        "reversal_to": rev_dir,
+        "reversal_prob_pct": rev_prob,
+        "reversal_trigger": rev_trigger,
+        "reversal_summary": f"Se inverte → {rev_dir} ({rev_prob}%) @ {rev_trigger}",
+        "reversal_reason": rev_reason,
+    }
+
+
+def compute_math_profit_model(certainty_pct, rrr_val, pos_size, tp_dist, sl_dist, roundtrip_fee, risk_pct, min_rrr=1.25, strict_ev_gate=True):
+    base_p = max(0.42, min(0.80, (certainty_pct / 100.0) * 0.80))
+    if rrr_val >= 1.8:
+        p_win = round(min(0.82, base_p + 0.04), 3)
+    elif rrr_val < min_rrr:
+        p_win = round(max(0.35, base_p - 0.05), 3)
+    else:
+        p_win = round(base_p, 3)
+
+    p_loss = round(1.0 - p_win, 3)
+    gross_win = pos_size * tp_dist
+    gross_loss = pos_size * sl_dist
+    net_win = round(gross_win - roundtrip_fee, 4)
+    total_loss = round(gross_loss + roundtrip_fee, 4)
+    ev_net = round((p_win * net_win) - (p_loss * total_loss), 4)
+
+    b_ratio = (net_win / total_loss) if total_loss > 0 else 0.0
+    kelly_raw = ((b_ratio * p_win) - p_loss) / b_ratio if b_ratio > 0 else 0.0
+    safe_kelly_pct = round(max(0.0, min(kelly_raw * 0.5, risk_pct / 100.0)) * 100.0, 2)
+    break_even_wr = round((total_loss / (net_win + total_loss)) * 100.0, 1) if (net_win + total_loss) > 0 else 50.0
+    math_approved = True if not strict_ev_gate else ((ev_net > 0.0) and (rrr_val >= min_rrr) and (net_win > 0.0))
+
+    return {
+        "p_win_pct": round(p_win * 100.0, 1),
+        "p_loss_pct": round(p_loss * 100.0, 1),
+        "net_win_usd": net_win,
+        "total_loss_usd": total_loss,
+        "ev_net_usd": ev_net,
+        "kelly_pct": safe_kelly_pct,
+        "break_even_wr_pct": break_even_wr,
+        "math_approved": math_approved,
+        "math_badge": "EV+ APPROVATO" if math_approved else "EV- / R:R BASSO",
+    }
+
+
+def compute_tp_progress_pct(action: str, entry: float, current_price: float, tp_val: float) -> float:
+    if not entry or not tp_val or tp_val == entry:
+        return 0.0
+    if action == "SELL":
+        denom = entry - tp_val
+        if denom <= 0:
+            return 0.0
+        pct = ((entry - current_price) / denom) * 100.0
+    else:
+        denom = tp_val - entry
+        if denom <= 0:
+            return 0.0
+        pct = ((current_price - entry) / denom) * 100.0
+    return round(max(0.0, min(100.0, pct)), 1)
+
+
+def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category, is_open, htf_df=None, bx_override=None):
+    close = df["Close"]
+    high = df["High"]
+    low = df["Low"]
+    volume = df["Volume"]
+
+    regime_info = detect_market_regime_and_advice(df, current_price, is_open, cfg)
+
+    rsi_buy_min = cfg["rsi_buy_min"]
+    rsi_buy_max = cfg["rsi_buy_max"]
+    rsi_sell_min = cfg["rsi_sell_min"]
+    rsi_sell_max = cfg["rsi_sell_max"]
+    sl_m = cfg["sl_m"]
+    tp_m = cfg["tp_m"]
+    min_vol_ratio = cfg["min_vol_ratio"]
+    min_score = cfg["min_score"]
+    min_certainty = safe_float(cfg.get("min_certainty", 50.0), 50.0)
+    min_hits = int(cfg.get("min_hits", 3))
+    min_rrr = safe_float(cfg.get("min_rrr", 1.10), 1.10)
+    cooldown_sec = safe_float(cfg.get("cooldown_sec", DIRECTION_COOLDOWN_SEC), DIRECTION_COOLDOWN_SEC)
+    flip_min_cert = safe_float(cfg.get("flip_min_cert", 66.7), 66.7)
+    strict_ev_gate = bool(cfg.get("strict_ev_gate", False))
+    timeframe = cfg["timeframe"]
+    profile = cfg["profile"]
+
+    delta = close.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rsi_series = 100 - (100 / (1 + (gain / loss).replace(0, np.nan)))
+    rsi = safe_float(rsi_series.iloc[-1], 50.0)
+
+    ema12 = close.ewm(span=12, adjust=False).mean()
+    ema26 = close.ewm(span=26, adjust=False).mean()
+    ema50 = close.ewm(span=50, adjust=False).mean()
+    macd_line = ema12 - ema26
+    signal_line = macd_line.ewm(span=9, adjust=False).mean()
+    macd_hist = macd_line - signal_line
+
+    current_macd = safe_float(macd_hist.iloc[-1], 0.0)
+    prev_macd = safe_float(macd_hist.iloc[-2], 0.0)
+    curr_ema12 = safe_float(ema12.iloc[-1], current_price)
+    curr_ema26 = safe_float(ema26.iloc[-1], current_price)
+    curr_ema50 = safe_float(ema50.iloc[-1], current_price)
+
+    tr = pd.concat([high - low, np.abs(high - close.shift()), np.abs(low - close.shift())], axis=1).max(axis=1)
+    atr = safe_float(tr.rolling(14).mean().iloc[-1], current_price * 0.005)
+    if atr <= 0:
+        atr = current_price * 0.005
+
+    vol_curr = safe_float(volume.iloc[-1], 0.0)
+    vol_avg20 = safe_float(volume.rolling(20).mean().iloc[-1], 0.0)
+    vol_ratio = round(vol_curr / vol_avg20, 2) if vol_avg20 > 0 else 1.0
+
+    last_high = safe_float(high.iloc[-1], current_price)
+    last_low = safe_float(low.iloc[-1], current_price)
+    prev_high_20 = safe_float(high.iloc[-21:-1].max(), last_high) if len(df) >= 22 else last_high
+    prev_low_20 = safe_float(low.iloc[-21:-1].min(), last_low) if len(df) >= 22 else last_low
+
+    fake_bull_breakout = (last_high > prev_high_20) and (current_price < prev_high_20 * 0.999)
+    fake_bear_breakout = (last_low < prev_low_20) and (current_price > prev_low_20 * 1.001)
+    last_range = abs(last_high - last_low)
+    is_chop = (vol_avg20 > 0 and vol_curr < vol_avg20 * 0.30) and (last_range < atr * 0.08)
+    vol_ok = (vol_avg20 <= 0) or (vol_ratio >= min_vol_ratio)
+
+    htf_bias = "NEUTRAL"
+    if htf_df is not None and len(htf_df) >= 20:
+        h_close = htf_df["Close"]
+        h_ema20 = safe_float(h_close.ewm(span=20, adjust=False).mean().iloc[-1], current_price)
+        h_ema50 = safe_float(h_close.ewm(span=50, adjust=False).mean().iloc[-1], current_price)
+        if h_ema20 > h_ema50 * 1.0002:
+            htf_bias = "BULL"
+        elif h_ema20 < h_ema50 * 0.9998:
+            htf_bias = "BEAR"
+
+    bull_factors = [
+        curr_ema12 > curr_ema26,
+        curr_ema26 >= curr_ema50 * 0.992,
+        current_price >= curr_ema50 * 0.985,
+        (current_macd > 0) or (current_macd > prev_macd),
+        rsi_buy_min <= rsi <= rsi_buy_max,
+        vol_ratio >= min_vol_ratio,
     ]
-    for path in candidates:
-        if os.path.exists(path):
-            return send_file(path)
-    return Response(FALLBACK_HTML, mimetype="text/html; charset=utf-8")
+    bear_factors = [
+        curr_ema12 < curr_ema26,
+        curr_ema26 <= curr_ema50 * 1.008,
+        current_price <= curr_ema50 * 1.015,
+        (current_macd < 0) or (current_macd < prev_macd),
+        rsi_sell_min <= rsi <= rsi_sell_max,
+        vol_ratio >= min_vol_ratio,
+    ]
 
+    bull_hits = sum(1 for f in bull_factors if f)
+    bear_hits = sum(1 for f in bear_factors if f)
 
-@app.get("/api/health")
-def health():
-    return jsonify(
-        ok=True,
-        mode="live",
-        exchange="BingX",
-        pairs=PAIRS,
-        telegram=bool(TG_TOKEN and TG_CHAT),
-        min_conf=MIN_CONF,
+    bull_certainty = round((bull_hits / 6.0) * 100.0, 1)
+    bear_certainty = round((bear_hits / 6.0) * 100.0, 1)
+
+    htf_bull_ok = True if profile in ("pro_room", "aggressive") else (htf_bias != "BEAR")
+    htf_bear_ok = True if profile in ("pro_room", "aggressive") else (htf_bias != "BULL")
+
+    bull_score_est = min(99.0, round(50.0 + bull_hits * 8.0, 1))
+    bear_score_est = min(99.0, round(50.0 + bear_hits * 8.0, 1))
+
+    bull_strict_ok = (
+        not is_chop
+        and not fake_bull_breakout
+        and vol_ok
+        and htf_bull_ok
+        and (curr_ema12 > curr_ema26 or profile == "pro_room")
+        and bull_hits >= min_hits
+        and bull_certainty >= min_certainty
+        and bull_score_est >= min_score
     )
 
-
-@app.get("/api/state")
-def state():
-    if not PRICES:
-        try:
-            refresh_prices()
-        except Exception:
-            pass
-    rows = []
-    if DB is not None:
-        try:
-            with DLOCK:
-                rows = DB.execute("SELECT * FROM signals ORDER BY t DESC LIMIT 300").fetchall()
-        except Exception:
-            log.exception("query signals")
-    with PLOCK:
-        prices = {k: dict(v) for k, v in PRICES.items()}
-        fund = FUNDING["avg"]
-    with ELOCK:
-        fg = EXTRA["fg"]
-        news = list(EXTRA["news"])
-        whales = list(EXTRA["whales"])
-        liq = dict(EXTRA["liq"])
-        calendar = list(EXTRA["calendar"])
-    return jsonify(
-        mode="live",
-        exchange="BingX",
-        prices=prices,
-        signals=[to_sig(r) for r in rows],
-        sentiment={"fg": fg, "funding": fund},
-        news=news,
-        whales=whales,
-        liquidations=liq,
-        calendar=calendar,
+    bear_strict_ok = (
+        not is_chop
+        and not fake_bear_breakout
+        and vol_ok
+        and htf_bear_ok
+        and (curr_ema12 < curr_ema26 or profile == "pro_room")
+        and bear_hits >= min_hits
+        and bear_certainty >= min_certainty
+        and bear_score_est >= min_score
     )
 
+    clean_sym = canonicalize_symbol_key(symbol)
+    now_ts = time.time()
+    prev_dir_info = _LAST_CONFIRMED_DIRECTION.get(clean_sym)
 
-@app.get("/api/candles")
-def api_candles():
-    tf = request.args.get("tf", "1h")
-    if tf not in GRAN:
-        return jsonify(error="tf non valido"), 400
-    res = list(POOL.map(lambda s: (s, _safe(candles, s, tf)), PAIRS))
-    return jsonify({s: [[x[1], x[2], x[3], x[4]] for x in c[-120:]] for s, c in res if c})
+    candidate_action = "NEUTRAL"
+    if bull_strict_ok and bear_strict_ok:
+        candidate_action = "BUY" if bull_certainty >= bear_certainty else "SELL"
+    elif bull_strict_ok:
+        candidate_action = "BUY"
+    elif bear_strict_ok:
+        candidate_action = "SELL"
+
+    if candidate_action in ["BUY", "SELL"] and prev_dir_info:
+        last_side = prev_dir_info.get("action")
+        last_ts = safe_float(prev_dir_info.get("ts"), 0.0)
+        if last_side in ["BUY", "SELL"] and last_side != candidate_action:
+            elapsed = now_ts - last_ts
+            opp_cert = bull_certainty if candidate_action == "BUY" else bear_certainty
+            if elapsed < cooldown_sec and opp_cert < flip_min_cert:
+                candidate_action = "NEUTRAL"
+
+    if candidate_action == "BUY":
+        certainty_val = bull_certainty
+        confluence_hits = bull_hits
+        score = bull_score_est
+        action, sent, col = "BUY", "LONG CERTO CONFERMATO", "#15803d"
+        inv = f"Segnale Certo LONG ({certainty_val}%)"
+        _LAST_CONFIRMED_DIRECTION[clean_sym] = {"action": "BUY", "ts": now_ts}
+    elif candidate_action == "SELL":
+        certainty_val = bear_certainty
+        confluence_hits = bear_hits
+        score = bear_score_est
+        action, sent, col = "SELL", "SHORT CERTO CONFERMATO", "#dc2626"
+        inv = f"Segnale Certo SHORT ({certainty_val}%)"
+        _LAST_CONFIRMED_DIRECTION[clean_sym] = {"action": "SELL", "ts": now_ts}
+    else:
+        certainty_val = max(bull_certainty, bear_certainty)
+        confluence_hits = max(bull_hits, bear_hits)
+        score = round(min(99.0, max(50.0, 50.0 + confluence_hits * 8.0)), 1)
+        action, sent, col = "NEUTRAL", "FILTRATO ANTI-FAKEOUT / NO-TRADE", "#0f172a"
+        inv = "Solo Segnali Certi • Anti-Falsa Rottura Attivo"
+
+    if certainty_val >= 80.0:
+        certainty_level = "ALTA"
+    elif certainty_val >= 50.0:
+        certainty_level = "MEDIA"
+    else:
+        certainty_level = "BASSA"
+
+    confluence_label = f"{confluence_hits}/6 Fattori"
+
+    bx_symbol, bx_precision = resolve_bingx_symbol(symbol)
+    if bx_override:
+        bx_symbol = bx_override
+    mkt_decimals, min_sl_pct, min_tp_vs_sl = get_market_calibration_spec(symbol, category, current_price)
+    decimals = bx_precision if bx_precision is not None else mkt_decimals
+    tick_size = 10 ** (-decimals)
+
+    raw_sl_dist = max(atr * sl_m, current_price * min_sl_pct)
+    raw_tp_dist = max(atr * tp_m, raw_sl_dist * max(min_tp_vs_sl, min_rrr))
+    entry = quantize_to_tick(current_price, decimals, tick_size)
+
+    if action == "BUY":
+        sl, tp1 = align_tp_sl_to_price("BUY", entry, entry - raw_sl_dist, entry + raw_tp_dist, decimals)
+        tp2 = quantize_to_tick(entry + abs(tp1 - entry) * 1.45, decimals, tick_size)
+        tp3 = quantize_to_tick(entry + abs(tp1 - entry) * 2.0, decimals, tick_size)
+        target_rialzista = tp2
+        target_ribassista = sl
+    elif action == "SELL":
+        sl, tp1 = align_tp_sl_to_price("SELL", entry, entry + raw_sl_dist, entry - raw_tp_dist, decimals)
+        tp2 = quantize_to_tick(entry - abs(entry - tp1) * 1.45, decimals, tick_size)
+        tp3 = quantize_to_tick(entry - abs(entry - tp1) * 2.0, decimals, tick_size)
+        target_rialzista = sl
+        target_ribassista = tp2
+    else:
+        sl = quantize_to_tick(entry - raw_sl_dist, decimals, tick_size)
+        tp1 = quantize_to_tick(entry + raw_tp_dist, decimals, tick_size)
+        tp2 = quantize_to_tick(entry + raw_tp_dist * 1.45, decimals, tick_size)
+        tp3 = quantize_to_tick(entry + raw_tp_dist * 2.0, decimals, tick_size)
+        target_rialzista = tp1
+        target_ribassista = sl
+
+    sl_dist = abs(entry - sl)
+    tp_dist = abs(tp1 - entry)
+    rrr_val = round(tp_dist / sl_dist, 2) if sl_dist > 0 else 0.0
+
+    prog_action = action if action in ("BUY", "SELL") else ("SELL" if curr_ema12 < curr_ema26 else "BUY")
+    tp1_progress_pct = compute_tp_progress_pct(prog_action, entry, current_price, tp1)
+    tp2_progress_pct = compute_tp_progress_pct(prog_action, entry, current_price, tp2)
+    tp3_progress_pct = compute_tp_progress_pct(prog_action, entry, current_price, tp3)
+
+    tf_min = 5 if timeframe == "5m" else (15 if timeframe == "15m" else 60)
+    candle_tf_label = f"Candela {timeframe}"
+    recent_movement = max(abs(close.diff().tail(5)).mean(), atr * 0.18, current_price * 0.0001)
+    candles_needed = max(1, int(np.ceil(tp_dist / recent_movement)))
+    est_min = candles_needed * tf_min
+    duration = (
+        f"~{est_min} min ({candles_needed} candele)"
+        if est_min < 60
+        else f"~{round(est_min / 60, 1)} ore ({candles_needed} candele)"
+    )
+    tp_eta_utc = datetime.fromtimestamp(now_ts + (est_min * 60), tz=timezone.utc).strftime("%H:%M UTC")
+    tp_eta_text = f"{duration} • {candle_tf_label} • ETA ~{tp_eta_utc}"
+
+    if balance <= 2.0 and profile in ("aggressive", "pro_room"):
+        lev_int = 20
+    elif symbol in ["BTCUSDT", "ETHUSDT"]:
+        lev_int = 8
+    elif category == "Criptovalute Globali":
+        lev_int = 10
+    else:
+        lev_int = 5
+
+    max_risk = balance * (risk_pct / 100.0)
+    risk_unit = max(abs(entry - sl), tick_size)
+    pos_size = compute_order_quantity(bx_symbol, entry, max_risk / risk_unit, max(balance, 1.0), lev_int)
+    margin = round((pos_size * entry) / lev_int, 2)
+
+    roi_raw = round((tp_dist / entry) * lev_int * 100, 1) if entry > 0 else 0.0
+    roi_pct = f"+{roi_raw}%" if action == "BUY" else f"-{roi_raw}%" if action == "SELL" else "0.0%"
+
+    notional = pos_size * entry
+    roundtrip_fee = round(notional * 0.001, 4)
+    expected_gross_profit = round(pos_size * tp_dist, 4)
+    expected_net_profit = round(expected_gross_profit - roundtrip_fee, 4)
+
+    anti_fake = compute_reversal_and_fakeout_metrics(
+        df=df,
+        current_price=current_price,
+        rsi=rsi,
+        curr_ema12=curr_ema12,
+        curr_ema26=curr_ema26,
+        current_macd=current_macd,
+        prev_macd=prev_macd,
+        vol_ratio=vol_ratio,
+        min_vol_ratio=min_vol_ratio,
+        strict_fakeout=(profile == "conservative"),
+    )
+
+    math_model = compute_math_profit_model(
+        certainty_pct=certainty_val,
+        rrr_val=rrr_val,
+        pos_size=pos_size,
+        tp_dist=tp_dist,
+        sl_dist=sl_dist,
+        roundtrip_fee=roundtrip_fee,
+        risk_pct=risk_pct,
+        min_rrr=min_rrr,
+        strict_ev_gate=strict_ev_gate,
+    )
+
+    if action in ["BUY", "SELL"] and (anti_fake["false_breakout"] or not math_model["math_approved"]):
+        action = "NEUTRAL"
+        score = 55.0
+        sent = "BLOCCATO ANTI-FAKEOUT / EV"
+        col = "#dc2626"
+        inv = "Blocco Anti-Falsa Rottura & EV"
+        filter_reason = (
+            f"Bloccato da filtro anti-falsa rottura / EV: {anti_fake['fakeout_reason']} | "
+            f"EV netto ${math_model['ev_net_usd']} (R:R 1:{rrr_val} vs min 1:{min_rrr})."
+        )
+        trigger_condition = f"Attesa rottura pulita senza falsa rottura e con EV netto > 0 e R:R >= {min_rrr}."
+    elif not is_open:
+        filter_reason = f"Borsa {category} chiusa nei giorni/orari correnti — in attesa riapertura."
+        trigger_condition = f"Attivazione alla riapertura con certezza >={min_certainty}% (>={min_hits}/6 fattori) e Score >={min_score}%."
+    elif (
+        prev_dir_info
+        and (now_ts - safe_float(prev_dir_info.get("ts"), 0.0)) < cooldown_sec
+        and prev_dir_info.get("action") in ["BUY", "SELL"]
+        and action == "NEUTRAL"
+    ):
+        rem_cd = int(max(1, cooldown_sec - (now_ts - safe_float(prev_dir_info.get("ts"), 0.0))))
+        filter_reason = (
+            f"Protezione anti-inversione ({prev_dir_info.get('action')} recente): "
+            f"attesa {rem_cd}s o certezza >={flip_min_cert}% per cambiare direzione."
+        )
+        trigger_condition = f"Cambio direzione consentito dopo {rem_cd}s oppure con conferma piena ({min_hits}/6 fattori)."
+    elif action == "NEUTRAL":
+        filter_reason = (
+            f"Setup in monitoraggio: Certezza {certainty_val}% (min {min_certainty}%), {confluence_hits}/{min_hits} fattori, "
+            f"Score {score}% (min {min_score}%), RSI {round(rsi, 1)}, Vol {vol_ratio}x."
+        )
+        trigger_condition = (
+            f"Segnali attivi con certezza >={min_certainty}%, Score >={min_score}% e R:R >= 1:{min_rrr}."
+        )
+    else:
+        filter_reason = (
+            f"Segnale certo preso in carico: {action} con certezza {certainty_val}% ({certainty_level}, {confluence_label}) "
+            f"e EV netto +${math_model['ev_net_usd']}."
+        )
+        trigger_condition = f"Segnale certo {action} ({certainty_val}%) con SL {sl_m}x ATR e TP1 {tp_m}x ATR."
+
+    vol_pct = round((atr / entry) * 100, 2) if entry > 0 else 0.0
+    vol_regime = "ALTA VOLATILITÀ" if vol_pct >= 1.2 else ("MODERATA" if vol_pct >= 0.35 else "CONTENUTA")
+    trend_state = (
+        "BULLISH EMA/MACD"
+        if (curr_ema12 > curr_ema26 and current_macd > 0)
+        else ("BEARISH EMA/MACD" if (curr_ema12 < curr_ema26 and current_macd < 0) else "MISTO / NO-FLIP")
+    )
+
+    closes_tail = [round(safe_float(x, current_price), decimals) for x in close.tail(24).tolist()]
+
+    return {
+        "action": action,
+        "certainty_pct": certainty_val,
+        "certainty_level": certainty_level,
+        "certainty_text": f"{certainty_val}% ({certainty_level})",
+        "filter_reason": filter_reason,
+        "trigger_condition": trigger_condition,
+        "trend_state": trend_state,
+        "htf_bias": htf_bias,
+        "bingx_symbol": bx_symbol,
+        "ai_score": f"{score}%",
+        "sentiment": sent,
+        "sentiment_color": col,
+        "inversion": inv,
+        "entry": entry,
+        "sl": sl,
+        "tp1": tp1,
+        "tp2": tp2,
+        "tp3": tp3,
+        "tp1_progress_pct": tp1_progress_pct,
+        "tp2_progress_pct": tp2_progress_pct,
+        "tp3_progress_pct": tp3_progress_pct,
+        "series": closes_tail,
+        "roi_pct": roi_pct,
+        "target_rialzista": target_rialzista,
+        "target_ribassista": target_ribassista,
+        "duration": duration,
+        "candle_tf_label": candle_tf_label,
+        "tp_candles_est": candles_needed,
+        "tp_eta_utc": tp_eta_utc,
+        "tp_eta_text": tp_eta_text,
+        "rrr": rrr_val,
+        "rsi": round(rsi, 1),
+        "vol_ratio": vol_ratio,
+        "confluence": confluence_label,
+        "vol_regime": f"{vol_regime} ({vol_pct}%)",
+        "size": pos_size,
+        "leverage": f"Isolata {lev_int}x",
+        "leverage_num": lev_int,
+        "margin": margin,
+        "decimals": decimals,
+        "sl_dist": round(sl_dist, decimals + 2),
+        "tp_dist": round(tp_dist, decimals + 2),
+        "roundtrip_fee": roundtrip_fee,
+        "expected_net": expected_net_profit,
+        "false_breakout": anti_fake["false_breakout"],
+        "fakeout_label": anti_fake["fakeout_label"],
+        "fakeout_reason": anti_fake["fakeout_reason"],
+        "reversal_to": anti_fake["reversal_to"],
+        "reversal_prob_pct": anti_fake["reversal_prob_pct"],
+        "reversal_trigger": anti_fake["reversal_trigger"],
+        "reversal_summary": anti_fake["reversal_summary"],
+        "reversal_reason": anti_fake["reversal_reason"],
+        "p_win_pct": math_model["p_win_pct"],
+        "net_win_usd": math_model["net_win_usd"],
+        "total_loss_usd": math_model["total_loss_usd"],
+        "ev_net_usd": math_model["ev_net_usd"],
+        "kelly_pct": math_model["kelly_pct"],
+        "break_even_wr_pct": math_model["break_even_wr_pct"],
+        "math_approved": math_model["math_approved"],
+        "math_badge": math_model["math_badge"],
+        "advisor_status": f"SEGNALE CERTO ({certainty_val}%)" if action in ["BUY", "SELL"] else "FILTRATO ANTI-FAKEOUT",
+        "advisor_color": "#15803d" if action in ["BUY", "SELL"] else "#0f172a",
+        "advisor_msg": f"BingX Live: {bx_symbol} | Certezza {certainty_val}% ({certainty_level}) | EV ${math_model['ev_net_usd']}",
+        "applied_params": cfg,
+        "market_regime": regime_info,
+        "recommended_params": regime_info["recommended_params"],
+    }
 
 
-@app.get("/api/orderbook")
-def orderbook():
-    sym = request.args.get("sym", "").upper().replace("-USDT", "").replace("USDT", "")
-    if sym not in PAIRS:
-        return jsonify(error="coppia non valida"), 400
-    try:
-        d = bingx("/openApi/swap/v2/quote/depth", {"symbol": bx_sym(sym), "limit": 20})
-        asks = [[float(x[0]), float(x[1])] for x in (d.get("asks") or [])[:10]]
-        bids = [[float(x[0]), float(x[1])] for x in (d.get("bids") or [])[:10]]
-        return jsonify(asks=asks, bids=bids)
-    except Exception:
-        return jsonify(error="order book non disponibile"), 502
+def build_performance_payload():
+    sync_bingx_real_closed_trades()
+    now_utc = datetime.now(timezone.utc)
+    today_key = now_utc.strftime("%Y-%m-%d")
+    month_key = now_utc.strftime("%Y-%m")
+
+    with STATE_LOCK:
+        closed = list(STATE.get("closed_trades", []))
+
+    def agg(predicate):
+        items = [t for t in closed if predicate(t)]
+        wins = [t for t in items if safe_float(t.get("realized_pnl")) > 0]
+        losses = [t for t in items if safe_float(t.get("realized_pnl")) < 0]
+        total = len(items)
+        w_cnt = len(wins)
+        l_cnt = len(losses)
+        win_pct = round((w_cnt / total) * 100.0, 0) if total > 0 else 0.0
+        loss_pct = round((l_cnt / total) * 100.0, 0) if total > 0 else 0.0
+        won_amt = round(sum(safe_float(t.get("realized_pnl")) for t in wins), 2)
+        lost_amt = round(sum(abs(safe_float(t.get("realized_pnl"))) for t in losses), 2)
+        net_pnl = round(sum(safe_float(t.get("realized_pnl")) for t in items), 2)
+        return {
+            "total_trades": total,
+            "wins": w_cnt,
+            "losses": l_cnt,
+            "win_pct": win_pct,
+            "loss_pct": loss_pct,
+            "won_amount": won_amt,
+            "lost_amount": lost_amt,
+            "net_pnl": net_pnl,
+        }
+
+    daily = agg(lambda t: str(t.get("closed_date", "")) == today_key)
+    monthly = agg(lambda t: str(t.get("closed_month", "")) == month_key)
+    daily["date"] = today_key
+    monthly["month"] = month_key
+    return {
+        "daily": daily,
+        "monthly": monthly,
+        "api_configured": bool(BINGX_API_KEY and BINGX_API_SECRET),
+    }
 
 
-@app.post("/api/telegram/test")
-def tg_test():
-    ok = telegram("Aurum Signal Room (BingX LIVE): test di collegamento Telegram riuscito.")
-    return jsonify(ok=ok, configured=bool(TG_TOKEN and TG_CHAT))
+def maybe_run_auto_trade_loop(signals_out, live_positions, kill_switch_hit):
+    with STATE_LOCK:
+        is_enabled = bool(STATE.get("auto_trade"))
+        max_open_pos = int(STATE.get("max_open_positions", 3))
+    if not is_enabled or kill_switch_hit or not (BINGX_API_KEY and BINGX_API_SECRET):
+        return []
+    if len(live_positions) >= max_open_pos:
+        return []
+
+    executed = []
+    open_syms = {p.get("symbol") for p in live_positions}
+
+    for sig in signals_out:
+        if len(live_positions) + len(executed) >= max_open_pos:
+            break
+        sym = sig.get("symbol")
+        if not sym or sym in open_syms:
+            continue
+        exec_key = f"{sym}_{sig.get('action')}_{sig.get('entry')}_{sig.get('tp1')}"
+        with STATE_LOCK:
+            if exec_key in STATE["auto_executed_keys"]:
+                continue
+
+        bx_symbol = sig.get("bingx_symbol") or resolve_bingx_symbol(sym)[0]
+        action = sig.get("action")
+        lev_int = max(1, min(20, int(safe_float(sig.get("leverage_num"), 5))))
+        qty = max(0.0001, safe_float(sig.get("size"), 0.001))
+        side = "BID" if action == "BUY" else "ASK"
+        pos_side = "LONG" if action == "BUY" else "SHORT"
+
+        sync_bingx_leverage_and_margin(bx_symbol, lev_int, pos_side)
+        order_params = {
+            "symbol": bx_symbol,
+            "side": side,
+            "positionSide": pos_side,
+            "type": "MARKET",
+            "quantity": qty,
+        }
+        if safe_float(sig.get("sl")) > 0:
+            order_params["stopLoss"] = round(safe_float(sig.get("sl")), 6)
+        if safe_float(sig.get("tp1")) > 0:
+            order_params["takeProfit"] = round(safe_float(sig.get("tp1")), 6)
+
+        _, err = bingx_signed_request("POST", "/openApi/swap/v2/trade/order", order_params)
+        if not err:
+            with STATE_LOCK:
+                STATE["auto_executed_keys"].append(exec_key)
+            executed.append(f"{bx_symbol} {action} qty={qty}")
+    return executed
 
 
-try:
-    start()
-except Exception:
-    log.exception("start()")
+def _evaluate_single_asset(category, sess, meta, timeframe, htf_tf, balance, risk_pct, cfg):
+    is_open = bool(sess.get("is_open", True))
+    sym = meta["symbol"]
+    df, curr_price, resolved_bx = get_real_market_dataframe(meta, timeframe)
+    if df is None or curr_price <= 0:
+        err_reason = f"Dato live BingX non disponibile per {resolved_bx} ({timeframe})."
+        return category, {
+            "category": category,
+            "symbol": sym,
+            "bingx_symbol": resolved_bx,
+            "name": meta["name"],
+            "session_status": sess["status"],
+            "days_label": sess.get("days_label", ""),
+            "is_open": is_open,
+            "price": None,
+            "entry": None,
+            "sl": None,
+            "tp1": None,
+            "tp2": None,
+            "tp3": None,
+            "tp1_progress_pct": 0.0,
+            "tp2_progress_pct": 0.0,
+            "tp3_progress_pct": 0.0,
+            "series": [],
+            "action": "NEUTRAL",
+            "taken": False,
+            "ai_score": "0.0%",
+            "certainty_pct": 0.0,
+            "certainty_level": "BASSA",
+            "certainty_text": "0.0% (BASSA)",
+            "filter_reason": err_reason,
+            "why_not_taken": err_reason,
+            "when_taken": "Richiede feed live BingX attivo",
+            "params": {
+                "profile": cfg["profile"],
+                "timeframe": timeframe,
+                "balance": balance,
+                "risk": risk_pct,
+                "min_score": cfg["min_score"],
+            },
+        }, None, True, err_reason
+
+    htf_df, _ = fetch_bingx_klines_multi(get_bingx_symbol_candidates(meta), htf_tf, limit=40) if htf_tf != timeframe else (df, resolved_bx)
+    res = calculate_setup(df, curr_price, sym, balance, risk_pct, cfg, category, is_open, htf_df=htf_df, bx_override=resolved_bx)
+    taken = res["action"] in ("BUY", "SELL") and is_open
+
+    row_payload = {
+        "category": category,
+        "symbol": sym,
+        "bingx_symbol": res["bingx_symbol"],
+        "name": meta["name"],
+        "session_status": sess["status"],
+        "days_label": sess.get("days_label", ""),
+        "is_open": is_open,
+        "price": curr_price,
+        "entry": res["entry"],
+        "sl": res["sl"],
+        "tp1": res["tp1"],
+        "tp2": res["tp2"],
+        "tp3": res["tp3"],
+        "tp1_progress_pct": res["tp1_progress_pct"],
+        "tp2_progress_pct": res["tp2_progress_pct"],
+        "tp3_progress_pct": res["tp3_progress_pct"],
+        "series": res["series"],
+        "target_rialzista": res["target_rialzista"],
+        "target_ribassista": res["target_ribassista"],
+        "rrr": res["rrr"],
+        "roi_pct": res["roi_pct"],
+        "duration": res["duration"],
+        "candle_tf_label": res["candle_tf_label"],
+        "tp_candles_est": res["tp_candles_est"],
+        "tp_eta_utc": res["tp_eta_utc"],
+        "tp_eta_text": res["tp_eta_text"],
+        "confluence": res["confluence"],
+        "htf_bias": res["htf_bias"],
+        "size": res["size"],
+        "leverage": res["leverage"],
+        "leverage_num": res["leverage_num"],
+        "margin": res["margin"],
+        "roundtrip_fee": res["roundtrip_fee"],
+        "expected_net": res["expected_net"],
+        "action": res["action"] if is_open else "NEUTRAL",
+        "taken": taken,
+        "ai_score": res["ai_score"],
+        "certainty_pct": res["certainty_pct"],
+        "certainty_level": res["certainty_level"],
+        "certainty_text": res["certainty_text"],
+        "rsi": res["rsi"],
+        "vol_ratio": res["vol_ratio"],
+        "vol_regime": res["vol_regime"],
+        "trend_state": res["trend_state"],
+        "false_breakout": res["false_breakout"],
+        "fakeout_label": res["fakeout_label"],
+        "fakeout_reason": res["fakeout_reason"],
+        "reversal_to": res["reversal_to"],
+        "reversal_prob_pct": res["reversal_prob_pct"],
+        "reversal_trigger": res["reversal_trigger"],
+        "reversal_summary": res["reversal_summary"],
+        "reversal_reason": res["reversal_reason"],
+        "p_win_pct": res["p_win_pct"],
+        "net_win_usd": res["net_win_usd"],
+        "total_loss_usd": res["total_loss_usd"],
+        "ev_net_usd": res["ev_net_usd"],
+        "kelly_pct": res["kelly_pct"],
+        "break_even_wr_pct": res["break_even_wr_pct"],
+        "math_approved": res["math_approved"],
+        "math_badge": res["math_badge"],
+        "filter_reason": res["filter_reason"],
+        "why_not_taken": res["filter_reason"],
+        "when_taken": res["trigger_condition"],
+        "params": {
+            "profile": cfg["profile"],
+            "timeframe": timeframe,
+            "balance": balance,
+            "risk": risk_pct,
+            "min_score": cfg["min_score"],
+        },
+    }
+
+    signal_item = None
+    if taken:
+        signal_item = {
+            **row_payload,
+            "id": f"{sym}_{res['action']}_{timeframe}",
+            "sentiment": res["sentiment"],
+            "sentiment_color": res["sentiment_color"],
+            "applied_params": cfg,
+        }
+    return category, row_payload, signal_item, False, f"{sym}: {res['filter_reason']}"
+
+
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+
+@app.route("/api/live-ticker", methods=["GET"])
+def api_live_ticker():
+    sym = canonicalize_symbol_key(request.args.get("symbol", "BTCUSDT"))
+    meta = ASSET_LOOKUP.get(sym, {"symbol": sym, "bx": resolve_bingx_symbol(sym)[0]})
+    live_p, bx_used = fetch_bingx_ticker_multi(get_bingx_symbol_candidates(meta))
+    if not live_p or live_p <= 0:
+        return jsonify({"error": f"Prezzo live BingX non disponibile per {bx_used}"}), 503
+    return jsonify({
+        "symbol": sym,
+        "bingx_symbol": bx_used,
+        "price": live_p,
+        "live": True,
+        "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
+    })
+
+
+@app.route("/api/account/summary", methods=["GET"])
+def api_account_summary():
+    bal, err = fetch_bingx_account_balance()
+    positions, pos_err = fetch_bingx_real_positions()
+    with STATE_LOCK:
+        auto_trade = STATE["auto_trade"]
+        max_daily_loss = STATE["max_daily_loss_usd"]
+        max_open_pos = STATE["max_open_positions"]
+    return jsonify({
+        "api_configured": bool(BINGX_API_KEY and BINGX_API_SECRET),
+        "balance": bal,
+        "balance_error": err,
+        "positions": positions,
+        "positions_error": pos_err,
+        "auto_trade": auto_trade,
+        "max_daily_loss_usd": max_daily_loss,
+        "max_open_positions": max_open_pos,
+    })
+
+
+@app.route("/api/autotrade/toggle", methods=["POST"])
+@app.route("/api/autotrade/config", methods=["POST"])
+def api_autotrade_toggle():
+    body = request.get_json(silent=True) or {}
+    with STATE_LOCK:
+        if "enabled" in body:
+            STATE["auto_trade"] = bool(body["enabled"])
+        elif "auto_trade" in body:
+            STATE["auto_trade"] = bool(body["auto_trade"])
+        elif request.path.endswith("/toggle"):
+            STATE["auto_trade"] = not bool(STATE["auto_trade"])
+
+        if "max_daily_loss_usd" in body:
+            STATE["max_daily_loss_usd"] = max(0.5, safe_float(body["max_daily_loss_usd"], STATE["max_daily_loss_usd"]))
+        if "max_open_positions" in body:
+            STATE["max_open_positions"] = max(1, min(15, int(safe_float(body["max_open_positions"], STATE["max_open_positions"]))))
+
+        return jsonify({
+            "success": True,
+            "auto_trade": STATE["auto_trade"],
+            "max_daily_loss_usd": STATE["max_daily_loss_usd"],
+            "max_open_positions": STATE["max_open_positions"],
+        })
+
+
+@app.route("/api/autotrade/close-position", methods=["POST"])
+def api_close_position():
+    if not (BINGX_API_KEY and BINGX_API_SECRET):
+        return jsonify({
+            "success": False,
+            "error": "Modalità reale attiva: imposta BINGX_API_KEY e BINGX_API_SECRET su Render per chiudere posizioni su BingX.",
+        }), 400
+    body = request.get_json(silent=True) or {}
+    sym = canonicalize_symbol_key(body.get("symbol", "BTCUSDT"))
+    bx_symbol, _ = resolve_bingx_symbol(sym)
+    action = (body.get("action") or "BUY").upper()
+    qty = max(0.0001, safe_float(body.get("size"), 0.001))
+    close_side = "ASK" if action == "BUY" else "BID"
+    pos_side = "LONG" if action == "BUY" else "SHORT"
+    order_data, err = bingx_signed_request(
+        "POST",
+        "/openApi/swap/v2/trade/order",
+        {
+            "symbol": bx_symbol,
+            "side": close_side,
+            "positionSide": pos_side,
+            "type": "MARKET",
+            "quantity": qty,
+            "reduceOnly": "true",
+        },
+    )
+    if err:
+        return jsonify({"success": False, "error": f"Errore chiusura posizione BingX: {err}"}), 400
+    return jsonify({"success": True, "order": order_data})
+
+
+@app.route("/api/export/report", methods=["GET"])
+def api_export_report():
+    fmt = (request.args.get("format") or "json").lower()
+    perf = build_performance_payload()
+    with STATE_LOCK:
+        closed_copy = list(STATE["closed_trades"])
+        logs_copy = list(STATE["telemetry_logs"])
+
+    if fmt == "csv":
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(["id", "symbol", "realized_pnl", "closed_date", "closed_month", "closed_at"])
+        for t in closed_copy:
+            writer.writerow([
+                t.get("id", ""),
+                t.get("symbol", ""),
+                t.get("realized_pnl", 0.0),
+                t.get("closed_date", ""),
+                t.get("closed_month", ""),
+                t.get("closed_at", ""),
+            ])
+        return Response(
+            buf.getvalue(),
+            mimetype="text/csv",
+            headers={"Content-Disposition": "attachment; filename=bingx_desk_report.csv"},
+        )
+
+    return jsonify({
+        "performance": perf,
+        "closed_trades": closed_copy,
+        "telemetry_logs": logs_copy,
+    })
+
+
+@app.route("/api/signals", methods=["GET"])
+def get_signals():
+    global _LAST_GOOD_SIGNALS_PAYLOAD
+    profile = request.args.get("profile", "pro_room")
+    timeframe = request.args.get("timeframe", "15m")
+    if timeframe not in ("5m", "15m", "1h"):
+        timeframe = "15m"
+    balance = max(1.0, safe_float(request.args.get("balance"), 2.0))
+    risk_pct = min(20.0, max(0.25, safe_float(request.args.get("risk"), 1.0)))
+    min_score = min(99.0, max(1.0, safe_float(request.args.get("min_score"), 70.0)))
+    market_filter = request.args.get("market", "ALL")
+    symbol_filter = request.args.get("symbol", "ALL")
+
+    cfg = build_profile_config(profile, timeframe, min_score, risk_pct=risk_pct)
+    sessions = get_session_statuses()
+    macro_windows = get_macro_windows(datetime.now(timezone.utc))
+    htf_tf = "1h" if timeframe != "1h" else "1h"
+
+    tasks = []
+    for category, assets in MARKET_CATALOG.items():
+        sess = sessions.get(category, {"status": "APERTO LIVE", "is_open": True, "hours": "24/7"})
+        for meta in assets:
+            sym = meta["symbol"]
+            if market_filter != "ALL" and category != market_filter:
+                continue
+            if symbol_filter != "ALL" and sym != symbol_filter:
+                continue
+            tasks.append((category, sess, meta))
+
+    cat_stats = {
+        cat: {"scanned": 0, "signals": 0, "filtered": 0, "feed_errors": 0, "reasons": []}
+        for cat in MARKET_CATALOG.keys()
+    }
+    signals_out = []
+    monitoring_rows = []
+
+    if tasks:
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            futs = [
+                pool.submit(_evaluate_single_asset, cat, sess, meta, timeframe, htf_tf, balance, risk_pct, cfg)
+                for cat, sess, meta in tasks
+            ]
+            for fut in as_completed(futs):
+                try:
+                    cat, row_payload, sig_item, is_err, reason_txt = fut.result(timeout=7.0)
+                except Exception:
+                    continue
+                st = cat_stats[cat]
+                st["scanned"] += 1
+                if is_err:
+                    st["feed_errors"] += 1
+                monitoring_rows.append(row_payload)
+                if sig_item is not None:
+                    st["signals"] += 1
+                    signals_out.append(sig_item)
+                else:
+                    st["filtered"] += 1
+                    if len(st["reasons"]) < 3:
+                        st["reasons"].append(reason_txt)
+
+    market_diagnostics = {}
+    for category, _assets in MARKET_CATALOG.items():
+        sess = sessions.get(category, {"status": "APERTO LIVE", "is_open": True, "hours": "24/7"})
+        is_open = bool(sess.get("is_open", True))
+        st = cat_stats[category]
+        if not is_open:
+            diag_reason = f"Mercato {category} chiuso ({sess.get('days_label', sess['hours'])})."
+        elif st["scanned"] == 0:
+            diag_reason = f"Nessun asset selezionato per {category} con il filtro corrente."
+        elif st["signals"] == 0:
+            details_str = " | ".join(st["reasons"])
+            diag_reason = (
+                f"Analizzati {st['scanned']} asset live su {category} ({sess.get('days_label', '')}): "
+                f"0 segnali certi, {st['filtered']} filtrati. {details_str}"
+            )
+        else:
+            diag_reason = f"{st['signals']} segnali certi confermati su {category} ({st['filtered']} filtrati)."
+
+        market_diagnostics[category] = {
+            "category": category,
+            "session_status": sess["status"],
+            "days_label": sess.get("days_label", ""),
+            "is_open": is_open,
+            "scanned": st["scanned"],
+            "signals_count": st["signals"],
+            "filtered_count": st["filtered"],
+            "feed_errors": st["feed_errors"],
+            "filter_reason": diag_reason,
+            "reason": diag_reason,
+            "sample_reasons": st["reasons"],
+        }
+
+    perf_payload = build_performance_payload()
+    live_positions, _ = fetch_bingx_real_positions()
+
+    with STATE_LOCK:
+        daily_net = safe_float(perf_payload.get("daily", {}).get("net_pnl"), 0.0)
+        max_loss_val = abs(safe_float(STATE.get("max_daily_loss_usd"), 5.0))
+        max_open_pos_val = int(STATE.get("max_open_positions", 3))
+        kill_switch_hit = daily_net <= -max_loss_val
+        if kill_switch_hit and STATE.get("auto_trade"):
+            STATE["auto_trade"] = False
+
+    auto_executed = maybe_run_auto_trade_loop(signals_out, live_positions, kill_switch_hit)
+    be_updates = run_break_even_trailing_on_positions(live_positions, monitoring_rows)
+
+    with STATE_LOCK:
+        STATE["scans_count"] += 1
+        scans_val = STATE["scans_count"]
+        session_pnl_val = STATE["session_pnl"]
+        extra_info = ""
+        if auto_executed:
+            extra_info += f" | AUTO: {', '.join(auto_executed)}"
+        if be_updates:
+            extra_info += f" | BE: {', '.join(be_updates)}"
+        STATE["telemetry_logs"] = ([{
+            "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
+            "status": f"LIVE SCAN {timeframe} ({profile} • Cap ${balance} • Risk {risk_pct}% • MinScore {min_score}%){' [KILL-SWITCH]' if kill_switch_hit else ''}{extra_info}",
+            "signals_found": len(signals_out),
+            "scanned": len(monitoring_rows),
+        }] + STATE["telemetry_logs"])[:40]
+        logs_copy = list(STATE["telemetry_logs"])
+
+    payload_out = {
+        "sessions": sessions,
+        "macro_windows": macro_windows,
+        "signals": signals_out,
+        "active_params": cfg,
+        "market_diagnostics": market_diagnostics,
+        "market_monitoring_table": monitoring_rows,
+        "performance": perf_payload,
+        "kill_switch_hit": kill_switch_hit,
+        "max_daily_loss_usd": max_loss_val,
+        "max_open_positions": max_open_pos_val,
+        "auto_executed": auto_executed,
+        "be_updates": be_updates,
+        "telemetry": {
+            "scans_count": scans_val,
+            "active_orders_count": len(live_positions),
+            "session_pnl": session_pnl_val,
+            "telemetry_logs": logs_copy,
+        },
+    }
+
+    with _CACHE_LOCK:
+        if monitoring_rows:
+            _LAST_GOOD_SIGNALS_PAYLOAD = payload_out
+        elif _LAST_GOOD_SIGNALS_PAYLOAD is not None:
+            fallback = dict(_LAST_GOOD_SIGNALS_PAYLOAD)
+            fallback["telemetry"] = payload_out["telemetry"]
+            return jsonify(fallback)
+
+    return jsonify(payload_out)
+
+
+@app.route("/api/analytics/performance", methods=["GET"])
+def api_analytics_performance():
+    return jsonify(build_performance_payload())
+
+
+@app.route("/api/autotrade/execute-manual", methods=["POST"])
+def api_execute_manual():
+    if not (BINGX_API_KEY and BINGX_API_SECRET):
+        return jsonify({
+            "success": False,
+            "error": "Modalità reale attiva: imposta BINGX_API_KEY e BINGX_API_SECRET su Render per inviare ordini reali su BingX.",
+        }), 400
+
+    perf = build_performance_payload()
+    daily_net = safe_float(perf.get("daily", {}).get("net_pnl"), 0.0)
+    with STATE_LOCK:
+        max_loss = abs(safe_float(STATE.get("max_daily_loss_usd"), 5.0))
+        max_open_pos = int(STATE.get("max_open_positions", 3))
+
+    if daily_net <= -max_loss:
+        return jsonify({
+            "success": False,
+            "error": f"Kill-switch giornaliero attivo: perdita netta oggi (${daily_net:.2f}) <= -${max_loss:.2f}.",
+        }), 400
+
+    positions, _ = fetch_bingx_real_positions()
+    if len(positions) >= max_open_pos:
+        return jsonify({
+            "success": False,
+            "error": f"Limite posizioni simultanee raggiunto ({len(positions)}/{max_open_pos}).",
+        }), 400
+
+    body = request.get_json(silent=True) or {}
+    sym = canonicalize_symbol_key(body.get("symbol", "BTCUSDT"))
+    bx_symbol, _ = resolve_bingx_symbol(sym)
+    action = (body.get("action") or "BUY").upper()
+    if action not in ("BUY", "SELL"):
+        action = "BUY"
+
+    lev_int = max(1, min(20, int(safe_float(body.get("leverage_num"), 5))))
+    qty = max(0.0001, safe_float(body.get("size"), 0.001))
+    side = "BID" if action == "BUY" else "ASK"
+    pos_side = "LONG" if action == "BUY" else "SHORT"
+
+    sync_bingx_leverage_and_margin(bx_symbol, lev_int, pos_side)
+
+    order_params = {
+        "symbol": bx_symbol,
+        "side": side,
+        "positionSide": pos_side,
+        "type": "MARKET",
+        "quantity": qty,
+    }
+    if safe_float(body.get("sl")) > 0:
+        order_params["stopLoss"] = round(safe_float(body.get("sl")), 6)
+    if safe_float(body.get("tp1")) > 0:
+        order_params["takeProfit"] = round(safe_float(body.get("tp1")), 6)
+
+    order_data, err = bingx_signed_request("POST", "/openApi/swap/v2/trade/order", order_params)
+    if err:
+        return jsonify({"success": False, "error": f"Errore BingX ordine reale: {err}"}), 400
+
+    return jsonify({"success": True, "mode": "BINGX REAL LIVE", "order": order_data})
+
+
+@app.route("/api/autotrade/status", methods=["GET"])
+def api_autotrade_status():
+    positions, pos_err = fetch_bingx_real_positions()
+    perf = build_performance_payload()
+    with STATE_LOCK:
+        closed_copy = list(STATE["closed_trades"])
+        auto_trade = STATE["auto_trade"]
+        max_loss = STATE["max_daily_loss_usd"]
+        max_open_pos = STATE["max_open_positions"]
+    return jsonify({
+        "auto_trade": auto_trade,
+        "max_daily_loss_usd": max_loss,
+        "max_open_positions": max_open_pos,
+        "mode": "BINGX REAL LIVE",
+        "api_configured": bool(BINGX_API_KEY and BINGX_API_SECRET),
+        "positions": positions,
+        "positions_error": pos_err,
+        "history": closed_copy,
+        "performance": perf,
+    })
+
+
+@app.route("/api/telemetry", methods=["GET"])
+def api_telemetry():
+    sync_bingx_real_closed_trades()
+    positions, _ = fetch_bingx_real_positions()
+    with STATE_LOCK:
+        return jsonify({
+            "scans_count": STATE["scans_count"],
+            "active_orders_count": len(positions),
+            "session_pnl": STATE["session_pnl"],
+            "telemetry_logs": list(STATE["telemetry_logs"]),
+        })
+
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "5000")))
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "5000")), debug=False)
