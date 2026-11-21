@@ -21,6 +21,15 @@ BINGX_BASE_URL = os.getenv("BINGX_BASE_URL", "https://open-api.bingx.com").rstri
 BINGX_API_KEY = os.getenv("BINGX_API_KEY", "").strip()
 BINGX_API_SECRET = os.getenv("BINGX_API_SECRET", "").strip()
 
+BINGX_CANDIDATE_BASES = []
+for _u in [
+    BINGX_BASE_URL,
+    "https://open-api.bingx.com",
+    "https://open-api-swap.bingx.com",
+]:
+    if _u and _u not in BINGX_CANDIDATE_BASES:
+        BINGX_CANDIDATE_BASES.append(_u)
+
 DIRECTION_COOLDOWN_SEC = 90.0
 _LAST_CONFIRMED_DIRECTION = {}
 _LIVE_PRICE_CACHE = {}
@@ -156,7 +165,7 @@ def align_tp_sl_to_price(action: str, entry: float, raw_sl: float, raw_tp: float
 def compute_order_quantity(bx_symbol: str, price: float, raw_qty: float, balance: float, leverage: int) -> float:
     if price <= 0:
         return 0.0
-    max_notional = max(balance, 2.0) * max(leverage, 1) * 0.90
+    max_notional = max(balance, 1.0) * max(leverage, 1) * 0.92
     capped_qty = min(max(raw_qty, 0.0), max_notional / price)
     if "BTC" in bx_symbol:
         step = 0.0001
@@ -187,19 +196,19 @@ def get_session_statuses():
             "status": "APERTO (24/7)",
             "is_open": crypto_open,
             "hours": "24/7 Continuo (UTC)",
-            "badge_color": "#00ff66",
+            "badge_color": "#15803d",
         },
         "Materie Prime & Forex": {
             "status": "APERTO (Live)" if commodities_open else "CHIUSO (Weekend)",
             "is_open": commodities_open,
             "hours": "Lun-Ven Sessione Globale UTC",
-            "badge_color": "#00ff66" if commodities_open else "#ff2a4b",
+            "badge_color": "#15803d" if commodities_open else "#dc2626",
         },
         "Azioni & Indici Globali": {
             "status": "APERTO (NYSE/NASDAQ)" if equities_open else "CHIUSO (Fuori Orario)",
             "is_open": equities_open,
             "hours": "NYSE/NASDAQ: 14:30 - 21:00 UTC (Lun-Ven)",
-            "badge_color": "#00ff66" if equities_open else "#ff2a4b",
+            "badge_color": "#15803d" if equities_open else "#dc2626",
         },
     }
 
@@ -243,25 +252,30 @@ def sign_bingx_query(params: dict) -> str:
 
 def bingx_signed_request(method: str, path: str, params: dict):
     if not (BINGX_API_KEY and BINGX_API_SECRET):
-        return None, "API Key / Secret BingX non configurate"
-    req_params = dict(params or {})
-    req_params["timestamp"] = int(time.time() * 1000)
-    signed_qs = sign_bingx_query(req_params)
-    url = f"{BINGX_BASE_URL}{path}?{signed_qs}"
+        return None, "API Key / Secret BingX non configurate su Render"
     headers = {"X-BX-APIKEY": BINGX_API_KEY}
-    try:
-        if method.upper() == "POST":
-            resp = requests.post(url, headers=headers, timeout=3.0)
-        else:
-            resp = requests.get(url, headers=headers, timeout=3.0)
-        data = resp.json()
-        if resp.status_code != 200:
-            return None, f"HTTP {resp.status_code}: {data}"
-        if isinstance(data, dict) and data.get("code") not in (0, "0", None):
-            return None, str(data.get("msg") or data)
-        return data, None
-    except Exception as exc:
-        return None, str(exc)
+    last_err = "Errore connessione BingX"
+    for base in BINGX_CANDIDATE_BASES:
+        req_params = dict(params or {})
+        req_params["timestamp"] = int(time.time() * 1000)
+        signed_qs = sign_bingx_query(req_params)
+        url = f"{base}{path}?{signed_qs}"
+        try:
+            if method.upper() == "POST":
+                resp = requests.post(url, headers=headers, timeout=3.5)
+            else:
+                resp = requests.get(url, headers=headers, timeout=3.5)
+            data = resp.json()
+            if resp.status_code != 200:
+                last_err = f"HTTP {resp.status_code}: {data}"
+                continue
+            if isinstance(data, dict) and data.get("code") not in (0, "0", None):
+                last_err = str(data.get("msg") or data)
+                continue
+            return data, None
+        except Exception as exc:
+            last_err = str(exc)
+    return None, last_err
 
 
 def sync_bingx_leverage_and_margin(bx_symbol: str, lev_int: int, pos_side: str):
@@ -279,7 +293,7 @@ def sync_bingx_leverage_and_margin(bx_symbol: str, lev_int: int, pos_side: str):
 
 def fetch_bingx_account_balance():
     if not (BINGX_API_KEY and BINGX_API_SECRET):
-        return None, "API Key / Secret BingX non configurate"
+        return None, "API Key / Secret BingX non configurate su Render"
     payload, err = bingx_signed_request("GET", "/openApi/swap/v2/user/balance", {})
     if err or not isinstance(payload, dict):
         return None, err or "Errore lettura saldo BingX"
@@ -350,7 +364,7 @@ def sync_bingx_real_closed_trades():
 
 def fetch_bingx_real_positions():
     if not (BINGX_API_KEY and BINGX_API_SECRET):
-        return [], "API Key / Secret BingX non configurate"
+        return [], "API Key / Secret BingX non configurate su Render"
     payload, err = bingx_signed_request("GET", "/openApi/swap/v2/user/positions", {})
     if err or not isinstance(payload, dict):
         return [], err or "Errore lettura posizioni BingX"
@@ -437,22 +451,25 @@ def fetch_bingx_ticker(bx_symbol: str):
         cached = _LIVE_PRICE_CACHE.get(bx_symbol)
         if cached and (time.time() - cached["ts"]) < 2.5:
             return cached["price"]
-    try:
-        url = f"{BINGX_BASE_URL}/openApi/swap/v2/quote/ticker"
-        resp = requests.get(url, params={"symbol": bx_symbol}, timeout=1.8)
-        if resp.status_code == 200:
-            payload = resp.json()
-            data = payload.get("data")
-            if isinstance(data, list) and data:
-                data = data[0]
-            if isinstance(data, dict):
-                price = safe_float(data.get("lastPrice"), 0.0)
-                if price > 0:
-                    with _CACHE_LOCK:
-                        _LIVE_PRICE_CACHE[bx_symbol] = {"price": price, "ts": time.time()}
-                    return price
-    except Exception:
-        pass
+
+    for base in BINGX_CANDIDATE_BASES:
+        try:
+            url = f"{base}/openApi/swap/v2/quote/ticker"
+            resp = requests.get(url, params={"symbol": bx_symbol}, timeout=1.8)
+            if resp.status_code == 200:
+                payload = resp.json()
+                data = payload.get("data")
+                if isinstance(data, list) and data:
+                    data = data[0]
+                if isinstance(data, dict):
+                    price = safe_float(data.get("lastPrice"), 0.0)
+                    if price > 0:
+                        with _CACHE_LOCK:
+                            _LIVE_PRICE_CACHE[bx_symbol] = {"price": price, "ts": time.time()}
+                        return price
+        except Exception:
+            continue
+
     with _CACHE_LOCK:
         if cached:
             return cached["price"]
@@ -468,37 +485,38 @@ def fetch_bingx_klines(bx_symbol: str, interval: str, limit: int = 55):
         if cached and (time.time() - cached["ts"]) < 6.0:
             return cached["df"].copy()
 
-    try:
-        url = f"{BINGX_BASE_URL}/openApi/swap/v2/quote/klines"
-        resp = requests.get(url, params={"symbol": bx_symbol, "interval": bx_int, "limit": limit}, timeout=2.2)
-        if resp.status_code == 200:
-            rows = resp.json().get("data") or []
-            if isinstance(rows, list) and len(rows) >= 35:
-                parsed = []
-                for r in rows[-limit:]:
-                    if isinstance(r, dict):
-                        o = safe_float(r.get("open"))
-                        h = safe_float(r.get("high"))
-                        l = safe_float(r.get("low"))
-                        c = safe_float(r.get("close"))
-                        v = safe_float(r.get("volume"), 0.0)
-                    elif isinstance(r, (list, tuple)) and len(r) >= 6:
-                        o = safe_float(r[1])
-                        h = safe_float(r[2])
-                        l = safe_float(r[3])
-                        c = safe_float(r[4])
-                        v = safe_float(r[5], 0.0)
-                    else:
-                        continue
-                    if c > 0 and h >= l > 0:
-                        parsed.append({"Open": o or c, "High": h, "Low": l, "Close": c, "Volume": max(v, 0.0)})
-                if len(parsed) >= 35:
-                    df_out = pd.DataFrame(parsed)
-                    with _CACHE_LOCK:
-                        _KLINES_CACHE[cache_key] = {"df": df_out, "ts": time.time()}
-                    return df_out.copy()
-    except Exception:
-        pass
+    for base in BINGX_CANDIDATE_BASES:
+        try:
+            url = f"{base}/openApi/swap/v2/quote/klines"
+            resp = requests.get(url, params={"symbol": bx_symbol, "interval": bx_int, "limit": limit}, timeout=2.2)
+            if resp.status_code == 200:
+                rows = resp.json().get("data") or []
+                if isinstance(rows, list) and len(rows) >= 35:
+                    parsed = []
+                    for r in rows[-limit:]:
+                        if isinstance(r, dict):
+                            o = safe_float(r.get("open"))
+                            h = safe_float(r.get("high"))
+                            l = safe_float(r.get("low"))
+                            c = safe_float(r.get("close"))
+                            v = safe_float(r.get("volume"), 0.0)
+                        elif isinstance(r, (list, tuple)) and len(r) >= 6:
+                            o = safe_float(r[1])
+                            h = safe_float(r[2])
+                            l = safe_float(r[3])
+                            c = safe_float(r[4])
+                            v = safe_float(r[5], 0.0)
+                        else:
+                            continue
+                        if c > 0 and h >= l > 0:
+                            parsed.append({"Open": o or c, "High": h, "Low": l, "Close": c, "Volume": max(v, 0.0)})
+                    if len(parsed) >= 35:
+                        df_out = pd.DataFrame(parsed)
+                        with _CACHE_LOCK:
+                            _KLINES_CACHE[cache_key] = {"df": df_out, "ts": time.time()}
+                        return df_out.copy()
+        except Exception:
+            continue
 
     with _CACHE_LOCK:
         if cached:
@@ -522,8 +540,9 @@ def get_real_market_dataframe(meta: dict, timeframe: str):
     return None, (live_price or 0.0)
 
 
-def build_profile_config(profile: str, timeframe: str, min_score: float):
-    p = (profile or "balanced").lower()
+def build_profile_config(profile: str, timeframe: str, min_score: float, risk_pct: float = 1.0):
+    p = (profile or "pro_room").lower()
+    risk_scale = max(0.5, min(2.0, risk_pct / 1.0))
     if p == "conservative":
         return {
             "profile": "conservative",
@@ -536,7 +555,7 @@ def build_profile_config(profile: str, timeframe: str, min_score: float):
             "rsi_buy_max": 66.0,
             "rsi_sell_min": 34.0,
             "rsi_sell_max": 51.0,
-            "sl_m": 1.25,
+            "sl_m": round(1.25 / max(0.85, min(1.2, risk_scale)), 2),
             "tp_m": 2.3,
             "min_vol_ratio": 1.0,
             "cooldown_sec": DIRECTION_COOLDOWN_SEC,
@@ -554,7 +573,7 @@ def build_profile_config(profile: str, timeframe: str, min_score: float):
             "rsi_buy_max": 70.0,
             "rsi_sell_min": 30.0,
             "rsi_sell_max": 55.0,
-            "sl_m": 1.1,
+            "sl_m": round(1.10 / max(0.85, min(1.2, risk_scale)), 2),
             "tp_m": 2.0,
             "min_vol_ratio": 0.85,
             "cooldown_sec": 60.0,
@@ -572,7 +591,7 @@ def build_profile_config(profile: str, timeframe: str, min_score: float):
             "rsi_buy_max": 72.0,
             "rsi_sell_min": 28.0,
             "rsi_sell_max": 56.0,
-            "sl_m": 1.1,
+            "sl_m": round(1.10 / max(0.85, min(1.2, risk_scale)), 2),
             "tp_m": 1.9,
             "min_vol_ratio": 0.75,
             "cooldown_sec": 45.0,
@@ -589,7 +608,7 @@ def build_profile_config(profile: str, timeframe: str, min_score: float):
         "rsi_buy_max": 68.0,
         "rsi_sell_min": 32.0,
         "rsi_sell_max": 54.0,
-        "sl_m": 1.2,
+        "sl_m": round(1.20 / max(0.85, min(1.2, risk_scale)), 2),
         "tp_m": 2.1,
         "min_vol_ratio": 0.90,
         "cooldown_sec": DIRECTION_COOLDOWN_SEC,
@@ -746,6 +765,22 @@ def compute_math_profit_model(certainty_pct, rrr_val, pos_size, tp_dist, sl_dist
     }
 
 
+def compute_tp_progress_pct(action: str, entry: float, current_price: float, tp_val: float) -> float:
+    if not entry or not tp_val or tp_val == entry:
+        return 0.0
+    if action == "SELL":
+        denom = entry - tp_val
+        if denom <= 0:
+            return 0.0
+        pct = ((entry - current_price) / denom) * 100.0
+    else:
+        denom = tp_val - entry
+        if denom <= 0:
+            return 0.0
+        pct = ((current_price - entry) / denom) * 100.0
+    return round(max(0.0, min(100.0, pct)), 1)
+
+
 def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category, is_open, htf_df=None):
     close = df["Close"]
     high = df["High"]
@@ -844,6 +879,9 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
     htf_bull_ok = True if profile == "pro_room" else (htf_bias != "BEAR")
     htf_bear_ok = True if profile == "pro_room" else (htf_bias != "BULL")
 
+    bull_score_est = min(99.0, 68.0 + bull_hits * 4.5)
+    bear_score_est = min(99.0, 68.0 + bear_hits * 4.5)
+
     bull_strict_ok = (
         not is_chop
         and not fake_bull_breakout
@@ -853,6 +891,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         and (rsi_buy_min <= rsi <= rsi_buy_max)
         and bull_hits >= min_hits
         and bull_certainty >= min_certainty
+        and bull_score_est >= min_score
     )
 
     bear_strict_ok = (
@@ -864,6 +903,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         and (rsi_sell_min <= rsi <= rsi_sell_max)
         and bear_hits >= min_hits
         and bear_certainty >= min_certainty
+        and bear_score_est >= min_score
     )
 
     clean_sym = canonicalize_symbol_key(symbol)
@@ -891,22 +931,22 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         certainty_val = bull_certainty
         confluence_hits = bull_hits
         score = round(min(99.0, max(min_score, 68.0 + bull_hits * 4.5)), 1)
-        action, sent, col = "BUY", "LONG CERTO CONFERMATO", "#00ff66"
-        inv = f"🚀 Segnale Certo LONG ({certainty_val}%)"
+        action, sent, col = "BUY", "LONG CERTO CONFERMATO", "#15803d"
+        inv = f"Segnale Certo LONG ({certainty_val}%)"
         _LAST_CONFIRMED_DIRECTION[clean_sym] = {"action": "BUY", "ts": now_ts}
     elif candidate_action == "SELL":
         certainty_val = bear_certainty
         confluence_hits = bear_hits
         score = round(min(99.0, max(min_score, 68.0 + bear_hits * 4.5)), 1)
-        action, sent, col = "SELL", "SHORT CERTO CONFERMATO", "#ff2a4b"
-        inv = f"📉 Segnale Certo SHORT ({certainty_val}%)"
+        action, sent, col = "SELL", "SHORT CERTO CONFERMATO", "#dc2626"
+        inv = f"Segnale Certo SHORT ({certainty_val}%)"
         _LAST_CONFIRMED_DIRECTION[clean_sym] = {"action": "SELL", "ts": now_ts}
     else:
         certainty_val = max(bull_certainty, bear_certainty)
         confluence_hits = max(bull_hits, bear_hits)
         score = round(min(95.0, max(55.0, 50.0 + confluence_hits * 5.0)), 1)
-        action, sent, col = "NEUTRAL", "FILTRATO ANTI-FAKEOUT / NO-TRADE", "#ffffff"
-        inv = "🛡️ Solo Segnali Certi • Anti-Falsa Rottura Attivo"
+        action, sent, col = "NEUTRAL", "FILTRATO ANTI-FAKEOUT / NO-TRADE", "#0f172a"
+        inv = "Solo Segnali Certi • Anti-Falsa Rottura Attivo"
 
     if certainty_val >= 80.0:
         certainty_level = "ALTA"
@@ -950,6 +990,11 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
     tp_dist = abs(tp1 - entry)
     rrr_val = round(tp_dist / sl_dist, 2) if sl_dist > 0 else 0.0
 
+    prog_action = action if action in ("BUY", "SELL") else ("SELL" if curr_ema12 < curr_ema26 else "BUY")
+    tp1_progress_pct = compute_tp_progress_pct(prog_action, entry, current_price, tp1)
+    tp2_progress_pct = compute_tp_progress_pct(prog_action, entry, current_price, tp2)
+    tp3_progress_pct = compute_tp_progress_pct(prog_action, entry, current_price, tp3)
+
     tf_min = 5 if timeframe == "5m" else (15 if timeframe == "15m" else 60)
     candle_tf_label = f"Candela {timeframe}"
     recent_movement = max(abs(close.diff().tail(5)).mean(), atr * 0.18, current_price * 0.0001)
@@ -974,7 +1019,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
 
     max_risk = balance * (risk_pct / 100.0)
     risk_unit = max(abs(entry - sl), tick_size)
-    pos_size = compute_order_quantity(bx_symbol, entry, max_risk / risk_unit, max(balance, 2.0), lev_int)
+    pos_size = compute_order_quantity(bx_symbol, entry, max_risk / risk_unit, max(balance, 1.0), lev_int)
     margin = round((pos_size * entry) / lev_int, 2)
 
     roi_raw = round((tp_dist / entry) * lev_int * 100, 1) if entry > 0 else 0.0
@@ -1013,8 +1058,8 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         action = "NEUTRAL"
         score = 55.0
         sent = "BLOCCATO ANTI-FAKEOUT / EV"
-        col = "#ffd166"
-        inv = "🛡️ Blocco Anti-Falsa Rottura & EV"
+        col = "#dc2626"
+        inv = "Blocco Anti-Falsa Rottura & EV"
         filter_reason = (
             f"Bloccato da filtro anti-falsa rottura / EV: {anti_fake['fakeout_reason']} | "
             f"EV netto ${math_model['ev_net_usd']} (R:R 1:{rrr_val} vs min 1:{min_rrr})."
@@ -1038,10 +1083,10 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
     elif action == "NEUTRAL":
         filter_reason = (
             f"Setup in monitoraggio: Certezza {certainty_val}% (min {min_certainty}%), {confluence_hits}/{min_hits} fattori, "
-            f"RSI {round(rsi, 1)}, Vol {vol_ratio}x (min {min_vol_ratio}x)."
+            f"Score {score}% (min {min_score}%), RSI {round(rsi, 1)}, Vol {vol_ratio}x."
         )
         trigger_condition = (
-            f"Segnali attivi con certezza >={min_certainty}%, >={min_hits}/6 fattori e R:R >= 1:{min_rrr}."
+            f"Segnali attivi con certezza >={min_certainty}%, Score >={min_score}% e R:R >= 1:{min_rrr}."
         )
     else:
         filter_reason = (
@@ -1079,6 +1124,9 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         "tp1": tp1,
         "tp2": tp2,
         "tp3": tp3,
+        "tp1_progress_pct": tp1_progress_pct,
+        "tp2_progress_pct": tp2_progress_pct,
+        "tp3_progress_pct": tp3_progress_pct,
         "series": closes_tail,
         "roi_pct": roi_pct,
         "target_rialzista": target_rialzista,
@@ -1119,7 +1167,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         "math_approved": math_model["math_approved"],
         "math_badge": math_model["math_badge"],
         "advisor_status": f"SEGNALE CERTO ({certainty_val}%)" if action in ["BUY", "SELL"] else "FILTRATO ANTI-FAKEOUT",
-        "advisor_color": "#00ff66" if action in ["BUY", "SELL"] else "#8a99ad",
+        "advisor_color": "#15803d" if action in ["BUY", "SELL"] else "#0f172a",
         "advisor_msg": f"BingX Live: {bx_symbol} | Certezza {certainty_val}% ({certainty_level}) | EV ${math_model['ev_net_usd']}",
         "applied_params": cfg,
         "market_regime": regime_info,
@@ -1240,6 +1288,9 @@ def _evaluate_single_asset(category, sess, meta, timeframe, htf_tf, balance, ris
             "tp1": None,
             "tp2": None,
             "tp3": None,
+            "tp1_progress_pct": 0.0,
+            "tp2_progress_pct": 0.0,
+            "tp3_progress_pct": 0.0,
             "series": [],
             "action": "NEUTRAL",
             "taken": False,
@@ -1276,6 +1327,9 @@ def _evaluate_single_asset(category, sess, meta, timeframe, htf_tf, balance, ris
         "tp1": res["tp1"],
         "tp2": res["tp2"],
         "tp3": res["tp3"],
+        "tp1_progress_pct": res["tp1_progress_pct"],
+        "tp2_progress_pct": res["tp2_progress_pct"],
+        "tp3_progress_pct": res["tp3_progress_pct"],
         "series": res["series"],
         "target_rialzista": res["target_rialzista"],
         "target_ribassista": res["target_ribassista"],
@@ -1415,7 +1469,7 @@ def api_close_position():
     if not (BINGX_API_KEY and BINGX_API_SECRET):
         return jsonify({
             "success": False,
-            "error": "Modalità reale attiva: imposta BINGX_API_KEY e BINGX_API_SECRET per chiudere posizioni su BingX.",
+            "error": "Modalità reale attiva: imposta BINGX_API_KEY e BINGX_API_SECRET su Render per chiudere posizioni su BingX.",
         }), 400
     body = request.get_json(silent=True) or {}
     sym = canonicalize_symbol_key(body.get("symbol", "BTCUSDT"))
@@ -1488,7 +1542,7 @@ def get_signals():
     market_filter = request.args.get("market", "ALL")
     symbol_filter = request.args.get("symbol", "ALL")
 
-    cfg = build_profile_config(profile, timeframe, min_score)
+    cfg = build_profile_config(profile, timeframe, min_score, risk_pct=risk_pct)
     sessions = get_session_statuses()
     macro_windows = get_macro_windows(datetime.now(timezone.utc))
     htf_tf = "1h" if timeframe != "1h" else "1h"
@@ -1520,7 +1574,7 @@ def get_signals():
             for fut in as_completed(futs):
                 try:
                     cat, row_payload, sig_item, is_err, reason_txt = fut.result(timeout=4.5)
-                except Exception as exc:
+                except Exception:
                     continue
                 st = cat_stats[cat]
                 st["scanned"] += 1
@@ -1536,7 +1590,7 @@ def get_signals():
                         st["reasons"].append(reason_txt)
 
     market_diagnostics = {}
-    for category, assets in MARKET_CATALOG.items():
+    for category, _assets in MARKET_CATALOG.items():
         sess = sessions.get(category, {"status": "APERTO (Live)", "is_open": True, "hours": "24/7"})
         is_open = bool(sess.get("is_open", True))
         st = cat_stats[category]
@@ -1591,7 +1645,7 @@ def get_signals():
             extra_info += f" | BE: {', '.join(be_updates)}"
         STATE["telemetry_logs"] = ([{
             "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
-            "status": f"LIVE SCAN {timeframe} ({profile}){' [KILL-SWITCH]' if kill_switch_hit else ''}{extra_info}",
+            "status": f"LIVE SCAN {timeframe} ({profile} • Cap ${balance} • Risk {risk_pct}%){' [KILL-SWITCH]' if kill_switch_hit else ''}{extra_info}",
             "signals_found": len(signals_out),
             "scanned": len(monitoring_rows),
         }] + STATE["telemetry_logs"])[:40]
@@ -1639,7 +1693,7 @@ def api_execute_manual():
     if not (BINGX_API_KEY and BINGX_API_SECRET):
         return jsonify({
             "success": False,
-            "error": "Modalità reale attiva: imposta BINGX_API_KEY e BINGX_API_SECRET per inviare ordini reali su BingX.",
+            "error": "Modalità reale attiva: imposta BINGX_API_KEY e BINGX_API_SECRET su Render per inviare ordini reali su BingX.",
         }), 400
 
     perf = build_performance_payload()
