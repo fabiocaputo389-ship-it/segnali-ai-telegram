@@ -12,7 +12,7 @@ Variabili d'ambiente:
   MAX_ACTIVE   (default 8)    segnali attivi contemporanei
   COOLDOWN_MIN (default 180)  minuti di pausa per coppia dopo un segnale
   ENGINE_SEC   (default 60)   frequenza di analisi
-  DB_PATH      (default signals.db)
+  DB_PATH      (default /tmp/signals.db)
   BINGX_BASE_URL (default https://open-api.bingx.com)
   WHALE_MIN_USD  (default 250000) soglia minima USD per rilevare un trade balena reale
   CALENDAR_FEED_URL (opzionale) URL JSON per eventi macro reali: [{"title","impact","timestamp_ms"}]
@@ -50,7 +50,7 @@ CALENDAR_FEED_URL = os.getenv("CALENDAR_FEED_URL", "").strip()
 TG_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 TG_CHAT = os.getenv("TELEGRAM_CHAT_ID", "").strip()
 PASSWORD = os.getenv("DASHBOARD_PASSWORD", "").strip()
-DB_PATH = os.getenv("DB_PATH", "signals.db")
+DB_PATH = os.getenv("DB_PATH", "/tmp/signals.db")
 GRAN = {"5m": "5m", "15m": "15m", "1h": "1h", "4h": "4h"}
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -277,6 +277,9 @@ DB = None
 
 def init_db():
     global DB
+    parent = os.path.dirname(os.path.abspath(DB_PATH))
+    if parent and not os.path.exists(parent):
+        os.makedirs(parent, exist_ok=True)
     DB = sqlite3.connect(DB_PATH, check_same_thread=False)
     DB.row_factory = sqlite3.Row
     DB.execute("""CREATE TABLE IF NOT EXISTS signals(
@@ -351,6 +354,8 @@ def sig_text(g):
 
 # ------------------------------------------------------------------ motore segnali & TP/SL
 def create_signal(sym, sc, price):
+    if DB is None:
+        return
     s = 1 if sc["dir"] == "long" else -1
     R = sc["R"]
     now = int(time.time() * 1000)
@@ -385,6 +390,8 @@ def create_signal(sym, sc, price):
 
 
 def run_engine():
+    if DB is None:
+        return
     with DLOCK:
         active = [r["sym"] for r in DB.execute("SELECT sym FROM signals WHERE closed=0")]
     if len(active) >= MAX_ACTIVE:
@@ -412,6 +419,8 @@ def run_engine():
 
 
 def resolve_all():
+    if DB is None:
+        return
     now = int(time.time() * 1000)
     with DLOCK:
         rows = DB.execute("SELECT * FROM signals WHERE closed=0").fetchall()
@@ -487,7 +496,6 @@ def refresh_trades_and_whales():
             if px <= 0 or qty <= 0:
                 continue
 
-            # In BingX swap trades: buyerMaker=True indica aggressore venditore (pressione short/sell)
             buyer_maker = bool(tr.get("buyerMaker"))
             is_buy = not buyer_maker
             tid = str(tr.get("id") or f"{sym}-{ts}-{px}-{qty}")
@@ -501,7 +509,6 @@ def refresh_trades_and_whales():
                     "usd": usd,
                 })
 
-            # Aggregazione flussi aggressivi/liquidazioni potenziali nella finestra 1h su trade di dimensione elevata
             if ts >= one_hour_ago and usd >= WHALE_MIN_USD and tid not in _SEEN_LIQ_TRADES:
                 _SEEN_LIQ_TRADES.add(tid)
                 if is_buy:
@@ -589,7 +596,10 @@ def start():
     if _started:
         return
     _started = True
-    init_db()
+    try:
+        init_db()
+    except Exception:
+        log.exception("init_db")
     for fn, sec, name in (
         (lambda: (refresh_prices(), resolve_all()), 3, "prezzi"),
         (run_engine, ENGINE_SEC, "motore"),
@@ -612,7 +622,10 @@ def auth():
 
 @app.get("/")
 def index():
-    return send_file(os.path.join(HERE, "index.html"))
+    html_path = os.path.join(HERE, "index.html")
+    if not os.path.exists(html_path):
+        return jsonify(error="index.html non trovato"), 500
+    return send_file(html_path)
 
 
 @app.get("/api/health")
@@ -634,8 +647,13 @@ def state():
             refresh_prices()
         except Exception:
             pass
-    with DLOCK:
-        rows = DB.execute("SELECT * FROM signals ORDER BY t DESC LIMIT 300").fetchall()
+    rows = []
+    if DB is not None:
+        try:
+            with DLOCK:
+                rows = DB.execute("SELECT * FROM signals ORDER BY t DESC LIMIT 300").fetchall()
+        except Exception:
+            log.exception("query signals")
     with PLOCK:
         prices = {k: dict(v) for k, v in PRICES.items()}
         fund = FUNDING["avg"]
@@ -687,7 +705,10 @@ def tg_test():
     return jsonify(ok=ok, configured=bool(TG_TOKEN and TG_CHAT))
 
 
-start()
+try:
+    start()
+except Exception:
+    log.exception("start()")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", "5000")))
