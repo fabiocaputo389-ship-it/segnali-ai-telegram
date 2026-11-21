@@ -23,6 +23,8 @@ BINGX_API_KEY = os.getenv("BINGX_API_KEY", "").strip()
 BINGX_API_SECRET = os.getenv("BINGX_API_SECRET", "").strip()
 ALLOW_WEEKEND_TRADFI = os.getenv("ALLOW_WEEKEND_TRADFI", "false").strip().lower() in ("1", "true", "yes")
 STATE_FILE_PATH = os.getenv("TERMINAL_STATE_FILE", "terminal_state.json")
+MAX_SLIPPAGE_PCT = float(os.getenv("MAX_SLIPPAGE_PCT", "0.35"))
+LOSS_COOLDOWN_SEC = float(os.getenv("LOSS_COOLDOWN_MINUTES", "20")) * 60.0
 
 BINGX_CANDIDATE_BASES = []
 for _u in [
@@ -47,6 +49,8 @@ STATE = {
     "real_mode": True,
     "max_daily_loss_usd": 5.0,
     "max_open_positions": 3,
+    "max_slippage_pct": MAX_SLIPPAGE_PCT,
+    "loss_cooldown_sec": LOSS_COOLDOWN_SEC,
     "auto_executed_keys": [],
     "trailing_updated_keys": [],
     "scans_count": 0,
@@ -116,6 +120,8 @@ def persist_state_locked():
             "auto_trade": bool(STATE.get("auto_trade", False)),
             "max_daily_loss_usd": safe_float(STATE.get("max_daily_loss_usd"), 5.0),
             "max_open_positions": int(STATE.get("max_open_positions", 3)),
+            "max_slippage_pct": safe_float(STATE.get("max_slippage_pct"), MAX_SLIPPAGE_PCT),
+            "loss_cooldown_sec": safe_float(STATE.get("loss_cooldown_sec"), LOSS_COOLDOWN_SEC),
             "auto_executed_keys": list(STATE.get("auto_executed_keys", []))[-300:],
             "trailing_updated_keys": list(STATE.get("trailing_updated_keys", []))[-300:],
             "closed_trades": list(STATE.get("closed_trades", []))[-500:],
@@ -143,6 +149,10 @@ def load_persisted_state():
                 STATE["max_daily_loss_usd"] = max(0.5, safe_float(data["max_daily_loss_usd"], 5.0))
             if "max_open_positions" in data:
                 STATE["max_open_positions"] = max(1, min(15, int(safe_float(data["max_open_positions"], 3))))
+            if "max_slippage_pct" in data:
+                STATE["max_slippage_pct"] = max(0.05, min(5.0, safe_float(data["max_slippage_pct"], MAX_SLIPPAGE_PCT)))
+            if "loss_cooldown_sec" in data:
+                STATE["loss_cooldown_sec"] = max(0.0, safe_float(data["loss_cooldown_sec"], LOSS_COOLDOWN_SEC))
             if isinstance(data.get("auto_executed_keys"), list):
                 STATE["auto_executed_keys"] = data["auto_executed_keys"][-300:]
             if isinstance(data.get("trailing_updated_keys"), list):
@@ -220,11 +230,15 @@ def get_bingx_contract_spec(bx_symbol: str):
                                 price_prec = int(safe_float(item.get("pricePrecision"), 2))
                                 if step_val <= 0 and qty_prec >= 0:
                                     step_val = 10 ** (-qty_prec) if qty_prec > 0 else 1.0
+                                min_notional = max(
+                                    safe_float(item.get("tradeMinUSDT"), 0.0),
+                                    safe_float(item.get("minNotional"), 0.0),
+                                )
                                 parsed[s_key] = {
                                     "pricePrecision": max(0, min(8, price_prec)),
                                     "quantityPrecision": max(0, min(6, qty_prec)),
                                     "stepSize": step_val if step_val > 0 else 0.001,
-                                    "tradeMinUSDT": safe_float(item.get("tradeMinUSDT"), 1.0),
+                                    "tradeMinUSDT": min_notional if min_notional > 0 else 1.0,
                                 }
                             if parsed:
                                 _CONTRACT_SPECS_CACHE["by_symbol"] = parsed
@@ -233,6 +247,56 @@ def get_bingx_contract_spec(bx_symbol: str):
                 except Exception:
                     continue
         return _CONTRACT_SPECS_CACHE.get("by_symbol", {}).get(str(bx_symbol or "").upper())
+
+
+def get_symbol_loss_cooldown_remaining(symbol: str):
+    clean_sym = canonicalize_symbol_key(symbol)
+    with STATE_LOCK:
+        cd_sec = max(0.0, safe_float(STATE.get("loss_cooldown_sec"), LOSS_COOLDOWN_SEC))
+        trades = list(STATE.get("closed_trades", []))
+    if cd_sec <= 0.0:
+        return 0
+    now_ts = time.time()
+    latest_loss_ts = 0.0
+    for tr in trades:
+        if canonicalize_symbol_key(tr.get("symbol") or "") != clean_sym:
+            continue
+        if safe_float(tr.get("realized_pnl"), 0.0) >= 0.0:
+            continue
+        t_ts = safe_float(tr.get("closed_ts"), 0.0)
+        if t_ts <= 0.0 and tr.get("closed_at"):
+            try:
+                dt_obj = datetime.strptime(str(tr["closed_at"]).replace(" UTC", ""), "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+                t_ts = dt_obj.timestamp()
+            except Exception:
+                t_ts = 0.0
+        if t_ts > latest_loss_ts:
+            latest_loss_ts = t_ts
+    if latest_loss_ts <= 0.0:
+        return 0
+    rem = int(math.ceil(cd_sec - (now_ts - latest_loss_ts)))
+    return rem if rem > 0 else 0
+
+
+def validate_order_execution_guards(bx_symbol: str, price: float, qty: float, expected_entry: float = 0.0):
+    c_spec = get_bingx_contract_spec(bx_symbol) or {}
+    min_usdt = safe_float(c_spec.get("tradeMinUSDT"), 1.0)
+    if price <= 0 or qty <= 0:
+        return False, f"Quantità o prezzo non valido per {bx_symbol}."
+    notional = qty * price
+    if notional < min_usdt:
+        return False, f"Nozionale ordine (${notional:.2f}) inferiore al minimo BingX (${min_usdt:.2f}) per {bx_symbol}."
+
+    with STATE_LOCK:
+        max_slip = max(0.05, safe_float(STATE.get("max_slippage_pct"), MAX_SLIPPAGE_PCT))
+
+    ref_entry = safe_float(expected_entry, 0.0)
+    if ref_entry > 0:
+        slip_pct = abs(price - ref_entry) / ref_entry * 100.0
+        if slip_pct > max_slip:
+            return False, f"Slippage {slip_pct:.2f}% superiore al limite {max_slip:.2f}% (Entry {ref_entry} vs Live {price})."
+
+    return True, None
 
 
 def get_market_calibration_spec(symbol: str, category: str, price: float, bx_symbol: str = None):
@@ -506,6 +570,7 @@ def sync_bingx_real_closed_trades():
             "id": trade_id,
             "symbol": canonicalize_symbol_key(item.get("symbol") or "BTCUSDT"),
             "realized_pnl": round(pnl_val, 4),
+            "closed_ts": round(t_ms / 1000.0, 3),
             "closed_date": dt_utc.strftime("%Y-%m-%d"),
             "closed_month": dt_utc.strftime("%Y-%m"),
             "closed_at": dt_utc.strftime("%Y-%m-%d %H:%M:%S UTC"),
@@ -1142,6 +1207,10 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
             if elapsed < cooldown_sec and opp_cert < flip_min_cert:
                 candidate_action = "NEUTRAL"
 
+    loss_cd_rem = get_symbol_loss_cooldown_remaining(clean_sym)
+    if candidate_action in ["BUY", "SELL"] and loss_cd_rem > 0:
+        candidate_action = "NEUTRAL"
+
     if candidate_action == "BUY":
         certainty_val = bull_certainty
         confluence_hits = bull_hits
@@ -1291,6 +1360,9 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
             f"EV netto ${math_model['ev_net_usd']} (R:R 1:{rrr_val}) | {anti_fake['fakeout_reason']}."
         )
         trigger_condition = f"Attesa Certezza Profitto >={min_profit_cert}%, EV netto > 0 e struttura senza fakeout."
+    elif loss_cd_rem > 0 and action == "NEUTRAL":
+        filter_reason = f"Cooldown post-perdita attivo su {clean_sym}: pausa residua {loss_cd_rem}s prima di nuovi ingressi."
+        trigger_condition = f"Ripresa scansione segnali su {clean_sym} al termine del cooldown ({loss_cd_rem}s)."
     elif not is_open:
         filter_reason = f"Borsa {category} chiusa nei giorni/orari correnti — in attesa riapertura."
         trigger_condition = f"Attivazione alla riapertura con certezza >={min_certainty}% (>={min_hits}/6 fattori) e Score >={min_score}%."
@@ -1337,6 +1409,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         "certainty_level": certainty_level,
         "certainty_text": f"{certainty_val}% ({certainty_level})",
         "profit_certainty_pct": profit_cert_val,
+        "loss_cooldown_rem": loss_cd_rem,
         "filter_reason": filter_reason,
         "trigger_condition": trigger_condition,
         "trend_state": trend_state,
@@ -1464,6 +1537,8 @@ def maybe_run_auto_trade_loop(signals_out, live_positions, kill_switch_hit, acco
         sym = sig.get("symbol")
         if not sym or sym in open_syms:
             continue
+        if get_symbol_loss_cooldown_remaining(sym) > 0:
+            continue
         exec_key = f"{sym}_{sig.get('action')}_{sig.get('entry')}_{sig.get('tp1')}"
         with STATE_LOCK:
             if exec_key in STATE["auto_executed_keys"]:
@@ -1476,14 +1551,18 @@ def maybe_run_auto_trade_loop(signals_out, live_positions, kill_switch_hit, acco
         if bal_val > 0 and bal_val <= 2.0 and profile_name in ("aggressive", "pro_room"):
             lev_int = 20
 
-        curr_p = safe_float(sig.get("price"), safe_float(sig.get("entry"), 0.0))
+        live_p = fetch_bingx_ticker(bx_symbol) or safe_float(sig.get("price"), safe_float(sig.get("entry"), 0.0))
         qty = compute_order_quantity(
             bx_symbol,
-            curr_p if curr_p > 0 else 1.0,
+            live_p if live_p > 0 else 1.0,
             safe_float(sig.get("size"), 0.001),
             max(bal_val, 1.0),
             lev_int,
         )
+        ok_guard, _guard_err = validate_order_execution_guards(bx_symbol, live_p, qty, expected_entry=safe_float(sig.get("entry"), 0.0))
+        if not ok_guard:
+            continue
+
         side = "BID" if action == "BUY" else "ASK"
         pos_side = "LONG" if action == "BUY" else "SHORT"
 
@@ -1596,6 +1675,7 @@ def _evaluate_single_asset(category, sess, meta, timeframe, htf_tf, balance, ris
         "ai_score": res["ai_score"],
         "certainty_pct": res["certainty_pct"],
         "profit_certainty_pct": res["profit_certainty_pct"],
+        "loss_cooldown_rem": res["loss_cooldown_rem"],
         "certainty_level": res["certainty_level"],
         "certainty_text": res["certainty_text"],
         "rsi": res["rsi"],
@@ -1701,6 +1781,8 @@ def api_autotrade_toggle():
             STATE["max_daily_loss_usd"] = max(0.5, safe_float(body["max_daily_loss_usd"], STATE["max_daily_loss_usd"]))
         if "max_open_positions" in body:
             STATE["max_open_positions"] = max(1, min(15, int(safe_float(body["max_open_positions"], STATE["max_open_positions"]))))
+        if "max_slippage_pct" in body:
+            STATE["max_slippage_pct"] = max(0.05, min(5.0, safe_float(body["max_slippage_pct"], STATE["max_slippage_pct"])))
 
         persist_state_locked()
         return jsonify({
@@ -1709,6 +1791,7 @@ def api_autotrade_toggle():
             "real_mode": STATE["real_mode"],
             "max_daily_loss_usd": STATE["max_daily_loss_usd"],
             "max_open_positions": STATE["max_open_positions"],
+            "max_slippage_pct": STATE["max_slippage_pct"],
         })
 
 
@@ -1990,6 +2073,13 @@ def api_execute_manual():
 
     body = request.get_json(silent=True) or {}
     sym = canonicalize_symbol_key(body.get("symbol", "BTCUSDT"))
+    loss_cd_rem = get_symbol_loss_cooldown_remaining(sym)
+    if loss_cd_rem > 0:
+        return jsonify({
+            "success": False,
+            "error": f"Cooldown post-perdita attivo su {sym}: attendi ancora {loss_cd_rem}s prima di riaprire.",
+        }), 400
+
     bx_symbol, _ = resolve_bingx_symbol(sym)
     action = (body.get("action") or "BUY").upper()
     if action not in ("BUY", "SELL"):
@@ -2006,6 +2096,16 @@ def api_execute_manual():
         max(bal_val, 1.0),
         lev_int,
     )
+
+    ok_guard, guard_err = validate_order_execution_guards(
+        bx_symbol,
+        curr_p,
+        qty,
+        expected_entry=safe_float(body.get("entry"), 0.0),
+    )
+    if not ok_guard:
+        return jsonify({"success": False, "error": guard_err}), 400
+
     side = "BID" if action == "BUY" else "ASK"
     pos_side = "LONG" if action == "BUY" else "SHORT"
 
