@@ -20,6 +20,7 @@ app = Flask(__name__)
 BINGX_BASE_URL = os.getenv("BINGX_BASE_URL", "https://open-api.bingx.com").rstrip("/")
 BINGX_API_KEY = os.getenv("BINGX_API_KEY", "").strip()
 BINGX_API_SECRET = os.getenv("BINGX_API_SECRET", "").strip()
+ALLOW_WEEKEND_TRADFI = os.getenv("ALLOW_WEEKEND_TRADFI", "false").strip().lower() in ("1", "true", "yes")
 
 BINGX_CANDIDATE_BASES = []
 for _u in [
@@ -65,15 +66,17 @@ MARKET_CATALOG = {
         {"symbol": "LINKUSDT", "bx": "LINK-USDT", "name": "Chainlink (LINK-USDT)", "precision": 3},
         {"symbol": "SUIUSDT", "bx": "SUI-USDT", "name": "Sui (SUI-USDT)", "precision": 4},
     ],
-    "Materie Prime & Forex": [
+    "Forex & Valute": [
+        {"symbol": "EURUSDT", "bx": "EUR-USDT", "name": "EUR/USD (EUR-USDT)", "precision": 4},
+        {"symbol": "GBPUSDT", "bx": "GBP-USDT", "name": "GBP/USD (GBP-USDT)", "precision": 4},
+        {"symbol": "USDJPY", "bx": "USDJPY-USDT", "name": "USD/JPY (USDJPY-USDT)", "precision": 2},
+    ],
+    "Materie Prime": [
         {"symbol": "PAXGUSDT", "bx": "PAXG-USDT", "name": "Oro (GOLD(XAU)-USDT)", "precision": 2},
         {"symbol": "XAGUSDT", "bx": "XAG-USDT", "name": "Argento (SILVER(XAG)-USDT)", "precision": 3},
         {"symbol": "WTIUSDT", "bx": "WTI-USDT", "name": "Petrolio WTI (WTI-USDT)", "precision": 2},
         {"symbol": "NATGASUSDT", "bx": "NATGAS-USDT", "name": "Gas Naturale (NATGAS-USDT)", "precision": 3},
         {"symbol": "COPPERUSDT", "bx": "COPPER-USDT", "name": "Rame (COPPER-USDT)", "precision": 3},
-        {"symbol": "GBPUSDT", "bx": "GBP-USDT", "name": "GBP/USD (GBPUSD-USDT)", "precision": 4},
-        {"symbol": "EURUSDT", "bx": "EUR-USDT", "name": "EUR/USD (EURUSD-USDT)", "precision": 4},
-        {"symbol": "USDJPY", "bx": "USDJPY-USDT", "name": "USD/JPY (USDJPY-USDT)", "precision": 2},
     ],
     "Azioni & Indici Globali": [
         {"symbol": "AAPLUSDT", "bx": "AAPL-USDT", "name": "Apple Inc. (AAPL-USDT)", "precision": 2},
@@ -135,7 +138,7 @@ def get_market_calibration_spec(symbol: str, category: str, price: float):
 
     if category == "Criptovalute Globali":
         return decimals, 0.0040, 1.65
-    if category == "Materie Prime & Forex":
+    if category in ("Forex & Valute", "Materie Prime"):
         return decimals, 0.0030, 1.65
     return decimals, 0.0035, 1.65
 
@@ -184,30 +187,61 @@ def compute_order_quantity(bx_symbol: str, price: float, raw_qty: float, balance
 
 def get_session_statuses():
     now_utc = datetime.now(timezone.utc)
-    weekday = now_utc.weekday()
+    weekday = now_utc.weekday()  # 0=Lun .. 4=Ven, 5=Sab, 6=Dom
     hour_float = now_utc.hour + now_utc.minute / 60.0
 
     crypto_open = True
-    commodities_open = weekday < 5
-    equities_open = (weekday < 5) and (14.5 <= hour_float <= 21.0)
+    forex_open = True
+    commodities_open = True
+    equities_open = ALLOW_WEEKEND_TRADFI or ((weekday < 5) and (14.5 <= hour_float <= 21.0))
+
+    forex_schedule_note = (
+        "APERTO LIVE (Attivo 24/7 • Sessione FX Lun-Ven, apertura Dom ~22:00 UTC, chiusura Ven ~22:00 UTC)"
+        if weekday >= 5
+        else "APERTO LIVE (Lun-Ven 24h • Rollover 21:00-22:00 UTC)"
+    )
+    commodities_schedule_note = (
+        "APERTO LIVE (Attivo 24/7 • Metalli/Energia Lun-Ven, chiusura Ven ~22:00 UTC, riapertura Dom ~22:00 UTC)"
+        if weekday >= 5
+        else "APERTO LIVE (Lun-Ven quasi 24h • Breve pausa tecnica giornaliera)"
+    )
+    equities_schedule_note = (
+        "APERTO LIVE (Forzato attivo)"
+        if ALLOW_WEEKEND_TRADFI
+        else "APERTO (Lun-Ven 14:30-21:00 UTC) • CHIUSO Sab-Dom e fuori orario NYSE/NASDAQ"
+    )
 
     return {
         "Criptovalute Globali": {
-            "status": "APERTO (24/7)",
+            "status": "APERTO LIVE (24/7)",
             "is_open": crypto_open,
+            "days_label": "Lun - Dom (Sempre Aperto)",
             "hours": "24/7 Continuo (UTC)",
+            "schedule_detail": "Aperto tutti i giorni 00:00-24:00 UTC senza chiusure settimanali.",
             "badge_color": "#15803d",
         },
-        "Materie Prime & Forex": {
-            "status": "APERTO (Live)" if commodities_open else "CHIUSO (Weekend)",
+        "Forex & Valute": {
+            "status": "APERTO LIVE",
+            "is_open": forex_open,
+            "days_label": "Aperto Live • FX Lun-Ven (Dom 22:00 - Ven 22:00 UTC)",
+            "hours": "Operativo Live 24/7 • Finestra FX Dom 22:00 - Ven 22:00 UTC",
+            "schedule_detail": forex_schedule_note,
+            "badge_color": "#15803d",
+        },
+        "Materie Prime": {
+            "status": "APERTO LIVE",
             "is_open": commodities_open,
-            "hours": "Lun-Ven Sessione Globale UTC",
-            "badge_color": "#15803d" if commodities_open else "#dc2626",
+            "days_label": "Aperto Live • Metalli/WTI/Gas (Chiusura Ven ~22:00 UTC)",
+            "hours": "Operativo Live 24/7 • Sessione Spot/Perp continua",
+            "schedule_detail": commodities_schedule_note,
+            "badge_color": "#15803d",
         },
         "Azioni & Indici Globali": {
-            "status": "APERTO (NYSE/NASDAQ)" if equities_open else "CHIUSO (Fuori Orario)",
+            "status": "APERTO LIVE" if equities_open else "CHIUSO (Sab-Dom / Fuori Orario)",
             "is_open": equities_open,
-            "hours": "NYSE/NASDAQ: 14:30 - 21:00 UTC (Lun-Ven)",
+            "days_label": "Lun - Ven (Chiuso Sabato & Domenica)",
+            "hours": "NYSE/NASDAQ: Lun-Ven 14:30 - 21:00 UTC",
+            "schedule_detail": equities_schedule_note,
             "badge_color": "#15803d" if equities_open else "#dc2626",
         },
     }
@@ -218,28 +252,28 @@ def get_macro_windows(now_utc: datetime):
     wd = now_utc.weekday()
     return [
         {
-            "window": "08:00 - 11:30 UTC",
-            "title": "Apertura Londra & FX/Oro",
+            "window": "Lun - Ven • 08:00 - 11:30 UTC",
+            "title": "Sessione Londra (FX & Oro)",
             "risk": "MEDIA-ALTA",
             "active": (wd < 5) and (8.0 <= h <= 11.5),
         },
         {
-            "window": "13:30 - 16:00 UTC",
-            "title": "Finestra Macro USA & Apertura Wall Street",
+            "window": "Lun - Ven • 13:30 - 21:00 UTC",
+            "title": "Sessione USA & Borse NYSE/NASDAQ (14:30-21:00 UTC)",
             "risk": "ALTA VOLATILITÀ",
-            "active": (wd < 5) and (13.5 <= h <= 16.0),
+            "active": (wd < 5) and (13.5 <= h <= 21.0),
         },
         {
-            "window": "19:00 - 21:00 UTC",
-            "title": "Chiusura Sessione USA & Liquidità Serale",
-            "risk": "MODERATA",
-            "active": (wd < 5) and (19.0 <= h <= 21.0),
+            "window": "Ven 22:00 - Dom 22:00 UTC",
+            "title": "Weekend TradFi (Crypto, FX & Materie Prime Live)",
+            "risk": "MERCATO LIVE",
+            "active": (wd == 5) or (wd == 6 and h < 22.0) or (wd == 4 and h >= 22.0),
         },
         {
-            "window": "Sabato - Domenica UTC",
-            "title": "Weekend Crypto (Solo Swap Crypto)",
-            "risk": "FILTRO ANTI-FAKEOUT ATTIVO",
-            "active": wd >= 5,
+            "window": "Lun - Dom • 00:00 - 24:00 UTC",
+            "title": "Criptovalute & Contratti Attivi 24/7",
+            "risk": "OPERATIVO H24",
+            "active": True,
         },
     ]
 
@@ -1066,7 +1100,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         )
         trigger_condition = f"Attesa rottura pulita senza falsa rottura e con EV netto > 0 e R:R >= {min_rrr}."
     elif not is_open:
-        filter_reason = f"Borsa {category} chiusa — in attesa riapertura sessione."
+        filter_reason = f"Borsa {category} chiusa nei giorni/orari correnti — in attesa riapertura."
         trigger_condition = f"Attivazione alla riapertura con certezza >={min_certainty}% (>={min_hits}/6 fattori) e Score >={min_score}%."
     elif (
         prev_dir_info
@@ -1281,6 +1315,7 @@ def _evaluate_single_asset(category, sess, meta, timeframe, htf_tf, balance, ris
             "bingx_symbol": meta["bx"],
             "name": meta["name"],
             "session_status": sess["status"],
+            "days_label": sess.get("days_label", ""),
             "is_open": is_open,
             "price": None,
             "entry": None,
@@ -1320,6 +1355,7 @@ def _evaluate_single_asset(category, sess, meta, timeframe, htf_tf, balance, ris
         "bingx_symbol": res["bingx_symbol"],
         "name": meta["name"],
         "session_status": sess["status"],
+        "days_label": sess.get("days_label", ""),
         "is_open": is_open,
         "price": curr_price,
         "entry": res["entry"],
@@ -1549,7 +1585,7 @@ def get_signals():
 
     tasks = []
     for category, assets in MARKET_CATALOG.items():
-        sess = sessions.get(category, {"status": "APERTO (Live)", "is_open": True, "hours": "24/7"})
+        sess = sessions.get(category, {"status": "APERTO LIVE", "is_open": True, "hours": "24/7"})
         for meta in assets:
             sym = meta["symbol"]
             if market_filter != "ALL" and category != market_filter:
@@ -1566,7 +1602,7 @@ def get_signals():
     monitoring_rows = []
 
     if tasks:
-        with ThreadPoolExecutor(max_workers=10) as pool:
+        with ThreadPoolExecutor(max_workers=12) as pool:
             futs = [
                 pool.submit(_evaluate_single_asset, cat, sess, meta, timeframe, htf_tf, balance, risk_pct, cfg)
                 for cat, sess, meta in tasks
@@ -1591,18 +1627,18 @@ def get_signals():
 
     market_diagnostics = {}
     for category, _assets in MARKET_CATALOG.items():
-        sess = sessions.get(category, {"status": "APERTO (Live)", "is_open": True, "hours": "24/7"})
+        sess = sessions.get(category, {"status": "APERTO LIVE", "is_open": True, "hours": "24/7"})
         is_open = bool(sess.get("is_open", True))
         st = cat_stats[category]
         if not is_open:
-            diag_reason = f"Mercato {category} attualmente chiuso ({sess['hours']})."
+            diag_reason = f"Mercato {category} chiuso ({sess.get('days_label', sess['hours'])})."
         elif st["scanned"] == 0:
             diag_reason = f"Nessun asset selezionato per {category} con il filtro corrente."
         elif st["signals"] == 0:
             details_str = " | ".join(st["reasons"])
             diag_reason = (
-                f"Analizzati {st['scanned']} asset reali su {category}: 0 segnali certi, {st['filtered']} filtrati "
-                f"(feed non disponibile: {st['feed_errors']}). {details_str}"
+                f"Analizzati {st['scanned']} asset live su {category} ({sess.get('days_label', '')}): "
+                f"0 segnali certi, {st['filtered']} filtrati. {details_str}"
             )
         else:
             diag_reason = f"{st['signals']} segnali certi confermati su {category} ({st['filtered']} filtrati)."
@@ -1610,6 +1646,7 @@ def get_signals():
         market_diagnostics[category] = {
             "category": category,
             "session_status": sess["status"],
+            "days_label": sess.get("days_label", ""),
             "is_open": is_open,
             "scanned": st["scanned"],
             "signals_count": st["signals"],
