@@ -174,7 +174,7 @@
     }
     canvas.price-chart {
       width: 100%;
-      height: 230px;
+      height: 210px;
       background: #09101d;
       border: 1px solid var(--border);
       border-radius: 10px;
@@ -198,6 +198,7 @@
       <span id="killPill" class="pill hidden">KILL-SWITCH ATTIVO</span>
     </div>
     <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
+      <button id="btnSound" class="btn" onclick="toggleSoundAlert()">Audio: OFF</button>
       <button id="btnAutoTrade" class="btn" onclick="toggleAutoTrade()">Auto-Trade: OFF</button>
       <button class="btn primary" onclick="refreshAll()">Aggiorna Ora</button>
       <a class="btn" style="text-decoration:none;" href="/api/export/report?format=csv">Export CSV</a>
@@ -300,19 +301,27 @@
       </div>
     </section>
 
-    <section class="card chart-wrap">
-      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-        <h2 id="chartTitle" style="margin:0;">Grafico Serie Prezzi & Livelli Operativi</h2>
-        <div class="legend">
-          <span><strong style="color:#38bdf8;">—</strong> Prezzo</span>
-          <span><strong style="color:#e2e8f0;">--</strong> Entry</span>
-          <span><strong style="color:#ef4444;">--</strong> SL</span>
-          <span><strong style="color:#22c55e;">--</strong> TP1</span>
-          <span><strong style="color:#a3e635;">..</strong> TP2</span>
-          <span><strong style="color:#f59e0b;">..</strong> TP3</span>
+    <section class="grid-2">
+      <div class="card chart-wrap">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+          <h2 id="chartTitle" style="margin:0;">Grafico Serie Prezzi & Livelli</h2>
+          <div class="legend">
+            <span><strong style="color:#38bdf8;">—</strong> Prezzo</span>
+            <span><strong style="color:#e2e8f0;">--</strong> Entry</span>
+            <span><strong style="color:#ef4444;">--</strong> SL</span>
+            <span><strong style="color:#22c55e;">--</strong> TP1</span>
+          </div>
         </div>
+        <canvas id="priceChart" class="price-chart" width="600" height="210"></canvas>
       </div>
-      <canvas id="priceChart" class="price-chart" width="1100" height="230"></canvas>
+
+      <div class="card chart-wrap">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+          <h2 id="pnlChartTitle" style="margin:0;">Curva PnL Cumulativo Realizzato</h2>
+          <span id="pnlCurveSummary" class="pill">Totale: $0.00</span>
+        </div>
+        <canvas id="pnlChart" class="price-chart" width="600" height="210"></canvas>
+      </div>
     </section>
 
     <section class="grid-2">
@@ -412,6 +421,10 @@
   </main>
 
   <script>
+    let soundEnabled = false;
+    let lastSignalIds = new Set();
+    let lastKillState = false;
+
     function fmtNum(v, dec = 2) {
       const n = Number(v);
       if (!Number.isFinite(n)) return "—";
@@ -423,6 +436,35 @@
       if (!Number.isFinite(n)) return "$0.00";
       const sign = n > 0 ? "+" : (n < 0 ? "-" : "");
       return `${sign}$${Math.abs(n).toFixed(2)}`;
+    }
+
+    function toggleSoundAlert() {
+      soundEnabled = !soundEnabled;
+      const btn = document.getElementById("btnSound");
+      btn.textContent = `Audio: ${soundEnabled ? "ON" : "OFF"}`;
+      btn.className = soundEnabled ? "btn active" : "btn";
+      if (soundEnabled) playTone(740, 0.14);
+    }
+
+    function playTone(freq = 660, duration = 0.18) {
+      if (!soundEnabled) return;
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        gain.gain.value = 0.08;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        setTimeout(() => {
+          osc.stop();
+          ctx.close().catch(() => {});
+        }, Math.round(duration * 1000));
+      } catch (_e) {}
     }
 
     function setBanner(msg, type = "warn") {
@@ -467,11 +509,11 @@
 
       const series = Array.isArray(row?.series) ? row.series.map(Number).filter(Number.isFinite) : [];
       const dispSym = row?.bingx_symbol || targetKey;
-      titleEl.textContent = `Grafico ${dispSym} — Serie & Livelli Operativi`;
+      titleEl.textContent = `Grafico ${dispSym} — Serie & Livelli`;
 
       const dpr = window.devicePixelRatio || 1;
-      const cssW = canvas.clientWidth || 900;
-      const cssH = canvas.clientHeight || 230;
+      const cssW = canvas.clientWidth || 540;
+      const cssH = canvas.clientHeight || 210;
       if (canvas.width !== Math.round(cssW * dpr) || canvas.height !== Math.round(cssH * dpr)) {
         canvas.width = Math.round(cssW * dpr);
         canvas.height = Math.round(cssH * dpr);
@@ -483,7 +525,7 @@
       if (series.length < 2) {
         ctx.fillStyle = "#8fa1bd";
         ctx.font = "13px sans-serif";
-        ctx.fillText("Serie prezzi non disponibile per il simbolo selezionato", 18, cssH / 2);
+        ctx.fillText("Serie prezzi non disponibile", 16, cssH / 2);
         ctx.restore();
         return;
       }
@@ -492,8 +534,6 @@
         { val: Number(row?.entry), color: "#e2e8f0", dash: [5, 4], label: "Entry" },
         { val: Number(row?.sl), color: "#ef4444", dash: [5, 4], label: "SL" },
         { val: Number(row?.tp1), color: "#22c55e", dash: [5, 4], label: "TP1" },
-        { val: Number(row?.tp2), color: "#a3e635", dash: [2, 3], label: "TP2" },
-        { val: Number(row?.tp3), color: "#f59e0b", dash: [2, 3], label: "TP3" },
       ].filter((lv) => Number.isFinite(lv.val) && lv.val > 0);
 
       const allVals = [...series, ...levels.map((l) => l.val)];
@@ -503,25 +543,15 @@
       minV -= pad;
       maxV += pad;
 
-      const leftPad = 14;
-      const rightPad = 78;
+      const leftPad = 12;
+      const rightPad = 74;
       const topPad = 14;
-      const botPad = 16;
+      const botPad = 14;
       const plotW = Math.max(40, cssW - leftPad - rightPad);
       const plotH = Math.max(40, cssH - topPad - botPad);
 
       const yFor = (v) => topPad + ((maxV - v) / (maxV - minV)) * plotH;
       const xFor = (i) => leftPad + (i / (series.length - 1)) * plotW;
-
-      ctx.strokeStyle = "rgba(148, 163, 184, 0.12)";
-      ctx.lineWidth = 1;
-      for (let g = 0; g <= 3; g++) {
-        const gy = topPad + (g / 3) * plotH;
-        ctx.beginPath();
-        ctx.moveTo(leftPad, gy);
-        ctx.lineTo(leftPad + plotW, gy);
-        ctx.stroke();
-      }
 
       levels.forEach((lv) => {
         const ly = yFor(lv.val);
@@ -552,6 +582,87 @@
       });
       ctx.stroke();
 
+      ctx.restore();
+    }
+
+    function renderPnlChart(history) {
+      const canvas = document.getElementById("pnlChart");
+      const badge = document.getElementById("pnlCurveSummary");
+      if (!canvas || !canvas.getContext) return;
+      const ctx = canvas.getContext("2d");
+
+      const items = Array.isArray(history) ? history : [];
+      let cum = 0;
+      const curve = [0];
+      items.forEach((t) => {
+        cum += Number(t.realized_pnl || 0);
+        curve.push(Number(cum.toFixed(2)));
+      });
+
+      if (badge) {
+        badge.textContent = `Totale: ${fmtUsd(cum)}`;
+        badge.className = `pill ${cum >= 0 ? "ok" : "err"}`;
+      }
+
+      const dpr = window.devicePixelRatio || 1;
+      const cssW = canvas.clientWidth || 540;
+      const cssH = canvas.clientHeight || 210;
+      if (canvas.width !== Math.round(cssW * dpr) || canvas.height !== Math.round(cssH * dpr)) {
+        canvas.width = Math.round(cssW * dpr);
+        canvas.height = Math.round(cssH * dpr);
+      }
+      ctx.save();
+      ctx.scale(dpr, dpr);
+      ctx.clearRect(0, 0, cssW, cssH);
+
+      if (curve.length < 2) {
+        ctx.fillStyle = "#8fa1bd";
+        ctx.font = "13px sans-serif";
+        ctx.fillText("Nessun trade chiuso per tracciare la curva PnL", 16, cssH / 2);
+        ctx.restore();
+        return;
+      }
+
+      let minV = Math.min(...curve, 0);
+      let maxV = Math.max(...curve, 0);
+      const pad = Math.max((maxV - minV) * 0.15, 0.25);
+      minV -= pad;
+      maxV += pad;
+
+      const leftPad = 14;
+      const rightPad = 66;
+      const topPad = 14;
+      const botPad = 14;
+      const plotW = Math.max(40, cssW - leftPad - rightPad);
+      const plotH = Math.max(40, cssH - topPad - botPad);
+
+      const yFor = (v) => topPad + ((maxV - v) / (maxV - minV)) * plotH;
+      const xFor = (i) => leftPad + (i / (curve.length - 1)) * plotW;
+
+      const zeroY = yFor(0);
+      ctx.strokeStyle = "rgba(148, 163, 184, 0.28)";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(leftPad, zeroY);
+      ctx.lineTo(leftPad + plotW, zeroY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.strokeStyle = cum >= 0 ? "#22c55e" : "#ef4444";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      curve.forEach((pt, idx) => {
+        const px = xFor(idx);
+        const py = yFor(pt);
+        if (idx === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      });
+      ctx.stroke();
+
+      ctx.fillStyle = "#e6edf7";
+      ctx.font = "10px monospace";
+      ctx.fillText(fmtUsd(cum), leftPad + plotW + 6, yFor(cum) + 3);
       ctx.restore();
     }
 
@@ -794,6 +905,11 @@
         const apiOk = Boolean(sigData.performance?.api_configured ?? accData.api_configured);
         const killHit = Boolean(sigData.kill_switch_hit);
 
+        if (killHit && !lastKillState) {
+          playTone(260, 0.35);
+        }
+        lastKillState = killHit;
+
         const modePill = document.getElementById("modePill");
         modePill.textContent = realMode ? "REAL MODE" : "SIM MODE";
         modePill.className = realMode ? "pill ok" : "pill warn";
@@ -832,6 +948,13 @@
         document.getElementById("kpiUnrlPnl").textContent = `Unrealized: ${fmtUsd(unrlSum)}`;
 
         const signals = sigData.signals || [];
+        const currentIds = new Set(signals.map((s) => s.id));
+        const hasNewSig = signals.some((s) => !lastSignalIds.has(s.id));
+        if (hasNewSig && signals.length > 0) {
+          playTone(880, 0.16);
+        }
+        lastSignalIds = currentIds;
+
         const tel = sigData.telemetry || {};
         document.getElementById("kpiSignals").textContent = String(signals.length);
         document.getElementById("kpiScans").textContent = `Scansioni: ${tel.scans_count ?? 0}`;
@@ -845,11 +968,13 @@
         }
 
         const monitorRows = sigData.market_monitoring_table || [];
+        const historyRows = statusData.history || [];
         renderPriceChart(monitorRows);
+        renderPnlChart(historyRows);
         renderSignals(signals);
         renderPositions(positions);
         renderMonitor(monitorRows);
-        renderHistory(statusData.history || []);
+        renderHistory(historyRows);
         renderLogs(tel.telemetry_logs || []);
       } catch (err) {
         setBanner(`Errore aggiornamento terminale: ${err.message}`, "err");
