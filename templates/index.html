@@ -166,6 +166,7 @@
     .banner.warn { border-color: rgba(245, 158, 11, 0.5); color: #fde68a; }
     .banner.err { border-color: rgba(239, 68, 68, 0.5); color: #fca5a5; }
     .hidden { display: none; }
+    .tech-sub { font-size: 11px; color: var(--muted); display: block; margin-top: 2px; }
   </style>
 </head>
 <body>
@@ -260,7 +261,7 @@
       <div class="card">
         <div class="kpi-title">PnL Giornaliero / Mensile</div>
         <div id="kpiDailyPnl" class="kpi-val">$0.00</div>
-        <div id="kpiMonthlyPnl" class="kpi-sub">Mensile: $0.00</div>
+        <div id="kpiMonthlyPnl" class="kpi-sub">Mensile: $0.00 (0 trade)</div>
       </div>
       <div class="card">
         <div class="kpi-title">Posizioni Aperte</div>
@@ -291,7 +292,7 @@
                 <th>Entry</th>
                 <th>SL / TP1</th>
                 <th>Cert. Profitto</th>
-                <th>EV Netto</th>
+                <th>EV / Kelly</th>
                 <th>Azione</th>
               </tr>
             </thead>
@@ -326,7 +327,7 @@
     </section>
 
     <section class="card">
-      <h2>Monitoraggio Mercati Live</h2>
+      <h2>Monitoraggio Mercati Live & Fattori Tecnici</h2>
       <div class="table-wrap">
         <table>
           <thead>
@@ -335,8 +336,8 @@
               <th>Mercato</th>
               <th>Prezzo Live</th>
               <th>Stato</th>
+              <th>Fattori (RSI / Vol / R:R)</th>
               <th>Cert. Profitto</th>
-              <th>R:R</th>
               <th>Prog. TP1</th>
               <th>Motivo / Stato Filtro</th>
             </tr>
@@ -348,9 +349,30 @@
       </div>
     </section>
 
-    <section class="card">
-      <h2>Telemetria & Esecuzioni</h2>
-      <div id="logsBox" class="logs"></div>
+    <section class="grid-2">
+      <div class="card">
+        <h2>Storico Trade Chiusi Reali (BingX Income)</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Data UTC</th>
+                <th>Simbolo</th>
+                <th>PnL Realizzato</th>
+                <th>ID</th>
+              </tr>
+            </thead>
+            <tbody id="historyBody">
+              <tr><td colspan="4" style="color:var(--muted);">Nessun trade chiuso sincronizzato</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Telemetria & Esecuzioni</h2>
+        <div id="logsBox" class="logs"></div>
+      </div>
     </section>
   </main>
 
@@ -523,12 +545,12 @@
         }));
         return `
           <tr>
-            <td><strong>${s.bingx_symbol || s.symbol}</strong></td>
+            <td><strong>${s.bingx_symbol || s.symbol}</strong><span class="tech-sub">${s.leverage || ""} • R:R 1:${fmtNum(s.rrr, 2)}</span></td>
             <td><span class="badge ${sideClass}">${s.action}</span></td>
             <td>${fmtNum(s.entry, 4)}</td>
             <td>${fmtNum(s.sl, 4)} / ${fmtNum(s.tp1, 4)}</td>
-            <td>${fmtNum(s.profit_certainty_pct, 1)}%</td>
-            <td class="${evClass}">${fmtUsd(evNum)}</td>
+            <td><strong>${fmtNum(s.profit_certainty_pct, 1)}%</strong><span class="tech-sub">P(Win) ${fmtNum(s.p_win_pct, 1)}%</span></td>
+            <td class="${evClass}">${fmtUsd(evNum)}<span class="tech-sub">Kelly ${fmtNum(s.kelly_pct, 2)}%</span></td>
             <td><button class="btn primary" style="padding:4px 9px;font-size:11px;" onclick="executeManualOrder('${payload}')">Esegui</button></td>
           </tr>
         `;
@@ -569,16 +591,40 @@
         const act = r.action || "NEUTRAL";
         const badgeCls = act === "BUY" ? "buy" : (act === "SELL" ? "sell" : "neutral");
         const priceTxt = (r.price !== null && r.price !== undefined) ? `$${fmtNum(r.price, 4)}` : "—";
+        const rsiTxt = (r.rsi !== null && r.rsi !== undefined) ? fmtNum(r.rsi, 1) : "—";
+        const volTxt = (r.vol_ratio !== null && r.vol_ratio !== undefined) ? `${fmtNum(r.vol_ratio, 2)}x` : "—";
+        const rrTxt = (r.rrr !== null && r.rrr !== undefined) ? `1:${fmtNum(r.rrr, 2)}` : "—";
         return `
           <tr>
-            <td><strong>${r.bingx_symbol || r.symbol}</strong></td>
+            <td><strong>${r.bingx_symbol || r.symbol}</strong><span class="tech-sub">${r.confluence || ""}</span></td>
             <td>${r.category || ""}</td>
             <td>${priceTxt}</td>
             <td><span class="badge ${badgeCls}">${act}</span></td>
+            <td>RSI ${rsiTxt} • Vol ${volTxt}<span class="tech-sub">R:R ${rrTxt} • Kelly ${fmtNum(r.kelly_pct, 2)}%</span></td>
             <td>${fmtNum(r.profit_certainty_pct, 1)}%</td>
-            <td>1:${fmtNum(r.rrr, 2)}</td>
             <td>${fmtNum(r.tp1_progress_pct, 1)}%</td>
             <td style="white-space:normal;max-width:340px;color:var(--muted);">${r.filter_reason || ""}</td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function renderHistory(history) {
+      const tbody = document.getElementById("historyBody");
+      if (!Array.isArray(history) || history.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" style="color:var(--muted);">Nessun trade chiuso sincronizzato</td></tr>`;
+        return;
+      }
+      const recent = [...history].slice(-20).reverse();
+      tbody.innerHTML = recent.map((t) => {
+        const pnl = Number(t.realized_pnl || 0);
+        const cls = pnl >= 0 ? "pos" : "neg";
+        return `
+          <tr>
+            <td>${t.closed_at || t.closed_date || "—"}</td>
+            <td><strong>${t.symbol || "—"}</strong></td>
+            <td class="${cls}">${fmtUsd(pnl)}</td>
+            <td style="color:var(--muted);">${t.id || "—"}</td>
           </tr>
         `;
       }).join("");
@@ -597,12 +643,14 @@
 
     async function refreshAll() {
       try {
-        const [sigRes, accRes] = await Promise.all([
+        const [sigRes, accRes, statusRes] = await Promise.all([
           fetch(`/api/signals?${getQueryParams()}`),
           fetch("/api/account/summary"),
+          fetch("/api/autotrade/status"),
         ]);
         const sigData = await sigRes.json();
         const accData = await accRes.json();
+        const statusData = await statusRes.json();
 
         const realMode = Boolean(sigData.real_mode ?? accData.real_mode ?? true);
         const apiOk = Boolean(sigData.performance?.api_configured ?? accData.api_configured);
@@ -638,7 +686,7 @@
         const dEl = document.getElementById("kpiDailyPnl");
         dEl.textContent = fmtUsd(dPnl);
         dEl.className = `kpi-val ${dPnl >= 0 ? "pos" : "neg"}`;
-        document.getElementById("kpiMonthlyPnl").textContent = `Mensile: ${fmtUsd(mPnl)}`;
+        document.getElementById("kpiMonthlyPnl").textContent = `Mensile: ${fmtUsd(mPnl)} (${monthly.total_trades || 0} trade)`;
 
         const positions = accData.positions || [];
         const unrlSum = positions.reduce((acc, p) => acc + Number(p.unrealized_pnl || 0), 0);
@@ -661,6 +709,7 @@
         renderSignals(signals);
         renderPositions(positions);
         renderMonitor(sigData.market_monitoring_table || []);
+        renderHistory(statusData.history || []);
         renderLogs(tel.telemetry_logs || []);
       } catch (err) {
         setBanner(`Errore aggiornamento terminale: ${err.message}`, "err");
