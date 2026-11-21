@@ -50,6 +50,7 @@ STATE = {
     "session_pnl": 0.0,
     "telemetry_logs": [],
     "closed_trades": [],
+    "signal_alerts": [],
     "last_bingx_sync": 0.0,
 }
 
@@ -213,7 +214,7 @@ def compute_order_quantity(bx_symbol: str, price: float, raw_qty: float, balance
 
 def get_session_statuses():
     now_utc = datetime.now(timezone.utc)
-    weekday = now_utc.weekday()  # 0=Lun .. 4=Ven, 5=Sab, 6=Dom
+    weekday = now_utc.weekday()
     hour_float = now_utc.hour + now_utc.minute / 60.0
 
     crypto_open = True
@@ -626,6 +627,7 @@ def build_profile_config(profile: str, timeframe: str, min_score: float, risk_pc
             "timeframe": timeframe,
             "min_score": max(min_score, 75.0),
             "min_certainty": 83.3,
+            "min_profit_cert": 68.0,
             "min_hits": 5,
             "min_rrr": 1.35,
             "rsi_buy_min": 48.0,
@@ -645,6 +647,7 @@ def build_profile_config(profile: str, timeframe: str, min_score: float, risk_pc
             "timeframe": timeframe,
             "min_score": min_score,
             "min_certainty": 66.7,
+            "min_profit_cert": 55.0,
             "min_hits": 4,
             "min_rrr": 1.15,
             "rsi_buy_min": 40.0,
@@ -664,6 +667,7 @@ def build_profile_config(profile: str, timeframe: str, min_score: float, risk_pc
             "timeframe": timeframe,
             "min_score": min_score,
             "min_certainty": 50.0,
+            "min_profit_cert": 50.0,
             "min_hits": 3,
             "min_rrr": 1.10,
             "rsi_buy_min": 35.0,
@@ -682,6 +686,7 @@ def build_profile_config(profile: str, timeframe: str, min_score: float, risk_pc
         "timeframe": timeframe,
         "min_score": min_score,
         "min_certainty": 66.7,
+        "min_profit_cert": 60.0,
         "min_hits": 4,
         "min_rrr": 1.25,
         "rsi_buy_min": 42.0,
@@ -811,16 +816,28 @@ def compute_reversal_and_fakeout_metrics(
     }
 
 
-def compute_math_profit_model(certainty_pct, rrr_val, pos_size, tp_dist, sl_dist, roundtrip_fee, risk_pct, min_rrr=1.25, strict_ev_gate=True):
-    base_p = max(0.42, min(0.80, (certainty_pct / 100.0) * 0.80))
-    if rrr_val >= 1.8:
-        p_win = round(min(0.82, base_p + 0.04), 3)
-    elif rrr_val < min_rrr:
-        p_win = round(max(0.35, base_p - 0.05), 3)
-    else:
-        p_win = round(base_p, 3)
+def compute_math_profit_model(
+    certainty_pct,
+    rrr_val,
+    pos_size,
+    tp_dist,
+    sl_dist,
+    roundtrip_fee,
+    risk_pct,
+    min_rrr=1.25,
+    strict_ev_gate=True,
+    has_fakeout=False,
+    htf_aligned=True,
+):
+    c_norm = max(0.0, min(1.0, certainty_pct / 100.0))
+    rr_adj = 0.04 if rrr_val >= 1.8 else (-0.05 if rrr_val < min_rrr else 0.0)
+    htf_adj = 0.02 if htf_aligned else -0.03
+    fake_pen = 0.08 if has_fakeout else 0.0
 
+    p_win = max(0.35, min(0.85, 0.42 + 0.38 * c_norm + rr_adj + htf_adj - fake_pen))
+    p_win = round(p_win, 3)
     p_loss = round(1.0 - p_win, 3)
+
     gross_win = pos_size * tp_dist
     gross_loss = pos_size * sl_dist
     net_win = round(gross_win - roundtrip_fee, 4)
@@ -830,7 +847,21 @@ def compute_math_profit_model(certainty_pct, rrr_val, pos_size, tp_dist, sl_dist
     b_ratio = (net_win / total_loss) if total_loss > 0 else 0.0
     kelly_raw = ((b_ratio * p_win) - p_loss) / b_ratio if b_ratio > 0 else 0.0
     safe_kelly_pct = round(max(0.0, min(kelly_raw * 0.5, risk_pct / 100.0)) * 100.0, 2)
-    break_even_wr = round((total_loss / (net_win + total_loss)) * 100.0, 1) if (net_win + total_loss) > 0 else 50.0
+
+    denom_be = net_win + total_loss
+    break_even_wr = round((total_loss / denom_be) * 100.0, 1) if denom_be > 0 else 50.0
+    edge_over_be = p_win - (break_even_wr / 100.0)
+
+    sig_edge = 1.0 / (1.0 + math.exp(-6.0 * edge_over_be))
+    risk_ref = max(total_loss, 0.1)
+    ev_norm = math.tanh(ev_net / risk_ref)
+
+    # Funzione matematica composita di Certezza Previsione al Profitto (0-100%)
+    profit_certainty_raw = (0.55 * p_win) + (0.30 * sig_edge) + (0.15 * max(-1.0, ev_norm))
+    if has_fakeout:
+        profit_certainty_raw *= 0.72
+    profit_certainty_pct = round(max(0.0, min(99.0, profit_certainty_raw * 100.0)), 1)
+
     math_approved = True if not strict_ev_gate else ((ev_net > 0.0) and (rrr_val >= min_rrr) and (net_win > 0.0))
 
     return {
@@ -841,6 +872,7 @@ def compute_math_profit_model(certainty_pct, rrr_val, pos_size, tp_dist, sl_dist
         "ev_net_usd": ev_net,
         "kelly_pct": safe_kelly_pct,
         "break_even_wr_pct": break_even_wr,
+        "profit_certainty_pct": profit_certainty_pct,
         "math_approved": math_approved,
         "math_badge": "EV+ APPROVATO" if math_approved else "EV- / R:R BASSO",
     }
@@ -879,6 +911,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
     min_vol_ratio = cfg["min_vol_ratio"]
     min_score = cfg["min_score"]
     min_certainty = safe_float(cfg.get("min_certainty", 50.0), 50.0)
+    min_profit_cert = safe_float(cfg.get("min_profit_cert", 50.0), 50.0)
     min_hits = int(cfg.get("min_hits", 3))
     min_rrr = safe_float(cfg.get("min_rrr", 1.10), 1.10)
     cooldown_sec = safe_float(cfg.get("cooldown_sec", DIRECTION_COOLDOWN_SEC), DIRECTION_COOLDOWN_SEC)
@@ -1126,6 +1159,8 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         strict_fakeout=(profile == "conservative"),
     )
 
+    htf_aligned = (action == "BUY" and htf_bias != "BEAR") or (action == "SELL" and htf_bias != "BULL") or (action == "NEUTRAL")
+
     math_model = compute_math_profit_model(
         certainty_pct=certainty_val,
         rrr_val=rrr_val,
@@ -1136,19 +1171,24 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         risk_pct=risk_pct,
         min_rrr=min_rrr,
         strict_ev_gate=strict_ev_gate,
+        has_fakeout=anti_fake["false_breakout"],
+        htf_aligned=htf_aligned,
     )
 
-    if action in ["BUY", "SELL"] and (anti_fake["false_breakout"] or not math_model["math_approved"]):
+    profit_cert_val = math_model["profit_certainty_pct"]
+    profit_cert_ok = True if profile == "pro_room" else (profit_cert_val >= min_profit_cert)
+
+    if action in ["BUY", "SELL"] and (anti_fake["false_breakout"] or not math_model["math_approved"] or not profit_cert_ok):
         action = "NEUTRAL"
         score = 55.0
-        sent = "BLOCCATO ANTI-FAKEOUT / EV"
+        sent = "BLOCCATO FILTRO PROFITTO / EV"
         col = "#dc2626"
-        inv = "Blocco Anti-Falsa Rottura & EV"
+        inv = "Blocco Certezza Profitto & EV"
         filter_reason = (
-            f"Bloccato da filtro anti-falsa rottura / EV: {anti_fake['fakeout_reason']} | "
-            f"EV netto ${math_model['ev_net_usd']} (R:R 1:{rrr_val} vs min 1:{min_rrr})."
+            f"Filtrato da modello profitto: Certezza Profitto {profit_cert_val}% (min {min_profit_cert}%), "
+            f"EV netto ${math_model['ev_net_usd']} (R:R 1:{rrr_val}) | {anti_fake['fakeout_reason']}."
         )
-        trigger_condition = f"Attesa rottura pulita senza falsa rottura e con EV netto > 0 e R:R >= {min_rrr}."
+        trigger_condition = f"Attesa Certezza Profitto >={min_profit_cert}%, EV netto > 0 e struttura senza fakeout."
     elif not is_open:
         filter_reason = f"Borsa {category} chiusa nei giorni/orari correnti — in attesa riapertura."
         trigger_condition = f"Attivazione alla riapertura con certezza >={min_certainty}% (>={min_hits}/6 fattori) e Score >={min_score}%."
@@ -1166,7 +1206,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         trigger_condition = f"Cambio direzione consentito dopo {rem_cd}s oppure con conferma piena ({min_hits}/6 fattori)."
     elif action == "NEUTRAL":
         filter_reason = (
-            f"Setup in monitoraggio: Certezza {certainty_val}% (min {min_certainty}%), {confluence_hits}/{min_hits} fattori, "
+            f"Setup in monitoraggio: Certezza {certainty_val}% (Profitto {profit_cert_val}%), {confluence_hits}/{min_hits} fattori, "
             f"Score {score}% (min {min_score}%), RSI {round(rsi, 1)}, Vol {vol_ratio}x."
         )
         trigger_condition = (
@@ -1174,10 +1214,10 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         )
     else:
         filter_reason = (
-            f"Segnale certo preso in carico: {action} con certezza {certainty_val}% ({certainty_level}, {confluence_label}) "
+            f"Segnale certo preso in carico: {action} con Certezza Profitto {profit_cert_val}% ({certainty_label}, {confluence_label}) "
             f"e EV netto +${math_model['ev_net_usd']}."
         )
-        trigger_condition = f"Segnale certo {action} ({certainty_val}%) con SL {sl_m}x ATR e TP1 {tp_m}x ATR."
+        trigger_condition = f"Segnale certo {action} (Profitto {profit_cert_val}%) con SL {sl_m}x ATR e TP1 {tp_m}x ATR."
 
     vol_pct = round((atr / entry) * 100, 2) if entry > 0 else 0.0
     vol_regime = "ALTA VOLATILITÀ" if vol_pct >= 1.2 else ("MODERATA" if vol_pct >= 0.35 else "CONTENUTA")
@@ -1194,6 +1234,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         "certainty_pct": certainty_val,
         "certainty_level": certainty_level,
         "certainty_text": f"{certainty_val}% ({certainty_level})",
+        "profit_certainty_pct": profit_cert_val,
         "filter_reason": filter_reason,
         "trigger_condition": trigger_condition,
         "trend_state": trend_state,
@@ -1250,9 +1291,9 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         "break_even_wr_pct": math_model["break_even_wr_pct"],
         "math_approved": math_model["math_approved"],
         "math_badge": math_model["math_badge"],
-        "advisor_status": f"SEGNALE CERTO ({certainty_val}%)" if action in ["BUY", "SELL"] else "FILTRATO ANTI-FAKEOUT",
+        "advisor_status": f"SEGNALE CERTO (Profitto {profit_cert_val}%)" if action in ["BUY", "SELL"] else "FILTRATO ANTI-FAKEOUT",
         "advisor_color": "#15803d" if action in ["BUY", "SELL"] else "#0f172a",
-        "advisor_msg": f"BingX Live: {bx_symbol} | Certezza {certainty_val}% ({certainty_level}) | EV ${math_model['ev_net_usd']}",
+        "advisor_msg": f"BingX Live: {bx_symbol} | Certezza Profitto {profit_cert_val}% | EV ${math_model['ev_net_usd']}",
         "applied_params": cfg,
         "market_regime": regime_info,
         "recommended_params": regime_info["recommended_params"],
@@ -1381,6 +1422,7 @@ def _evaluate_single_asset(category, sess, meta, timeframe, htf_tf, balance, ris
             "taken": False,
             "ai_score": "0.0%",
             "certainty_pct": 0.0,
+            "profit_certainty_pct": 0.0,
             "certainty_level": "BASSA",
             "certainty_text": "0.0% (BASSA)",
             "filter_reason": err_reason,
@@ -1438,6 +1480,7 @@ def _evaluate_single_asset(category, sess, meta, timeframe, htf_tf, balance, ris
         "taken": taken,
         "ai_score": res["ai_score"],
         "certainty_pct": res["certainty_pct"],
+        "profit_certainty_pct": res["profit_certainty_pct"],
         "certainty_level": res["certainty_level"],
         "certainty_text": res["certainty_text"],
         "rsi": res["rsi"],
@@ -1675,6 +1718,8 @@ def get_signals():
                     if len(st["reasons"]) < 3:
                         st["reasons"].append(reason_txt)
 
+    signals_out.sort(key=lambda x: safe_float(x.get("profit_certainty_pct"), 0.0), reverse=True)
+
     market_diagnostics = {}
     for category, _assets in MARKET_CATALOG.items():
         sess = sessions.get(category, {"status": "APERTO LIVE", "is_open": True, "hours": "24/7"})
@@ -1721,27 +1766,42 @@ def get_signals():
     auto_executed = maybe_run_auto_trade_loop(signals_out, live_positions, kill_switch_hit)
     be_updates = run_break_even_trailing_on_positions(live_positions, monitoring_rows)
 
+    now_utc_str = datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
+
     with STATE_LOCK:
         STATE["scans_count"] += 1
         scans_val = STATE["scans_count"]
         session_pnl_val = STATE["session_pnl"]
+        for s in signals_out[:5]:
+            STATE["signal_alerts"] = ([{
+                "time": now_utc_str,
+                "symbol": s.get("bingx_symbol"),
+                "action": s.get("action"),
+                "profit_cert": s.get("profit_certainty_pct"),
+                "ev": s.get("ev_net_usd"),
+                "entry": s.get("entry"),
+                "tp1": s.get("tp1"),
+            }] + STATE["signal_alerts"])[:25]
+
         extra_info = ""
         if auto_executed:
             extra_info += f" | AUTO: {', '.join(auto_executed)}"
         if be_updates:
             extra_info += f" | BE: {', '.join(be_updates)}"
         STATE["telemetry_logs"] = ([{
-            "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
+            "timestamp": now_utc_str,
             "status": f"LIVE SCAN {timeframe} ({profile} • Cap ${balance} • Risk {risk_pct}% • MinScore {min_score}%){' [KILL-SWITCH]' if kill_switch_hit else ''}{extra_info}",
             "signals_found": len(signals_out),
             "scanned": len(monitoring_rows),
         }] + STATE["telemetry_logs"])[:40]
         logs_copy = list(STATE["telemetry_logs"])
+        alerts_copy = list(STATE["signal_alerts"])
 
     payload_out = {
         "sessions": sessions,
         "macro_windows": macro_windows,
         "signals": signals_out,
+        "signal_alerts": alerts_copy,
         "active_params": cfg,
         "market_diagnostics": market_diagnostics,
         "market_monitoring_table": monitoring_rows,
@@ -1765,6 +1825,7 @@ def get_signals():
         elif _LAST_GOOD_SIGNALS_PAYLOAD is not None:
             fallback = dict(_LAST_GOOD_SIGNALS_PAYLOAD)
             fallback["telemetry"] = payload_out["telemetry"]
+            fallback["signal_alerts"] = payload_out["signal_alerts"]
             return jsonify(fallback)
 
     return jsonify(payload_out)
