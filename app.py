@@ -37,6 +37,7 @@ def get_bingx_credentials():
     )
     api_secret = _clean_env_secret(
         os.getenv("BINGX_API_SECRET")
+        or os.getenv("BINGX_SECRET_KEY")
         or os.getenv("BX_API_SECRET")
         or os.getenv("BINGX_SECRET")
         or ""
@@ -85,21 +86,25 @@ MARKET_CATALOG = {
         {"symbol": "SUIUSDT", "bx": "SUI-USDT", "name": "Sui (SUI-USDT)", "precision": 4},
     ],
     "Materie Prime & Forex": [
+        # Materie Prime - Metalli
         {"symbol": "PAXGUSDT", "bx": "PAXG-USDT", "name": "Oro / Gold (PAXG-USDT)", "precision": 2},
         {"symbol": "XAGUSDT", "bx": "XAG-USDT", "name": "Argento / Silver (XAG-USDT)", "precision": 3},
         {"symbol": "XPTUSDT", "bx": "XPT-USDT", "name": "Platino / Platinum (XPT-USDT)", "precision": 2},
         {"symbol": "XPDUSDT", "bx": "XPD-USDT", "name": "Palladio / Palladium (XPD-USDT)", "precision": 2},
         {"symbol": "COPPERUSDT", "bx": "COPPER-USDT", "name": "Rame / Copper (COPPER-USDT)", "precision": 4},
         {"symbol": "ALUMINIUMUSDT", "bx": "ALUMINIUM-USDT", "name": "Alluminio / Aluminium (ALUMINIUM-USDT)", "precision": 2},
+        # Materie Prime - Energia
         {"symbol": "WTIUSDT", "bx": "WTI-USDT", "name": "Petrolio WTI Crude (WTI-USDT)", "precision": 2},
         {"symbol": "BRENTUSDT", "bx": "BRENT-USDT", "name": "Petrolio Brent Crude (BRENT-USDT)", "precision": 2},
         {"symbol": "NATGASUSDT", "bx": "NATGAS-USDT", "name": "Gas Naturale (NATGAS-USDT)", "precision": 3},
+        # Materie Prime - Agricole / Soft
         {"symbol": "WHEATUSDT", "bx": "WHEAT-USDT", "name": "Grano / Wheat (WHEAT-USDT)", "precision": 2},
         {"symbol": "CORNUSDT", "bx": "CORN-USDT", "name": "Mais / Corn (CORN-USDT)", "precision": 2},
         {"symbol": "SOYBEANUSDT", "bx": "SOYBEAN-USDT", "name": "Soia / Soybeans (SOYBEAN-USDT)", "precision": 2},
         {"symbol": "COFFEEUSDT", "bx": "COFFEE-USDT", "name": "Caffè / Coffee (COFFEE-USDT)", "precision": 2},
         {"symbol": "SUGARUSDT", "bx": "SUGAR-USDT", "name": "Zucchero / Sugar (SUGAR-USDT)", "precision": 3},
         {"symbol": "COCOAUSDT", "bx": "COCOA-USDT", "name": "Cacao / Cocoa (COCOA-USDT)", "precision": 1},
+        # Forex - Major & Cross
         {"symbol": "EURUSDT", "bx": "EUR-USDT", "name": "EUR/USD (EUR-USDT)", "precision": 4},
         {"symbol": "GBPUSDT", "bx": "GBP-USDT", "name": "GBP/USD (GBP-USDT)", "precision": 4},
         {"symbol": "USDJPY", "bx": "USDJPY-USDT", "name": "USD/JPY (USDJPY-USDT)", "precision": 2},
@@ -114,6 +119,7 @@ MARKET_CATALOG = {
         {"symbol": "CHFJPY", "bx": "CHFJPY-USDT", "name": "CHF/JPY (CHFJPY-USDT)", "precision": 2},
     ],
     "Azioni & Indici Globali": [
+        # Azioni USA Big Tech & AI
         {"symbol": "AAPLUSDT", "bx": "AAPL-USDT", "name": "Apple Inc. (AAPL-USDT)", "precision": 2},
         {"symbol": "TSLAUSDT", "bx": "TSLA-USDT", "name": "Tesla Inc. (TSLA-USDT)", "precision": 2},
         {"symbol": "NVDAUSDT", "bx": "NVDA-USDT", "name": "Nvidia Corp. (NVDA-USDT)", "precision": 2},
@@ -122,14 +128,17 @@ MARKET_CATALOG = {
         {"symbol": "GOOGLUSDT", "bx": "GOOGL-USDT", "name": "Alphabet Inc. (GOOGL-USDT)", "precision": 2},
         {"symbol": "METAUSDT", "bx": "META-USDT", "name": "Meta Platforms (META-USDT)", "precision": 2},
         {"symbol": "NFLXUSDT", "bx": "NFLX-USDT", "name": "Netflix Inc. (NFLX-USDT)", "precision": 2},
+        # Semiconduttori & Crypto Equities
         {"symbol": "AMDUSDT", "bx": "AMD-USDT", "name": "AMD (AMD-USDT)", "precision": 2},
         {"symbol": "INTCUSDT", "bx": "INTC-USDT", "name": "Intel Corp. (INTC-USDT)", "precision": 2},
         {"symbol": "AVGOUSDT", "bx": "AVGO-USDT", "name": "Broadcom Inc. (AVGO-USDT)", "precision": 2},
         {"symbol": "COINUSDT", "bx": "COIN-USDT", "name": "Coinbase Global (COIN-USDT)", "precision": 2},
         {"symbol": "MSTRUSDT", "bx": "MSTR-USDT", "name": "Strategy / MSTR (MSTR-USDT)", "precision": 2},
+        # Finanziari
         {"symbol": "JPMUSDT", "bx": "JPM-USDT", "name": "JPMorgan Chase (JPM-USDT)", "precision": 2},
         {"symbol": "VUSDT", "bx": "V-USDT", "name": "Visa Inc. (V-USDT)", "precision": 2},
         {"symbol": "MAUSDT", "bx": "MA-USDT", "name": "Mastercard Inc. (MA-USDT)", "precision": 2},
+        # Indici & ETF
         {"symbol": "SP500USDT", "bx": "SP500-USDT", "name": "S&P 500 Index (SP500-USDT)", "precision": 2},
         {"symbol": "NASDAQ100USDT", "bx": "NASDAQ100-USDT", "name": "NASDAQ 100 Index (NASDAQ100-USDT)", "precision": 2},
         {"symbol": "DOWJONESUSDT", "bx": "DOWJONES-USDT", "name": "Dow Jones Index (DOWJONES-USDT)", "precision": 2},
@@ -273,7 +282,7 @@ def bingx_signed_request(method: str, path: str, params: dict):
     api_key, api_secret = get_bingx_credentials()
     BINGX_BASE_URL, BINGX_API_KEY, BINGX_API_SECRET = base_url, api_key, api_secret
     if not (api_key and api_secret):
-        return None, "Configura BINGX_API_KEY e BINGX_API_SECRET su Render"
+        return None, "Configura BINGX_API_KEY e BINGX_SECRET_KEY su Render"
 
     now_sec = time.time()
     with STATE_LOCK:
@@ -378,7 +387,7 @@ def fetch_bingx_real_balance():
             "available_margin": 0.0,
             "unrealized_pnl": 0.0,
             "asset": "USDT",
-        }, "Configura BINGX_API_KEY e BINGX_API_SECRET su Render"
+        }, "Configura BINGX_API_KEY e BINGX_SECRET_KEY su Render"
 
     payload, err = bingx_signed_request("GET", "/openApi/swap/v2/user/balance", {})
     if err or not isinstance(payload, dict):
@@ -498,7 +507,7 @@ def sync_bingx_real_closed_trades():
 def fetch_bingx_real_positions():
     api_key, api_secret = get_bingx_credentials()
     if not (api_key and api_secret):
-        return [], "Configura BINGX_API_KEY e BINGX_API_SECRET su Render"
+        return [], "Configura BINGX_API_KEY e BINGX_SECRET_KEY su Render"
     payload, err = bingx_signed_request("GET", "/openApi/swap/v2/user/positions", {})
     if err or not isinstance(payload, dict):
         return [], err or "Errore lettura posizioni BingX"
@@ -1208,7 +1217,7 @@ def api_execute_manual():
     if not (api_key and api_secret):
         return jsonify({
             "success": False,
-            "error": "Imposta BINGX_API_KEY e BINGX_API_SECRET nelle variabili d'ambiente su Render.",
+            "error": "Imposta BINGX_API_KEY e BINGX_SECRET_KEY nelle variabili d'ambiente su Render.",
         }), 400
 
     body = request.get_json(silent=True) or {}
