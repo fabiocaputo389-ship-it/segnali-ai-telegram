@@ -243,6 +243,17 @@
             border: 1px solid rgba(0, 255, 102, 0.4);
         }
 
+        .candle-strip {
+            background: var(--bg-subcard);
+            border: 1px solid rgba(56, 189, 248, 0.28);
+            border-radius: 8px;
+            padding: 6px 8px;
+            margin-top: 6px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.67rem;
+            color: var(--blue);
+        }
+
         .alert-box {
             background: rgba(255, 209, 102, 0.06);
             border: 1px solid rgba(255, 209, 102, 0.35);
@@ -342,6 +353,7 @@
             <div class="brand-title">🏛️ PRO TRADING DESK</div>
             <div class="pill">MULTI-TF + SL/TP REALI</div>
             <div id="apiEnvBadge" class="pill" style="border-color:rgba(255,209,102,0.45); background:rgba(255,209,102,0.08); color:var(--gold);">ENV API: CHECK</div>
+            <div id="candleTimerBadge" class="pill" style="border-color:rgba(56,189,248,0.45); background:rgba(56,189,248,0.08); color:var(--blue);">CANDELA 15m: --:--</div>
             <div id="clockBadge" class="clock-box">--:--:-- | --:--:-- UTC</div>
         </div>
         <div class="controls">
@@ -418,11 +430,11 @@
                     </select>
                 </div>
                 <div>
-                    <label for="timeframeSelect">Timeframe</label>
+                    <label for="timeframeSelect">Timeframe Candela</label>
                     <select id="timeframeSelect">
-                        <option value="5m">5m</option>
-                        <option value="15m" selected>15m</option>
-                        <option value="1h">1h</option>
+                        <option value="5m">5m (Durata 5m / 300s)</option>
+                        <option value="15m" selected>15m (Durata 15m / 900s)</option>
+                        <option value="1h">1h (Durata 1h / 3600s)</option>
                     </select>
                 </div>
                 <div>
@@ -465,7 +477,7 @@
                             <th>Prezzo / HTF</th>
                             <th>Score &amp; Grade</th>
                             <th>Entry / SL / TP1 / TP2</th>
-                            <th>R:R &amp; EV Netto</th>
+                            <th>Timeframe Candela</th>
                             <th>Stato &amp; Azioni</th>
                         </tr>
                     </thead>
@@ -605,15 +617,60 @@
         let isSyncingAcc = false;
         const spokenKeys = new Set();
 
-        function updateClocks() {
+        function getTimeframeSeconds(tf) {
+            if (tf === '5m') return 300;
+            if (tf === '1h') return 3600;
+            return 900;
+        }
+
+        function formatMMSS(sec) {
+            const s = Math.max(0, Math.floor(Number(sec) || 0));
+            const h = Math.floor(s / 3600);
+            const m = Math.floor((s % 3600) / 60);
+            const r = s % 60;
+            if (h > 0) {
+                return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
+            }
+            return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
+        }
+
+        function getLiveCandleInfo(tf) {
+            const dur = getTimeframeSeconds(tf);
+            const nowSec = Math.floor(Date.now() / 1000);
+            const openSec = Math.floor(nowSec / dur) * dur;
+            const closeSec = openSec + dur;
+            const remSec = Math.max(0, closeSec - nowSec);
+            const openUtc = new Date(openSec * 1000).toISOString().substr(11, 8);
+            const closeUtc = new Date(closeSec * 1000).toISOString().substr(11, 8);
+            return {
+                tf,
+                dur,
+                remSec,
+                remFormatted: formatMMSS(remSec),
+                openUtc,
+                closeUtc,
+                windowText: `Apertura ${openUtc} → Chiusura ${closeUtc} UTC (${dur}s)`
+            };
+        }
+
+        function updateClocksAndCandleTimers() {
             const now = new Date();
             const el = document.getElementById('clockBadge');
             if (el) {
                 el.textContent = `${now.toLocaleTimeString('it-IT', { hour12: false })} | ${now.toISOString().substr(11, 8)} UTC`;
             }
+            const tf = document.getElementById('timeframeSelect')?.value || '15m';
+            const info = getLiveCandleInfo(tf);
+            const badge = document.getElementById('candleTimerBadge');
+            if (badge) {
+                badge.textContent = `CANDELA ${tf} (${info.dur}s): -${info.remFormatted}`;
+            }
+            document.querySelectorAll('[data-candle-countdown]').forEach(node => {
+                node.textContent = `-${info.remFormatted} (${info.windowText})`;
+            });
         }
-        setInterval(updateClocks, 1000);
-        updateClocks();
+        setInterval(updateClocksAndCandleTimers, 1000);
+        updateClocksAndCandleTimers();
 
         function populateSelectors() {
             const mVal = document.getElementById('marketSelect')?.value || 'ALL';
@@ -747,6 +804,8 @@
             if (!area) return;
             const mSel = document.getElementById('marketSelect')?.value || 'ALL';
             const aSel = document.getElementById('assetSelect')?.value || 'ALL';
+            const tfSel = document.getElementById('timeframeSelect')?.value || '15m';
+            const cInfo = getLiveCandleInfo(tfSel);
 
             const filtered = (state.signals || []).filter(s => {
                 if (mSel !== 'ALL' && s.category !== mSel) return false;
@@ -759,13 +818,14 @@
                     .filter(([k]) => mSel === 'ALL' || k === mSel)
                     .map(([k, v]) => `• <strong>${k}</strong>: ${v.reason}`)
                     .join('<br>');
-                area.innerHTML = `<div class="alert-box"><div style="color:var(--gold); font-weight:800; margin-bottom:4px;">NESSUN SETUP A+ VALIDATO AL MOMENTO</div>${diags || 'Attesa confluenza su timeframe superiore, R:R ed EV netto positivo.'}</div>`;
+                area.innerHTML = `<div class="alert-box"><div style="color:var(--gold); font-weight:800; margin-bottom:4px;">NESSUN SETUP A+ VALIDATO AL MOMENTO • ${cInfo.windowText}</div>${diags || 'Attesa confluenza su timeframe superiore, R:R ed EV netto positivo.'}</div>`;
                 return;
             }
 
             area.innerHTML = `<div class="signals-grid">${filtered.map(s => {
                 const isBuy = s.action === 'BUY';
                 const col = isBuy ? 'var(--green)' : 'var(--red)';
+                const winTxt = s.candle_window_text || cInfo.windowText;
                 return `
                     <div class="sig-card" style="border-left:4px solid ${col};">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
@@ -778,7 +838,11 @@
                         <div class="mono" style="font-size:0.7rem;">
                             Entry: <strong>${s.entry}</strong> | SL: <span style="color:var(--red);">${s.sl}</span> | TP1: <span style="color:var(--green);">${s.tp1}</span> | TP2: <span style="color:var(--blue);">${s.tp2}</span>
                         </div>
-                        <div class="mono" style="font-size:0.69rem; color:var(--muted); margin-top:3px;">
+                        <div class="candle-strip">
+                            🕒 <strong>${winTxt}</strong><br>
+                            ⏳ Residua candela: <strong data-candle-countdown>-${cInfo.remFormatted} (${cInfo.windowText})</strong>
+                        </div>
+                        <div class="mono" style="font-size:0.69rem; color:var(--muted); margin-top:5px;">
                             R:R <strong>1:${s.rrr}</strong> • EV: <strong style="color:var(--green);">+$${Number(s.ev_net_usd || 0).toFixed(4)}</strong> • Prob ${s.win_prob_pct}%
                         </div>
                         <div class="mono" style="font-size:0.68rem; color:var(--gold); margin-top:3px;">🕯️ ${s.tp_eta_text}</div>
@@ -789,6 +853,7 @@
                     </div>
                 `;
             }).join('')}</div>`;
+            updateClocksAndCandleTimers();
         }
 
         function renderWatchlist() {
@@ -797,6 +862,8 @@
             const mSel = document.getElementById('marketSelect')?.value || 'ALL';
             const aSel = document.getElementById('assetSelect')?.value || 'ALL';
             const fMode = document.getElementById('filterModeSelect')?.value || 'ALL';
+            const tfSel = document.getElementById('timeframeSelect')?.value || '15m';
+            const cInfo = getLiveCandleInfo(tfSel);
 
             const list = (state.rows || []).filter(r => {
                 if (mSel !== 'ALL' && r.category !== mSel) return false;
@@ -820,7 +887,11 @@
                         <td class="mono"><strong>${r.price}</strong><br><span style="font-size:0.64rem; color:var(--blue);">HTF: ${r.htf_bias}</span></td>
                         <td class="mono"><strong style="color:var(--gold);">${r.score}%</strong> (${r.grade})<br><span style="font-size:0.64rem; color:${r.fakeout ? 'var(--red)' : 'var(--green)'};">${r.fakeout_label}</span></td>
                         <td class="mono" style="font-size:0.67rem;">E: ${r.entry} • SL: <span style="color:var(--red);">${r.sl}</span><br>TP1: <span style="color:var(--green);">${r.tp1}</span> • TP2: <span style="color:var(--blue);">${r.tp2}</span></td>
-                        <td class="mono" style="font-size:0.67rem;">R:R <strong>1:${r.rrr}</strong><br><span style="color:${ev > 0 ? 'var(--green)' : 'var(--red)'};">EV: ${ev >= 0 ? '+' : '-'}$${Math.abs(ev).toFixed(4)}</span></td>
+                        <td class="mono" style="font-size:0.67rem;">
+                            <strong style="color:var(--blue);">${r.timeframe || tfSel} (${cInfo.dur}s)</strong><br>
+                            <span style="font-size:0.63rem; color:var(--muted);">${r.candle_open_utc || cInfo.openUtc} → ${r.candle_close_utc || cInfo.closeUtc}</span><br>
+                            <span style="color:${ev > 0 ? 'var(--green)' : 'var(--red)'};">EV: ${ev >= 0 ? '+' : '-'}$${Math.abs(ev).toFixed(4)}</span>
+                        </td>
                         <td class="mono" style="font-size:0.66rem;">
                             <span style="color:${actCol}; font-weight:800;">${r.action}</span> • ${r.reason}<br>
                             <div style="display:flex; gap:4px; margin-top:5px;">
@@ -869,18 +940,20 @@
             const size = row.size || 0.001;
             const sl = row.sl || 0;
             const tp1 = row.tp1 || 0;
+            const timeframe = document.getElementById('timeframeSelect')?.value || '15m';
             try {
                 const res = await fetch('/api/autotrade/execute-manual', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ symbol, action, size, sl, tp1 })
+                    body: JSON.stringify({ symbol, action, size, sl, tp1, timeframe })
                 });
                 const d = await res.json();
                 if (d.success) {
                     const warn = (d.order?.sl_error || d.order?.tp_error)
                         ? ` (Avviso SL/TP: ${d.order.sl_error || ''} ${d.order.tp_error || ''})`
                         : ' con SL e TP impostati';
-                    alert(`Ordine ${action} inviato su ${d.symbol || symbol}${warn}`);
+                    const timingTxt = d.candle_timing?.candle_window_text ? `\n${d.candle_timing.candle_window_text}` : '';
+                    alert(`Ordine ${action} inviato su ${d.symbol || symbol}${warn}${timingTxt}`);
                     loadPositions();
                 } else {
                     alert(d.error || 'Errore ordine');
@@ -910,8 +983,9 @@
                 const data = await res.json();
                 const candles = data.candles || [];
                 const setup = (state.rows || []).find(r => r.symbol === sym);
+                const cInfo = getLiveCandleInfo(tf);
                 if (info) {
-                    info.textContent = `${data.bingx_symbol || sym} (${tf}) • Prezzo: ${data.price} ${setup ? `| Entry ${setup.entry} • SL ${setup.sl} • TP1 ${setup.tp1}` : ''}`;
+                    info.textContent = `${data.bingx_symbol || sym} (${tf} • ${cInfo.dur}s • ${cInfo.openUtc}→${cInfo.closeUtc}) • Prezzo: ${data.price} ${setup ? `| Entry ${setup.entry} • SL ${setup.sl} • TP1 ${setup.tp1}` : ''}`;
                 }
                 if (!candles.length) return;
 
@@ -1004,7 +1078,7 @@
                     const key = `${s.symbol}_${s.action}_${s.tp1}`;
                     if (!spokenKeys.has(key)) {
                         spokenKeys.add(key);
-                        speak(`Nuovo setup ${s.grade} ${s.action} su ${s.symbol}, score ${s.score} percento.`);
+                        speak(`Nuovo setup ${s.grade} ${s.action} su ${s.symbol}, timeframe ${s.timeframe}, chiusura candela alle ${s.candle_close_utc}.`);
                         break;
                     }
                 }
@@ -1053,8 +1127,13 @@
             populateSelectors();
             scanAll(true);
         });
-        ['assetSelect', 'profileSelect', 'timeframeSelect', 'riskInput', 'minScoreInput', 'minRrrInput'].forEach(id => {
+        ['assetSelect', 'profileSelect', 'riskInput', 'minScoreInput', 'minRrrInput'].forEach(id => {
             document.getElementById(id)?.addEventListener('change', () => scanAll(true));
+        });
+        document.getElementById('timeframeSelect')?.addEventListener('change', () => {
+            updateClocksAndCandleTimers();
+            scanAll(true);
+            if (activeTab === 'charts') loadCandleChart();
         });
         document.getElementById('balanceInput')?.addEventListener('input', () => { balanceEdited = true; });
         document.getElementById('balanceInput')?.addEventListener('change', () => scanAll(true));
