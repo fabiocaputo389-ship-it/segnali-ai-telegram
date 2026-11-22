@@ -1355,6 +1355,43 @@ def api_live_ticker():
     })
 
 
+@app.route("/api/candles", methods=["GET"])
+def api_candles():
+    sym = canonicalize_symbol_key(request.args.get("symbol", "BTCUSDT"))
+    tf = (request.args.get("tf") or request.args.get("timeframe") or "5m").strip()
+    if tf not in ("5m", "15m", "1h"):
+        tf = "5m"
+    meta = ASSET_LOOKUP.get(sym, {"symbol": sym, "bx": resolve_bingx_symbol(sym)[0], "precision": 2})
+    df, curr_price = get_real_market_dataframe(meta, tf)
+    if df is None or df.empty:
+        return jsonify({
+            "symbol": sym,
+            "bingx_symbol": meta["bx"],
+            "timeframe": tf,
+            "price": curr_price or 0.0,
+            "candles": [],
+        }), 200
+
+    tail_df = df.tail(40).copy()
+    candles = []
+    for _, row in tail_df.iterrows():
+        candles.append({
+            "open": safe_float(row.get("Open")),
+            "high": safe_float(row.get("High")),
+            "low": safe_float(row.get("Low")),
+            "close": safe_float(row.get("Close")),
+            "volume": safe_float(row.get("Volume")),
+        })
+
+    return jsonify({
+        "symbol": sym,
+        "bingx_symbol": meta["bx"],
+        "timeframe": tf,
+        "price": curr_price,
+        "candles": candles,
+    }), 200
+
+
 @app.route("/api/signals", methods=["GET"])
 def get_signals():
     profile = request.args.get("profile", "balanced")
@@ -1385,7 +1422,7 @@ def get_signals():
     signals_out = []
     monitoring_rows = []
 
-    with ThreadPoolExecutor(max_workers=8) as pool:
+    with ThreadPoolExecutor(max_workers=6) as pool:
         future_map = {
             pool.submit(
                 _scan_single_asset,
