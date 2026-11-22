@@ -460,6 +460,7 @@
             <div id="clockBadge" class="clock-box">--:--:-- |<br>--:--:-- UTC</div>
         </div>
         <div class="controls-row">
+            <button id="autotradeToggleBtn" type="button" class="btn btn-audio-on">🤖 AUTOTRADE: ON</button>
             <button id="soundToggleBtn" type="button" class="btn btn-audio-on">🔊 VOCALE &amp; AUDIO: ON</button>
             <button id="testVoiceBtn" type="button" class="btn">🗣️ TEST VOCALE</button>
             <button id="refreshAllBtn" type="button" class="btn btn-refresh">↻ AGGIORNA</button>
@@ -720,7 +721,6 @@
             ]
         };
 
-        // Permanenza estesa a 240 secondi (4 minuti) per avere tempo di copiare o eseguire il segnale
         const SIGNAL_HOLD_MS = 240000;
         const pinnedSignalsMap = new Map();
 
@@ -737,6 +737,7 @@
 
         let activeTabName = 'signals';
         let signalSoundEnabled = true;
+        let autoTradeEnabled = true;
         let audioCtx = null;
         const notifiedSignalKeys = new Set();
         let isFetchingSignals = false;
@@ -827,6 +828,28 @@
             } else {
                 alert(text);
             }
+        }
+
+        function renderAutotradeBtn(enabled) {
+            autoTradeEnabled = Boolean(enabled);
+            const btn = document.getElementById('autotradeToggleBtn');
+            if (!btn) return;
+            btn.textContent = autoTradeEnabled ? '🤖 AUTOTRADE: ON' : '🤖 AUTOTRADE: OFF';
+            btn.className = `btn ${autoTradeEnabled ? 'btn-audio-on' : 'btn-audio-off'}`;
+        }
+
+        async function toggleAutotrade() {
+            try {
+                const res = await fetch('/api/autotrade/toggle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                const data = await res.json();
+                if (typeof data.auto_trade === 'boolean') {
+                    renderAutotradeBtn(data.auto_trade);
+                }
+            } catch (e) {}
         }
 
         function populateAssetDropdown() {
@@ -958,7 +981,7 @@
             const prev = signalSoundEnabled;
             signalSoundEnabled = true;
             playToneSequence([587.33, 880, 1174.66], 0.11, 0.04, 'sine', 0.15);
-            speakItalianText('Cervello matematico, ciclo candele target e terminale BingX in tempo reale attivi.');
+            speakItalianText('Cervello matematico, autotrade, ciclo candele target e terminale BingX in tempo reale attivi.');
             signalSoundEnabled = prev;
         }
 
@@ -1129,6 +1152,9 @@
 
             if (teleData) {
                 latestPayload.telemetry = teleData;
+                if (typeof teleData.auto_trade === 'boolean') {
+                    renderAutotradeBtn(teleData.auto_trade);
+                }
                 if (teleData.account) {
                     renderBingXAccountWidget(teleData.account, null);
                 }
@@ -1219,7 +1245,7 @@
             const selectedAsset = document.getElementById('assetSelect')?.value || 'ALL';
             const targets = selectedAsset !== 'ALL'
                 ? rows.filter(r => r.symbol === selectedAsset).slice(0, 1)
-                : rows.slice(0, 6);
+                : rows.slice(0, 4);
 
             await Promise.all(targets.map(async (row) => {
                 try {
@@ -1300,6 +1326,10 @@
                 const res = await fetch(buildQueryUrl(), { signal: controller.signal, cache: 'no-store' });
                 const data = await res.json();
                 const heldSignals = mergeAndHoldSignals(Array.isArray(data.signals) ? data.signals : []);
+
+                if (typeof data.auto_trade === 'boolean') {
+                    renderAutotradeBtn(data.auto_trade);
+                }
 
                 latestPayload = {
                     sessions: data.sessions || latestPayload.sessions,
@@ -1544,6 +1574,9 @@
             try {
                 const res = await fetch('/api/autotrade/status', { cache: 'no-store' });
                 const data = await res.json();
+                if (typeof data.auto_trade === 'boolean') {
+                    renderAutotradeBtn(data.auto_trade);
+                }
                 if (data.performance) {
                     renderPerformanceAndTelemetry(data.performance, latestPayload.telemetry);
                 }
@@ -1579,6 +1612,7 @@
                 });
             });
 
+            document.getElementById('autotradeToggleBtn')?.addEventListener('click', toggleAutotrade);
             document.getElementById('soundToggleBtn')?.addEventListener('click', toggleSignalSound);
             document.getElementById('testVoiceBtn')?.addEventListener('click', testVoiceAlert);
             document.getElementById('refreshAllBtn')?.addEventListener('click', () => loadAllLive(true));
@@ -1603,13 +1637,14 @@
         }
 
         bindUIEvents();
+        renderAutotradeBtn(true);
         populateAssetDropdown();
         renderPerformanceAndTelemetry(null, null);
         renderChartsTab();
         loadAllLive(true);
-        setInterval(() => loadSignals(false), 3000);
-        setInterval(loadRealtimeAccountAndPerf, 2000);
-        setInterval(pollLivePrices, 1500);
+        setInterval(() => loadSignals(false), 7000);
+        setInterval(loadRealtimeAccountAndPerf, 6500);
+        setInterval(pollLivePrices, 2500);
         setInterval(() => {
             if (pinnedSignalsMap.size > 0) {
                 latestPayload.signals = mergeAndHoldSignals([]);
