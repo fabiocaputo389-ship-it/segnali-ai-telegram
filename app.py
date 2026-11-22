@@ -40,6 +40,7 @@ _LAST_CONFIRMED_DIRECTION = {}
 _LIVE_PRICE_CACHE = {}
 _KLINES_CACHE = {}
 _CONTRACT_SPECS_CACHE = {"ts": 0.0, "by_symbol": {}}
+_SIGNALS_RESPONSE_CACHE = {}
 _CACHE_LOCK = threading.Lock()
 _LAST_GOOD_SIGNALS_PAYLOAD = None
 
@@ -187,34 +188,34 @@ def get_bingx_symbol_candidates(meta: dict) -> list:
     base = bx_main.replace("-USDT", "").replace("USDT", "")
     cands = [bx_main]
     alt_map = {
-        "PAXG": ["PAXG-USDT", "XAU-USDT", "GOLD-USDT"],
+        "PAXG": ["PAXG-USDT", "XAU-USDT"],
         "XAG": ["XAG-USDT", "SILVER-USDT"],
-        "WTI": ["WTI-USDT", "USOIL-USDT", "CL-USDT"],
+        "WTI": ["WTI-USDT", "USOIL-USDT"],
         "NATGAS": ["NATGAS-USDT", "NG-USDT"],
         "COPPER": ["COPPER-USDT", "HG-USDT"],
-        "EUR": ["EUR-USDT", "EURUSD-USDT"],
-        "GBP": ["GBP-USDT", "GBPUSD-USDT"],
-        "USDJPY": ["USDJPY-USDT", "USDJPY"],
-        "AAPL": ["AAPL-USDT", "AAPL"],
-        "TSLA": ["TSLA-USDT", "TSLA"],
-        "NVDA": ["NVDA-USDT", "NVDA"],
-        "AMZN": ["AMZN-USDT", "AMZN"],
-        "MSFT": ["MSFT-USDT", "MSFT"],
-        "GOOGL": ["GOOGL-USDT", "GOOGL"],
+        "EUR": ["EUR-USDT"],
+        "GBP": ["GBP-USDT"],
+        "USDJPY": ["USDJPY-USDT"],
+        "AAPL": ["AAPL-USDT"],
+        "TSLA": ["TSLA-USDT"],
+        "NVDA": ["NVDA-USDT"],
+        "AMZN": ["AMZN-USDT"],
+        "MSFT": ["MSFT-USDT"],
+        "GOOGL": ["GOOGL-USDT"],
     }
     for extra in alt_map.get(base, [f"{base}-USDT"]):
         if extra not in cands:
             cands.append(extra)
-    return cands
+    return cands[:2]
 
 
 def get_bingx_contract_spec(bx_symbol: str):
     now = time.time()
     with _CACHE_LOCK:
-        if now - _CONTRACT_SPECS_CACHE.get("ts", 0.0) > 300.0:
-            for base in BINGX_CANDIDATE_BASES:
+        if now - _CONTRACT_SPECS_CACHE.get("ts", 0.0) > 600.0:
+            for base in BINGX_CANDIDATE_BASES[:2]:
                 try:
-                    resp = requests.get(f"{base}/openApi/swap/v2/quote/contracts", timeout=3.0)
+                    resp = requests.get(f"{base}/openApi/swap/v2/quote/contracts", timeout=2.0)
                     if resp.status_code == 200:
                         rows = resp.json().get("data") or []
                         if isinstance(rows, list) and rows:
@@ -383,45 +384,26 @@ def get_session_statuses():
     commodities_open = True
     equities_open = ALLOW_WEEKEND_TRADFI or ((weekday < 5) and (14.5 <= hour_float <= 21.0))
 
-    forex_schedule_note = (
-        "APERTO LIVE (Attivo 24/7 • Sessione FX Lun-Ven, apertura Dom ~22:00 UTC, chiusura Ven ~22:00 UTC)"
-        if weekday >= 5
-        else "APERTO LIVE (Lun-Ven 24h • Rollover 21:00-22:00 UTC)"
-    )
-    commodities_schedule_note = (
-        "APERTO LIVE (Attivo 24/7 • Metalli/Energia Lun-Ven, chiusura Ven ~22:00 UTC, riapertura Dom ~22:00 UTC)"
-        if weekday >= 5
-        else "APERTO LIVE (Lun-Ven quasi 24h • Breve pausa tecnica giornaliera)"
-    )
-    equities_schedule_note = (
-        "APERTO LIVE (Forzato attivo)"
-        if ALLOW_WEEKEND_TRADFI
-        else "APERTO (Lun-Ven 14:30-21:00 UTC) • CHIUSO Sab-Dom e fuori orario NYSE/NASDAQ"
-    )
-
     return {
         "Criptovalute Globali": {
             "status": "APERTO LIVE (24/7)",
             "is_open": crypto_open,
             "days_label": "Lun - Dom (Sempre Aperto)",
             "hours": "24/7 Continuo (UTC)",
-            "schedule_detail": "Aperto tutti i giorni 00:00-24:00 UTC senza chiusure settimanali.",
             "badge_color": "#15803d",
         },
         "Forex & Valute": {
             "status": "APERTO LIVE",
             "is_open": forex_open,
-            "days_label": "Aperto Live • FX Lun-Ven (Dom 22:00 - Ven 22:00 UTC)",
-            "hours": "Operativo Live 24/7 • Finestra FX Dom 22:00 - Ven 22:00 UTC",
-            "schedule_detail": forex_schedule_note,
+            "days_label": "Aperto Live • FX Lun-Ven",
+            "hours": "Operativo Live 24/7 (UTC)",
             "badge_color": "#15803d",
         },
         "Materie Prime": {
             "status": "APERTO LIVE",
             "is_open": commodities_open,
-            "days_label": "Aperto Live • Metalli/WTI/Gas (Chiusura Ven ~22:00 UTC)",
-            "hours": "Operativo Live 24/7 • Sessione Spot/Perp continua",
-            "schedule_detail": commodities_schedule_note,
+            "days_label": "Aperto Live • Metalli/WTI/Gas",
+            "hours": "Operativo Live 24/7 (UTC)",
             "badge_color": "#15803d",
         },
         "Azioni & Indici Globali": {
@@ -429,7 +411,6 @@ def get_session_statuses():
             "is_open": equities_open,
             "days_label": "Lun - Ven (Chiuso Sabato & Domenica)",
             "hours": "NYSE/NASDAQ: Lun-Ven 14:30 - 21:00 UTC",
-            "schedule_detail": equities_schedule_note,
             "badge_color": "#15803d" if equities_open else "#dc2626",
         },
     }
@@ -451,18 +432,6 @@ def get_macro_windows(now_utc: datetime):
             "risk": "ALTA VOLATILITÀ",
             "active": (wd < 5) and (13.5 <= h <= 21.0),
         },
-        {
-            "window": "Ven 22:00 - Dom 22:00 UTC",
-            "title": "Weekend TradFi (Crypto, FX & Materie Prime Live)",
-            "risk": "MERCATO LIVE",
-            "active": (wd == 5) or (wd == 6 and h < 22.0) or (wd == 4 and h >= 22.0),
-        },
-        {
-            "window": "Lun - Dom • 00:00 - 24:00 UTC",
-            "title": "Criptovalute & Contratti Attivi 24/7",
-            "risk": "OPERATIVO H24",
-            "active": True,
-        },
     ]
 
 
@@ -474,19 +443,19 @@ def sign_bingx_query(params: dict) -> str:
 
 def bingx_signed_request(method: str, path: str, params: dict):
     if not (BINGX_API_KEY and BINGX_API_SECRET):
-        return None, "API Key / Secret BingX non configurate su Render"
+        return None, "API Key / Secret BingX non configurate"
     headers = {"X-BX-APIKEY": BINGX_API_KEY}
     last_err = "Errore connessione BingX"
-    for base in BINGX_CANDIDATE_BASES:
+    for base in BINGX_CANDIDATE_BASES[:2]:
         req_params = dict(params or {})
         req_params["timestamp"] = int(time.time() * 1000)
         signed_qs = sign_bingx_query(req_params)
         url = f"{base}{path}?{signed_qs}"
         try:
             if method.upper() == "POST":
-                resp = requests.post(url, headers=headers, timeout=4.0)
+                resp = requests.post(url, headers=headers, timeout=2.5)
             else:
-                resp = requests.get(url, headers=headers, timeout=4.0)
+                resp = requests.get(url, headers=headers, timeout=2.5)
             data = resp.json()
             if resp.status_code != 200:
                 last_err = f"HTTP {resp.status_code}: {data}"
@@ -515,7 +484,7 @@ def sync_bingx_leverage_and_margin(bx_symbol: str, lev_int: int, pos_side: str):
 
 def fetch_bingx_account_balance():
     if not (BINGX_API_KEY and BINGX_API_SECRET):
-        return None, "API Key / Secret BingX non configurate su Render"
+        return None, "API Key / Secret BingX non configurate"
     payload, err = bingx_signed_request("GET", "/openApi/swap/v2/user/balance", {})
     if err or not isinstance(payload, dict):
         return None, err or "Errore lettura saldo BingX"
@@ -535,7 +504,7 @@ def sync_bingx_real_closed_trades():
     if not (BINGX_API_KEY and BINGX_API_SECRET):
         return
     with STATE_LOCK:
-        if time.time() - STATE.get("last_bingx_sync", 0.0) < 12.0:
+        if time.time() - STATE.get("last_bingx_sync", 0.0) < 25.0:
             return
         STATE["last_bingx_sync"] = time.time()
 
@@ -544,7 +513,7 @@ def sync_bingx_real_closed_trades():
     payload, err = bingx_signed_request(
         "GET",
         "/openApi/swap/v2/user/income",
-        {"startTime": start_ms, "endTime": now_ms, "limit": 200},
+        {"startTime": start_ms, "endTime": now_ms, "limit": 100},
     )
     if err or not isinstance(payload, dict):
         return
@@ -591,7 +560,7 @@ def sync_bingx_real_closed_trades():
 
 def fetch_bingx_real_positions():
     if not (BINGX_API_KEY and BINGX_API_SECRET):
-        return [], "API Key / Secret BingX non configurate su Render"
+        return [], "API Key / Secret BingX non configurate"
     payload, err = bingx_signed_request("GET", "/openApi/swap/v2/user/positions", {})
     if err or not isinstance(payload, dict):
         return [], err or "Errore lettura posizioni BingX"
@@ -677,13 +646,13 @@ def run_break_even_trailing_on_positions(positions, signals_list):
 def fetch_bingx_ticker(bx_symbol: str):
     with _CACHE_LOCK:
         cached = _LIVE_PRICE_CACHE.get(bx_symbol)
-        if cached and (time.time() - cached["ts"]) < 3.0:
+        if cached and (time.time() - cached["ts"]) < 4.0:
             return cached["price"]
 
-    for base in BINGX_CANDIDATE_BASES:
+    for base in BINGX_CANDIDATE_BASES[:2]:
         try:
             url = f"{base}/openApi/swap/v2/quote/ticker"
-            resp = requests.get(url, params={"symbol": bx_symbol}, timeout=2.2)
+            resp = requests.get(url, params={"symbol": bx_symbol}, timeout=1.6)
             if resp.status_code == 200:
                 payload = resp.json()
                 data = payload.get("data")
@@ -704,22 +673,22 @@ def fetch_bingx_ticker(bx_symbol: str):
     return None
 
 
-def fetch_bingx_klines(bx_symbol: str, interval: str, limit: int = 55):
+def fetch_bingx_klines(bx_symbol: str, interval: str, limit: int = 25):
     tf_map = {"5m": "5m", "15m": "15m", "1h": "1h"}
     bx_int = tf_map.get(interval, "15m")
     cache_key = f"{bx_symbol}_{bx_int}_{limit}"
     with _CACHE_LOCK:
         cached = _KLINES_CACHE.get(cache_key)
-        if cached and (time.time() - cached["ts"]) < 8.0:
+        if cached and (time.time() - cached["ts"]) < 15.0:
             return cached["df"].copy()
 
-    for base in BINGX_CANDIDATE_BASES:
+    for base in BINGX_CANDIDATE_BASES[:2]:
         try:
             url = f"{base}/openApi/swap/v2/quote/klines"
-            resp = requests.get(url, params={"symbol": bx_symbol, "interval": bx_int, "limit": limit}, timeout=2.6)
+            resp = requests.get(url, params={"symbol": bx_symbol, "interval": bx_int, "limit": limit}, timeout=1.8)
             if resp.status_code == 200:
                 rows = resp.json().get("data") or []
-                if isinstance(rows, list) and len(rows) >= 20:
+                if isinstance(rows, list) and len(rows) >= 15:
                     parsed = []
                     for r in rows[-limit:]:
                         if isinstance(r, dict):
@@ -738,7 +707,7 @@ def fetch_bingx_klines(bx_symbol: str, interval: str, limit: int = 55):
                             continue
                         if c > 0 and h >= l > 0:
                             parsed.append({"Open": o or c, "High": h, "Low": l, "Close": c, "Volume": max(v, 0.0)})
-                    if len(parsed) >= 20:
+                    if len(parsed) >= 15:
                         df_out = pd.DataFrame(parsed)
                         with _CACHE_LOCK:
                             _KLINES_CACHE[cache_key] = {"df": df_out, "ts": time.time()}
@@ -760,29 +729,28 @@ def fetch_bingx_ticker_multi(candidates: list):
     return None, candidates[0]
 
 
-def fetch_bingx_klines_multi(candidates: list, interval: str, limit: int = 55):
+def fetch_bingx_klines_multi(candidates: list, interval: str, limit: int = 25):
     for bx_symbol in candidates:
         df = fetch_bingx_klines(bx_symbol, interval, limit=limit)
-        if df is not None and len(df) >= 20:
+        if df is not None and len(df) >= 15:
             return df, bx_symbol
     return None, candidates[0]
 
 
 def get_real_market_dataframe(meta: dict, timeframe: str):
     candidates = get_bingx_symbol_candidates(meta)
-    live_price, matched_ticker_sym = fetch_bingx_ticker_multi(candidates)
-    klines_df, matched_kline_sym = fetch_bingx_klines_multi(candidates, timeframe, limit=55)
-    resolved_bx = matched_kline_sym if klines_df is not None else matched_ticker_sym
-
-    if klines_df is not None and len(klines_df) >= 20:
+    klines_df, matched_kline_sym = fetch_bingx_klines_multi(candidates, timeframe, limit=25)
+    if klines_df is not None and len(klines_df) >= 15:
+        live_price = fetch_bingx_ticker(matched_kline_sym)
         price_out = live_price if (live_price and live_price > 0) else safe_float(klines_df["Close"].iloc[-1], 0.0)
         if price_out > 0:
             klines_df.iloc[-1, klines_df.columns.get_loc("Close")] = price_out
             klines_df.iloc[-1, klines_df.columns.get_loc("High")] = max(klines_df.iloc[-1]["High"], price_out)
             klines_df.iloc[-1, klines_df.columns.get_loc("Low")] = min(klines_df.iloc[-1]["Low"], price_out)
-        return klines_df, price_out, resolved_bx
+        return klines_df, price_out, matched_kline_sym
 
-    return None, (live_price or 0.0), resolved_bx
+    live_price, matched_ticker_sym = fetch_bingx_ticker_multi(candidates)
+    return None, (live_price or 0.0), matched_ticker_sym
 
 
 def build_profile_config(profile: str, timeframe: str, min_score: float, risk_pct: float = 1.0):
@@ -871,9 +839,9 @@ def build_profile_config(profile: str, timeframe: str, min_score: float, risk_pc
 
 def detect_market_regime_and_advice(df, current_price, is_open, cfg):
     close = df["Close"]
-    ema20 = safe_float(close.ewm(span=20, adjust=False).mean().iloc[-1], current_price)
-    ema50 = safe_float(close.ewm(span=50, adjust=False).mean().iloc[-1], current_price)
-    diff_pct = ((ema20 - ema50) / ema50 * 100.0) if ema50 > 0 else 0.0
+    ema12 = safe_float(close.ewm(span=12, adjust=False).mean().iloc[-1], current_price)
+    ema26 = safe_float(close.ewm(span=26, adjust=False).mean().iloc[-1], current_price)
+    diff_pct = ((ema12 - ema26) / ema26 * 100.0) if ema26 > 0 else 0.0
 
     if not is_open:
         regime = "MERCATO CHIUSO"
@@ -910,9 +878,9 @@ def compute_reversal_and_fakeout_metrics(
     low = df["Low"]
 
     tr = pd.concat([high - low, np.abs(high - close.shift()), np.abs(low - close.shift())], axis=1).max(axis=1)
-    atr_series = tr.rolling(14).mean()
+    atr_series = tr.rolling(10).mean()
     atr = safe_float(atr_series.iloc[-1], current_price * 0.005)
-    atr_prev = safe_float(atr_series.iloc[-6], atr) if len(atr_series) >= 6 else atr
+    atr_prev = safe_float(atr_series.iloc[-5], atr) if len(atr_series) >= 5 else atr
     if atr <= 0:
         atr = current_price * 0.005
 
@@ -925,8 +893,8 @@ def compute_reversal_and_fakeout_metrics(
     upper_wick = max(0.0, last_high - max(current_price, last_open))
     lower_wick = max(0.0, min(current_price, last_open) - last_low)
 
-    prev_high_20 = safe_float(high.iloc[-21:-1].max(), last_high) if len(df) >= 22 else last_high
-    prev_low_20 = safe_float(low.iloc[-21:-1].min(), last_low) if len(df) >= 22 else last_low
+    prev_high_20 = safe_float(high.iloc[-15:-1].max(), last_high) if len(df) >= 16 else last_high
+    prev_low_20 = safe_float(low.iloc[-15:-1].min(), last_low) if len(df) >= 16 else last_low
 
     fake_bull_breakout = (last_high > prev_high_20) and (current_price < prev_high_20 * 0.999)
     fake_bear_breakout = (last_low < prev_low_20) and (current_price > prev_low_20 * 1.001)
@@ -937,9 +905,9 @@ def compute_reversal_and_fakeout_metrics(
 
     fakeout_flags = []
     if fake_bull_breakout:
-        fakeout_flags.append("Falsa rottura massimo 20 candele")
+        fakeout_flags.append("Falsa rottura massimo recente")
     if fake_bear_breakout:
-        fakeout_flags.append("Falsa rottura minimo 20 candele")
+        fakeout_flags.append("Falsa rottura minimo recente")
     if wick_rejection_top:
         fakeout_flags.append("Rejection ombra superiore")
     if wick_rejection_bottom:
@@ -1087,14 +1055,13 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
     profile = cfg["profile"]
 
     delta = close.diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    gain = (delta.where(delta > 0, 0)).rolling(window=10).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=10).mean()
     rsi_series = 100 - (100 / (1 + (gain / loss).replace(0, np.nan)))
     rsi = safe_float(rsi_series.iloc[-1], 50.0)
 
     ema12 = close.ewm(span=12, adjust=False).mean()
     ema26 = close.ewm(span=26, adjust=False).mean()
-    ema50 = close.ewm(span=50, adjust=False).mean()
     macd_line = ema12 - ema26
     signal_line = macd_line.ewm(span=9, adjust=False).mean()
     macd_hist = macd_line - signal_line
@@ -1103,21 +1070,20 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
     prev_macd = safe_float(macd_hist.iloc[-2], 0.0)
     curr_ema12 = safe_float(ema12.iloc[-1], current_price)
     curr_ema26 = safe_float(ema26.iloc[-1], current_price)
-    curr_ema50 = safe_float(ema50.iloc[-1], current_price)
 
     tr = pd.concat([high - low, np.abs(high - close.shift()), np.abs(low - close.shift())], axis=1).max(axis=1)
-    atr = safe_float(tr.rolling(14).mean().iloc[-1], current_price * 0.005)
+    atr = safe_float(tr.rolling(10).mean().iloc[-1], current_price * 0.005)
     if atr <= 0:
         atr = current_price * 0.005
 
     vol_curr = safe_float(volume.iloc[-1], 0.0)
-    vol_avg20 = safe_float(volume.rolling(20).mean().iloc[-1], 0.0)
+    vol_avg20 = safe_float(volume.rolling(15).mean().iloc[-1], 0.0)
     vol_ratio = round(vol_curr / vol_avg20, 2) if vol_avg20 > 0 else 1.0
 
     last_high = safe_float(high.iloc[-1], current_price)
     last_low = safe_float(low.iloc[-1], current_price)
-    prev_high_20 = safe_float(high.iloc[-21:-1].max(), last_high) if len(df) >= 22 else last_high
-    prev_low_20 = safe_float(low.iloc[-21:-1].min(), last_low) if len(df) >= 22 else last_low
+    prev_high_20 = safe_float(high.iloc[-15:-1].max(), last_high) if len(df) >= 16 else last_high
+    prev_low_20 = safe_float(low.iloc[-15:-1].min(), last_low) if len(df) >= 16 else last_low
 
     fake_bull_breakout = (last_high > prev_high_20) and (current_price < prev_high_20 * 0.999)
     fake_bear_breakout = (last_low < prev_low_20) and (current_price > prev_low_20 * 1.001)
@@ -1126,27 +1092,27 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
     vol_ok = (vol_avg20 <= 0) or (vol_ratio >= min_vol_ratio)
 
     htf_bias = "NEUTRAL"
-    if htf_df is not None and len(htf_df) >= 20:
+    if htf_df is not None and len(htf_df) >= 15:
         h_close = htf_df["Close"]
-        h_ema20 = safe_float(h_close.ewm(span=20, adjust=False).mean().iloc[-1], current_price)
-        h_ema50 = safe_float(h_close.ewm(span=50, adjust=False).mean().iloc[-1], current_price)
-        if h_ema20 > h_ema50 * 1.0002:
+        h_ema12 = safe_float(h_close.ewm(span=12, adjust=False).mean().iloc[-1], current_price)
+        h_ema26 = safe_float(h_close.ewm(span=26, adjust=False).mean().iloc[-1], current_price)
+        if h_ema12 > h_ema26 * 1.0002:
             htf_bias = "BULL"
-        elif h_ema20 < h_ema50 * 0.9998:
+        elif h_ema12 < h_ema26 * 0.9998:
             htf_bias = "BEAR"
 
     bull_factors = [
         curr_ema12 > curr_ema26,
-        curr_ema26 >= curr_ema50 * 0.992,
-        current_price >= curr_ema50 * 0.985,
+        curr_ema26 >= current_price * 0.985,
+        current_price >= curr_ema26 * 0.985,
         (current_macd > 0) or (current_macd > prev_macd),
         rsi_buy_min <= rsi <= rsi_buy_max,
         vol_ratio >= min_vol_ratio,
     ]
     bear_factors = [
         curr_ema12 < curr_ema26,
-        curr_ema26 <= curr_ema50 * 1.008,
-        current_price <= curr_ema50 * 1.015,
+        curr_ema26 <= current_price * 1.015,
+        current_price <= curr_ema26 * 1.015,
         (current_macd < 0) or (current_macd < prev_macd),
         rsi_sell_min <= rsi <= rsi_sell_max,
         vol_ratio >= min_vol_ratio,
@@ -1232,13 +1198,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         action, sent, col = "NEUTRAL", "FILTRATO ANTI-FAKEOUT / NO-TRADE", "#0f172a"
         inv = "Solo Segnali Certi • Anti-Falsa Rottura Attivo"
 
-    if certainty_val >= 80.0:
-        certainty_level = "ALTA"
-    elif certainty_val >= 50.0:
-        certainty_level = "MEDIA"
-    else:
-        certainty_level = "BASSA"
-
+    certainty_level = "ALTA" if certainty_val >= 80.0 else ("MEDIA" if certainty_val >= 50.0 else "BASSA")
     confluence_label = f"{confluence_hits}/6 Fattori"
 
     bx_symbol, bx_precision = resolve_bingx_symbol(symbol)
@@ -1257,21 +1217,15 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         sl, tp1 = align_tp_sl_to_price("BUY", entry, entry - raw_sl_dist, entry + raw_tp_dist, decimals)
         tp2 = quantize_to_tick(entry + abs(tp1 - entry) * 1.45, decimals, tick_size)
         tp3 = quantize_to_tick(entry + abs(tp1 - entry) * 2.0, decimals, tick_size)
-        target_rialzista = tp2
-        target_ribassista = sl
     elif action == "SELL":
         sl, tp1 = align_tp_sl_to_price("SELL", entry, entry + raw_sl_dist, entry - raw_tp_dist, decimals)
         tp2 = quantize_to_tick(entry - abs(entry - tp1) * 1.45, decimals, tick_size)
         tp3 = quantize_to_tick(entry - abs(entry - tp1) * 2.0, decimals, tick_size)
-        target_rialzista = sl
-        target_ribassista = tp2
     else:
         sl = quantize_to_tick(entry - raw_sl_dist, decimals, tick_size)
         tp1 = quantize_to_tick(entry + raw_tp_dist, decimals, tick_size)
         tp2 = quantize_to_tick(entry + raw_tp_dist * 1.45, decimals, tick_size)
         tp3 = quantize_to_tick(entry + raw_tp_dist * 2.0, decimals, tick_size)
-        target_rialzista = tp1
-        target_ribassista = sl
 
     sl_dist = abs(entry - sl)
     tp_dist = abs(tp1 - entry)
@@ -1287,11 +1241,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
     recent_movement = max(abs(close.diff().tail(5)).mean(), atr * 0.18, current_price * 0.0001)
     candles_needed = max(1, int(np.ceil(tp_dist / recent_movement)))
     est_min = candles_needed * tf_min
-    duration = (
-        f"~{est_min} min ({candles_needed} candele)"
-        if est_min < 60
-        else f"~{round(est_min / 60, 1)} ore ({candles_needed} candele)"
-    )
+    duration = f"~{est_min} min ({candles_needed} candele)" if est_min < 60 else f"~{round(est_min / 60, 1)} ore ({candles_needed} candele)"
     tp_eta_utc = datetime.fromtimestamp(now_ts + (est_min * 60), tz=timezone.utc).strftime("%H:%M UTC")
     tp_eta_text = f"{duration} • {candle_tf_label} • ETA ~{tp_eta_utc}"
 
@@ -1361,31 +1311,17 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         )
         trigger_condition = f"Attesa Certezza Profitto >={min_profit_cert}%, EV netto > 0 e struttura senza fakeout."
     elif loss_cd_rem > 0 and action == "NEUTRAL":
-        filter_reason = f"Cooldown post-perdita attivo su {clean_sym}: pausa residua {loss_cd_rem}s prima di nuovi ingressi."
-        trigger_condition = f"Ripresa scansione segnali su {clean_sym} al termine del cooldown ({loss_cd_rem}s)."
+        filter_reason = f"Cooldown post-perdita attivo su {clean_sym}: pausa residua {loss_cd_rem}s."
+        trigger_condition = f"Ripresa scansione su {clean_sym} al termine del cooldown ({loss_cd_rem}s)."
     elif not is_open:
         filter_reason = f"Borsa {category} chiusa nei giorni/orari correnti — in attesa riapertura."
-        trigger_condition = f"Attivazione alla riapertura con certezza >={min_certainty}% (>={min_hits}/6 fattori) e Score >={min_score}%."
-    elif (
-        prev_dir_info
-        and (now_ts - safe_float(prev_dir_info.get("ts"), 0.0)) < cooldown_sec
-        and prev_dir_info.get("action") in ["BUY", "SELL"]
-        and action == "NEUTRAL"
-    ):
-        rem_cd = int(max(1, cooldown_sec - (now_ts - safe_float(prev_dir_info.get("ts"), 0.0))))
-        filter_reason = (
-            f"Protezione anti-inversione ({prev_dir_info.get('action')} recente): "
-            f"attesa {rem_cd}s o certezza >={flip_min_cert}% per cambiare direzione."
-        )
-        trigger_condition = f"Cambio direzione consentito dopo {rem_cd}s oppure con conferma piena ({min_hits}/6 fattori)."
+        trigger_condition = f"Attivazione alla riapertura con certezza >={min_certainty}% e Score >={min_score}%."
     elif action == "NEUTRAL":
         filter_reason = (
             f"Setup in monitoraggio: Certezza {certainty_val}% (Profitto {profit_cert_val}%), {confluence_hits}/{min_hits} fattori, "
             f"Score {score}% (min {min_score}%), RSI {round(rsi, 1)}, Vol {vol_ratio}x."
         )
-        trigger_condition = (
-            f"Segnali attivi con certezza >={min_certainty}%, Score >={min_score}% e R:R >= 1:{min_rrr}."
-        )
+        trigger_condition = f"Segnali attivi con certezza >={min_certainty}%, Score >={min_score}% e R:R >= 1:{min_rrr}."
     else:
         filter_reason = (
             f"Segnale certo preso in carico: {action} con Certezza Profitto {profit_cert_val}% ({certainty_label}, {confluence_label}) "
@@ -1393,15 +1329,7 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         )
         trigger_condition = f"Segnale certo {action} (Profitto {profit_cert_val}%) con SL {sl_m}x ATR e TP1 {tp_m}x ATR."
 
-    vol_pct = round((atr / entry) * 100, 2) if entry > 0 else 0.0
-    vol_regime = "ALTA VOLATILITÀ" if vol_pct >= 1.2 else ("MODERATA" if vol_pct >= 0.35 else "CONTENUTA")
-    trend_state = (
-        "BULLISH EMA/MACD"
-        if (curr_ema12 > curr_ema26 and current_macd > 0)
-        else ("BEARISH EMA/MACD" if (curr_ema12 < curr_ema26 and current_macd < 0) else "MISTO / NO-FLIP")
-    )
-
-    closes_tail = [round(safe_float(x, current_price), decimals) for x in close.tail(24).tolist()]
+    closes_tail = [round(safe_float(x, current_price), decimals) for x in close.tail(20).tolist()]
 
     return {
         "action": action,
@@ -1412,7 +1340,6 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         "loss_cooldown_rem": loss_cd_rem,
         "filter_reason": filter_reason,
         "trigger_condition": trigger_condition,
-        "trend_state": trend_state,
         "htf_bias": htf_bias,
         "bingx_symbol": bx_symbol,
         "ai_score": f"{score}%",
@@ -1429,49 +1356,24 @@ def calculate_setup(df, current_price, symbol, balance, risk_pct, cfg, category,
         "tp3_progress_pct": tp3_progress_pct,
         "series": closes_tail,
         "roi_pct": roi_pct,
-        "target_rialzista": target_rialzista,
-        "target_ribassista": target_ribassista,
         "duration": duration,
         "candle_tf_label": candle_tf_label,
-        "tp_candles_est": candles_needed,
-        "tp_eta_utc": tp_eta_utc,
         "tp_eta_text": tp_eta_text,
         "rrr": rrr_val,
         "rsi": round(rsi, 1),
         "vol_ratio": vol_ratio,
         "confluence": confluence_label,
-        "vol_regime": f"{vol_regime} ({vol_pct}%)",
         "size": pos_size,
         "leverage": f"Isolata {lev_int}x",
         "leverage_num": lev_int,
         "margin": margin,
-        "decimals": decimals,
-        "sl_dist": round(sl_dist, decimals + 2),
-        "tp_dist": round(tp_dist, decimals + 2),
         "roundtrip_fee": roundtrip_fee,
-        "expected_net": expected_net_profit,
-        "false_breakout": anti_fake["false_breakout"],
-        "fakeout_label": anti_fake["fakeout_label"],
-        "fakeout_reason": anti_fake["fakeout_reason"],
-        "reversal_to": anti_fake["reversal_to"],
-        "reversal_prob_pct": anti_fake["reversal_prob_pct"],
-        "reversal_trigger": anti_fake["reversal_trigger"],
-        "reversal_summary": anti_fake["reversal_summary"],
-        "reversal_reason": anti_fake["reversal_reason"],
         "p_win_pct": math_model["p_win_pct"],
-        "net_win_usd": math_model["net_win_usd"],
-        "total_loss_usd": math_model["total_loss_usd"],
         "ev_net_usd": math_model["ev_net_usd"],
         "kelly_pct": math_model["kelly_pct"],
-        "break_even_wr_pct": math_model["break_even_wr_pct"],
         "math_approved": math_model["math_approved"],
-        "math_badge": math_model["math_badge"],
-        "advisor_status": f"SEGNALE CERTO (Profitto {profit_cert_val}%)" if action in ["BUY", "SELL"] else "FILTRATO ANTI-FAKEOUT",
-        "advisor_color": "#15803d" if action in ["BUY", "SELL"] else "#0f172a",
-        "advisor_msg": f"BingX Live: {bx_symbol} | Certezza Profitto {profit_cert_val}% | EV ${math_model['ev_net_usd']}",
         "applied_params": cfg,
         "market_regime": regime_info,
-        "recommended_params": regime_info["recommended_params"],
     }
 
 
@@ -1609,8 +1511,6 @@ def _evaluate_single_asset(category, sess, meta, timeframe, htf_tf, balance, ris
             "tp2": None,
             "tp3": None,
             "tp1_progress_pct": 0.0,
-            "tp2_progress_pct": 0.0,
-            "tp3_progress_pct": 0.0,
             "series": [],
             "action": "NEUTRAL",
             "taken": False,
@@ -1620,8 +1520,6 @@ def _evaluate_single_asset(category, sess, meta, timeframe, htf_tf, balance, ris
             "certainty_level": "BASSA",
             "certainty_text": "0.0% (BASSA)",
             "filter_reason": err_reason,
-            "why_not_taken": err_reason,
-            "when_taken": "Richiede feed live BingX attivo",
             "params": {
                 "profile": cfg["profile"],
                 "timeframe": timeframe,
@@ -1631,7 +1529,7 @@ def _evaluate_single_asset(category, sess, meta, timeframe, htf_tf, balance, ris
             },
         }, None, True, err_reason
 
-    htf_df, _ = fetch_bingx_klines_multi(get_bingx_symbol_candidates(meta), htf_tf, limit=40) if htf_tf != timeframe else (df, resolved_bx)
+    htf_df = df if htf_tf == timeframe else fetch_bingx_klines(resolved_bx, htf_tf, limit=25)
     res = calculate_setup(df, curr_price, sym, balance, risk_pct, cfg, category, is_open, htf_df=htf_df, bx_override=resolved_bx)
     taken = res["action"] in ("BUY", "SELL") and is_open
 
@@ -1650,17 +1548,11 @@ def _evaluate_single_asset(category, sess, meta, timeframe, htf_tf, balance, ris
         "tp2": res["tp2"],
         "tp3": res["tp3"],
         "tp1_progress_pct": res["tp1_progress_pct"],
-        "tp2_progress_pct": res["tp2_progress_pct"],
-        "tp3_progress_pct": res["tp3_progress_pct"],
         "series": res["series"],
-        "target_rialzista": res["target_rialzista"],
-        "target_ribassista": res["target_ribassista"],
         "rrr": res["rrr"],
         "roi_pct": res["roi_pct"],
         "duration": res["duration"],
         "candle_tf_label": res["candle_tf_label"],
-        "tp_candles_est": res["tp_candles_est"],
-        "tp_eta_utc": res["tp_eta_utc"],
         "tp_eta_text": res["tp_eta_text"],
         "confluence": res["confluence"],
         "htf_bias": res["htf_bias"],
@@ -1669,7 +1561,6 @@ def _evaluate_single_asset(category, sess, meta, timeframe, htf_tf, balance, ris
         "leverage_num": res["leverage_num"],
         "margin": res["margin"],
         "roundtrip_fee": res["roundtrip_fee"],
-        "expected_net": res["expected_net"],
         "action": res["action"] if is_open else "NEUTRAL",
         "taken": taken,
         "ai_score": res["ai_score"],
@@ -1680,27 +1571,10 @@ def _evaluate_single_asset(category, sess, meta, timeframe, htf_tf, balance, ris
         "certainty_text": res["certainty_text"],
         "rsi": res["rsi"],
         "vol_ratio": res["vol_ratio"],
-        "vol_regime": res["vol_regime"],
-        "trend_state": res["trend_state"],
-        "false_breakout": res["false_breakout"],
-        "fakeout_label": res["fakeout_label"],
-        "fakeout_reason": res["fakeout_reason"],
-        "reversal_to": res["reversal_to"],
-        "reversal_prob_pct": res["reversal_prob_pct"],
-        "reversal_trigger": res["reversal_trigger"],
-        "reversal_summary": res["reversal_summary"],
-        "reversal_reason": res["reversal_reason"],
         "p_win_pct": res["p_win_pct"],
-        "net_win_usd": res["net_win_usd"],
-        "total_loss_usd": res["total_loss_usd"],
         "ev_net_usd": res["ev_net_usd"],
         "kelly_pct": res["kelly_pct"],
-        "break_even_wr_pct": res["break_even_wr_pct"],
-        "math_approved": res["math_approved"],
-        "math_badge": res["math_badge"],
         "filter_reason": res["filter_reason"],
-        "why_not_taken": res["filter_reason"],
-        "when_taken": res["trigger_condition"],
         "params": {
             "profile": cfg["profile"],
             "timeframe": timeframe,
@@ -1800,7 +1674,7 @@ def api_close_position():
     if not (BINGX_API_KEY and BINGX_API_SECRET):
         return jsonify({
             "success": False,
-            "error": "Modalità reale attiva: imposta BINGX_API_KEY e BINGX_API_SECRET su Render per chiudere posizioni su BingX.",
+            "error": "Modalità reale attiva: imposta BINGX_API_KEY e BINGX_API_SECRET per chiudere posizioni su BingX.",
         }), 400
     body = request.get_json(silent=True) or {}
     sym = canonicalize_symbol_key(body.get("symbol", "BTCUSDT"))
@@ -1873,6 +1747,12 @@ def get_signals():
     market_filter = request.args.get("market", "ALL")
     symbol_filter = request.args.get("symbol", "ALL")
 
+    cache_key = f"{profile}_{timeframe}_{market_filter}_{symbol_filter}_{round(requested_balance, 2)}_{round(risk_pct, 2)}_{round(min_score, 1)}"
+    with _CACHE_LOCK:
+        cached_resp = _SIGNALS_RESPONSE_CACHE.get(cache_key)
+        if cached_resp and (time.time() - cached_resp["ts"]) < 12.0:
+            return jsonify(cached_resp["payload"])
+
     account_bal, _ = fetch_bingx_account_balance()
     live_equity = safe_float(account_bal.get("equity"), 0.0) if isinstance(account_bal, dict) else 0.0
     effective_balance = live_equity if live_equity > 0 else requested_balance
@@ -1880,7 +1760,7 @@ def get_signals():
     cfg = build_profile_config(profile, timeframe, min_score, risk_pct=risk_pct)
     sessions = get_session_statuses()
     macro_windows = get_macro_windows(datetime.now(timezone.utc))
-    htf_tf = "1h" if timeframe != "1h" else "1h"
+    htf_tf = "1h" if (timeframe != "1h" and market_filter != "ALL") else timeframe
 
     tasks = []
     for category, assets in MARKET_CATALOG.items():
@@ -1893,70 +1773,25 @@ def get_signals():
                 continue
             tasks.append((category, sess, meta))
 
-    cat_stats = {
-        cat: {"scanned": 0, "signals": 0, "filtered": 0, "feed_errors": 0, "reasons": []}
-        for cat in MARKET_CATALOG.keys()
-    }
     signals_out = []
     monitoring_rows = []
 
     if tasks:
-        with ThreadPoolExecutor(max_workers=8) as pool:
+        with ThreadPoolExecutor(max_workers=2) as pool:
             futs = [
                 pool.submit(_evaluate_single_asset, cat, sess, meta, timeframe, htf_tf, effective_balance, risk_pct, cfg)
                 for cat, sess, meta in tasks
             ]
             for fut in as_completed(futs):
                 try:
-                    cat, row_payload, sig_item, is_err, reason_txt = fut.result(timeout=7.0)
+                    _cat, row_payload, sig_item, _is_err, _reason_txt = fut.result(timeout=10.0)
                 except Exception:
                     continue
-                st = cat_stats[cat]
-                st["scanned"] += 1
-                if is_err:
-                    st["feed_errors"] += 1
                 monitoring_rows.append(row_payload)
                 if sig_item is not None:
-                    st["signals"] += 1
                     signals_out.append(sig_item)
-                else:
-                    st["filtered"] += 1
-                    if len(st["reasons"]) < 3:
-                        st["reasons"].append(reason_txt)
 
     signals_out.sort(key=lambda x: safe_float(x.get("profit_certainty_pct"), 0.0), reverse=True)
-
-    market_diagnostics = {}
-    for category, _assets in MARKET_CATALOG.items():
-        sess = sessions.get(category, {"status": "APERTO LIVE", "is_open": True, "hours": "24/7"})
-        is_open = bool(sess.get("is_open", True))
-        st = cat_stats[category]
-        if not is_open:
-            diag_reason = f"Mercato {category} chiuso ({sess.get('days_label', sess['hours'])})."
-        elif st["scanned"] == 0:
-            diag_reason = f"Nessun asset selezionato per {category} con il filtro corrente."
-        elif st["signals"] == 0:
-            details_str = " | ".join(st["reasons"])
-            diag_reason = (
-                f"Analizzati {st['scanned']} asset live su {category} ({sess.get('days_label', '')}): "
-                f"0 segnali certi, {st['filtered']} filtrati. {details_str}"
-            )
-        else:
-            diag_reason = f"{st['signals']} segnali certi confermati su {category} ({st['filtered']} filtrati)."
-
-        market_diagnostics[category] = {
-            "category": category,
-            "session_status": sess["status"],
-            "days_label": sess.get("days_label", ""),
-            "is_open": is_open,
-            "scanned": st["scanned"],
-            "signals_count": st["signals"],
-            "filtered_count": st["filtered"],
-            "feed_errors": st["feed_errors"],
-            "filter_reason": diag_reason,
-            "reason": diag_reason,
-            "sample_reasons": st["reasons"],
-        }
 
     perf_payload = build_performance_payload()
     live_positions, _ = fetch_bingx_real_positions()
@@ -1979,17 +1814,6 @@ def get_signals():
         STATE["scans_count"] += 1
         scans_val = STATE["scans_count"]
         session_pnl_val = STATE["session_pnl"]
-        for s in signals_out[:5]:
-            STATE["signal_alerts"] = ([{
-                "time": now_utc_str,
-                "symbol": s.get("bingx_symbol"),
-                "action": s.get("action"),
-                "profit_cert": s.get("profit_certainty_pct"),
-                "ev": s.get("ev_net_usd"),
-                "entry": s.get("entry"),
-                "tp1": s.get("tp1"),
-            }] + STATE["signal_alerts"])[:25]
-
         extra_info = ""
         if auto_executed:
             extra_info += f" | AUTO: {', '.join(auto_executed)}"
@@ -2000,17 +1824,14 @@ def get_signals():
             "status": f"LIVE SCAN {timeframe} ({profile} • Cap ${effective_balance:.2f} • Risk {risk_pct}% • MinScore {min_score}%){' [KILL-SWITCH]' if kill_switch_hit else ''}{extra_info}",
             "signals_found": len(signals_out),
             "scanned": len(monitoring_rows),
-        }] + STATE["telemetry_logs"])[:40]
+        }] + STATE["telemetry_logs"])[:30]
         logs_copy = list(STATE["telemetry_logs"])
-        alerts_copy = list(STATE["signal_alerts"])
 
     payload_out = {
         "sessions": sessions,
         "macro_windows": macro_windows,
         "signals": signals_out,
-        "signal_alerts": alerts_copy,
         "active_params": cfg,
-        "market_diagnostics": market_diagnostics,
         "market_monitoring_table": monitoring_rows,
         "performance": perf_payload,
         "kill_switch_hit": kill_switch_hit,
@@ -2030,10 +1851,10 @@ def get_signals():
     with _CACHE_LOCK:
         if monitoring_rows:
             _LAST_GOOD_SIGNALS_PAYLOAD = payload_out
+            _SIGNALS_RESPONSE_CACHE[cache_key] = {"ts": time.time(), "payload": payload_out}
         elif _LAST_GOOD_SIGNALS_PAYLOAD is not None:
             fallback = dict(_LAST_GOOD_SIGNALS_PAYLOAD)
             fallback["telemetry"] = payload_out["telemetry"]
-            fallback["signal_alerts"] = payload_out["signal_alerts"]
             return jsonify(fallback)
 
     return jsonify(payload_out)
@@ -2049,7 +1870,7 @@ def api_execute_manual():
     if not (BINGX_API_KEY and BINGX_API_SECRET):
         return jsonify({
             "success": False,
-            "error": "Modalità reale attiva: imposta BINGX_API_KEY e BINGX_API_SECRET su Render per inviare ordini reali su BingX.",
+            "error": "Modalità reale attiva: imposta BINGX_API_KEY e BINGX_API_SECRET per inviare ordini reali su BingX.",
         }), 400
 
     perf = build_performance_payload()
