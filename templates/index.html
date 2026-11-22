@@ -341,6 +341,7 @@
         <div class="brand-box">
             <div class="brand-title">🏛️ PRO TRADING DESK</div>
             <div class="pill">MULTI-TF + SL/TP REALI</div>
+            <div id="apiEnvBadge" class="pill" style="border-color:rgba(255,209,102,0.45); background:rgba(255,209,102,0.08); color:var(--gold);">ENV API: CHECK</div>
             <div id="clockBadge" class="clock-box">--:--:-- | --:--:-- UTC</div>
         </div>
         <div class="controls">
@@ -532,22 +533,59 @@
                 { id: 'SUIUSDT', name: 'Sui (SUI-USDT)' }
             ],
             'Materie Prime & Forex': [
-                { id: 'PAXGUSDT', name: 'Oro (GOLD(XAU)-USDT)' },
-                { id: 'XAGUSDT', name: 'Argento (SILVER(XAG)-USDT)' },
-                { id: 'WTIUSDT', name: 'Petrolio WTI (WTI-USDT)' },
+                { id: 'PAXGUSDT', name: 'Oro / Gold (PAXG-USDT)' },
+                { id: 'XAGUSDT', name: 'Argento / Silver (XAG-USDT)' },
+                { id: 'XPTUSDT', name: 'Platino / Platinum (XPT-USDT)' },
+                { id: 'XPDUSDT', name: 'Palladio / Palladium (XPD-USDT)' },
+                { id: 'COPPERUSDT', name: 'Rame / Copper (COPPER-USDT)' },
+                { id: 'ALUMINIUMUSDT', name: 'Alluminio / Aluminium (ALUMINIUM-USDT)' },
+                { id: 'WTIUSDT', name: 'Petrolio WTI Crude (WTI-USDT)' },
+                { id: 'BRENTUSDT', name: 'Petrolio Brent Crude (BRENT-USDT)' },
                 { id: 'NATGASUSDT', name: 'Gas Naturale (NATGAS-USDT)' },
-                { id: 'COPPERUSDT', name: 'Rame (COPPER-USDT)' },
-                { id: 'GBPUSDT', name: 'GBP/USD (GBPUSD-USDT)' },
-                { id: 'EURUSDT', name: 'EUR/USD (EURUSD-USDT)' },
-                { id: 'USDJPY', name: 'USD/JPY (USDJPY-USDT)' }
+                { id: 'WHEATUSDT', name: 'Grano / Wheat (WHEAT-USDT)' },
+                { id: 'CORNUSDT', name: 'Mais / Corn (CORN-USDT)' },
+                { id: 'SOYBEANUSDT', name: 'Soia / Soybeans (SOYBEAN-USDT)' },
+                { id: 'COFFEEUSDT', name: 'Caffè / Coffee (COFFEE-USDT)' },
+                { id: 'SUGARUSDT', name: 'Zucchero / Sugar (SUGAR-USDT)' },
+                { id: 'COCOAUSDT', name: 'Cacao / Cocoa (COCOA-USDT)' },
+                { id: 'EURUSDT', name: 'EUR/USD (EUR-USDT)' },
+                { id: 'GBPUSDT', name: 'GBP/USD (GBP-USDT)' },
+                { id: 'USDJPY', name: 'USD/JPY (USDJPY-USDT)' },
+                { id: 'AUDUSDT', name: 'AUD/USD (AUD-USDT)' },
+                { id: 'USDCHF', name: 'USD/CHF (USDCHF-USDT)' },
+                { id: 'USDCAD', name: 'USD/CAD (USDCAD-USDT)' },
+                { id: 'NZDUSDT', name: 'NZD/USD (NZD-USDT)' },
+                { id: 'EURGBP', name: 'EUR/GBP (EURGBP-USDT)' },
+                { id: 'EURJPY', name: 'EUR/JPY (EURJPY-USDT)' },
+                { id: 'GBPJPY', name: 'GBP/JPY (GBPJPY-USDT)' },
+                { id: 'AUDJPY', name: 'AUD/JPY (AUDJPY-USDT)' },
+                { id: 'CHFJPY', name: 'CHF/JPY (CHFJPY-USDT)' }
             ],
             'Azioni & Indici Globali': [
                 { id: 'AAPLUSDT', name: 'Apple Inc. (AAPL-USDT)' },
                 { id: 'TSLAUSDT', name: 'Tesla Inc. (TSLA-USDT)' },
                 { id: 'NVDAUSDT', name: 'Nvidia Corp. (NVDA-USDT)' },
-                { id: 'AMZNUSDT', name: 'Amazon (AMZN-USDT)' },
-                { id: 'MSFTUSDT', name: 'Microsoft (MSFT-USDT)' },
-                { id: 'GOOGLUSDT', name: 'Alphabet (GOOGL-USDT)' }
+                { id: 'AMZNUSDT', name: 'Amazon.com (AMZN-USDT)' },
+                { id: 'MSFTUSDT', name: 'Microsoft Corp. (MSFT-USDT)' },
+                { id: 'GOOGLUSDT', name: 'Alphabet Inc. (GOOGL-USDT)' },
+                { id: 'METAUSDT', name: 'Meta Platforms (META-USDT)' },
+                { id: 'NFLXUSDT', name: 'Netflix Inc. (NFLX-USDT)' },
+                { id: 'AMDUSDT', name: 'AMD (AMD-USDT)' },
+                { id: 'INTCUSDT', name: 'Intel Corp. (INTC-USDT)' },
+                { id: 'AVGOUSDT', name: 'Broadcom Inc. (AVGO-USDT)' },
+                { id: 'COINUSDT', name: 'Coinbase Global (COIN-USDT)' },
+                { id: 'MSTRUSDT', name: 'Strategy / MSTR (MSTR-USDT)' },
+                { id: 'JPMUSDT', name: 'JPMorgan Chase (JPM-USDT)' },
+                { id: 'VUSDT', name: 'Visa Inc. (V-USDT)' },
+                { id: 'MAUSDT', name: 'Mastercard Inc. (MA-USDT)' },
+                { id: 'SP500USDT', name: 'S&P 500 Index (SP500-USDT)' },
+                { id: 'NASDAQ100USDT', name: 'NASDAQ 100 Index (NASDAQ100-USDT)' },
+                { id: 'DOWJONESUSDT', name: 'Dow Jones Index (DOWJONES-USDT)' },
+                { id: 'NIKKEI225USDT', name: 'Nikkei 225 Index (NIKKEI225-USDT)' },
+                { id: 'SPYUSDT', name: 'SPDR S&P 500 ETF (SPY-USDT)' },
+                { id: 'QQQUSDT', name: 'Invesco QQQ ETF (QQQ-USDT)' },
+                { id: 'DIAUSDT', name: 'SPDR Dow Jones ETF (DIA-USDT)' },
+                { id: 'IWMUSDT', name: 'iShares Russell 2000 ETF (IWM-USDT)' }
             ]
         };
 
@@ -557,7 +595,8 @@
             diagnostics: {},
             performance: null,
             telemetry: null,
-            auto_trade: false
+            auto_trade: false,
+            api_configured: false
         };
         let activeTab = 'signals';
         let soundOn = true;
@@ -593,6 +632,23 @@
                 const prevC = cSel.value || 'BTCUSDT';
                 cSel.innerHTML = allList.map(x => `<option value="${x.id}">${x.id}</option>`).join('');
                 cSel.value = allList.some(x => x.id === prevC) ? prevC : 'BTCUSDT';
+            }
+        }
+
+        function renderApiEnvBadge(configured) {
+            state.api_configured = Boolean(configured);
+            const badge = document.getElementById('apiEnvBadge');
+            if (!badge) return;
+            if (state.api_configured) {
+                badge.textContent = 'RENDER API: CONNESSA';
+                badge.style.borderColor = 'rgba(0, 255, 102, 0.45)';
+                badge.style.background = 'rgba(0, 255, 102, 0.08)';
+                badge.style.color = 'var(--green)';
+            } else {
+                badge.textContent = 'RENDER API: MANCANTE';
+                badge.style.borderColor = 'rgba(255, 42, 75, 0.45)';
+                badge.style.background = 'rgba(255, 42, 75, 0.08)';
+                badge.style.color = 'var(--red)';
             }
         }
 
@@ -787,7 +843,7 @@
                 .map(([k, v]) => `• ${k}: Score ${v.market_score}% (${v.signals_count} setup) — ${v.reason}`)
                 .join('<br>');
             box.innerHTML = `
-                <div>Scansioni: <strong>${tel.scans_count || 0}</strong> | Posizioni Attive: <strong>${tel.active_orders_count || 0}</strong> | AutoTrade: <strong>${state.auto_trade ? 'ON' : 'OFF'}</strong></div>
+                <div>Scansioni: <strong>${tel.scans_count || 0}</strong> | Posizioni Attive: <strong>${tel.active_orders_count || 0}</strong> | AutoTrade: <strong>${state.auto_trade ? 'ON' : 'OFF'}</strong> | Render API: <strong>${state.api_configured ? 'OK' : 'NO'}</strong></div>
                 <div style="margin-top:8px; color:var(--gold);">${diagText || 'Nessuna diagnostica.'}</div>
                 <div style="margin-top:8px; color:var(--muted);">${logs.map(l => `[${l.timestamp}] ${l.status} • Setup: ${l.signals_found}/${l.scanned}`).join('<br>')}</div>
             `;
@@ -799,6 +855,7 @@
             try {
                 const res = await fetch('/api/bingx/live-account', { cache: 'no-store' });
                 const d = await res.json();
+                if (typeof d.api_configured === 'boolean') renderApiEnvBadge(d.api_configured);
                 const list = d.positions || [];
                 const err = d.positions_error ? `<div style="color:var(--gold); margin-bottom:6px;">${d.positions_error}</div>` : '';
                 box.innerHTML = `${err}${list.length ? list.map(p => `• ${p.bx_symbol} (${p.action}) Entry ${p.entry} Qty ${p.size} ${p.leverage} uPnL ${p.unrealized_pnl}`).join('<br>') : 'Nessuna posizione aperta su BingX.'}`;
@@ -936,6 +993,7 @@
                 if (typeof d.auto_trade === 'boolean') renderAutotrade(d.auto_trade);
 
                 const perf = state.performance;
+                if (typeof perf?.api_configured === 'boolean') renderApiEnvBadge(perf.api_configured);
                 renderAccountAndPerf(perf?.account, perf?.account_error, perf, null);
                 renderSignals();
                 renderWatchlist();
@@ -963,6 +1021,7 @@
             try {
                 const res = await fetch('/api/bingx/live-account', { cache: 'no-store' });
                 const d = await res.json();
+                if (typeof d.api_configured === 'boolean') renderApiEnvBadge(d.api_configured);
                 if (typeof d.auto_trade === 'boolean') renderAutotrade(d.auto_trade);
                 renderAccountAndPerf(d.account, d.balance_error, state.performance, d.timestamp);
             } catch (e) {}
