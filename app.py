@@ -1,727 +1,458 @@
-"""
-Aurum Signal Room - backend per Render, collegato a BingX (futures perpetui USDT-M).
-
-Cosa fa
-  - dati reali BingX: prezzi, candele 5m/15m/1h/4h, order book, funding
-  - motore di segnali (trend multi-timeframe, MACD, RSI, breakout, volume)
-  - tracciamento TP1/TP2/TP3/SL con statistiche salvate in SQLite
-  - notifiche Telegram
-  - conto reale BingX in sola lettura (saldo e posizioni) se imposti le chiavi API
-  - esecuzione automatica degli ordini: DISATTIVATA di default (AUTO_TRADE=false)
-  - dashboard servita su "/"
-
-Variabili d'ambiente
-  EXCHANGE            bingx (default) oppure bitget
-  BINGX_API_KEY, BINGX_API_SECRET   chiavi API BingX (conto e ordini)
-  BINGX_BASE          https://open-api.bingx.com (reale) oppure
-                      https://open-api-vst.bingx.com (conto DEMO VST, consigliato per i test)
-  AUTO_TRADE          true per aprire davvero le posizioni (default false)
-  RISK_PCT            rischio per trade in % del capitale (default 1)
-  LEVERAGE            leva impostata prima di ogni ordine (default 5)
-  POSITION_MODE       hedge (default) oppure oneway: deve combaciare con il conto BingX
-  TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
-  DASHBOARD_PASSWORD  protegge dashboard e API con password
-  PAIRS (crypto), MIN_CONF, MAX_ACTIVE, COOLDOWN_MIN, ENGINE_SEC, DB_PATH
-  TRADFI              true (default): aggiunge materie prime, azioni, forex e indici trovati su BingX
-  EXTRA_MAP           forza i simboli, es. "XAU=NCCOGOLD2USD-USDT,SPX=..." (vedi /api/symbols)
-  LEVERAGE_TRADFI     leva per strumenti non crypto (default 2)
-
-Avvio: gunicorn app:app --workers 1 --threads 8 --timeout 120 --bind 0.0.0.0:$PORT
-(un solo worker: il motore dei segnali vive dentro il processo).
-"""
-import hashlib
-import hmac
-import json
-import logging
-import math
-import os
-import sqlite3
-import threading
-import time
-from urllib.parse import quote
-from concurrent.futures import ThreadPoolExecutor
-
-import requests
-from flask import Flask, Response, jsonify, request, send_file
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-log = logging.getLogger("aurum")
-
-
-def env_bool(k, d=False):
-    return os.getenv(k, str(d)).strip().lower() in ("1", "true", "yes", "on")
-
-
-EXCHANGE = os.getenv("EXCHANGE", "bingx").strip().lower()
-XNAME = "BingX" if EXCHANGE == "bingx" else "Bitget"
-BX_BASE = os.getenv("BINGX_BASE", "https://open-api.bingx.com").rstrip("/")
-BX_KEY = os.getenv("BINGX_API_KEY", "")
-BX_SECRET = os.getenv("BINGX_API_SECRET", "")
-BG_BASE = "https://api.bitget.com"
-MIN_CONF = int(os.getenv("MIN_CONF", "72"))
-MAX_ACTIVE = int(os.getenv("MAX_ACTIVE", "8"))
-COOLDOWN_MIN = int(os.getenv("COOLDOWN_MIN", "180"))
-ENGINE_SEC = int(os.getenv("ENGINE_SEC", "60"))
-AUTO_TRADE = env_bool("AUTO_TRADE", False)
-RISK_PCT = float(os.getenv("RISK_PCT", "1"))
-LEVERAGE = int(os.getenv("LEVERAGE", "5"))
-LEVERAGE_TRADFI = int(os.getenv("LEVERAGE_TRADFI", "2"))
-HEDGE = os.getenv("POSITION_MODE", "hedge").strip().lower() != "oneway"
-TG_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-TG_CHAT = os.getenv("TELEGRAM_CHAT_ID", "")
-PASSWORD = os.getenv("DASHBOARD_PASSWORD", "")
-DB_PATH = os.getenv("DB_PATH", "signals.db")
-HERE = os.path.dirname(os.path.abspath(__file__))
-ACCOUNT_ON = EXCHANGE == "bingx" and bool(BX_KEY and BX_SECRET)
-
-# ---- catalogo multi-asset -------------------------------------------------------
-# chiave: (classe, nome, [parole chiave cercate nei contratti BingX])
-CRYPTO = [p.strip().upper() for p in os.getenv("PAIRS", "BTC,ETH,SOL,BNB,XRP,DOGE,ADA,AVAX,LINK,UNI").split(",") if p.strip()]
-CATALOG = {
-    "XAU": ("comm", "Oro", ["GOLD", "XAU"]), "XAG": ("comm", "Argento", ["SILVER", "XAG"]),
-    "WTI": ("comm", "Petrolio WTI", ["WTI", "CRUDEOIL", "USOIL", "OIL"]), "BRENT": ("comm", "Petrolio Brent", ["BRENT", "UKOIL"]),
-    "NGAS": ("comm", "Gas naturale", ["NATGAS", "NGAS", "NATURALGAS"]), "COPPER": ("comm", "Rame", ["COPPER"]),
-    "AAPL": ("stock", "Apple", ["AAPL"]), "TSLA": ("stock", "Tesla", ["TSLA"]), "NVDA": ("stock", "Nvidia", ["NVDA"]),
-    "MSFT": ("stock", "Microsoft", ["MSFT"]), "AMZN": ("stock", "Amazon", ["AMZN"]),
-    "GOOGL": ("stock", "Alphabet", ["GOOGL", "GOOG"]), "META": ("stock", "Meta", ["META"]),
-    "EURUSD": ("forex", "EUR/USD", ["EURUSD", "EUR2USD"]), "GBPUSD": ("forex", "GBP/USD", ["GBPUSD", "GBP2USD"]),
-    "USDJPY": ("forex", "USD/JPY", ["USDJPY", "USD2JPY"]), "AUDUSD": ("forex", "AUD/USD", ["AUDUSD", "AUD2USD"]),
-    "USDCAD": ("forex", "USD/CAD", ["USDCAD", "USD2CAD"]), "USDCHF": ("forex", "USD/CHF", ["USDCHF", "USD2CHF"]),
-    "SPX": ("index", "S&P 500", ["SP500", "S&P500", "SPX", "US500"]), "NDX": ("index", "Nasdaq 100", ["NAS100", "NASDAQ100", "NDX", "US100"]),
-    "DJI": ("index", "Dow Jones", ["DJ30", "DOWJONES", "US30", "DJI"]), "DAX": ("index", "DAX 40", ["GER40", "DAX", "DE40"]),
-    "NIKKEI": ("index", "Nikkei 225", ["NIKKEI", "JP225"]), "FTSE": ("index", "FTSE 100", ["FTSE", "UK100"]),
-}
-TRADFI = env_bool("TRADFI", True)
-CLASS_OF = {p: "crypto" for p in CRYPTO}
-LABEL = {}
-SYMMAP = {}                # chiave -> simbolo BingX (solo strumenti non crypto)
-MISSING = []               # strumenti del catalogo non trovati su BingX
-PAIRS = list(CRYPTO)
-
-
-def discover_symbols():
-    """Cerca nei contratti pubblici BingX gli strumenti del catalogo. Override: EXTRA_MAP="XAU=NCCOGOLD2USD-USDT,..."."""
-    found = {}
-    for part in os.getenv("EXTRA_MAP", "").split(","):
-        if "=" in part:
-            k, v = part.split("=", 1)
-            found[k.strip().upper()] = v.strip()
-    if TRADFI and EXCHANGE == "bingx":
-        try:
-            contracts = [c["symbol"] for c in (bingx("/openApi/swap/v2/quote/contracts") or []) if c.get("symbol", "").endswith("-USDT")]
-        except Exception:
-            contracts = []
-            log.warning("elenco contratti BingX non disponibile: strumenti non crypto non attivi")
-        for key, (cls, name, kws) in CATALOG.items():
-            if key in found or key in CRYPTO:
-                continue
-            cand = [c for c in contracts if c[:-5] not in CRYPTO and any(k in c.upper() for k in kws)]
-            nc = [c for c in cand if c.upper().startswith("NC")]
-            # senza prefisso NC accetto solo corrispondenze esatte e mai azioni (evita token crypto omonimi)
-            exact = [c for c in cand if c[:-5].upper() in kws] if cls != "stock" else []
-            cand = nc or exact
-            if cand:
-                found[key] = sorted(cand, key=len)[0]
-    for key, sym in found.items():
-        cls, name, _ = CATALOG.get(key, ("comm", key, []))
-        SYMMAP[key] = sym
-        CLASS_OF[key] = cls
-        LABEL[key] = name
-        if key not in PAIRS:
-            PAIRS.append(key)
-    MISSING[:] = [k for k in CATALOG if k not in CLASS_OF] if TRADFI else []
-    log.info("Strumenti attivi: %d (non crypto trovati: %d, non trovati: %s)", len(PAIRS), len(SYMMAP), ",".join(MISSING) or "nessuno")
-
-
-app = Flask(__name__)
-SESSION = requests.Session()
-POOL = ThreadPoolExecutor(max_workers=6)
-
-
-# ------------------------------------------------------------------ HTTP
-def http_json(url, params=None, retries=2):
-    for i in range(retries + 1):
-        try:
-            r = SESSION.get(url, params=params, timeout=8)
-            r.raise_for_status()
-            return r.json()
-        except Exception:
-            if i == retries:
-                raise
-            time.sleep(0.5)
-
-
-def bingx(path, params=None):
-    j = http_json(BX_BASE + path, params)
-    if j.get("code") not in (0, "0", None):
-        raise RuntimeError("BingX: %s" % j.get("msg"))
-    return j.get("data")
-
-
-def bx_signed(method, path, params=None):
-    """Richiesta firmata (HMAC SHA256 sulla query string), header X-BX-APIKEY."""
-    p = dict(params or {})
-    p["timestamp"] = int(time.time() * 1000)
-    qs = "&".join("%s=%s" % (k, quote(str(p[k]), safe="")) for k in sorted(p))  # valori codificati, firma sulla stringa inviata
-    sig = hmac.new(BX_SECRET.encode(), qs.encode(), hashlib.sha256).hexdigest()
-    r = SESSION.request(method, "%s%s?%s&signature=%s" % (BX_BASE, path, qs, sig),
-                        headers={"X-BX-APIKEY": BX_KEY}, timeout=10)
-    j = r.json()
-    if j.get("code") not in (0, "0", None):
-        raise RuntimeError("BingX: %s" % j.get("msg"))
-    return j.get("data")
-
-
-def bitget(path, params=None):
-    j = http_json(BG_BASE + path, params)
-    if str(j.get("code")) != "00000":
-        raise RuntimeError("Bitget: %s" % j.get("msg"))
-    return j["data"]
-
-
-# ------------------------------------------------------------------ adapter exchange
-def bx_sym(s):
-    return SYMMAP.get(s, s + "-USDT")
-
-
-def fetch_tickers():
-    """-> {BASE: {'p': ultimo, 'o': prezzo 24h fa}}, funding medio in %"""
-    out, fund = {}, []
-    if EXCHANGE == "bingx":
-        rev = {bx_sym(k): k for k in PAIRS}
-        for t in bingx("/openApi/swap/v2/quote/ticker") or []:
-            key = rev.get(t.get("symbol", ""))
-            if not key:
-                continue
-            p = float(t["lastPrice"])
-            o = float(t.get("openPrice") or 0)
-            if o <= 0:
-                pct = float(t.get("priceChangePercent") or 0)
-                o = p / (1 + pct / 100) if pct > -99 else p
-            out[key] = {"p": p, "o": o}
-        try:
-            d = bingx("/openApi/swap/v2/quote/premiumIndex")
-            d = d if isinstance(d, list) else [d]
-            fund = [float(x["lastFundingRate"]) * 100 for x in d
-                    if x.get("symbol", "")[:-5] in CRYPTO and x.get("lastFundingRate") not in (None, "")]
-        except Exception:
-            pass
-    else:
-        for t in bitget("/api/v2/mix/market/tickers", {"productType": "USDT-FUTURES"}):
-            sym = t.get("symbol", "")
-            if sym.endswith("USDT") and sym[:-4] in CRYPTO:
-                p = float(t["lastPr"])
-                ch = float(t.get("change24h") or 0)
-                out[sym[:-4]] = {"p": p, "o": p / (1 + ch) if ch > -0.99 else p}
-                if t.get("fundingRate") not in (None, ""):
-                    fund.append(float(t["fundingRate"]) * 100)
-    return out, (sum(fund) / len(fund) if fund else None)
-
-
-def fetch_candle_rows(sym, tf):
-    if EXCHANGE != "bingx" and sym not in CRYPTO:
-        raise RuntimeError("strumento non disponibile su Bitget")
-    """-> righe [ts, open, high, low, close, volume] ordinate per tempo."""
-    if EXCHANGE == "bingx":
-        try:
-            d = bingx("/openApi/swap/v3/quote/klines", {"symbol": bx_sym(sym), "interval": tf, "limit": 150})
-        except Exception:
-            d = bingx("/openApi/swap/v2/quote/klines", {"symbol": bx_sym(sym), "interval": tf, "limit": 150})
-        rows = [[int(k["time"]), float(k["open"]), float(k["high"]), float(k["low"]), float(k["close"]),
-                 float(k.get("volume") or 0)] for k in d]
-    else:
-        g = {"5m": "5m", "15m": "15m", "1h": "1H", "4h": "4H"}[tf]
-        d = bitget("/api/v2/mix/market/candles",
-                   {"symbol": sym + "USDT", "productType": "USDT-FUTURES", "granularity": g, "limit": "150"})
-        rows = [[int(r[0]), float(r[1]), float(r[2]), float(r[3]), float(r[4]), float(r[5])] for r in d]
-    return sorted(rows, key=lambda x: x[0])
-
-
-def fetch_depth(sym):
-    """-> (asks crescenti, bids decrescenti) come liste [prezzo, quantita]."""
-    if EXCHANGE == "bingx":
-        d = bingx("/openApi/swap/v2/quote/depth", {"symbol": bx_sym(sym), "limit": 20})
-        asks, bids = d["asks"], d["bids"]
-    else:
-        d = bitget("/api/v2/mix/market/merge-depth", {"symbol": sym + "USDT", "productType": "USDT-FUTURES", "limit": "15"})
-        asks, bids = d["asks"], d["bids"]
-    asks = sorted(([float(a[0]), float(a[1])] for a in asks), key=lambda x: x[0])
-    bids = sorted(([float(b[0]), float(b[1])] for b in bids), key=lambda x: -x[0])
-    return asks, bids
-
-
-# ------------------------------------------------------------------ prezzi e candele
-PRICES = {}
-FUNDING = {"avg": 0.0}
-PLOCK = threading.Lock()
-
-
-def is_open(sym):
-    if CLASS_OF.get(sym, "crypto") == "crypto":
-        return True
-    e = CC.get((sym, "15m"))
-    return bool(e and e[1] and time.time() * 1000 - e[1][-1][0] < 45 * 60000)
-
-
-def refresh_prices():
-    out, fund = fetch_tickers()
-    with PLOCK:
-        PRICES.update(out)
-        if fund is not None:
-            FUNDING["avg"] = fund
-
-
-CC = {}
-CLOCK = threading.Lock()
-
-
-def candles(sym, tf, ttl=30):
-    k = (sym, tf)
-    now = time.time()
-    with CLOCK:
-        e = CC.get(k)
-        if e and now - e[0] < ttl:
-            return e[1]
-    try:
-        c = fetch_candle_rows(sym, tf)
-    except Exception:
-        if e:
-            return e[1]
-        raise
-    with CLOCK:
-        CC[k] = (now, c)
-    return c
-
-
-# ------------------------------------------------------------------ indicatori
-def ema(a, n):
-    k, e, o = 2 / (n + 1), a[0], []
-    for v in a:
-        e = v * k + e * (1 - k)
-        o.append(e)
-    return o
-
-
-def rsi(a, n=14):
-    if len(a) < n + 2:
-        return 50.0
-    g = l = 0.0
-    for i in range(1, n + 1):
-        d = a[i] - a[i - 1]
-        g += max(d, 0)
-        l += max(-d, 0)
-    g /= n
-    l /= n
-    for i in range(n + 1, len(a)):
-        d = a[i] - a[i - 1]
-        g = (g * (n - 1) + max(d, 0)) / n
-        l = (l * (n - 1) + max(-d, 0)) / n
-    return 100 - 100 / (1 + g / (l or 1e-9))
-
-
-def macd_hist(a):
-    m = [x - y for x, y in zip(ema(a, 12), ema(a, 26))]
-    s = ema(m, 9)
-    return m[-1] - s[-1]
-
-
-def atr(c, n=14):
-    return sum(x[2] - x[3] for x in c[-n:]) / n
-
-
-def analyze(sym):
-    info = {}
-    for tf in ("15m", "1h", "4h"):
-        c = candles(sym, tf)
-        cl = [x[4] for x in c]
-        info[tf] = {"trend": 1 if ema(cl, 20)[-1] > ema(cl, 50)[-1] else -1, "rsi": rsi(cl),
-                    "hist": macd_hist(cl), "atr": atr(c), "c": c}
-    return info
-
-
-def score(info, price):
-    tr = [info[k]["trend"] for k in ("15m", "1h", "4h")]
-    al = sum(tr)
-    d = 1 if al > 0 else -1
-    if abs(al) < 2 or info["1h"]["trend"] != d:
-        return None
-    h = info["1h"]
-    c = h["c"]
-    conf, why = 60, []
-    name = "rialzista" if d > 0 else "ribassista"
-    if abs(al) == 3:
-        conf += 8
-        why.append("Trend %s concorde su 15m, 1h e 4h (EMA20/EMA50)" % name)
-    else:
-        why.append("Trend %s su 1h e almeno un altro timeframe" % name)
-    if h["hist"] * d > 0:
-        conf += 5
-        why.append("Istogramma MACD %s su 1h" % ("positivo" if d > 0 else "negativo"))
-    r = h["rsi"]
-    if (d > 0 and 40 <= r <= 65) or (d < 0 and 35 <= r <= 60):
-        conf += 5
-        why.append("RSI(14) a %.0f: spazio di movimento nella direzione" % r)
-    elif (d > 0 and r > 72) or (d < 0 and r < 28):
-        conf -= 8
-        why.append("RSI(14) a %.0f: movimento esteso, rischio di ritracciamento" % r)
-    prev = c[-21:-1]
-    if d > 0 and c[-1][4] > max(x[2] for x in prev):
-        conf += 6
-        why.append("Rottura del massimo delle ultime 20 candele 1h")
-    elif d < 0 and c[-1][4] < min(x[3] for x in prev):
-        conf += 6
-        why.append("Rottura del minimo delle ultime 20 candele 1h")
-    vols = [x[5] for x in c[-21:-1]]
-    if vols and c[-2][5] > 1.3 * (sum(vols) / len(vols)):
-        conf += 5
-        why.append("Volume sopra la media delle ultime 20 candele")
-    conf = int(max(50, min(97, conf)))
-    R = min(max(h["atr"] * 1.5, price * 0.004), price * 0.02)
-    why.append("Stop a 1,5×ATR (%.2f%%), target a 1R, 2R e 3R" % (R / price * 100))
-    return {"dir": "long" if d > 0 else "short", "conf": conf, "R": R, "why": why}
-
-
-# ------------------------------------------------------------------ database
-DLOCK = threading.RLock()
-DB = None
-
-
-def init_db():
-    global DB
-    DB = sqlite3.connect(DB_PATH, check_same_thread=False)
-    DB.row_factory = sqlite3.Row
-    DB.execute("""CREATE TABLE IF NOT EXISTS signals(
-        id INTEGER PRIMARY KEY AUTOINCREMENT, sym TEXT, dir TEXT, tf TEXT,
-        entry REAL, sl REAL, tp1 REAL, tp2 REAL, tp3 REAL, conf INTEGER,
-        t INTEGER, valid INTEGER, hits INTEGER DEFAULT 0, closed INTEGER DEFAULT 0,
-        res REAL, ct INTEGER, why TEXT, R REAL, log TEXT)""")
-    DB.commit()
-
-
-def to_sig(r):
-    return {"cls": CLASS_OF.get(r["sym"], "crypto"), "id": r["id"], "sym": r["sym"], "dir": r["dir"], "tf": r["tf"], "entry": r["entry"], "sl": r["sl"],
-            "tp": [r["tp1"], r["tp2"], r["tp3"]], "conf": r["conf"], "t": r["t"], "valid": r["valid"],
-            "hits": r["hits"], "closed": bool(r["closed"]), "res": r["res"], "ct": r["ct"],
-            "why": json.loads(r["why"] or "[]"), "R": r["R"], "log": json.loads(r["log"] or "[]")}
-
-
-def add_log(sid, msg):
-    with DLOCK:
-        r = DB.execute("SELECT log FROM signals WHERE id=?", (sid,)).fetchone()
-        lg = json.loads(r["log"] or "[]")
-        lg.append({"t": int(time.time() * 1000), "m": msg})
-        DB.execute("UPDATE signals SET log=? WHERE id=?", (json.dumps(lg), sid))
-        DB.commit()
-
-
-def fmt(p):
-    return ("%.2f" if p >= 10 else "%.3f" if p >= 1 else "%.5f") % p
-
-
-# ------------------------------------------------------------------ Telegram
-def telegram(text):
-    if not TG_TOKEN or not TG_CHAT:
-        return False
-    try:
-        r = SESSION.post("https://api.telegram.org/bot%s/sendMessage" % TG_TOKEN,
-                         json={"chat_id": TG_CHAT, "text": text}, timeout=8)
-        return r.ok
-    except Exception:
-        log.exception("telegram")
-        return False
-
-
-def sig_text(g):
-    icon = "🟢" if g["dir"] == "long" else "🔴"
-    return "%s %s/USDT %s · %s\nEntry: %s\nSL: %s\nTP1: %s\nTP2: %s\nTP3: %s\nConfidenza: %d%%\nRischio consigliato: 1%%\nDati: %s" % (
-        icon, g["sym"], g["dir"].upper(), g["tf"], fmt(g["entry"]), fmt(g["sl"]),
-        fmt(g["tp"][0]), fmt(g["tp"][1]), fmt(g["tp"][2]), g["conf"], XNAME)
-
-
-# ------------------------------------------------------------------ conto BingX (sola lettura)
-ACC = {"t": 0, "v": None}
-
-
-def account_info(ttl=5):
-    if not ACCOUNT_ON:
-        return None
-    if time.time() - ACC["t"] < ttl and ACC["v"]:
-        return ACC["v"]
-    b = bx_signed("GET", "/openApi/swap/v2/user/balance")
-    b = b["balance"] if isinstance(b, dict) and "balance" in b else b
-    if isinstance(b, list):
-        b = b[0]
-    pos = bx_signed("GET", "/openApi/swap/v2/user/positions") or []
-    v = {"enabled": True, "exchange": XNAME,
-         "equity": float(b.get("equity") or b.get("balance") or 0),
-         "available": float(b.get("availableMargin") or 0),
-         "upnl": float(b.get("unrealizedProfit") or 0),
-         "positions": [{"sym": p["symbol"].replace("-USDT", ""), "side": p.get("positionSide", ""),
-                        "qty": float(p.get("positionAmt") or 0), "entry": float(p.get("avgPrice") or 0),
-                        "upnl": float(p.get("unrealizedProfit") or 0), "lev": p.get("leverage")}
-                       for p in pos if float(p.get("positionAmt") or 0) != 0]}
-    ACC.update(t=time.time(), v=v)
-    return v
-
-
-# ------------------------------------------------------------------ esecuzione ordini (opzionale)
-PREC = {}
-
-
-def qty_precision(sym):
-    if not PREC:
-        for c in bx_signed("GET", "/openApi/swap/v2/quote/contracts") or []:
-            PREC[c["symbol"]] = int(c.get("quantityPrecision", 3))
-    return PREC.get(bx_sym(sym), 3)
-
-
-def place_trade(g):
-    """Apre la posizione con SL e TP2 attaccati. Rischio = RISK_PCT del capitale."""
-    acc = account_info(ttl=0)
-    if not acc or acc["equity"] <= 0:
-        raise RuntimeError("capitale non disponibile")
-    dist = abs(g["entry"] - g["sl"])
-    qty = acc["equity"] * RISK_PCT / 100 / dist
-    lev_eff = LEVERAGE if CLASS_OF.get(g["sym"], "crypto") == "crypto" else LEVERAGE_TRADFI
-    qty = min(qty, acc["available"] * 0.9 * lev_eff / g["entry"])  # margine disponibile
-    prec = qty_precision(g["sym"])
-    qty = math.floor(qty * 10 ** prec) / 10 ** prec
-    if qty <= 0:
-        raise RuntimeError("quantita troppo piccola")
-    long_ = g["dir"] == "long"
-    ps = ("LONG" if long_ else "SHORT") if HEDGE else "BOTH"
-    lev = LEVERAGE if CLASS_OF.get(g["sym"], "crypto") == "crypto" else LEVERAGE_TRADFI
-    bx_signed("POST", "/openApi/swap/v2/trade/leverage",
-              {"symbol": bx_sym(g["sym"]), "side": ps, "leverage": lev})
-    params = {"symbol": bx_sym(g["sym"]), "side": "BUY" if long_ else "SELL", "positionSide": ps,
-              "type": "MARKET", "quantity": qty,
-              "stopLoss": json.dumps({"type": "STOP_MARKET", "stopPrice": round(g["sl"], 8), "workingType": "MARK_PRICE"}, separators=(",", ":")),
-              "takeProfit": json.dumps({"type": "TAKE_PROFIT_MARKET", "stopPrice": round(g["tp"][1], 8), "workingType": "MARK_PRICE"}, separators=(",", ":"))}
-    bx_signed("POST", "/openApi/swap/v2/trade/order", params)
-    return qty
-
-
-# ------------------------------------------------------------------ motore segnali
-def create_signal(sym, sc, price):
-    s = 1 if sc["dir"] == "long" else -1
-    R = sc["R"]
-    now = int(time.time() * 1000)
-    tp = [price + s * R * m for m in (1, 2, 3)]
-    lg = [{"t": now, "m": "Segnale emesso · %s @ %s" % (sc["dir"].upper(), fmt(price))}]
-    with DLOCK:
-        cur = DB.execute(
-            "INSERT INTO signals(sym,dir,tf,entry,sl,tp1,tp2,tp3,conf,t,valid,why,R,log) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (sym, sc["dir"], "1h", price, price - s * R, tp[0], tp[1], tp[2], sc["conf"], now, now + 15 * 60000,
-             json.dumps(sc["why"], ensure_ascii=False), R, json.dumps(lg)))
-        DB.commit()
-        row = DB.execute("SELECT * FROM signals WHERE id=?", (cur.lastrowid,)).fetchone()
-    g = to_sig(row)
-    telegram(sig_text(g))
-    log.info("Nuovo segnale %s %s conf %d", sym, sc["dir"], sc["conf"])
-    if AUTO_TRADE and ACCOUNT_ON:
-        try:
-            q = place_trade(g)
-            msg = "Ordine eseguito su %s: quantita %s, SL e TP2 attaccati" % (XNAME, q)
-        except Exception as e:
-            msg = "Ordine NON eseguito: %s" % e
-            log.warning(msg)
-        add_log(g["id"], msg)
-        telegram("%s %s: %s" % (g["sym"], g["dir"].upper(), msg))
-
-
-def _safe(fn, *a):
-    try:
-        return fn(*a)
-    except Exception:
-        return None
-
-
-def run_engine():
-    with DLOCK:
-        active = [r["sym"] for r in DB.execute("SELECT sym FROM signals WHERE closed=0")]
-    if len(active) >= MAX_ACTIVE:
-        return
-    list(POOL.map(lambda a: _safe(candles, *a), [(s, tf) for s in PAIRS for tf in ("15m", "1h", "4h")]))
-    now = int(time.time() * 1000)
-    for sym in PAIRS:
-        if sym in active or sym not in PRICES or not is_open(sym):
-            continue
-        with DLOCK:
-            last = DB.execute("SELECT MAX(t) m FROM signals WHERE sym=?", (sym,)).fetchone()["m"] or 0
-        if now - last < COOLDOWN_MIN * 60000:
-            continue
-        try:
-            sc = score(analyze(sym), PRICES[sym]["p"])
-        except Exception:
-            log.warning("analisi %s non riuscita", sym)
-            continue
-        if sc and sc["conf"] >= MIN_CONF:
-            create_signal(sym, sc, PRICES[sym]["p"])
-            active.append(sym)
-            if len(active) >= MAX_ACTIVE:
-                break
-
-
-def resolve_all():
-    now = int(time.time() * 1000)
-    with DLOCK:
-        for r in DB.execute("SELECT * FROM signals WHERE closed=0").fetchall():
-            g = to_sig(r)
-            pr = PRICES.get(g["sym"])
-            if not pr:
-                continue
-            p, s, hits = pr["p"], (1 if g["dir"] == "long" else -1), g["hits"]
-            lg, closed, res, ct, msgs = g["log"], False, None, None, []
-            sl = g["entry"] if hits >= 1 else g["sl"]
-            if s * (p - sl) <= 0:
-                closed, ct = True, now
-                res = -1.0 if hits == 0 else (0.33 if hits == 1 else 1.0)
-                msgs.append("Stop loss colpito · -1R" if hits == 0 else "Chiuso a break-even · %+.2fR" % res)
-            else:
-                while hits < 3 and s * (p - g["tp"][hits]) >= 0:
-                    hits += 1
-                    msgs.append("TP%d raggiunto%s" % (hits, " · SL spostato a break-even" if hits == 1 else ""))
-                if hits == 3:
-                    closed, ct, res = True, now, 2.0
-                    msgs.append("Chiuso a TP3 · +2R")
-            if not msgs:
-                continue
-            for m in msgs:
-                lg.append({"t": now, "m": m})
-                telegram("%s %s: %s" % (g["sym"], g["dir"].upper(), m))
-            DB.execute("UPDATE signals SET hits=?,closed=?,res=?,ct=?,log=? WHERE id=?",
-                       (hits, int(closed), res, ct, json.dumps(lg), g["id"]))
-        DB.commit()
-
-
-# ------------------------------------------------------------------ sentiment e news
-EXTRA = {"fg": None, "news": []}
-
-
-def refresh_extra():
-    try:
-        EXTRA["fg"] = float(http_json("https://api.alternative.me/fng/", {"limit": 1})["data"][0]["value"])
-    except Exception:
-        log.warning("fear&greed non disponibile")
-    try:
-        j = http_json("https://min-api.cryptocompare.com/data/v2/news/", {"lang": "EN"})
-        EXTRA["news"] = [{"t": int(n["published_on"]) * 1000, "h": n["title"], "sn": 0,
-                          "src": (n.get("source_info") or {}).get("name") or n.get("source", "")}
-                         for n in j["Data"][:10]]
-    except Exception:
-        log.warning("news non disponibili")
-
-
-def loop(fn, sec, name):
-    while True:
-        try:
-            fn()
-        except Exception:
-            log.warning("%s: errore temporaneo", name)
-        time.sleep(sec)
-
-
-_started = False
-
-
-def start():
-    global _started
-    if _started:
-        return
-    _started = True
-    init_db()
-    discover_symbols()
-    log.info("Exchange %s · auto-trade %s · conto %s", XNAME, "ON" if AUTO_TRADE else "off",
-             "collegato" if ACCOUNT_ON else "non collegato")
-    for fn, sec, name in ((lambda: (refresh_prices(), resolve_all()), 3, "prezzi"),
-                          (run_engine, ENGINE_SEC, "motore"),
-                          (refresh_extra, 300, "extra")):
-        threading.Thread(target=loop, args=(fn, sec, name), daemon=True).start()
-
-
-# ------------------------------------------------------------------ web
-@app.before_request
-def auth():
-    if not PASSWORD:
-        return None
-    a = request.authorization
-    if not a or not hmac.compare_digest(a.password or "", PASSWORD):
-        return Response("Accesso riservato", 401, {"WWW-Authenticate": 'Basic realm="Aurum"'})
-    return None
-
-
-@app.get("/")
-def index():
-    return send_file(os.path.join(HERE, "index.html"))
-
-
-@app.get("/api/health")
-def health():
-    return jsonify(ok=True, pairs=PAIRS, classes=CLASS_OF, labels=LABEL, exchange=XNAME, account=ACCOUNT_ON, autotrade=AUTO_TRADE and ACCOUNT_ON,
-                   telegram=bool(TG_TOKEN and TG_CHAT), min_conf=MIN_CONF)
-
-
-@app.get("/api/state")
-def state():
-    if not PRICES:
-        try:
-            refresh_prices()
-        except Exception:
-            pass
-    with DLOCK:
-        rows = DB.execute("SELECT * FROM signals ORDER BY t DESC LIMIT 300").fetchall()
-    with PLOCK:
-        prices = {k: dict(v, cls=CLASS_OF.get(k, "crypto"), open=is_open(k)) for k, v in PRICES.items()}
-        fund = FUNDING["avg"]
-    return jsonify(prices=prices, signals=[to_sig(r) for r in rows],
-                   sentiment={"fg": EXTRA["fg"] if EXTRA["fg"] is not None else 50, "funding": fund},
-                   news=EXTRA["news"])
-
-
-@app.get("/api/candles")
-def api_candles():
-    tf = request.args.get("tf", "1h")
-    if tf not in ("5m", "15m", "1h", "4h"):
-        return jsonify(error="tf non valido"), 400
-    res = list(POOL.map(lambda s: (s, _safe(candles, s, tf)), PAIRS))
-    return jsonify({s: [[x[1], x[2], x[3], x[4]] for x in c[-120:]] for s, c in res if c})
-
-
-@app.get("/api/orderbook")
-def orderbook():
-    sym = request.args.get("sym", "").upper()
-    if sym not in PAIRS:
-        return jsonify(error="coppia non valida"), 400
-    try:
-        asks, bids = fetch_depth(sym)
-        return jsonify(asks=asks[:10], bids=bids[:10])
-    except Exception:
-        return jsonify(error="order book non disponibile"), 502
-
-
-@app.get("/api/account")
-def api_account():
-    if not ACCOUNT_ON:
-        return jsonify(enabled=False)
-    try:
-        return jsonify(account_info())
-    except Exception as e:
-        log.warning("conto: %s", e)
-        return jsonify(enabled=False, error="conto non raggiungibile"), 502
-
-
-@app.get("/api/symbols")
-def api_symbols():
-    return jsonify(found={k: SYMMAP[k] for k in SYMMAP}, missing=MISSING, crypto=CRYPTO, tradfi=TRADFI)
-
-
-@app.post("/api/telegram/test")
-def tg_test():
-    ok = telegram("Aurum Signal Room: test di collegamento Telegram riuscito.")
-    return jsonify(ok=ok, configured=bool(TG_TOKEN and TG_CHAT))
-
-
-start()
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "5000")))
+<title>Aurum Signal Room</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+/* Layout: ticker tape on top, KPI strip, tabbed workspace; Segnali tab = feed on the left, selected-signal analysis on the right. Dark gold luxury desk. */
+:root{--bg:#f4efe4;--panel:#fbf8f0;--panel2:#efe8d8;--line:#d9ceb4;--fg:#2a2417;--mute:#7a6f58;--gold:#8f6a14;--goldbg:#e9d9a6;--up:#0f7b4f;--down:#b8322f;--warn:#a86a00;--font-d:'Cinzel',Georgia,serif;--font-b:'Inter',system-ui,sans-serif;--font-m:'JetBrains Mono',ui-monospace,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0d0c09;--panel:#16140f;--panel2:#1e1b14;--line:#322d20;--fg:#ece4cf;--mute:#9a907a;--gold:#d4a73a;--goldbg:#3a2f12;--up:#3ccf8e;--down:#f0605b;--warn:#e7a43a;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0d0c09;--panel:#16140f;--panel2:#1e1b14;--line:#322d20;--fg:#ece4cf;--mute:#9a907a;--gold:#d4a73a;--goldbg:#3a2f12;--up:#3ccf8e;--down:#f0605b;--warn:#e7a43a;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:14px/1.45 var(--font-b);padding-block:0 32px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1440px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.mono,.num{font-family:var(--font-m);font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.up{color:var(--up)}.down{color:var(--down)}.mute{color:var(--mute)}
+header{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;justify-content:space-between;padding-top:14px}
+.brand{font-family:var(--font-d);font-weight:700;font-size:22px;letter-spacing:.14em;color:var(--gold)}
+.brand small{display:block;font:500 10px var(--font-m);letter-spacing:.18em;color:var(--mute)}
+.hr{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chip{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:4px 11px;font:500 11px var(--font-m);display:inline-flex;gap:6px;align-items:center;white-space:nowrap}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--mute)}.on .dot{background:var(--up);box-shadow:0 0 0 3px color-mix(in srgb,var(--up) 25%,transparent)}
+.demo{border-color:var(--warn);color:var(--warn)}.chip.live{border-color:var(--up);color:var(--up)}
+.tape{overflow:hidden;border-block:1px solid var(--line);background:var(--panel);white-space:nowrap;margin-inline:calc(-1*max(16px,env(safe-area-inset-left,0px)));padding-inline:16px}
+.tape-in{display:inline-flex;gap:26px;padding:8px 0;animation:scroll 60s linear infinite;font:500 12px var(--font-m)}
+@keyframes scroll{to{transform:translateX(-50%)}}
+@media (prefers-reduced-motion:reduce){.tape-in{animation:none}.tape{overflow-x:auto}}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 14px}
+.kpi b{display:block;font:700 22px var(--font-m);margin-top:2px}
+.lbl{font:500 10px var(--font-m);letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
+nav{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--line)}
+nav button{background:none;border:0;border-bottom:2px solid transparent;padding:10px 16px;font:600 12px var(--font-m);letter-spacing:.1em;text-transform:uppercase;color:var(--mute);white-space:nowrap}
+nav button[aria-selected="true"]{color:var(--gold);border-color:var(--gold)}
+.grid{display:grid;grid-template-columns:minmax(300px,420px) minmax(0,1fr);gap:14px;align-items:start}
+@media (max-width:900px){.grid{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;min-width:0}
+.panel h3{margin:0 0 10px;font:700 13px var(--font-d);letter-spacing:.12em;text-transform:uppercase;color:var(--gold)}
+.filters{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:10px}
+.fbtn{border:1px solid var(--line);background:var(--panel2);border-radius:6px;padding:4px 10px;font:500 11px var(--font-m)}
+.fbtn[aria-pressed="true"]{background:var(--goldbg);border-color:var(--gold);color:var(--gold)}
+.feed{display:flex;flex-direction:column;gap:8px;max-height:760px;overflow-y:auto;padding-right:2px}
+.sig{border:1px solid var(--line);background:var(--panel2);border-radius:8px;padding:10px 12px;text-align:left;width:100%;display:grid;gap:6px}
+.sig[aria-current="true"]{border-color:var(--gold)}
+.row{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
+.pair{font:700 15px var(--font-m)}
+.tag{font:700 10px var(--font-m);padding:2px 7px;border-radius:4px;letter-spacing:.08em}
+.tag.long{background:color-mix(in srgb,var(--up) 18%,transparent);color:var(--up)}
+.tag.short{background:color-mix(in srgb,var(--down) 18%,transparent);color:var(--down)}
+.tag.st{background:var(--panel);border:1px solid var(--line);color:var(--mute)}
+.tag.win{color:var(--up);border-color:var(--up)}.tag.loss{color:var(--down);border-color:var(--down)}
+.lv{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;font:500 11px var(--font-m)}
+.lv span{display:block;font-size:9px;color:var(--mute);letter-spacing:.1em}
+.bar{height:4px;border-radius:2px;background:var(--line);overflow:hidden}.bar i{display:block;height:100%;background:var(--gold)}
+.detail{display:grid;gap:14px}
+.dhead{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;justify-content:space-between}
+.dhead .big{font:700 26px var(--font-m)}
+canvas{width:100%;display:block;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.stat{display:grid;grid-template-columns:1fr auto;gap:5px 10px;font:500 12px var(--font-m)}
+.stat dt{color:var(--mute);margin:0}.stat dd{margin:0;text-align:right}
+ul.why{margin:0;padding-left:18px;display:grid;gap:4px}
+.tfs{display:flex;gap:4px}
+.btn{border:1px solid var(--gold);background:var(--goldbg);color:var(--gold);border-radius:6px;padding:7px 14px;font:700 11px var(--font-m);letter-spacing:.08em;text-transform:uppercase}
+.btn.ghost{background:none;border-color:var(--line);color:var(--fg)}
+.tblw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font:500 12px var(--font-m);min-width:640px}
+th{font:500 10px var(--font-m);letter-spacing:.12em;text-transform:uppercase;color:var(--mute);text-align:right;padding:8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:8px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+tr.clk{cursor:pointer}tr.clk:hover td{background:var(--panel2)}
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+label{display:grid;gap:4px;font:500 10px var(--font-m);letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
+input,select{background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:8px;font:500 13px var(--font-m);width:100%;min-width:0}
+.gauge{width:150px;max-width:100%}
+.toasts{position:fixed;right:max(12px,env(safe-area-inset-right,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));display:grid;gap:8px;z-index:20;max-width:min(340px,calc(100vw - 24px))}
+.toast{background:var(--panel);border:1px solid var(--gold);border-radius:8px;padding:10px 12px;font:500 12px var(--font-m);box-shadow:0 6px 24px rgba(0,0,0,.35)}
+.note{font-size:12px;color:var(--mute)}
+.sent{display:grid;gap:10px}
+.meter{display:grid;gap:3px;font:500 11px var(--font-m)}
+.meter .bar{height:8px}
+.heat{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px}
+.tile{border-radius:6px;padding:12px;font:700 13px var(--font-m);border:1px solid var(--line);text-align:left;color:var(--fg)}
+.ob{display:grid;grid-template-columns:1fr 1fr;gap:12px;font:500 11px var(--font-m)}
+.obr{position:relative;display:flex;justify-content:space-between;padding:2px 6px}
+.obr i{position:absolute;inset:0 auto 0 0;opacity:.2}.obr span{position:relative}
+#corr td,#corr th{text-align:center;padding:6px}
+textarea{background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:8px;font:500 13px var(--font-m);width:100%;resize:vertical}
+[hidden]{display:none!important}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="brand">AURUM<small>SIGNAL ROOM · SALA SEGNALI</small></div>
+  <div class="hr">
+    <span class="chip demo" id="mode" title="I prezzi sono simulati. Avvia il backend (app.py) per i dati reali BingX.">● MODALITÀ DEMO</span>
+    <span class="chip" id="sessT"><i class="dot"></i>Tokyo</span>
+    <span class="chip" id="sessL"><i class="dot"></i>Londra</span>
+    <span class="chip" id="sessN"><i class="dot"></i>New York</span>
+    <span class="chip demo" id="atc" hidden title="Il backend apre ordini reali sul conto BingX">AUTO-TRADE ON</span><span class="chip" id="nf">Filtro news</span><span class="chip mono" id="clock">--:--:--</span>
+    <button class="fbtn" id="snd" aria-pressed="false">Suono: off</button>
+    <button class="fbtn" id="thm">Tema</button>
+  </div>
+</header>
+<div class="tape" aria-label="Prezzi in tempo reale"><div class="tape-in" id="tape"></div></div>
+<section class="kpis" id="kpis"></section>
+<div class="filters" id="clsf" style="margin:0"></div>
+<nav role="tablist" id="tabs">
+  <button role="tab" data-t="sig" aria-selected="true">Segnali live</button>
+  <button role="tab" data-t="scan" aria-selected="false">Scanner</button>
+  <button role="tab" data-t="mkt" aria-selected="false">Mercato</button>
+  <button role="tab" data-t="cal" aria-selected="false">Calendario e news</button>
+  <button role="tab" data-t="port" aria-selected="false">Portafoglio</button>
+  <button role="tab" data-t="alert" aria-selected="false">Alert prezzo</button>
+  <button role="tab" data-t="perf" aria-selected="false">Performance</button>
+  <button role="tab" data-t="calc" aria-selected="false">Calcolatore rischio</button>
+  <button role="tab" data-t="hist" aria-selected="false">Storico</button>
+</nav>
+
+<main>
+<section id="t-sig" class="grid">
+  <div class="panel">
+    <h3>Feed segnali</h3>
+    <div class="filters" id="filters">
+      <button class="fbtn" data-f="all" aria-pressed="true">Tutti</button>
+      <button class="fbtn" data-f="active" aria-pressed="false">Attivi</button>
+      <button class="fbtn" data-f="long" aria-pressed="false">Long</button>
+      <button class="fbtn" data-f="short" aria-pressed="false">Short</button>
+      <button class="fbtn" data-f="closed" aria-pressed="false">Chiusi</button>
+    </div>
+    <label class="filters" style="grid-template-columns:auto 1fr auto;display:grid">Conf. min <input type="range" id="minconf" min="60" max="95" value="70"><span class="mono" id="mcv">70%</span></label>
+    <div class="feed" id="feed" style="margin-top:10px"></div>
+  </div>
+  <div class="detail" id="detail"></div>
+</section>
+
+<section id="t-scan" hidden class="grid" style="grid-template-columns:minmax(0,1fr)">
+  <div class="panel"><h3>Scanner multi-timeframe</h3><p class="note">Trend calcolato da EMA20/EMA50 su 15m, 1h e 4h. Clicca una riga per aprire il grafico.</p>
+    <div class="tblw"><table id="scanTbl"></table></div></div>
+  <div class="cols">
+    <div class="panel sent"><h3>Sentiment di mercato</h3><div id="sentiment"></div></div>
+    <div class="panel"><h3>Sessioni di mercato (UTC)</h3><div id="sessions" class="meter"></div></div>
+  </div>
+</section>
+
+<section id="t-mkt" hidden style="display:grid;gap:14px">
+  <div class="panel"><h3>Heatmap di mercato (variazione sessione)</h3><div class="heat" id="heat"></div></div>
+  <div class="cols">
+    <div class="panel"><h3>Migliori</h3><div id="gain" class="meter"></div></div>
+    <div class="panel"><h3>Peggiori</h3><div id="lose" class="meter"></div></div>
+    <div class="panel" id="pn-liq"><h3>Liquidazioni 1h (sim., M$)</h3><div id="liq" class="meter"></div></div>
+  </div>
+  <div class="panel"><h3>Correlazione rendimenti 1h</h3><div class="tblw"><table id="corr"></table></div></div>
+  <div class="panel" id="pn-wh"><h3>Flussi balene (sim.)</h3><div id="whales" class="meter"></div></div>
+</section>
+
+<section id="t-cal" hidden style="display:grid;gap:14px">
+  <div class="panel" id="pn-cal"><h3>Calendario economico</h3>
+    <p class="note">Filtro news attivo: nessun nuovo segnale nei 15 minuti prima e dopo un evento ad alto impatto. Eventi di esempio, senza valori previsti: collega un feed reale per i dati ufficiali.</p>
+    <div class="tblw"><table id="calTbl"></table></div></div>
+  <div class="panel"><h3>News e on-chain (sim.)</h3><div id="news" class="meter"></div></div>
+</section>
+
+<section id="t-port" hidden style="display:grid;gap:14px">
+  <div class="kpis" id="portK"></div>
+  <div class="panel" id="pn-acc" hidden><h3>Conto reale</h3><div class="kpis" id="accK"></div><div class="tblw" style="margin-top:10px"><table id="accTbl"></table></div></div>
+  <div class="panel"><h3>Risk manager</h3><dl class="stat" id="riskM" style="max-width:560px"></dl></div>
+  <div class="panel"><h3>Segnali presi</h3><p class="note">Apri un segnale e premi "Prendi segnale" per aggiungerlo. Dimensione calcolata con rischio 1% su 10.000 $.</p><div class="tblw"><table id="portTbl"></table></div></div>
+</section>
+
+<section id="t-alert" hidden style="display:grid;gap:14px">
+  <div class="panel"><h3>Nuovo alert di prezzo</h3>
+    <div class="form"><label>Coppia<select id="al-sym"></select></label><label>Condizione<select id="al-cond"><option value="above">Prezzo sopra</option><option value="below">Prezzo sotto</option></select></label><label>Prezzo<input id="al-price" type="number" step="any"></label></div>
+    <div style="margin-top:12px"><button class="btn" id="al-add">Aggiungi alert</button></div></div>
+  <div class="panel"><h3>Alert attivi</h3><div class="tblw"><table><thead><tr><th>Coppia</th><th>Condizione</th><th>Livello</th><th>Prezzo ora</th><th>Stato</th><th></th></tr></thead><tbody id="al-list"></tbody></table></div></div>
+</section>
+
+<section id="t-perf" hidden style="display:grid;gap:14px">
+  <div class="panel"><h3>Curva equity (rischio 1% su conto 10.000 $)</h3><canvas id="eq" style="height:260px"></canvas></div>
+  <div class="cols">
+    <div class="panel"><h3>Statistiche</h3><dl class="stat" id="pstats"></dl></div>
+    <div class="panel"><h3>Risultato per coppia (R)</h3><div id="bypair" class="meter"></div></div>
+    <div class="panel"><h3>Win rate per timeframe e lato</h3><div id="byTf" class="meter"></div></div>
+    <div class="panel"><h3>Distribuzione risultati</h3><div id="dist" class="meter"></div></div>
+    <div class="panel"><h3>Risultato per giorno</h3><div id="days" class="meter"></div></div>
+  </div>
+</section>
+
+<section id="t-calc" hidden class="panel">
+  <h3>Calcolatore posizione e rischio</h3>
+  <div class="form">
+    <label>Capitale ($)<input id="c-bal" type="number" value="10000" min="1"></label>
+    <label>Rischio (%)<input id="c-risk" type="number" value="1" step="0.1" min="0.1"></label>
+    <label>Direzione<select id="c-dir"><option value="long">Long</option><option value="short">Short</option></select></label>
+    <label>Entrata<input id="c-entry" type="number" step="any"></label>
+    <label>Stop loss<input id="c-sl" type="number" step="any"></label>
+    <label>Take profit<input id="c-tp" type="number" step="any"></label>
+    <label>Leva (x)<input id="c-lev" type="number" value="10" min="1" max="125"></label>
+  </div>
+  <div style="display:flex;gap:8px;margin:12px 0;flex-wrap:wrap"><button class="btn" id="c-use">Usa segnale selezionato</button></div>
+  <dl class="stat" id="c-out" style="max-width:520px"></dl>
+</section>
+
+<section id="t-hist" hidden class="panel">
+  <h3>Storico segnali chiusi</h3>
+  <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" id="csv">Copia CSV</button><span class="note" id="csvmsg"></span></div>
+  <div class="tblw"><table id="histTbl"></table></div>
+</section>
+</main>
+<p class="note" id="foot">Dati simulati a scopo dimostrativo: prezzi, segnali e statistiche sono generati nel browser. Non costituiscono consulenza finanziaria. Il trading con leva comporta rischio di perdita del capitale.</p>
+</div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const PAIRS=[['BTC',92000],['ETH',3200],['SOL',150],['BNB',620],['XRP',2.3],['DOGE',0.16],['ADA',0.55],['AVAX',28],['LINK',15],['UNI',7.2]];
+const CLSN={all:'Tutti i mercati',crypto:'Crypto',comm:'Materie prime',stock:'Azioni',forex:'Forex',index:'Indici'};
+const CLS={},LBL={};PAIRS.forEach(([s])=>CLS[s]='crypto');
+[['XAU',2650,'comm','Oro'],['XAG',31,'comm','Argento'],['WTI',70,'comm','Petrolio WTI'],['NGAS',3.1,'comm','Gas naturale'],['AAPL',230,'stock','Apple'],['TSLA',340,'stock','Tesla'],['NVDA',140,'stock','Nvidia'],['MSFT',420,'stock','Microsoft'],['AMZN',200,'stock','Amazon'],['EURUSD',1.052,'forex','EUR/USD'],['GBPUSD',1.262,'forex','GBP/USD'],['USDJPY',154.3,'forex','USD/JPY'],['AUDUSD',0.652,'forex','AUD/USD'],['SPX',5950,'index','S&P 500'],['NDX',20800,'index','Nasdaq 100'],['DJI',43800,'index','Dow Jones'],['DAX',19300,'index','DAX 40']].forEach(([s,p,c,n])=>{PAIRS.push([s,p]);CLS[s]=c;LBL[s]=n});
+let CF='all';const OPENF={};
+const VM=s=>({crypto:1,comm:.8,stock:.9,forex:.25,index:.55})[CLS[s]||'crypto'];
+const pn=s=>(CLS[s]||'crypto')==='crypto'?s+'/USDT':(LBL[s]||s);
+const inCls=s=>CF==='all'||(CLS[s]||'crypto')===CF;
+const VP=()=>PAIRS.filter(([s])=>inCls(s));
+function mktOpen(c){if(c==='crypto'||!c)return true;const d=new Date(),day=d.getUTCDay(),h=d.getUTCHours()+d.getUTCMinutes()/60,wk=day>=1&&day<=5;
+ if(c==='stock')return wk&&h>=14.5&&h<21;if(c==='index')return wk&&h>=7&&h<21;
+ if(c==='forex')return(day>=1&&day<=4)||(day===5&&h<22)||(day===0&&h>=22);
+ if(c==='comm')return(day>=1&&day<=4&&!(h>=22&&h<23))||(day===5&&h<22)||(day===0&&h>=23);return true}
+const isOpen=s=>(s in OPENF)?OPENF[s]:mktOpen(CLS[s]);
+const P={},P0={};PAIRS.forEach(([s,p])=>{P[s]=p;P0[s]=p*(0.97+Math.random()*0.06)});
+const TF={'5m':5,'15m':15,'1h':60,'4h':240};
+const BAL=10000,RISK=0.01;
+const hash=s=>{let h=2166136261;for(const c of s)h=Math.imul(h^c.charCodeAt(0),16777619);return h>>>0};
+const mul=a=>()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
+const gauss=(r=Math.random)=>Math.sqrt(-2*Math.log(1-r()))*Math.cos(2*Math.PI*r());
+const dec=p=>p>=10?2:p>=2?3:5, fmt=(p,s)=>(+p).toFixed(dec(p)), money=n=>(n<0?'-':'+')+Math.abs(n).toFixed(0)+' $';
+const hm=t=>new Date(t).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
+const dm=t=>new Date(t).toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit'})+' '+hm(t);
+
+/* ---------- serie e indicatori ---------- */
+const cache={};
+function series(sym,tf){const k=sym+tf;if(cache[k])return cache[k];
+  const r=mul(hash(k)),rm=mul(hash('mkt'+tf)),vol=0.0011*Math.sqrt(TF[tf])*VM(sym),c=[];let p=1;
+  for(let i=0;i<120;i++){const o=p;p=o*(1+(gauss(r)*.8+gauss(rm)*.6)*vol);c.push({o,c:p,h:Math.max(o,p)*(1+Math.abs(gauss(r))*vol*.5),l:Math.min(o,p)*(1-Math.abs(gauss(r))*vol*.5)})}
+  const f=P[sym]/p;c.forEach(x=>{x.o*=f;x.c*=f;x.h*=f;x.l*=f});return cache[k]={c,n:0}}
+function ema(a,n){const k=2/(n+1);let e=a[0];return a.map(v=>e=v*k+e*(1-k))}
+function rsiArr(a,n=14){const o=[];let g=0,l=0;for(let i=1;i<a.length;i++){const d=a[i]-a[i-1];if(i<=n){g+=Math.max(d,0);l+=Math.max(-d,0);if(i===n){g/=n;l/=n}o.push(50);continue}g=(g*(n-1)+Math.max(d,0))/n;l=(l*(n-1)+Math.max(-d,0))/n;o.push(100-100/(1+g/(l||1e-9)))}return[50,...o]}
+function ind(sym,tf){const cl=series(sym,tf).c.map(x=>x.c),e20=ema(cl,20),e50=ema(cl,50),rs=rsiArr(cl),m=ema(cl,12).map((v,i)=>v-ema(cl,26)[i]);
+  const sig=ema(m,9),i=cl.length-1;return{cl,e20,e50,rs,rsi:rs[i],trend:e20[i]>e50[i]?1:-1,hist:m[i]-sig[i],atr:series(sym,tf).c.slice(-14).reduce((s,x)=>s+(x.h-x.l),0)/14}}
+function tick(){const mk=gauss()*0.0004;PAIRS.forEach(([s])=>{if(!isOpen(s))return;P[s]*=1+(gauss()*0.0006+mk)*VM(s);const p=P[s];
+  for(const tf in TF){const k=s+tf;if(!cache[k])continue;const S=cache[k],l=S.c[S.c.length-1];l.c=p;l.h=Math.max(l.h,p);l.l=Math.min(l.l,p);if(++S.n%20===0){S.c.push({o:p,c:p,h:p,l:p});if(S.c.length>140)S.c.shift()}}})}
+
+/* ---------- segnali ---------- */
+let SIGS=[],SEL=null,FILT='all',NID=1,MINC=70,SOUND=false;
+function makeSignal(sym,when=Date.now(),tf){tf=tf||['15m','1h','4h'][Math.floor(Math.random()*3)];
+  const I=ind(sym,tf),dir=Math.random()<.72?(I.trend>0?'long':'short'):(I.trend>0?'short':'long'),s=dir==='long'?1:-1;
+  const entry=P[sym],R=Math.min(Math.max(I.atr*1.5,entry*.004),entry*.014),agree=(dir==='long')===(I.trend>0),
+  conf=Math.round(Math.min(97,Math.max(66,70+(agree?10:-2)+Math.random()*14+(s>0?(I.rsi<45?4:0):(I.rsi>55?4:0)))));
+  const why=[`EMA20 ${I.trend>0?'sopra':'sotto'} EMA50 su ${tf}`,`RSI(14) a ${I.rsi.toFixed(0)}: ${I.rsi>70?'ipercomprato':I.rsi<30?'ipervenduto':'zona neutra'}`,`Istogramma MACD ${I.hist>0?'positivo':'negativo'}`,`Stop a 1,5×ATR (${(R/entry*100).toFixed(2)}%), rapporto R:R fino a 1:3`];
+  return{id:NID++,log:[{t:when,m:'Segnale emesso · '+dir.toUpperCase()+' @ '+fmt(entry)}],sym,dir,tf,entry,sl:entry-s*R,tp:[1,2,3].map(m=>entry+s*R*m),conf,t:when,valid:when+15*60000,hits:0,closed:false,res:null,ct:null,why,R}}
+function seed(){const now=Date.now();
+  for(let i=0;i<30;i++){const sym=PAIRS[Math.floor(Math.random()*PAIRS.length)][0],t=now-(2+i*95+Math.random()*60)*60000,g=makeSignal(sym,t);
+    const w=Math.random(),h=w<.37?0:w<.55?1:w<.7?2:3;g.hits=h;g.closed=true;g.res=h===0?-1:h===1?.33:h===2?1:2;g.ct=t+(20+Math.random()*200)*60000;SIGS.push(g)}
+  for(let i=0;i<5;i++){const g=makeSignal(PAIRS[i*2][0],now-(i*7+3)*60000);SIGS.push(g)}
+  SIGS.sort((a,b)=>b.t-a.t);SEL=SIGS.find(s=>!s.closed)?.id||SIGS[0].id}
+function resolve(g){const s=g.dir==='long'?1:-1,p=P[g.sym];
+  const sl=g.hits>=1?g.entry:g.sl;
+  if(s*(p-sl)<=0){g.closed=true;g.ct=Date.now();g.res=g.hits===0?-1:g.hits===1?.33:1.0;const m=g.hits?'chiuso a break-even · '+(g.res>0?'+':'')+g.res.toFixed(2)+'R':'Stop loss colpito · -1R';g.log.push({t:Date.now(),m});toast(`${g.sym} ${m}`);return}
+  while(g.hits<3&&s*(p-g.tp[g.hits])>=0){g.hits++;const m=`TP${g.hits} raggiunto${g.hits===1?' · SL spostato a break-even':''}`;g.log.push({t:Date.now(),m});toast(`${g.sym} ${m}`);beep(880)}
+  if(g.hits===3){g.closed=true;g.ct=Date.now();g.res=2;g.log.push({t:Date.now(),m:'Chiuso a TP3 · +2R'})}}
+function newSignals(){if(SIGS.filter(s=>!s.closed).length>=9||Math.random()>.18||newsLock())return;
+  const sym=PAIRS[Math.floor(Math.random()*PAIRS.length)][0];if(SIGS.some(s=>!s.closed&&s.sym===sym)||!isOpen(sym))return;
+  const g=makeSignal(sym);SIGS.unshift(g);toast(`Nuovo segnale ${g.dir.toUpperCase()} ${g.sym} · confidenza ${g.conf}%`);beep(660)}
+function status(g){if(g.closed)return g.res>0?['TP'+g.hits+' · +'+g.res.toFixed(2)+'R','win']:g.res<0?['SL · -1R','loss']:['BE','st'];
+  return[g.hits?`TP${g.hits} preso`:'Attivo','st']}
+function pnlR(g){const s=g.dir==='long'?1:-1;return s*(P[g.sym]-g.entry)/g.R}
+
+/* ---------- render ---------- */
+function visible(){return SIGS.filter(g=>inCls(g.sym)&&g.conf>=MINC&&(FILT==='all'||(FILT==='active'&&!g.closed)||(FILT==='closed'&&g.closed)||g.dir===FILT)).slice(0,40)}
+function renderFeed(){const now=Date.now();
+  $('#feed').innerHTML=visible().map(g=>{const[st,c]=status(g),left=g.valid-now,live=!g.closed;
+    return`<button class="sig" data-id="${g.id}" aria-current="${g.id===SEL}">
+    <div class="row"><span class="pair">${pn(g.sym)} <span class="tag ${g.dir}">${g.dir.toUpperCase()}</span></span><span class="tag st ${c}">${st}</span></div>
+    <div class="lv"><div><span>ENTRY</span>${fmt(g.entry)}</div><div><span>SL</span>${fmt(g.sl)}</div><div><span>TP1</span>${fmt(g.tp[0])}</div><div><span>TP2</span>${fmt(g.tp[1])}</div><div><span>TP3</span>${fmt(g.tp[2])}</div></div>
+    <div class="row mono" style="font-size:11px"><span class="mute">${g.tf} · ${hm(g.t)}</span><span>${live?`PnL <b class="${pnlR(g)>=0?'up':'down'}">${pnlR(g)>=0?'+':''}${pnlR(g).toFixed(2)}R</b>`:''}</span><span class="${left>0&&live?'':'mute'}">${live?(left>0?'Ingresso '+Math.floor(left/60000)+':'+String(Math.floor(left%60000/1000)).padStart(2,'0'):'Ingresso scaduto'):''}</span></div>
+    <div class="row" style="gap:10px"><div class="bar" style="flex:1"><i style="width:${g.conf}%"></i></div><span class="mono" style="font-size:11px">${g.conf}%</span></div></button>`}).join('')||'<p class="note">Nessun segnale con questi filtri.</p>'}
+function gauge(v){const a=-90+v*1.8;return`<svg class="gauge" viewBox="0 0 120 72" role="img" aria-label="Confidenza ${v}%"><path d="M10 64A50 50 0 0 1 40 18" fill="none" stroke="var(--down)" stroke-width="9" opacity=".8"/><path d="M40 18A50 50 0 0 1 80 18" fill="none" stroke="var(--warn)" stroke-width="9" opacity=".8"/><path d="M80 18A50 50 0 0 1 110 64" fill="none" stroke="var(--up)" stroke-width="9" opacity=".8"/><g transform="rotate(${a} 60 64)"><path d="M58 64L60 20L62 64Z" fill="var(--fg)"/></g><circle cx="60" cy="64" r="5" fill="var(--gold)"/><text x="60" y="52" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="13" font-weight="700" fill="var(--fg)">${v}</text></svg>`}
+let CTF='15m';
+function renderDetail(){const g=SIGS.find(s=>s.id===SEL);if(!g){$('#detail').innerHTML='';return}
+  const I=ind(g.sym,CTF),[st,c]=status(g),p=P[g.sym],ch=(p/P0[g.sym]-1)*100;
+  const el=$('#detail');
+  if(el.dataset.id!=g.id){el.dataset.id=g.id;el.innerHTML=`<div class="panel"><div class="dhead"><div><div class="pair" style="font-size:20px">${pn(g.sym)} <span class="tag ${g.dir}">${g.dir.toUpperCase()}</span> <span class="tag st" id="d-st"></span></div><div class="note">Segnale #${g.id} · ${dm(g.t)} · timeframe ${g.tf}</div></div><div style="text-align:right"><div class="big" id="d-p"></div><div class="mono" id="d-c"></div></div></div></div>
+  <div class="panel"><div class="row" style="margin-bottom:8px"><div class="tfs" id="d-tf">${Object.keys(TF).map(t=>`<button class="fbtn" data-tf="${t}" aria-pressed="${t===CTF}">${t}</button>`).join('')}</div><span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn ghost" id="d-take"></button><button class="btn" id="d-tg">Copia messaggio Telegram</button></span></div><canvas id="chart" style="height:380px"></canvas></div>
+  <div class="cols"><div class="panel"><h3>Livelli operativi</h3><dl class="stat" id="d-lv"></dl></div><div class="panel" style="display:grid;justify-items:center;gap:6px"><h3 style="justify-self:start">Potenza segnale</h3>${gauge(g.conf)}<span class="note" style="text-align:center">Confidenza del modello su ${g.tf}</span></div><div class="panel"><h3>Indicatori <span class="mute">${CTF}</span></h3><dl class="stat" id="d-ind"></dl></div></div>
+  <div class="panel"><h3>Motivazione</h3><ul class="why">${g.why.map(w=>`<li>${w}</li>`).join('')}</ul></div>
+  <div class="cols"><div class="panel"><h3>Order book${LIVE?'':' (sim.)'}</h3><div class="ob" id="d-ob"></div></div><div class="panel"><h3>Gestione del trade</h3><ul class="why" id="d-log" style="list-style:none;padding:0"></ul></div></div>
+  <div class="panel"><h3>Note del journal</h3><textarea id="d-note" rows="3" placeholder="Annota setup, emozioni, errori da evitare"></textarea></div>`;
+  try{$('#d-note').value=localStorage.getItem('aurum-note-'+g.id)||''}catch(e){}
+  $('#d-note').oninput=e=>{try{localStorage.setItem('aurum-note-'+g.id,e.target.value)}catch(x){}}}
+  $('#d-st').textContent=st;$('#d-st').className='tag st '+c;
+  $('#d-p').textContent=fmt(p);$('#d-c').innerHTML=`<span class="${ch>=0?'up':'down'}">${ch>=0?'+':''}${ch.toFixed(2)}%</span> <span class="mute">sessione</span>`;
+  const r=g.dir==='long'?1:-1;
+  $('#d-lv').innerHTML=`<dt>Entrata</dt><dd>${fmt(g.entry)}</dd><dt>Stop loss</dt><dd class="down">${fmt(g.sl)} (${(-g.R/g.entry*100).toFixed(2)}%)</dd>`+g.tp.map((t,i)=>`<dt>TP${i+1} · R:R 1:${i+1}</dt><dd class="up">${fmt(t)} ${g.hits>i?'✓':''}</dd>`).join('')+`<dt>PnL aperto</dt><dd class="${pnlR(g)>=0?'up':'down'}">${g.closed?'—':(pnlR(g)>=0?'+':'')+pnlR(g).toFixed(2)+'R'}</dd><dt>Gestione</dt><dd>1/3 a ogni TP · SL a BE dopo TP1</dd>`;
+  $('#d-ind').innerHTML=`<dt>RSI(14)</dt><dd class="${I.rsi>70?'down':I.rsi<30?'up':''}">${I.rsi.toFixed(1)}</dd><dt>EMA20 / EMA50</dt><dd class="${I.trend>0?'up':'down'}">${I.trend>0?'rialzista':'ribassista'}</dd><dt>MACD hist.</dt><dd class="${I.hist>0?'up':'down'}">${I.hist>0?'+':''}${I.hist.toPrecision(3)}</dd><dt>ATR(14)</dt><dd>${fmt(I.atr)}</dd>`;
+  drawChart($('#chart'),g);liveDetail(g)}
+function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()}
+function drawChart(cv,g){const dpr=devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;if(!W)return;cv.width=W*dpr;cv.height=H*dpr;const x=cv.getContext('2d');x.scale(dpr,dpr);
+  const S=series(g.sym,CTF).c.slice(-70),I=ind(g.sym,CTF),n=S.length,off=I.cl.length-n,mh=H*.74,rt=H*.8,rh=H*.17,pr=62,cw=(W-pr)/n;
+  let hi=Math.max(...S.map(c=>c.h),...g.tp),lo=Math.min(...S.map(c=>c.l),g.sl);const pad=(hi-lo)*.05;hi+=pad;lo-=pad;
+  const Y=v=>mh*(1-(v-lo)/(hi-lo)),up=css('--up'),dn=css('--down'),mu=css('--mute'),ln=css('--line'),gd=css('--gold'),fg=css('--fg');
+  x.font='11px JetBrains Mono,monospace';x.lineWidth=1;
+  for(let i=0;i<=5;i++){const v=lo+(hi-lo)*i/5,y=Y(v);x.strokeStyle=ln;x.beginPath();x.moveTo(0,y);x.lineTo(W-pr,y);x.stroke();x.fillStyle=mu;x.fillText(fmt(v),W-pr+6,y+4)}
+  S.forEach((c,i)=>{const cx=i*cw+cw/2,u=c.c>=c.o;x.strokeStyle=x.fillStyle=u?up:dn;x.beginPath();x.moveTo(cx,Y(c.h));x.lineTo(cx,Y(c.l));x.stroke();const t=Y(Math.max(c.o,c.c)),b=Math.max(1,Math.abs(Y(c.o)-Y(c.c)));x.fillRect(cx-cw*.34,t,cw*.68,b)});
+  [[I.e20,gd],[I.e50,mu]].forEach(([a,col])=>{x.strokeStyle=col;x.lineWidth=1.5;x.beginPath();a.slice(off).forEach((v,i)=>{const px=i*cw+cw/2;i?x.lineTo(px,Y(v)):x.moveTo(px,Y(v))});x.stroke()});x.lineWidth=1;
+  const lvl=[[g.entry,fg,'ENTRY'],[g.sl,dn,'SL'],...g.tp.map((t,i)=>[t,up,'TP'+(i+1)])];
+  lvl.forEach(([v,col,l])=>{const y=Y(v);x.strokeStyle=col;x.setLineDash([5,4]);x.beginPath();x.moveTo(0,y);x.lineTo(W-pr,y);x.stroke();x.setLineDash([]);x.fillStyle=col;x.fillText(l,6,y-4)});
+  const py=Y(P[g.sym]);x.fillStyle=gd;x.fillRect(W-pr,py-9,pr,18);x.fillStyle=css('--bg');x.fillText(fmt(P[g.sym]),W-pr+4,py+4);
+  x.strokeStyle=ln;x.strokeRect(0,rt,W-pr,rh);const RY=v=>rt+rh*(1-v/100);[30,70].forEach(v=>{x.setLineDash([3,3]);x.beginPath();x.moveTo(0,RY(v));x.lineTo(W-pr,RY(v));x.stroke();x.setLineDash([]);x.fillStyle=mu;x.fillText(v,W-pr+6,RY(v)+4)});
+  x.strokeStyle=gd;x.beginPath();I.rs.slice(off).forEach((v,i)=>{const px=i*cw+cw/2;i?x.lineTo(px,RY(v)):x.moveTo(px,RY(v))});x.stroke();x.fillStyle=mu;x.fillText('RSI',6,rt+12)}
+function renderKpis(){const c=SIGS.filter(s=>s.closed),w=c.filter(s=>s.res>0),gw=w.reduce((a,s)=>a+s.res,0),gl=Math.abs(c.filter(s=>s.res<0).reduce((a,s)=>a+s.res,0)),tot=c.reduce((a,s)=>a+s.res,0),act=SIGS.filter(s=>!s.closed);
+  const k=[['Win rate',c.length?(w.length/c.length*100).toFixed(1)+'%':'—'],['Profit factor',gl?(gw/gl).toFixed(2):'—'],['R totale',(tot>=0?'+':'')+tot.toFixed(1)+'R',tot>=0?'up':'down'],['P&L stimato',money(tot*BAL*RISK),tot>=0?'up':'down'],['Segnali attivi',act.length],['Confidenza media',act.length?Math.round(act.reduce((a,s)=>a+s.conf,0)/act.length)+'%':'—']];
+  $('#kpis').innerHTML=k.map(([l,v,c])=>`<div class="kpi"><span class="lbl">${l}</span><b class="${c||''}">${v}</b></div>`).join('')}
+function renderTape(){const h=VP().map(([s])=>{const ch=(P[s]/P0[s]-1)*100;return`<span>${s} <b>${fmt(P[s])}</b> <span class="${ch>=0?'up':'down'}">${ch>=0?'▲':'▼'}${Math.abs(ch).toFixed(2)}%</span></span>`}).join('');$('#tape').innerHTML=h+h}
+function renderScan(){const rows=VP().map(([s])=>{const t=['15m','1h','4h'].map(tf=>ind(s,tf)),sum=t.reduce((a,i)=>a+i.trend,0),rs=t[1].rsi,sc=Math.round(50+sum*12+(rs<35?8:rs>65?-8:0)*Math.sign(sum||1)),dir=sum>=2?'LONG':sum<=-2?'SHORT':'NEUTRO';
+  return`<tr class="clk" data-sym="${s}"><td><b>${pn(s)}</b></td><td>${fmt(P[s])}</td><td class="${P[s]>=P0[s]?'up':'down'}">${((P[s]/P0[s]-1)*100).toFixed(2)}%</td>${t.map(i=>`<td class="${i.trend>0?'up':'down'}">${i.trend>0?'▲':'▼'}</td>`).join('')}<td class="${rs>70?'down':rs<30?'up':''}">${rs.toFixed(0)}</td><td><span class="tag ${dir==='LONG'?'long':dir==='SHORT'?'short':'st'}">${dir}</span></td><td>${Math.min(95,Math.max(40,sc))}%</td></tr>`}).join('');
+  $('#scanTbl').innerHTML=`<thead><tr><th>Coppia</th><th>Prezzo</th><th>Var. sess.</th><th>15m</th><th>1h</th><th>4h</th><th>RSI 1h</th><th>Bias</th><th>Score</th></tr></thead><tbody>${rows}</tbody>`}
+let FG=62,LS=1.18,FR=0.012;
+function renderSent(){if(LIVE&&SENT){FG=SENT.fg;FR=SENT.funding}else{FG=Math.min(95,Math.max(8,FG+gauss()*.6));LS=Math.max(.6,Math.min(2,LS+gauss()*.004));FR+=gauss()*.0003}
+  const lab=FG>75?'Avidità estrema':FG>55?'Avidità':FG>45?'Neutrale':FG>25?'Paura':'Paura estrema';
+  const m=(l,v,t,pct)=>`<div class="meter"><div class="row"><span class="mute">${l}</span><b>${v}</b></div><div class="bar"><i style="width:${pct}%"></i></div>${t?`<span class="mute">${t}</span>`:''}</div>`;
+  $('#sentiment').innerHTML=m('Fear & Greed'+(LIVE?'':' (sim.)'),Math.round(FG),lab,FG)+(LIVE?'':m('Rapporto Long/Short',LS.toFixed(2),Math.round(LS/(1+LS)*100)+'% long',LS/(1+LS)*100))+m('Funding rate medio'+(LIVE?' ('+XNAME+')':''),(FR>=0?'+':'')+FR.toFixed(4)+'%','ogni 8 ore',Math.min(100,Math.abs(FR)*3000));
+  const h=new Date().getUTCHours()+new Date().getUTCMinutes()/60,S=[['Tokyo',0,9],['Londra',7,16],['New York',13,22]];
+  const MH={comm:'Materie prime · lun–ven (quasi 24h)',stock:'Azioni USA · lun–ven 14:30–21:00 UTC',forex:'Forex · da dom 22:00 a ven 22:00 UTC',index:'Indici · lun–ven (orari per borsa)',crypto:'Crypto · 24 ore su 24, 7 giorni su 7'};
+  $('#sessions').innerHTML=Object.keys(MH).map(c=>{const o=mktOpen(c);return`<div class="row"><span>${MH[c]}</span><span class="${o?'up':'mute'}">${o?'APERTO':'chiuso'}</span></div>`}).join('')+S.map(([n,a,b])=>{const on=h>=a&&h<b;return`<div class="row"><span>${n}</span><span class="${on?'up':'mute'}">${on?'APERTA':'chiusa'} · ${a}:00–${b}:00</span></div><div class="bar"><i style="width:${on?Math.round((h-a)/(b-a)*100):0}%"></i></div>`}).join('')}
+function perf2(){const c=SIGS.filter(s=>s.closed);
+  const grp=(f,keys)=>keys.map(k=>{const a=c.filter(s=>f(s)===k),w=a.filter(s=>s.res>0).length,pc=a.length?w/a.length*100:0;return`<div class="row"><span>${k}</span><b>${Math.round(pc)}% <span class="mute">(${a.length})</span></b></div><div class="bar"><i style="width:${pc}%"></i></div>`}).join('');
+  $('#byTf').innerHTML=grp(s=>s.tf,['15m','1h','4h'])+grp(s=>s.dir.toUpperCase(),['LONG','SHORT']);
+  const b=[['Stop loss -1R',s=>s.res<0],['Break-even +0,33R',s=>s.res>0&&s.res<.5],['TP2 +1R',s=>s.res===1],['TP3 +2R',s=>s.res===2]],mx=Math.max(1,...b.map(([,f])=>c.filter(f).length));
+  $('#dist').innerHTML=b.map(([l,f],i)=>{const n=c.filter(f).length;return`<div class="row"><span>${l}</span><b>${n}</b></div><div class="bar"><i style="width:${n/mx*100}%;background:var(${i?'--up':'--down'})"></i></div>`}).join('');
+  const d={};c.forEach(s=>{const k=new Date(s.ct).toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit'});d[k]=(d[k]||0)+s.res});
+  $('#days').innerHTML=Object.entries(d).map(([k,v])=>`<div class="row"><span>${k}</span><b class="${v>=0?'up':'down'}">${v>=0?'+':''}${v.toFixed(1)}R · ${money(v*BAL*RISK)}</b></div>`).join('')}
+function renderPerf(){perf2();const c=SIGS.filter(s=>s.closed).sort((a,b)=>a.ct-b.ct);let e=BAL,pk=BAL,dd=0;const pts=[BAL];c.forEach(s=>{e+=s.res*BAL*RISK;pts.push(e);pk=Math.max(pk,e);dd=Math.max(dd,(pk-e)/pk*100)});
+  const cv=$('#eq'),W=cv.clientWidth,H=cv.clientHeight;if(W){const d=devicePixelRatio||1;cv.width=W*d;cv.height=H*d;const x=cv.getContext('2d');x.scale(d,d);const lo=Math.min(...pts)*.995,hi=Math.max(...pts)*1.005,X=i=>40+(W-52)*i/(pts.length-1||1),Y=v=>H-24-(H-40)*(v-lo)/(hi-lo||1);
+    x.font='11px JetBrains Mono,monospace';x.fillStyle=css('--mute');x.strokeStyle=css('--line');for(let i=0;i<=4;i++){const v=lo+(hi-lo)*i/4;x.beginPath();x.moveTo(40,Y(v));x.lineTo(W-12,Y(v));x.stroke();x.fillText(Math.round(v),2,Y(v)+4)}
+    const col=e>=BAL?css('--up'):css('--down');x.beginPath();pts.forEach((v,i)=>i?x.lineTo(X(i),Y(v)):x.moveTo(X(i),Y(v)));x.strokeStyle=col;x.lineWidth=2;x.stroke();x.lineTo(X(pts.length-1),H-24);x.lineTo(X(0),H-24);x.fillStyle=col+'22';x.fill();x.beginPath();x.arc(X(pts.length-1),Y(e),4,0,7);x.fillStyle=col;x.fill()}
+  const w=c.filter(s=>s.res>0),l=c.filter(s=>s.res<0),aw=w.length?w.reduce((a,s)=>a+s.res,0)/w.length:0,tot=c.reduce((a,s)=>a+s.res,0);
+  const row=(a,b,cl='')=>`<dt>${a}</dt><dd class="${cl}">${b}</dd>`;
+  $('#pstats').innerHTML=row('Segnali chiusi',c.length)+row('Vincenti / perdenti',w.length+' / '+l.length)+row('Win rate',(w.length/(c.length||1)*100).toFixed(1)+'%')+row('Expectancy',(tot/(c.length||1)).toFixed(2)+'R')+row('Media vincita',aw.toFixed(2)+'R','up')+row('Max drawdown',dd.toFixed(1)+'%','down')+row('Capitale simulato',e.toFixed(0)+' $',e>=BAL?'up':'down')+row('Raggiunto TP3',c.filter(s=>s.hits===3).length);
+  const by={};c.forEach(s=>by[s.sym]=(by[s.sym]||0)+s.res);const mx=Math.max(1,...Object.values(by).map(Math.abs));
+  $('#bypair').innerHTML=Object.entries(by).sort((a,b)=>b[1]-a[1]).map(([s,v])=>`<div class="row"><span>${s}</span><b class="${v>=0?'up':'down'}">${v>=0?'+':''}${v.toFixed(1)}R</b></div><div class="bar"><i style="width:${Math.abs(v)/mx*100}%;background:var(${v>=0?'--up':'--down'})"></i></div>`).join('')}
+function renderHist(){const c=SIGS.filter(s=>s.closed).sort((a,b)=>b.ct-a.ct);
+  $('#histTbl').innerHTML=`<thead><tr><th>Chiuso</th><th>Coppia</th><th>Lato</th><th>TF</th><th>Entry</th><th>SL</th><th>TP raggiunti</th><th>Conf.</th><th>Risultato</th></tr></thead><tbody>${c.map(s=>`<tr class="clk" data-id="${s.id}"><td>${dm(s.ct)}</td><td><b>${s.sym}</b></td><td class="${s.dir==='long'?'up':'down'}">${s.dir.toUpperCase()}</td><td>${s.tf}</td><td>${fmt(s.entry)}</td><td>${fmt(s.sl)}</td><td>${s.hits}/3</td><td>${s.conf}%</td><td class="${s.res>0?'up':'down'}"><b>${s.res>0?'+':''}${s.res.toFixed(2)}R</b></td></tr>`).join('')}</tbody>`}
+function calc(){const b=+$('#c-bal').value,r=+$('#c-risk').value/100,e=+$('#c-entry').value,sl=+$('#c-sl').value,tp=+$('#c-tp').value,lv=+$('#c-lev').value,d=$('#c-dir').value==='long'?1:-1;
+  const dist=d*(e-sl),out=$('#c-out');if(!(e>0&&sl>0)||dist<=0){out.innerHTML='<dt>Controlla i livelli</dt><dd>lo SL deve stare dal lato giusto</dd>';return}
+  const risk=b*r,units=risk/dist,not=units*e,mar=not/lv,liq=e*(1-d/lv*.9),rew=tp?d*(tp-e)*units:0;
+  out.innerHTML=`<dt>Rischio in $</dt><dd class="down">${risk.toFixed(2)}</dd><dt>Dimensione (unità)</dt><dd>${units.toPrecision(5)}</dd><dt>Valore nozionale</dt><dd>${not.toFixed(2)} $</dd><dt>Margine richiesto</dt><dd>${mar.toFixed(2)} $ ${mar>b?'<span class="down">(oltre il capitale)</span>':''}</dd><dt>Liquidazione indicativa</dt><dd>${fmt(liq)}</dd>${tp?`<dt>Guadagno al TP</dt><dd class="up">+${rew.toFixed(2)} $</dd><dt>R:R</dt><dd>1:${(rew/risk).toFixed(2)}</dd>`:''}`}
+function tgText(g){return`${g.dir==='long'?'🟢':'🔴'} ${pn(g.sym)} ${g.dir.toUpperCase()} · ${g.tf}\nEntry: ${fmt(g.entry)}\nSL: ${fmt(g.sl)}\nTP1: ${fmt(g.tp[0])}\nTP2: ${fmt(g.tp[1])}\nTP3: ${fmt(g.tp[2])}\nConfidenza: ${g.conf}%\nRischio consigliato: 1%`}
+function copy(t,done){const f=()=>{const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();try{document.execCommand('copy')}catch(e){}a.remove();done()};navigator.clipboard?.writeText(t).then(done,f)||f()}
+function toast(m){const d=document.createElement('div');d.className='toast';d.textContent=m;$('#toasts').appendChild(d);setTimeout(()=>d.remove(),5000)}
+let AC;function beep(f){if(!SOUND)return;try{AC=AC||new AudioContext();const o=AC.createOscillator(),g=AC.createGain();o.frequency.value=f;g.gain.value=.05;o.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+.15)}catch(e){}}
+
+/* ---------- mercato, calendario, portafoglio, alert ---------- */
+const TAKEN=new Set(),WHALES=[],NEWS=[],LIQ={l:38,s:27};let ALERTS=[],AID=3,HOLD=false;
+addEventListener('pointerdown',()=>HOLD=true,true);addEventListener('pointerup',()=>setTimeout(()=>HOLD=false,60),true);addEventListener('pointercancel',()=>HOLD=false,true);
+const T0=Date.now(),CAL=[['Giappone · Indicatore di fiducia','basso',-180],['USA · Richieste sussidi disoccupazione','medio',40],['USA · Indice prezzi al consumo (CPI)','alto',95],['Eurozona · PMI manifatturiero','medio',150],['FOMC · Verbali della riunione','alto',310],['Cina · Produzione industriale','basso',700],['USA · Vendite al dettaglio','medio',520],['BoJ · Decisione sui tassi','alto',900],['Fed · Discorso del presidente','alto',1300]].map(([n,i,m])=>({n,imp:i,t:T0+m*60000})).sort((a,b)=>a.t-b.t);
+function newsLock(){return !LIVE&&CAL.some(e=>e.imp==='alto'&&Math.abs(e.t-Date.now())<15*60000)}
+const NT=[['{s}: i deflussi dagli exchange segnalano accumulo',1],['{s}: afflusso netto sugli exchange in aumento',-1],['Open interest su {s} ai massimi della settimana',0],['Funding rate {s} negativo: short affollati',1],['Rottura di resistenza su {s} con volumi sopra la media',1],['{s} perde il supporto chiave sul grafico 4h',-1]];
+function addNews(t=Date.now()){const[x,sn]=NT[Math.floor(Math.random()*NT.length)],s=PAIRS[Math.floor(Math.random()*PAIRS.length)][0];NEWS.unshift({t,h:x.replace('{s}',s),sn});NEWS.length=Math.min(NEWS.length,10)}
+function seedExtras(){if(!LIVE){for(let i=5;i>=0;i--)addNews(Date.now()-i*9*60000);
+  for(let i=0;i<5;i++)WHALES.push({t:Date.now()-i*4*60000,sym:PAIRS[i][0],buy:i%2===0,usd:(5+Math.random()*40)*1e6});
+  ALERTS.push({id:1,sym:'BTC',cond:'above',price:P.BTC*1.006,done:false},{id:2,sym:'ETH',cond:'below',price:P.ETH*.994,done:false});
+  }$('#al-sym').innerHTML=PAIRS.map(([s])=>`<option>${s}</option>`).join('');setAl()}
+function setAl(){$('#al-price').value=fmt(P[$('#al-sym').value])}
+function stepExtras(){if(!LIVE){LIQ.l=LIQ.l*.997+Math.random()*.45;LIQ.s=LIQ.s*.997+Math.random()*.4;
+  if(Math.random()<.1){WHALES.unshift({t:Date.now(),sym:PAIRS[Math.floor(Math.random()*5)][0],buy:Math.random()<.5,usd:(2+Math.random()*60)*1e6});WHALES.length=Math.min(WHALES.length,8)}
+  if(Math.random()<.03)addNews()}
+  ALERTS.forEach(a=>{if(a.done)return;const p=P[a.sym];if(a.cond==='above'?p>=a.price:p<=a.price){a.done=true;a.at=Date.now();toast(`Alert ${a.sym}: prezzo ${a.cond==='above'?'sopra':'sotto'} ${fmt(a.price)}`);beep(990)}})}
+function liveDetail(g){const p=P[g.sym],st=p*.00015;let a=[],b=[];if(LIVE){if(OBL&&OBL.sym===g.sym){a=OBL.asks.slice(0,7).map(x=>[+x[0],+x[1]]);b=OBL.bids.slice(0,7).map(x=>[+x[0],+x[1]])}}else for(let i=1;i<=7;i++){a.push([p+st*i,Math.random()*50+5]);b.push([p-st*i,Math.random()*50+5])}
+  const mx=Math.max(...a.map(x=>x[1]),...b.map(x=>x[1])),row=(x,c)=>`<div class="obr"><i style="width:${x[1]/mx*100}%;background:var(${c})"></i><span>${fmt(x[0])}</span><span>${x[1].toFixed(1)}</span></div>`,bs=b.reduce((s,x)=>s+x[1],0),as=a.reduce((s,x)=>s+x[1],0);
+  $('#d-ob').innerHTML=!a.length||!b.length?'<span class="mute">Order book in caricamento</span>':`<div>${[...a].reverse().map(x=>row(x,'--down')).join('')}</div><div>${b.map(x=>row(x,'--up')).join('')}</div><div style="grid-column:1/-1" class="mute">Pressione acquisto ${Math.round(bs/(bs+as)*100)}% · vendita ${Math.round(as/(bs+as)*100)}%</div>`;
+  $('#d-log').innerHTML=g.log.slice().reverse().map(l=>`<li class="row mono" style="font-size:12px"><span>${l.m}</span><span class="mute">${hm(l.t)}</span></li>`).join('');
+  $('#d-take').textContent=TAKEN.has(g.id)?'Nel portafoglio ✓':'Prendi segnale'}
+function openSym(s){const g=SIGS.find(x=>x.sym===s&&!x.closed)||SIGS.find(x=>x.sym===s);if(g)select(g.id);else toast('Nessun segnale per '+s)}
+function renderMkt(){const arr=VP().map(([s])=>[s,(P[s]/P0[s]-1)*100]),so=[...arr].sort((a,b)=>b[1]-a[1]);
+  $('#heat').innerHTML=arr.map(([s,c])=>`<button class="tile" data-sym="${s}" style="background:color-mix(in srgb,var(${c>=0?'--up':'--down'}) ${Math.min(55,8+Math.abs(c)*14).toFixed(0)}%,var(--panel2))">${s}<br><span>${c>=0?'+':''}${c.toFixed(2)}%</span>${isOpen(s)?'':'<br><span class="mute" style="font-size:10px">chiuso</span>'}</button>`).join('');
+  const li=x=>x.map(([s,c])=>`<div class="row"><span class="mono">${pn(s)}</span><b class="mono ${c>=0?'up':'down'}">${c>=0?'+':''}${c.toFixed(2)}%</b></div>`).join('');
+  $('#gain').innerHTML=li(so.slice(0,4));$('#lose').innerHTML=li(so.slice(-4).reverse());
+  const mx=Math.max(LIQ.l,LIQ.s);$('#liq').innerHTML=[['Long liquidati',LIQ.l,'--down'],['Short liquidati',LIQ.s,'--up']].map(([l,v,c])=>`<div class="row"><span>${l}</span><b>${v.toFixed(1)}</b></div><div class="bar"><i style="width:${v/mx*100}%;background:var(${c})"></i></div>`).join('');
+  const VC=VP().slice(0,12),R=VC.map(([s])=>{const c=series(s,'1h').c.map(x=>x.c);return c.slice(1).map((v,i)=>Math.log(v/c[i]))});
+  const cor=(a,b)=>{const n=a.length,ma=a.reduce((x,y)=>x+y)/n,mb=b.reduce((x,y)=>x+y)/n;let q=0,x2=0,y2=0;for(let i=0;i<n;i++){q+=(a[i]-ma)*(b[i]-mb);x2+=(a[i]-ma)**2;y2+=(b[i]-mb)**2}return q/Math.sqrt(x2*y2||1)};
+  $('#corr').innerHTML=`<thead><tr><th></th>${VC.map(([s])=>`<th>${s}</th>`).join('')}</tr></thead><tbody>${R.map((a,i)=>`<tr><td><b>${VC[i][0]}</b></td>${R.map((b,j)=>{const v=cor(a,b);return`<td style="background:color-mix(in srgb,var(--gold) ${Math.max(0,v)*70}%,transparent)">${v.toFixed(2)}</td>`}).join('')}</tr>`).join('')}</tbody>`;
+  $('#whales').innerHTML=WHALES.map(w=>`<div class="row"><span class="${w.buy?'up':'down'}"><b>${w.buy?'ACQUISTO':'VENDITA'}</b> ${w.sym}</span><span>${(w.usd/1e6).toFixed(1)} M$</span><span class="mute">${hm(w.t)}</span></div>`).join('')}
+function renderCal(){const n=Date.now(),cd=t=>{const d=t-n;if(d<0)return'concluso';const m=Math.floor(d/60000);return'tra '+(m>=60?Math.floor(m/60)+'h ':'')+(m%60)+'m'};
+  $('#calTbl').innerHTML=`<thead><tr><th>Ora</th><th>Evento</th><th>Impatto</th><th>Tempo</th><th>Effetto sui segnali</th></tr></thead><tbody>${CAL.map(e=>`<tr><td>${dm(e.t)}</td><td style="text-align:left">${e.n}</td><td><span class="tag ${e.imp==='alto'?'short':'st'}">${e.imp.toUpperCase()}</span></td><td class="${e.t<n?'mute':''}">${cd(e.t)}</td><td class="mute">${e.imp==='alto'?'Segnali sospesi ±15 min':'—'}</td></tr>`).join('')}</tbody>`;
+  $('#news').innerHTML=NEWS.map(x=>`<div class="row"><span>${x.h}${x.src?` <span class="mute">· ${x.src}</span>`:''}</span><span><span class="tag ${x.sn>0?'long':x.sn<0?'short':'st'}">${x.sn>0?'RIALZISTA':x.sn<0?'RIBASSISTA':LIVE?'NEWS':'NEUTRO'}</span> <span class="mute">${hm(x.t)}</span></span></div>`).join('')}
+function renderPort(){renderAcc();const t=SIGS.filter(s=>TAKEN.has(s.id)),op=t.filter(s=>!s.closed),cl=t.filter(s=>s.closed),k=BAL*RISK,today=new Date().toDateString();
+  const live=op.reduce((a,s)=>a+pnlR(s),0)*k,real=cl.reduce((a,s)=>a+s.res,0)*k,dl=cl.filter(s=>new Date(s.ct).toDateString()===today).reduce((a,s)=>a+Math.min(0,s.res),0)*RISK*100,orisk=op.filter(s=>s.hits===0).length*RISK*100,L=op.filter(s=>s.dir==='long').length;
+  $('#portK').innerHTML=[['Posizioni aperte',op.length],['PnL aperto',money(live),live>=0?'up':'down'],['PnL realizzato',money(real),real>=0?'up':'down'],['Rischio aperto',orisk.toFixed(1)+'%']].map(([l,v,c])=>`<div class="kpi"><span class="lbl">${l}</span><b class="${c||''}">${v}</b></div>`).join('');
+  const chk=(a,ok)=>`<span class="${ok?'up':'down'}">${a}</span>`;
+  $('#riskM').innerHTML=`<dt>Posizioni (max 5)</dt><dd>${chk(op.length+' / 5',op.length<=5)}</dd><dt>Rischio aperto (max 3%)</dt><dd>${chk(orisk.toFixed(1)+'%',orisk<=3)}</dd><dt>Perdita giornaliera (max 3%)</dt><dd>${chk(dl.toFixed(1)+'%',dl>-3)}</dd><dt>Esposizione long / short</dt><dd>${L} / ${op.length-L}</dd><dt>Stato</dt><dd>${orisk<=3&&dl>-3&&op.length<=5?'<span class="up">Operativo</span>':'<span class="down">Limite raggiunto: sospendi nuovi ingressi</span>'}</dd>`;
+  $('#portTbl').innerHTML=`<thead><tr><th>Coppia</th><th>Lato</th><th>Entry</th><th>Prezzo</th><th>Dimensione</th><th>PnL R</th><th>PnL $</th><th>Stato</th><th></th></tr></thead><tbody>${t.map(s=>{const r=s.closed?s.res:pnlR(s);return`<tr><td><b>${s.sym}</b></td><td class="${s.dir==='long'?'up':'down'}">${s.dir.toUpperCase()}</td><td>${fmt(s.entry)}</td><td>${fmt(P[s.sym])}</td><td>${(k/s.R).toPrecision(4)}</td><td class="${r>=0?'up':'down'}">${r>=0?'+':''}${r.toFixed(2)}R</td><td class="${r>=0?'up':'down'}">${money(r*k)}</td><td>${status(s)[0]}</td><td><button class="fbtn" data-rm="${s.id}">Rimuovi</button></td></tr>`}).join('')||'<tr><td colspan="9" class="mute">Nessuna posizione.</td></tr>'}</tbody>`}
+function renderAlerts(){$('#al-list').innerHTML=ALERTS.map(a=>`<tr><td><b>${a.sym}</b></td><td>${a.cond==='above'?'sopra':'sotto'}</td><td>${fmt(a.price)}</td><td>${fmt(P[a.sym])}</td><td class="${a.done?'up':'mute'}">${a.done?'scattato '+hm(a.at):'in attesa'}</td><td><button class="fbtn" data-rm="${a.id}">Elimina</button></td></tr>`).join('')||'<tr><td colspan="6" class="mute">Nessun alert.</td></tr>'}
+$('#heat').onclick=e=>{const b=e.target.closest('[data-sym]');if(b)openSym(b.dataset.sym)};
+$('#t-port').onclick=e=>{const b=e.target.closest('[data-rm]');if(b){TAKEN.delete(+b.dataset.rm);renderPort()}};
+$('#t-alert').onclick=e=>{const b=e.target.closest('[data-rm]');if(b){ALERTS=ALERTS.filter(a=>a.id!==+b.dataset.rm);renderAlerts()}};
+$('#al-sym').onchange=setAl;
+$('#al-add').onclick=()=>{const p=+$('#al-price').value;if(!(p>0)){toast('Inserisci un prezzo valido');return}ALERTS.push({id:AID++,sym:$('#al-sym').value,cond:$('#al-cond').value,price:p,done:false});renderAlerts()};
+
+/* ---------- modalità LIVE (backend Bitget) ---------- */
+let LIVE=false,READY=false,OBL=null,SENT=null,PREV={},FAILS=0,XNAME='BingX',ACCON=false,ACC=null,ACCT=0;
+async function api(p){const r=await fetch(p,{cache:'no-store'});if(!r.ok)throw new Error(r.status);return r.json()}
+async function detectLive(){try{const j=await api('api/health');if(j&&j.ok&&Array.isArray(j.pairs)){LIVE=true;XNAME=j.exchange||'BingX';if(j.classes)for(const k in j.classes)CLS[k]=j.classes[k];if(j.labels)for(const k in j.labels)LBL[k]=j.labels[k];ACCON=!!j.account;$('#atc').hidden=!j.autotrade;PAIRS.length=0;j.pairs.forEach(p=>PAIRS.push([p,0]))}}catch(e){}}
+async function loadAllCandles(){for(const tf of Object.keys(TF)){try{const j=await api('api/candles?tf='+tf);for(const s in j){const k=s+tf,old=cache[k];cache[k]={c:j[s].map(x=>({o:+x[0],h:+x[1],l:+x[2],c:+x[3]})),n:old?old.n:0}}}catch(e){}}}
+function setConn(ok){const m=$('#mode');if(!LIVE)return;m.textContent=ok?'● LIVE · '+XNAME:'● CONNESSIONE PERSA';m.className='chip demo'+(ok?' live':'')}
+async function pull(first){try{const j=await api('api/state');
+  for(const s in j.prices){P[s]=j.prices[s].p;P0[s]=j.prices[s].o;OPENF[s]=j.prices[s].open!==false}
+  PAIRS.forEach(([s])=>{if(!P[s])return;for(const tf in TF){const S=cache[s+tf];if(S){const l=S.c[S.c.length-1];l.c=P[s];l.h=Math.max(l.h,P[s]);l.l=Math.min(l.l,P[s])}}});
+  const prev=PREV;PREV={};SIGS=j.signals.sort((a,b)=>b.t-a.t);SIGS.forEach(g=>PREV[g.id]=g.hits+(g.closed?10:0));
+  if(first){SEL=(SIGS.find(s=>!s.closed)||SIGS[0]||{}).id}else SIGS.forEach(g=>{const o=prev[g.id];if(o===undefined){toast(`Nuovo segnale ${g.dir.toUpperCase()} ${g.sym} · confidenza ${g.conf}%`);beep(660)}else if(o!==PREV[g.id]){toast(`${g.sym}: ${g.log[g.log.length-1].m}`);beep(880)}});
+  SENT=j.sentiment;NEWS.length=0;(j.news||[]).forEach(n=>NEWS.push(n));FAILS=0;setConn(true);
+  if(ACCON&&(first||Date.now()-ACCT>9000)){ACCT=Date.now();try{ACC=await api('api/account')}catch(e){ACC=null}if(ACC&&ACC.enabled&&!window._balset){window._balset=1;$('#c-bal').value=Math.round(ACC.equity)}}
+  const g=SIGS.find(s=>s.id===SEL);if(g&&TAB==='sig'){try{OBL=await api('api/orderbook?sym='+g.sym);OBL.sym=g.sym}catch(e){OBL=null}}
+ }catch(e){if(++FAILS>=3)setConn(false)}}
+function renderAcc(){const p=$('#pn-acc');if(!ACC||!ACC.enabled){p.hidden=true;return}p.hidden=false;p.querySelector('h3').textContent='Conto '+XNAME+' (reale)';
+  $('#accK').innerHTML=[['Equity',ACC.equity.toFixed(2)+' $'],['Disponibile',ACC.available.toFixed(2)+' $'],['PnL non realizzato',money(ACC.upnl),ACC.upnl>=0?'up':'down'],['Posizioni aperte',ACC.positions.length]].map(([l,v,c])=>`<div class="kpi"><span class="lbl">${l}</span><b class="${c||''}">${v}</b></div>`).join('');
+  $('#accTbl').innerHTML=`<thead><tr><th>Coppia</th><th>Lato</th><th>Quantità</th><th>Entry</th><th>PnL $</th><th>Leva</th></tr></thead><tbody>${ACC.positions.map(x=>`<tr><td><b>${x.sym}</b></td><td class="${x.side==='LONG'?'up':'down'}">${x.side}</td><td>${x.qty}</td><td>${fmt(x.entry)}</td><td class="${x.upnl>=0?'up':'down'}">${money(x.upnl)}</td><td>${x.lev||''}x</td></tr>`).join('')||'<tr><td colspan="6" class="mute">Nessuna posizione aperta.</td></tr>'}</tbody>`}
+function applyMode(){if(!LIVE)return;setConn(true);['pn-liq','pn-wh','pn-cal'].forEach(i=>$('#'+i).hidden=true);
+  $('#foot').textContent='Dati reali da '+XNAME+' (futures USDT), aggiornati ogni 3 secondi. Il calendario economico, le balene e le liquidazioni non sono disponibili in modalità live. Non costituisce consulenza finanziaria: il trading con leva comporta rischio di perdita del capitale.'}
+
+/* ---------- eventi ---------- */
+let TAB='sig';
+function setTab(t){renderCls();TAB=t;$$('#tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.t===t));['sig','scan','mkt','cal','port','alert','perf','calc','hist'].forEach(k=>$('#t-'+k).hidden=k!==t);full()}
+function select(id){SEL=id;$('#detail').dataset.id='';setTab('sig')}
+$('#tabs').onclick=e=>{const b=e.target.closest('button');if(b)setTab(b.dataset.t)};
+$('#filters').onclick=e=>{const b=e.target.closest('button');if(!b)return;FILT=b.dataset.f;$$('#filters button').forEach(x=>x.setAttribute('aria-pressed',x===b));renderFeed()};
+$('#minconf').oninput=e=>{MINC=+e.target.value;$('#mcv').textContent=MINC+'%';renderFeed()};
+$('#feed').onclick=e=>{const b=e.target.closest('.sig');if(b){SEL=+b.dataset.id;$('#detail').dataset.id='';renderFeed();renderDetail()}};
+$('#detail').onclick=e=>{const t=e.target.closest('[data-tf]');if(t){CTF=t.dataset.tf;$('#detail').dataset.id='';renderDetail()}
+  if(e.target.id==='d-take'){const g=SIGS.find(s=>s.id===SEL);if(TAKEN.has(g.id)){TAKEN.delete(g.id)}else{TAKEN.add(g.id);toast('Aggiunto al portafoglio: '+g.sym)}liveDetail(g)}
+  if(e.target.id==='d-tg'){const g=SIGS.find(s=>s.id===SEL);copy(tgText(g),()=>toast('Messaggio Telegram copiato'))}};
+$('#scanTbl').onclick=e=>{const r=e.target.closest('tr[data-sym]');if(!r)return;const g=SIGS.find(s=>s.sym===r.dataset.sym&&!s.closed)||SIGS.find(s=>s.sym===r.dataset.sym);if(g)select(g.id);else toast('Nessun segnale per '+r.dataset.sym)};
+$('#histTbl').onclick=e=>{const r=e.target.closest('tr[data-id]');if(r)select(+r.dataset.id)};
+$('#snd').onclick=e=>{SOUND=!SOUND;e.target.textContent='Suono: '+(SOUND?'on':'off');e.target.setAttribute('aria-pressed',SOUND);beep(520)};
+$('#thm').onclick=()=>{const d=document.documentElement,dark=css('color-scheme').includes('dark');d.dataset.theme=dark?'light':'dark';full()};
+$('#csv').onclick=()=>{const c=SIGS.filter(s=>s.closed).map(s=>[new Date(s.ct).toISOString(),s.sym,s.dir,s.tf,s.entry,s.sl,s.hits,s.conf,s.res].join(','));copy('chiuso,coppia,lato,tf,entry,sl,tp_raggiunti,confidenza,R\n'+c.join('\n'),()=>$('#csvmsg').textContent='CSV copiato negli appunti')};
+$$('#t-calc input,#t-calc select').forEach(i=>i.oninput=calc);
+$('#c-use').onclick=()=>{const g=SIGS.find(s=>s.id===SEL);if(!g)return;$('#c-dir').value=g.dir;$('#c-entry').value=fmt(g.entry);$('#c-sl').value=fmt(g.sl);$('#c-tp').value=fmt(g.tp[1]);calc()};
+
+function renderCls(){const av=['all',...new Set(PAIRS.map(([s])=>CLS[s]||'crypto'))];$('#clsf').innerHTML=av.map(c=>`<button class="fbtn" data-c="${c}" aria-pressed="${c===CF}">${CLSN[c]||c}</button>`).join('')}
+$('#clsf').onclick=e=>{const b=e.target.closest('[data-c]');if(!b)return;CF=b.dataset.c;renderCls();renderTape();full()};
+function full(){renderKpis();if(TAB==='sig'){renderFeed();renderDetail()}if(TAB==='scan'){renderScan();renderSent()}if(TAB==='mkt')renderMkt();if(TAB==='cal')renderCal();if(TAB==='port')renderPort();if(TAB==='alert')renderAlerts();if(TAB==='perf')renderPerf();if(TAB==='hist')renderHist();if(TAB==='calc')calc()}
+function clock(){const d=new Date();$('#nf').textContent='Filtro news: '+(LIVE?'n.d.':newsLock()?'ATTIVO':'libero');$('#clock').textContent=d.toLocaleTimeString('it-IT');const h=d.getUTCHours();[['#sessT',0,9],['#sessL',7,16],['#sessN',13,22]].forEach(([s,a,b])=>$(s).classList.toggle('on',h>=a&&h<b))}
+(async()=>{await detectLive();if(LIVE){await loadAllCandles();await pull(true)}else{seed();SIGS.filter(s=>!s.closed).slice(0,2).forEach(s=>TAKEN.add(s.id))}
+  seedExtras();applyMode();READY=true;setTab('sig');renderTape();clock();
+  if(LIVE){setInterval(pull,3000);setInterval(loadAllCandles,60000)}})();
+setInterval(()=>{if(!READY)return;if(!LIVE){tick();SIGS.filter(s=>!s.closed).forEach(resolve);newSignals()}stepExtras();clock();renderTape();renderKpis();
+  if(HOLD){}else if(TAB==='sig'){renderFeed();renderDetail()}else if(TAB==='scan'&&Date.now()%3<1){renderScan();renderSent()}else if(TAB==='hist')renderHist();else if(TAB==='perf')renderPerf();else if(TAB==='mkt')renderMkt();else if(TAB==='cal')renderCal();else if(TAB==='port')renderPort();else if(TAB==='alert')renderAlerts()},1000);
+addEventListener('resize',()=>{TAB==='perf'?renderPerf():TAB==='sig'&&renderDetail()});
+</script>
