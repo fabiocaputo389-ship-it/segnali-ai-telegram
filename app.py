@@ -85,25 +85,21 @@ MARKET_CATALOG = {
         {"symbol": "SUIUSDT", "bx": "SUI-USDT", "name": "Sui (SUI-USDT)", "precision": 4},
     ],
     "Materie Prime & Forex": [
-        # Materie Prime - Metalli
         {"symbol": "PAXGUSDT", "bx": "PAXG-USDT", "name": "Oro / Gold (PAXG-USDT)", "precision": 2},
         {"symbol": "XAGUSDT", "bx": "XAG-USDT", "name": "Argento / Silver (XAG-USDT)", "precision": 3},
         {"symbol": "XPTUSDT", "bx": "XPT-USDT", "name": "Platino / Platinum (XPT-USDT)", "precision": 2},
         {"symbol": "XPDUSDT", "bx": "XPD-USDT", "name": "Palladio / Palladium (XPD-USDT)", "precision": 2},
         {"symbol": "COPPERUSDT", "bx": "COPPER-USDT", "name": "Rame / Copper (COPPER-USDT)", "precision": 4},
         {"symbol": "ALUMINIUMUSDT", "bx": "ALUMINIUM-USDT", "name": "Alluminio / Aluminium (ALUMINIUM-USDT)", "precision": 2},
-        # Materie Prime - Energia
         {"symbol": "WTIUSDT", "bx": "WTI-USDT", "name": "Petrolio WTI Crude (WTI-USDT)", "precision": 2},
         {"symbol": "BRENTUSDT", "bx": "BRENT-USDT", "name": "Petrolio Brent Crude (BRENT-USDT)", "precision": 2},
         {"symbol": "NATGASUSDT", "bx": "NATGAS-USDT", "name": "Gas Naturale (NATGAS-USDT)", "precision": 3},
-        # Materie Prime - Agricole / Soft
         {"symbol": "WHEATUSDT", "bx": "WHEAT-USDT", "name": "Grano / Wheat (WHEAT-USDT)", "precision": 2},
         {"symbol": "CORNUSDT", "bx": "CORN-USDT", "name": "Mais / Corn (CORN-USDT)", "precision": 2},
         {"symbol": "SOYBEANUSDT", "bx": "SOYBEAN-USDT", "name": "Soia / Soybeans (SOYBEAN-USDT)", "precision": 2},
         {"symbol": "COFFEEUSDT", "bx": "COFFEE-USDT", "name": "Caffè / Coffee (COFFEE-USDT)", "precision": 2},
         {"symbol": "SUGARUSDT", "bx": "SUGAR-USDT", "name": "Zucchero / Sugar (SUGAR-USDT)", "precision": 3},
         {"symbol": "COCOAUSDT", "bx": "COCOA-USDT", "name": "Cacao / Cocoa (COCOA-USDT)", "precision": 1},
-        # Forex - Major & Cross
         {"symbol": "EURUSDT", "bx": "EUR-USDT", "name": "EUR/USD (EUR-USDT)", "precision": 4},
         {"symbol": "GBPUSDT", "bx": "GBP-USDT", "name": "GBP/USD (GBP-USDT)", "precision": 4},
         {"symbol": "USDJPY", "bx": "USDJPY-USDT", "name": "USD/JPY (USDJPY-USDT)", "precision": 2},
@@ -118,7 +114,6 @@ MARKET_CATALOG = {
         {"symbol": "CHFJPY", "bx": "CHFJPY-USDT", "name": "CHF/JPY (CHFJPY-USDT)", "precision": 2},
     ],
     "Azioni & Indici Globali": [
-        # Azioni USA Big Tech & AI
         {"symbol": "AAPLUSDT", "bx": "AAPL-USDT", "name": "Apple Inc. (AAPL-USDT)", "precision": 2},
         {"symbol": "TSLAUSDT", "bx": "TSLA-USDT", "name": "Tesla Inc. (TSLA-USDT)", "precision": 2},
         {"symbol": "NVDAUSDT", "bx": "NVDA-USDT", "name": "Nvidia Corp. (NVDA-USDT)", "precision": 2},
@@ -127,17 +122,14 @@ MARKET_CATALOG = {
         {"symbol": "GOOGLUSDT", "bx": "GOOGL-USDT", "name": "Alphabet Inc. (GOOGL-USDT)", "precision": 2},
         {"symbol": "METAUSDT", "bx": "META-USDT", "name": "Meta Platforms (META-USDT)", "precision": 2},
         {"symbol": "NFLXUSDT", "bx": "NFLX-USDT", "name": "Netflix Inc. (NFLX-USDT)", "precision": 2},
-        # Semiconduttori & Crypto Equities
         {"symbol": "AMDUSDT", "bx": "AMD-USDT", "name": "AMD (AMD-USDT)", "precision": 2},
         {"symbol": "INTCUSDT", "bx": "INTC-USDT", "name": "Intel Corp. (INTC-USDT)", "precision": 2},
         {"symbol": "AVGOUSDT", "bx": "AVGO-USDT", "name": "Broadcom Inc. (AVGO-USDT)", "precision": 2},
         {"symbol": "COINUSDT", "bx": "COIN-USDT", "name": "Coinbase Global (COIN-USDT)", "precision": 2},
         {"symbol": "MSTRUSDT", "bx": "MSTR-USDT", "name": "Strategy / MSTR (MSTR-USDT)", "precision": 2},
-        # Finanziari
         {"symbol": "JPMUSDT", "bx": "JPM-USDT", "name": "JPMorgan Chase (JPM-USDT)", "precision": 2},
         {"symbol": "VUSDT", "bx": "V-USDT", "name": "Visa Inc. (V-USDT)", "precision": 2},
         {"symbol": "MAUSDT", "bx": "MA-USDT", "name": "Mastercard Inc. (MA-USDT)", "precision": 2},
-        # Indici & ETF
         {"symbol": "SP500USDT", "bx": "SP500-USDT", "name": "S&P 500 Index (SP500-USDT)", "precision": 2},
         {"symbol": "NASDAQ100USDT", "bx": "NASDAQ100-USDT", "name": "NASDAQ 100 Index (NASDAQ100-USDT)", "precision": 2},
         {"symbol": "DOWJONESUSDT", "bx": "DOWJONES-USDT", "name": "Dow Jones Index (DOWJONES-USDT)", "precision": 2},
@@ -205,6 +197,37 @@ def compute_order_quantity(bx_symbol: str, price: float, raw_qty: float, balance
         qty = step
     dec = len(str(step).split(".")[1]) if "." in str(step) else 0
     return round(qty, dec)
+
+
+def get_timeframe_candle_timing(timeframe: str, now_ts: float = None):
+    tf = (timeframe or "15m").strip()
+    tf_map = {
+        "5m": (300, "5m (5 min / 300s)"),
+        "15m": (900, "15m (15 min / 900s)"),
+        "1h": (3600, "1h (1 ora / 3600s)"),
+    }
+    duration_sec, label = tf_map.get(tf, (900, "15m (15 min / 900s)"))
+    ts = float(now_ts if now_ts is not None else time.time())
+    bucket_start = int(ts // duration_sec) * duration_sec
+    bucket_end = bucket_start + duration_sec
+    remaining_sec = max(0, int(bucket_end - ts))
+
+    open_dt = datetime.fromtimestamp(bucket_start, tz=timezone.utc)
+    close_dt = datetime.fromtimestamp(bucket_end, tz=timezone.utc)
+    signal_dt = datetime.fromtimestamp(ts, tz=timezone.utc)
+
+    return {
+        "timeframe": tf,
+        "candle_duration_sec": duration_sec,
+        "candle_duration_label": label,
+        "candle_open_ts": bucket_start,
+        "candle_close_ts": bucket_end,
+        "candle_remaining_sec": remaining_sec,
+        "candle_open_utc": open_dt.strftime("%H:%M:%S UTC"),
+        "candle_close_utc": close_dt.strftime("%H:%M:%S UTC"),
+        "signal_opened_at_utc": signal_dt.strftime("%H:%M:%S UTC"),
+        "candle_window_text": f"Candela {tf} • Apertura {open_dt.strftime('%H:%M:%S')} → Chiusura {close_dt.strftime('%H:%M:%S UTC')} ({duration_sec}s)",
+    }
 
 
 def get_session_statuses():
@@ -821,6 +844,8 @@ def evaluate_pro_setup(df, current_price, symbol, category, is_open, balance, ri
     if action in ("BUY", "SELL"):
         _LAST_CONFIRMED_DIRECTION[clean_sym] = {"action": action, "ts": now_ts}
 
+    candle_timing = get_timeframe_candle_timing(cfg["timeframe"], now_ts)
+
     return {
         "category": category,
         "symbol": clean_sym,
@@ -855,6 +880,7 @@ def evaluate_pro_setup(df, current_price, symbol, category, is_open, balance, ri
         "swing_low": quantize_to_tick(swing_low_20, decimals),
         "ema20": quantize_to_tick(ema20, decimals),
         "ema50": quantize_to_tick(ema50, decimals),
+        **candle_timing,
     }
 
 
@@ -953,6 +979,9 @@ def maybe_execute_pro_autotrade(signals_out, live_positions, daily_net_pnl):
                 "action": sig["action"],
                 "sl": sig.get("sl"),
                 "tp1": sig.get("tp1"),
+                "candle_duration_sec": sig.get("candle_duration_sec"),
+                "candle_open_utc": sig.get("candle_open_utc"),
+                "candle_close_utc": sig.get("candle_close_utc"),
                 "order": exec_res,
             })
             break
@@ -1013,6 +1042,7 @@ def api_candles():
         tf = "15m"
     meta = ASSET_LOOKUP.get(sym, {"symbol": sym, "bx": resolve_bingx_symbol(sym)[0], "precision": 2})
     df, curr_price = get_real_market_dataframe(meta, tf)
+    timing = get_timeframe_candle_timing(tf, time.time())
     if df is None or df.empty:
         return jsonify({
             "symbol": sym,
@@ -1020,6 +1050,7 @@ def api_candles():
             "timeframe": tf,
             "price": curr_price or 0.0,
             "candles": [],
+            **timing,
         }), 200
 
     candles = [
@@ -1038,6 +1069,7 @@ def api_candles():
         "timeframe": tf,
         "price": curr_price,
         "candles": candles,
+        **timing,
     }), 200
 
 
@@ -1056,6 +1088,7 @@ def get_signals():
 
     cfg = build_pro_profile_config(profile, timeframe, min_score, min_rrr)
     sessions = get_session_statuses()
+    candle_timing = get_timeframe_candle_timing(timeframe, time.time())
 
     tasks = []
     for category, assets in MARKET_CATALOG.items():
@@ -1134,6 +1167,7 @@ def get_signals():
         "sessions": sessions,
         "signals": signals_out,
         "active_params": cfg,
+        "candle_timing": candle_timing,
         "auto_trade": auto_trade_val,
         "autotrade_executed": autotrade_executed,
         "market_diagnostics": market_diagnostics,
@@ -1187,6 +1221,8 @@ def api_execute_manual():
     qty = max(0.0001, safe_float(body.get("size"), 0.001))
     sl_p = safe_float(body.get("sl"), 0.0)
     tp_p = safe_float(body.get("tp1"), 0.0)
+    tf = (body.get("timeframe") or "15m").strip()
+    timing = get_timeframe_candle_timing(tf, time.time())
 
     exec_res, err = place_bingx_order_with_tpsl(
         symbol=sym,
@@ -1198,7 +1234,13 @@ def api_execute_manual():
     if err:
         return jsonify({"success": False, "error": f"Errore BingX ordine reale: {err}"}), 400
 
-    return jsonify({"success": True, "mode": "BINGX PRO DESK", "symbol": bx_symbol, "order": exec_res})
+    return jsonify({
+        "success": True,
+        "mode": "BINGX PRO DESK",
+        "symbol": bx_symbol,
+        "candle_timing": timing,
+        "order": exec_res,
+    })
 
 
 @app.route("/api/autotrade/status", methods=["GET"])
