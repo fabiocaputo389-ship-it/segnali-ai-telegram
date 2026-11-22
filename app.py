@@ -50,7 +50,7 @@ _LIVE_PRICE_CACHE = {}
 
 STATE_LOCK = threading.Lock()
 STATE = {
-    "auto_trade": False,
+    "auto_trade": True,
     "real_mode": True,
     "scans_count": 0,
     "session_pnl": 0.0,
@@ -62,6 +62,7 @@ STATE = {
     "last_bingx_equity": 0.0,
     "last_bingx_available": 0.0,
     "last_bingx_balance_error": None,
+    "bingx_rate_limit_until": 0.0,
 }
 
 MARKET_CATALOG = {
@@ -235,8 +236,16 @@ def bingx_signed_request(method: str, path: str, params: dict):
     BINGX_API_KEY, BINGX_API_SECRET = api_key, api_secret
     if not (api_key and api_secret):
         return None, "API Key / Secret BingX non configurate su Render"
+
+    now_sec = time.time()
+    with STATE_LOCK:
+        rl_until = safe_float(STATE.get("bingx_rate_limit_until"), 0.0)
+        if now_sec < rl_until:
+            rem = int(max(1, rl_until - now_sec))
+            return None, f"Rate limit BingX attivo: riprovo tra {rem}s"
+
     req_params = dict(params or {})
-    req_params["timestamp"] = int(time.time() * 1000)
+    req_params["timestamp"] = int(now_sec * 1000)
     signed_qs = sign_bingx_query(req_params, api_secret)
     url = f"{BINGX_BASE_URL}{path}?{signed_qs}"
     headers = {"X-BX-APIKEY": api_key}
@@ -246,6 +255,11 @@ def bingx_signed_request(method: str, path: str, params: dict):
         else:
             resp = requests.get(url, headers=headers, timeout=3.0)
         data = resp.json()
+        err_str = str(data)
+        if "100410" in err_str:
+            with STATE_LOCK:
+                STATE["bingx_rate_limit_until"] = time.time() + 30.0
+            return None, "code:100410: Limite frequenza BingX raggiunto (cooldown 30s)"
         if resp.status_code != 200:
             return None, f"HTTP {resp.status_code}: {data}"
         if isinstance(data, dict) and data.get("code") not in (0, "0", None):
@@ -330,7 +344,7 @@ def sync_bingx_real_closed_trades():
     if not (api_key and api_secret):
         return
     with STATE_LOCK:
-        if time.time() - STATE.get("last_bingx_sync", 0.0) < 2.5:
+        if time.time() - STATE.get("last_bingx_sync", 0.0) < 6.0:
             return
         STATE["last_bingx_sync"] = time.time()
 
@@ -419,7 +433,7 @@ def fetch_bingx_real_positions():
 
 def fetch_bingx_ticker(bx_symbol: str):
     cached = _LIVE_PRICE_CACHE.get(bx_symbol)
-    if cached and (time.time() - cached["ts"]) < 1.0:
+    if cached and (time.time() - cached["ts"]) < 2.0:
         return cached["price"]
     try:
         url = f"{BINGX_BASE_URL}/openApi/swap/v2/quote/ticker"
@@ -1208,6 +1222,44 @@ def build_performance_payload():
     }
 
 
+def maybe_execute_autotrade(signals_out, balance):
+    with STATE_LOCK:
+        enabled = bool(STATE.get("auto_trade"))
+        rl_until = safe_float(STATE.get("bingx_rate_limit_until"), 0.0)
+    if not enabled or not signals_out or time.time() < rl_until:
+        return []
+
+    executed = []
+    for sig in signals_out[:1]:
+        action = (sig.get("action") or "").upper()
+        if action not in ("BUY", "SELL"):
+            continue
+        bx_symbol = sig.get("bingx_symbol") or resolve_bingx_symbol(sig.get("symbol", "BTCUSDT"))[0]
+        price = safe_float(sig.get("price") or sig.get("entry"), 0.0)
+        qty = safe_float(sig.get("size"), 0.0)
+        if price <= 0 or qty <= 0:
+            continue
+        side = "BID" if action == "BUY" else "ASK"
+        pos_side = "LONG" if action == "BUY" else "SHORT"
+        order_data, err = bingx_signed_request(
+            "POST",
+            "/openApi/swap/v2/trade/order",
+            {
+                "symbol": bx_symbol,
+                "side": side,
+                "positionSide": pos_side,
+                "type": "MARKET",
+                "quantity": qty,
+            },
+        )
+        if not err:
+            executed.append({"symbol": bx_symbol, "action": action, "order": order_data})
+        else:
+            with STATE_LOCK:
+                STATE["last_bingx_balance_error"] = err
+    return executed
+
+
 def _scan_single_asset(category, sess, is_open, meta, timeframe, profile, balance, risk_pct, min_score, cfg):
     sym = meta["symbol"]
     df, curr_price = get_real_market_dataframe(meta, timeframe)
@@ -1450,6 +1502,8 @@ def get_signals():
             except Exception:
                 pass
 
+    autotrade_executed = maybe_execute_autotrade(signals_out, balance)
+
     market_diagnostics = {}
     for category, assets in MARKET_CATALOG.items():
         sess = sessions.get(category, {"status": "APERTO (Live)", "is_open": True, "hours": "24/7"})
@@ -1485,6 +1539,7 @@ def get_signals():
         STATE["scans_count"] += 1
         scans_val = STATE["scans_count"]
         session_pnl_val = STATE["session_pnl"]
+        auto_trade_val = bool(STATE["auto_trade"])
         STATE["telemetry_logs"] = ([{
             "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
             "status": f"LIVE SCAN {timeframe} ({profile})",
@@ -1498,6 +1553,8 @@ def get_signals():
         "sessions": sessions,
         "signals": signals_out,
         "active_params": cfg,
+        "auto_trade": auto_trade_val,
+        "autotrade_executed": autotrade_executed,
         "market_diagnostics": market_diagnostics,
         "market_monitoring_table": monitoring_rows,
         "performance": perf_payload,
@@ -1514,6 +1571,20 @@ def get_signals():
 @app.route("/api/analytics/performance", methods=["GET"])
 def api_analytics_performance():
     return jsonify(build_performance_payload())
+
+
+@app.route("/api/autotrade/toggle", methods=["GET", "POST"])
+def api_autotrade_toggle():
+    body = request.get_json(silent=True) or {}
+    with STATE_LOCK:
+        if "enabled" in body:
+            STATE["auto_trade"] = bool(body["enabled"])
+        elif request.args.get("enabled") is not None:
+            STATE["auto_trade"] = str(request.args.get("enabled")).lower() in ("1", "true", "on", "yes")
+        else:
+            STATE["auto_trade"] = not bool(STATE.get("auto_trade"))
+        curr = bool(STATE["auto_trade"])
+    return jsonify({"success": True, "auto_trade": curr})
 
 
 @app.route("/api/autotrade/execute-manual", methods=["POST"])
@@ -1560,8 +1631,9 @@ def api_autotrade_status():
     perf = build_performance_payload()
     with STATE_LOCK:
         closed_copy = list(STATE["closed_trades"])
+        auto_trade_val = bool(STATE["auto_trade"])
     return jsonify({
-        "auto_trade": STATE["auto_trade"],
+        "auto_trade": auto_trade_val,
         "mode": "BINGX REAL LIVE",
         "api_configured": bool(api_key and api_secret),
         "positions": positions,
@@ -1582,6 +1654,7 @@ def api_telemetry():
             "scans_count": STATE["scans_count"],
             "active_orders_count": len(positions),
             "session_pnl": STATE["session_pnl"],
+            "auto_trade": bool(STATE["auto_trade"]),
             "account": bal_info,
             "performance": perf,
             "telemetry_logs": list(STATE["telemetry_logs"]),
