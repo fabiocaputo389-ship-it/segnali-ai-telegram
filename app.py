@@ -15,14 +15,17 @@ from flask import Flask, jsonify, render_template, request
 
 app = Flask(__name__)
 
-BINGX_BASE_URL = os.getenv("BINGX_BASE_URL", "https://open-api.bingx.com").rstrip("/")
-
 
 def _clean_env_secret(val: str) -> str:
     s = (val or "").strip()
     if len(s) >= 2 and ((s.startswith('"') and s.endswith('"')) or (s.startswith("'") and s.endswith("'"))):
         s = s[1:-1].strip()
     return s
+
+
+def get_bingx_base_url() -> str:
+    raw = _clean_env_secret(os.getenv("BINGX_BASE_URL") or "https://open-api.bingx.com")
+    return (raw or "https://open-api.bingx.com").rstrip("/")
 
 
 def get_bingx_credentials():
@@ -35,13 +38,13 @@ def get_bingx_credentials():
     api_secret = _clean_env_secret(
         os.getenv("BINGX_API_SECRET")
         or os.getenv("BX_API_SECRET")
-        or os.getenv("BX_API_SECRET")
         or os.getenv("BINGX_SECRET")
         or ""
     )
     return api_key, api_secret
 
 
+BINGX_BASE_URL = get_bingx_base_url()
 BINGX_API_KEY, BINGX_API_SECRET = get_bingx_credentials()
 
 DIRECTION_COOLDOWN_SEC = 240.0
@@ -82,22 +85,67 @@ MARKET_CATALOG = {
         {"symbol": "SUIUSDT", "bx": "SUI-USDT", "name": "Sui (SUI-USDT)", "precision": 4},
     ],
     "Materie Prime & Forex": [
-        {"symbol": "PAXGUSDT", "bx": "PAXG-USDT", "name": "Oro (GOLD(XAU)-USDT)", "precision": 2},
-        {"symbol": "XAGUSDT", "bx": "XAG-USDT", "name": "Argento (SILVER(XAG)-USDT)", "precision": 3},
-        {"symbol": "WTIUSDT", "bx": "WTI-USDT", "name": "Petrolio WTI (WTI-USDT)", "precision": 2},
+        # Materie Prime - Metalli
+        {"symbol": "PAXGUSDT", "bx": "PAXG-USDT", "name": "Oro / Gold (PAXG-USDT)", "precision": 2},
+        {"symbol": "XAGUSDT", "bx": "XAG-USDT", "name": "Argento / Silver (XAG-USDT)", "precision": 3},
+        {"symbol": "XPTUSDT", "bx": "XPT-USDT", "name": "Platino / Platinum (XPT-USDT)", "precision": 2},
+        {"symbol": "XPDUSDT", "bx": "XPD-USDT", "name": "Palladio / Palladium (XPD-USDT)", "precision": 2},
+        {"symbol": "COPPERUSDT", "bx": "COPPER-USDT", "name": "Rame / Copper (COPPER-USDT)", "precision": 4},
+        {"symbol": "ALUMINIUMUSDT", "bx": "ALUMINIUM-USDT", "name": "Alluminio / Aluminium (ALUMINIUM-USDT)", "precision": 2},
+        # Materie Prime - Energia
+        {"symbol": "WTIUSDT", "bx": "WTI-USDT", "name": "Petrolio WTI Crude (WTI-USDT)", "precision": 2},
+        {"symbol": "BRENTUSDT", "bx": "BRENT-USDT", "name": "Petrolio Brent Crude (BRENT-USDT)", "precision": 2},
         {"symbol": "NATGASUSDT", "bx": "NATGAS-USDT", "name": "Gas Naturale (NATGAS-USDT)", "precision": 3},
-        {"symbol": "COPPERUSDT", "bx": "COPPER-USDT", "name": "Rame (COPPER-USDT)", "precision": 3},
-        {"symbol": "GBPUSDT", "bx": "GBP-USDT", "name": "GBP/USD (GBPUSD-USDT)", "precision": 4},
-        {"symbol": "EURUSDT", "bx": "EUR-USDT", "name": "EUR/USD (EURUSD-USDT)", "precision": 4},
+        # Materie Prime - Agricole / Soft
+        {"symbol": "WHEATUSDT", "bx": "WHEAT-USDT", "name": "Grano / Wheat (WHEAT-USDT)", "precision": 2},
+        {"symbol": "CORNUSDT", "bx": "CORN-USDT", "name": "Mais / Corn (CORN-USDT)", "precision": 2},
+        {"symbol": "SOYBEANUSDT", "bx": "SOYBEAN-USDT", "name": "Soia / Soybeans (SOYBEAN-USDT)", "precision": 2},
+        {"symbol": "COFFEEUSDT", "bx": "COFFEE-USDT", "name": "Caffè / Coffee (COFFEE-USDT)", "precision": 2},
+        {"symbol": "SUGARUSDT", "bx": "SUGAR-USDT", "name": "Zucchero / Sugar (SUGAR-USDT)", "precision": 3},
+        {"symbol": "COCOAUSDT", "bx": "COCOA-USDT", "name": "Cacao / Cocoa (COCOA-USDT)", "precision": 1},
+        # Forex - Major & Cross
+        {"symbol": "EURUSDT", "bx": "EUR-USDT", "name": "EUR/USD (EUR-USDT)", "precision": 4},
+        {"symbol": "GBPUSDT", "bx": "GBP-USDT", "name": "GBP/USD (GBP-USDT)", "precision": 4},
         {"symbol": "USDJPY", "bx": "USDJPY-USDT", "name": "USD/JPY (USDJPY-USDT)", "precision": 2},
+        {"symbol": "AUDUSDT", "bx": "AUD-USDT", "name": "AUD/USD (AUD-USDT)", "precision": 4},
+        {"symbol": "USDCHF", "bx": "USDCHF-USDT", "name": "USD/CHF (USDCHF-USDT)", "precision": 4},
+        {"symbol": "USDCAD", "bx": "USDCAD-USDT", "name": "USD/CAD (USDCAD-USDT)", "precision": 4},
+        {"symbol": "NZDUSDT", "bx": "NZD-USDT", "name": "NZD/USD (NZD-USDT)", "precision": 4},
+        {"symbol": "EURGBP", "bx": "EURGBP-USDT", "name": "EUR/GBP (EURGBP-USDT)", "precision": 4},
+        {"symbol": "EURJPY", "bx": "EURJPY-USDT", "name": "EUR/JPY (EURJPY-USDT)", "precision": 2},
+        {"symbol": "GBPJPY", "bx": "GBPJPY-USDT", "name": "GBP/JPY (GBPJPY-USDT)", "precision": 2},
+        {"symbol": "AUDJPY", "bx": "AUDJPY-USDT", "name": "AUD/JPY (AUDJPY-USDT)", "precision": 2},
+        {"symbol": "CHFJPY", "bx": "CHFJPY-USDT", "name": "CHF/JPY (CHFJPY-USDT)", "precision": 2},
     ],
     "Azioni & Indici Globali": [
+        # Azioni USA Big Tech & AI
         {"symbol": "AAPLUSDT", "bx": "AAPL-USDT", "name": "Apple Inc. (AAPL-USDT)", "precision": 2},
         {"symbol": "TSLAUSDT", "bx": "TSLA-USDT", "name": "Tesla Inc. (TSLA-USDT)", "precision": 2},
         {"symbol": "NVDAUSDT", "bx": "NVDA-USDT", "name": "Nvidia Corp. (NVDA-USDT)", "precision": 2},
-        {"symbol": "AMZNUSDT", "bx": "AMZN-USDT", "name": "Amazon (AMZN-USDT)", "precision": 2},
-        {"symbol": "MSFTUSDT", "bx": "MSFT-USDT", "name": "Microsoft (MSFT-USDT)", "precision": 2},
-        {"symbol": "GOOGLUSDT", "bx": "GOOGL-USDT", "name": "Alphabet (GOOGL-USDT)", "precision": 2},
+        {"symbol": "AMZNUSDT", "bx": "AMZN-USDT", "name": "Amazon.com (AMZN-USDT)", "precision": 2},
+        {"symbol": "MSFTUSDT", "bx": "MSFT-USDT", "name": "Microsoft Corp. (MSFT-USDT)", "precision": 2},
+        {"symbol": "GOOGLUSDT", "bx": "GOOGL-USDT", "name": "Alphabet Inc. (GOOGL-USDT)", "precision": 2},
+        {"symbol": "METAUSDT", "bx": "META-USDT", "name": "Meta Platforms (META-USDT)", "precision": 2},
+        {"symbol": "NFLXUSDT", "bx": "NFLX-USDT", "name": "Netflix Inc. (NFLX-USDT)", "precision": 2},
+        # Semiconduttori & Crypto Equities
+        {"symbol": "AMDUSDT", "bx": "AMD-USDT", "name": "AMD (AMD-USDT)", "precision": 2},
+        {"symbol": "INTCUSDT", "bx": "INTC-USDT", "name": "Intel Corp. (INTC-USDT)", "precision": 2},
+        {"symbol": "AVGOUSDT", "bx": "AVGO-USDT", "name": "Broadcom Inc. (AVGO-USDT)", "precision": 2},
+        {"symbol": "COINUSDT", "bx": "COIN-USDT", "name": "Coinbase Global (COIN-USDT)", "precision": 2},
+        {"symbol": "MSTRUSDT", "bx": "MSTR-USDT", "name": "Strategy / MSTR (MSTR-USDT)", "precision": 2},
+        # Finanziari
+        {"symbol": "JPMUSDT", "bx": "JPM-USDT", "name": "JPMorgan Chase (JPM-USDT)", "precision": 2},
+        {"symbol": "VUSDT", "bx": "V-USDT", "name": "Visa Inc. (V-USDT)", "precision": 2},
+        {"symbol": "MAUSDT", "bx": "MA-USDT", "name": "Mastercard Inc. (MA-USDT)", "precision": 2},
+        # Indici & ETF
+        {"symbol": "SP500USDT", "bx": "SP500-USDT", "name": "S&P 500 Index (SP500-USDT)", "precision": 2},
+        {"symbol": "NASDAQ100USDT", "bx": "NASDAQ100-USDT", "name": "NASDAQ 100 Index (NASDAQ100-USDT)", "precision": 2},
+        {"symbol": "DOWJONESUSDT", "bx": "DOWJONES-USDT", "name": "Dow Jones Index (DOWJONES-USDT)", "precision": 2},
+        {"symbol": "NIKKEI225USDT", "bx": "NIKKEI225-USDT", "name": "Nikkei 225 Index (NIKKEI225-USDT)", "precision": 1},
+        {"symbol": "SPYUSDT", "bx": "SPY-USDT", "name": "SPDR S&P 500 ETF (SPY-USDT)", "precision": 2},
+        {"symbol": "QQQUSDT", "bx": "QQQ-USDT", "name": "Invesco QQQ ETF (QQQ-USDT)", "precision": 2},
+        {"symbol": "DIAUSDT", "bx": "DIA-USDT", "name": "SPDR Dow Jones ETF (DIA-USDT)", "precision": 2},
+        {"symbol": "IWMUSDT", "bx": "IWM-USDT", "name": "iShares Russell 2000 ETF (IWM-USDT)", "precision": 2},
     ],
 }
 
@@ -197,11 +245,12 @@ def sign_bingx_query(params: dict, api_secret: str) -> str:
 
 
 def bingx_signed_request(method: str, path: str, params: dict):
-    global BINGX_API_KEY, BINGX_API_SECRET
+    global BINGX_BASE_URL, BINGX_API_KEY, BINGX_API_SECRET
+    base_url = get_bingx_base_url()
     api_key, api_secret = get_bingx_credentials()
-    BINGX_API_KEY, BINGX_API_SECRET = api_key, api_secret
+    BINGX_BASE_URL, BINGX_API_KEY, BINGX_API_SECRET = base_url, api_key, api_secret
     if not (api_key and api_secret):
-        return None, "API Key / Secret BingX non configurate"
+        return None, "Configura BINGX_API_KEY e BINGX_API_SECRET su Render"
 
     now_sec = time.time()
     with STATE_LOCK:
@@ -213,7 +262,7 @@ def bingx_signed_request(method: str, path: str, params: dict):
     req_params = dict(params or {})
     req_params["timestamp"] = int(now_sec * 1000)
     signed_qs = sign_bingx_query(req_params, api_secret)
-    url = f"{BINGX_BASE_URL}{path}?{signed_qs}"
+    url = f"{base_url}{path}?{signed_qs}"
     headers = {"X-BX-APIKEY": api_key}
     try:
         if method.upper() == "POST":
@@ -306,7 +355,7 @@ def fetch_bingx_real_balance():
             "available_margin": 0.0,
             "unrealized_pnl": 0.0,
             "asset": "USDT",
-        }, "API Key / Secret BingX non configurate"
+        }, "Configura BINGX_API_KEY e BINGX_API_SECRET su Render"
 
     payload, err = bingx_signed_request("GET", "/openApi/swap/v2/user/balance", {})
     if err or not isinstance(payload, dict):
@@ -426,7 +475,7 @@ def sync_bingx_real_closed_trades():
 def fetch_bingx_real_positions():
     api_key, api_secret = get_bingx_credentials()
     if not (api_key and api_secret):
-        return [], "API Key / Secret BingX non configurate"
+        return [], "Configura BINGX_API_KEY e BINGX_API_SECRET su Render"
     payload, err = bingx_signed_request("GET", "/openApi/swap/v2/user/positions", {})
     if err or not isinstance(payload, dict):
         return [], err or "Errore lettura posizioni BingX"
@@ -465,8 +514,9 @@ def fetch_bingx_ticker(bx_symbol: str):
     cached = _LIVE_PRICE_CACHE.get(bx_symbol)
     if cached and (time.time() - cached["ts"]) < 2.2:
         return cached["price"]
+    base_url = get_bingx_base_url()
     try:
-        url = f"{BINGX_BASE_URL}/openApi/swap/v2/quote/ticker"
+        url = f"{base_url}/openApi/swap/v2/quote/ticker"
         resp = requests.get(url, params={"symbol": bx_symbol}, timeout=2.2)
         if resp.status_code == 200:
             payload = resp.json()
@@ -489,10 +539,11 @@ def fetch_bingx_klines(bx_symbol: str, interval: str, limit: int = 100):
     if cached and (time.time() - cached["ts"]) < 8.0:
         return cached["df"].copy()
 
+    base_url = get_bingx_base_url()
     tf_map = {"5m": "5m", "15m": "15m", "1h": "1h"}
     bx_int = tf_map.get(interval, "15m")
     try:
-        url = f"{BINGX_BASE_URL}/openApi/swap/v2/quote/klines"
+        url = f"{base_url}/openApi/swap/v2/quote/klines"
         resp = requests.get(url, params={"symbol": bx_symbol, "interval": bx_int, "limit": limit}, timeout=2.5)
         if resp.status_code == 200:
             rows = resp.json().get("data") or []
@@ -1026,9 +1077,9 @@ def get_signals():
             return None
         return evaluate_pro_setup(df_m, p_m, m_item["symbol"], cat, open_flag, balance, risk_pct, cfg)
 
-    with ThreadPoolExecutor(max_workers=6) as pool:
+    with ThreadPoolExecutor(max_workers=8) as pool:
         futs = [pool.submit(_worker, c, o, m) for (c, o, m) in tasks]
-        for fut in as_completed(futs, timeout=7.5):
+        for fut in as_completed(futs, timeout=9.0):
             try:
                 ev = fut.result(timeout=1.5)
                 if ev:
@@ -1123,7 +1174,7 @@ def api_execute_manual():
     if not (api_key and api_secret):
         return jsonify({
             "success": False,
-            "error": "Imposta BINGX_API_KEY e BINGX_API_SECRET nelle variabili d'ambiente per inviare ordini reali.",
+            "error": "Imposta BINGX_API_KEY e BINGX_API_SECRET nelle variabili d'ambiente su Render.",
         }), 400
 
     body = request.get_json(silent=True) or {}
