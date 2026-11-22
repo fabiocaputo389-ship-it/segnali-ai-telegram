@@ -340,7 +340,7 @@
     <div class="topbar">
         <div class="brand-box">
             <div class="brand-title">🏛️ PRO TRADING DESK</div>
-            <div class="pill">MULTI-TF + EV+ FILTER</div>
+            <div class="pill">MULTI-TF + SL/TP REALI</div>
             <div id="clockBadge" class="clock-box">--:--:-- | --:--:-- UTC</div>
         </div>
         <div class="controls">
@@ -465,7 +465,7 @@
                             <th>Score &amp; Grade</th>
                             <th>Entry / SL / TP1 / TP2</th>
                             <th>R:R &amp; EV Netto</th>
-                            <th>Stato &amp; Aksiuni</th>
+                            <th>Stato &amp; Azioni</th>
                         </tr>
                     </thead>
                     <tbody id="watchlistBody">
@@ -727,7 +727,7 @@
                         </div>
                         <div class="mono" style="font-size:0.68rem; color:var(--gold); margin-top:3px;">🕯️ ${s.tp_eta_text}</div>
                         <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;">
-                            <button type="button" class="btn ${isBuy ? 'btn-buy' : 'btn-sell'}" onclick="sendManualOrder('${s.symbol}', '${s.action}', ${s.size})">ESEGUI ${s.action}</button>
+                            <button type="button" class="btn ${isBuy ? 'btn-buy' : 'btn-sell'}" onclick="sendManualOrderBySymbol('${s.symbol}', '${s.action}')">ESEGUI ${s.action} + SL/TP</button>
                             <button type="button" class="btn btn-info" onclick="openChartFor('${s.symbol}')">GRAFICO</button>
                         </div>
                     </div>
@@ -768,8 +768,8 @@
                         <td class="mono" style="font-size:0.66rem;">
                             <span style="color:${actCol}; font-weight:800;">${r.action}</span> • ${r.reason}<br>
                             <div style="display:flex; gap:4px; margin-top:5px;">
-                                <button type="button" class="btn btn-buy" onclick="sendManualOrder('${r.symbol}', 'BUY', ${r.size || 0.001})">BUY</button>
-                                <button type="button" class="btn btn-sell" onclick="sendManualOrder('${r.symbol}', 'SELL', ${r.size || 0.001})">SELL</button>
+                                <button type="button" class="btn btn-buy" onclick="sendManualOrderBySymbol('${r.symbol}', 'BUY')">BUY</button>
+                                <button type="button" class="btn btn-sell" onclick="sendManualOrderBySymbol('${r.symbol}', 'SELL')">SELL</button>
                                 <button type="button" class="btn btn-info" onclick="openChartFor('${r.symbol}')">CHART</button>
                             </div>
                         </td>
@@ -807,16 +807,23 @@
             }
         }
 
-        async function sendManualOrder(symbol, action, size) {
+        async function sendManualOrderBySymbol(symbol, action) {
+            const row = (state.rows || []).find(r => r.symbol === symbol) || {};
+            const size = row.size || 0.001;
+            const sl = row.sl || 0;
+            const tp1 = row.tp1 || 0;
             try {
                 const res = await fetch('/api/autotrade/execute-manual', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ symbol, action, size })
+                    body: JSON.stringify({ symbol, action, size, sl, tp1 })
                 });
                 const d = await res.json();
                 if (d.success) {
-                    alert(`Ordine ${action} inviato su ${symbol}`);
+                    const warn = (d.order?.sl_error || d.order?.tp_error)
+                        ? ` (Avviso SL/TP: ${d.order.sl_error || ''} ${d.order.tp_error || ''})`
+                        : ' con SL e TP impostati';
+                    alert(`Ordine ${action} inviato su ${d.symbol || symbol}${warn}`);
                     loadPositions();
                 } else {
                     alert(d.error || 'Errore ordine');
