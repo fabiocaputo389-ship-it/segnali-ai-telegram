@@ -35,6 +35,7 @@ def get_bingx_credentials():
     api_secret = _clean_env_secret(
         os.getenv("BINGX_API_SECRET")
         or os.getenv("BX_API_SECRET")
+        or os.getenv("BX_API_SECRET")
         or os.getenv("BINGX_SECRET")
         or ""
     )
@@ -232,6 +233,68 @@ def bingx_signed_request(method: str, path: str, params: dict):
         return data, None
     except Exception as exc:
         return None, str(exc)
+
+
+def place_bingx_order_with_tpsl(symbol: str, action: str, qty: float, sl_price: float = 0.0, tp_price: float = 0.0):
+    bx_symbol, bx_prec = resolve_bingx_symbol(symbol)
+    side = "BID" if action == "BUY" else "ASK"
+    close_side = "ASK" if action == "BUY" else "BID"
+    pos_side = "LONG" if action == "BUY" else "SHORT"
+    dec = bx_prec if bx_prec is not None else 2
+
+    entry_data, entry_err = bingx_signed_request(
+        "POST",
+        "/openApi/swap/v2/trade/order",
+        {
+            "symbol": bx_symbol,
+            "side": side,
+            "positionSide": pos_side,
+            "type": "MARKET",
+            "quantity": qty,
+        },
+    )
+    if entry_err:
+        return None, entry_err
+
+    sl_data, sl_err = None, None
+    if safe_float(sl_price, 0.0) > 0:
+        sl_q = quantize_to_tick(safe_float(sl_price), dec)
+        sl_data, sl_err = bingx_signed_request(
+            "POST",
+            "/openApi/swap/v2/trade/order",
+            {
+                "symbol": bx_symbol,
+                "side": close_side,
+                "positionSide": pos_side,
+                "type": "STOP_MARKET",
+                "stopPrice": sl_q,
+                "quantity": qty,
+            },
+        )
+
+    tp_data, tp_err = None, None
+    if safe_float(tp_price, 0.0) > 0:
+        tp_q = quantize_to_tick(safe_float(tp_price), dec)
+        tp_data, tp_err = bingx_signed_request(
+            "POST",
+            "/openApi/swap/v2/trade/order",
+            {
+                "symbol": bx_symbol,
+                "side": close_side,
+                "positionSide": pos_side,
+                "type": "TAKE_PROFIT_MARKET",
+                "stopPrice": tp_q,
+                "quantity": qty,
+            },
+        )
+
+    return {
+        "entry_order": entry_data,
+        "sl_order": sl_data,
+        "sl_error": sl_err,
+        "tp_order": tp_data,
+        "tp_error": tp_err,
+    }, None
 
 
 def fetch_bingx_real_balance():
@@ -825,22 +888,22 @@ def maybe_execute_pro_autotrade(signals_out, live_positions, daily_net_pnl):
         if qty <= 0:
             continue
 
-        side = "BID" if sig["action"] == "BUY" else "ASK"
-        pos_side = "LONG" if sig["action"] == "BUY" else "SHORT"
-        order_data, err = bingx_signed_request(
-            "POST",
-            "/openApi/swap/v2/trade/order",
-            {
-                "symbol": sig["bingx_symbol"],
-                "side": side,
-                "positionSide": pos_side,
-                "type": "MARKET",
-                "quantity": qty,
-            },
+        exec_res, err = place_bingx_order_with_tpsl(
+            symbol=sym,
+            action=sig["action"],
+            qty=qty,
+            sl_price=safe_float(sig.get("sl"), 0.0),
+            tp_price=safe_float(sig.get("tp1"), 0.0),
         )
         _AUTOTRADE_LAST_EXEC[sym] = now_ts
         if not err:
-            executed.append({"symbol": sig["bingx_symbol"], "action": sig["action"], "order": order_data})
+            executed.append({
+                "symbol": sig["bingx_symbol"],
+                "action": sig["action"],
+                "sl": sig.get("sl"),
+                "tp1": sig.get("tp1"),
+                "order": exec_res,
+            })
             break
         with STATE_LOCK:
             STATE["last_bingx_balance_error"] = err
@@ -1071,24 +1134,20 @@ def api_execute_manual():
         action = "BUY"
 
     qty = max(0.0001, safe_float(body.get("size"), 0.001))
-    side = "BID" if action == "BUY" else "ASK"
-    pos_side = "LONG" if action == "BUY" else "SHORT"
+    sl_p = safe_float(body.get("sl"), 0.0)
+    tp_p = safe_float(body.get("tp1"), 0.0)
 
-    order_data, err = bingx_signed_request(
-        "POST",
-        "/openApi/swap/v2/trade/order",
-        {
-            "symbol": bx_symbol,
-            "side": side,
-            "positionSide": pos_side,
-            "type": "MARKET",
-            "quantity": qty,
-        },
+    exec_res, err = place_bingx_order_with_tpsl(
+        symbol=sym,
+        action=action,
+        qty=qty,
+        sl_price=sl_p,
+        tp_price=tp_p,
     )
     if err:
         return jsonify({"success": False, "error": f"Errore BingX ordine reale: {err}"}), 400
 
-    return jsonify({"success": True, "mode": "BINGX PRO DESK", "order": order_data})
+    return jsonify({"success": True, "mode": "BINGX PRO DESK", "symbol": bx_symbol, "order": exec_res})
 
 
 @app.route("/api/autotrade/status", methods=["GET"])
