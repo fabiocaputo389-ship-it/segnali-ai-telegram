@@ -64,7 +64,13 @@ BINGX_API_SECRET, _API_SECRET_SOURCE = _get_env_first(
 
 MIN_ORDER_CAPITAL_USD = 2.0
 
-MARKET_CATALOG: Dict[str, List[Dict[str, str]]] = {
+MARKET_ORDER: List[str] = [
+    "Criptovalute Globali",
+    "Materie Prime & Forex",
+    "Azioni & Indici Globali",
+]
+
+BASE_MARKET_CATALOG: Dict[str, List[Dict[str, str]]] = {
     "Criptovalute Globali": [
         {"symbol": "BTC/USDT", "bx_symbol": "BTC-USDT", "name": "Bitcoin (BTC-USDT)"},
         {"symbol": "ETH/USDT", "bx_symbol": "ETH-USDT", "name": "Ethereum (ETH-USDT)"},
@@ -80,26 +86,6 @@ MARKET_CATALOG: Dict[str, List[Dict[str, str]]] = {
         {"symbol": "NATGAS/USDT", "bx_symbol": "NATGAS-USDT", "name": "Natural Gas (NG)"},
         {"symbol": "COPPER/USDT", "bx_symbol": "COPPER-USDT", "name": "Copper 24/7"},
         {"symbol": "XPT/USDT", "bx_symbol": "XPT-USDT", "name": "Platinum (XPT) 24/7"},
-        {"symbol": "XAUXAG/USDT", "bx_symbol": "XAUXAG-USDT", "name": "XAU/XAG"},
-        {"symbol": "XAUXPT/USDT", "bx_symbol": "XAUXPT-USDT", "name": "Gold/Platinum"},
-        {"symbol": "XAGEUR/USDT", "bx_symbol": "XAGEUR-USDT", "name": "XAGEUR"},
-        {"symbol": "HEATINGOIL/USDT", "bx_symbol": "HEATINGOIL-USDT", "name": "Heating Oil"},
-        {"symbol": "XAUEUR/USDT", "bx_symbol": "XAUEUR-USDT", "name": "Gold/EUR"},
-        {"symbol": "XAUZAR/USDT", "bx_symbol": "XAUZAR-USDT", "name": "Gold / South Africa"},
-        {"symbol": "XPD/USDT", "bx_symbol": "XPD-USDT", "name": "Palladium (XPD)"},
-        {"symbol": "XAUJPY/USDT", "bx_symbol": "XAUJPY-USDT", "name": "Gold/JPY"},
-        {"symbol": "XAUCAD/USDT", "bx_symbol": "XAUCAD-USDT", "name": "Gold/CAD"},
-        {"symbol": "XAUAUD/USDT", "bx_symbol": "XAUAUD-USDT", "name": "Gold/AUD"},
-        {"symbol": "XAUSGD/USDT", "bx_symbol": "XAUSGD-USDT", "name": "XAU/SGD"},
-        {"symbol": "XAL/USDT", "bx_symbol": "XAL-USDT", "name": "Aluminium (XAL)"},
-        {"symbol": "XAUKRW/USDT", "bx_symbol": "XAUKRW-USDT", "name": "Gold / South Korea"},
-        {"symbol": "XZN/USDT", "bx_symbol": "XZN-USDT", "name": "Zinc (XZN)"},
-        {"symbol": "XPB/USDT", "bx_symbol": "XPB-USDT", "name": "Lead (XPB)"},
-        {"symbol": "XAUCHF/USDT", "bx_symbol": "XAUCHF-USDT", "name": "Gold/CHF"},
-        {"symbol": "XNI/USDT", "bx_symbol": "XNI-USDT", "name": "Nickel (XNI)"},
-        {"symbol": "XAGJPY/USDT", "bx_symbol": "XAGJPY-USDT", "name": "XAG/JPY"},
-        {"symbol": "XAUINR/USDT", "bx_symbol": "XAUINR-USDT", "name": "XAU/INR"},
-        {"symbol": "XAUGBP/USDT", "bx_symbol": "XAUGBP-USDT", "name": "Gold/GBP"},
     ],
     "Azioni & Indici Globali": [
         {"symbol": "NVDA/USDT", "bx_symbol": "NVDA-USDT", "name": "NVIDIA (NVDA-USDT)"},
@@ -112,9 +98,23 @@ SYMBOL_ALIASES: Dict[str, List[str]] = {
     "OILWTI-USDT": ["OILWTI-USDT", "WTI-USDT", "USOIL-USDT"],
     "OILBRENT-USDT": ["OILBRENT-USDT", "BRENT-USDT", "UKOIL-USDT"],
     "HEATINGOIL-USDT": ["HEATINGOIL-USDT", "HO-USDT"],
-    "NAS100-USDT": ["NAS100-USDT", "NDX-USDT", "USTEC-USDT"],
+    "NAS100-USDT": ["NAS100-USDT", "NASDAQ100-USDT", "NDX-USDT", "USTEC-USDT"],
     "XAU-USDT": ["XAU-USDT", "GOLD-USDT"],
     "XAG-USDT": ["XAG-USDT", "SILVER-USDT"],
+}
+
+COMMODITY_FX_BASES = {
+    "XAU", "XAG", "XPT", "XPD", "XAL", "XZN", "XPB", "XNI",
+    "OILWTI", "OILBRENT", "WTI", "BRENT", "NATGAS", "NG", "COPPER", "HEATINGOIL",
+    "EUR", "GBP", "JPY", "CHF", "AUD", "CAD", "ZAR", "KRW", "INR", "SGD", "NZD", "CNH",
+    "XAUEUR", "XAUZAR", "XAUJPY", "XAUCAD", "XAUAUD", "XAUSGD", "XAUKRW", "XAUCHF", "XAUINR", "XAUGBP",
+    "XAUXAG", "XAUXPT", "XAGEUR", "XAGJPY",
+}
+
+STOCK_INDEX_BASES = {
+    "NVDA", "AAPL", "TSLA", "GOOGL", "GOOG", "MSFT", "META", "AMZN", "AMD", "AVGO", "INTC",
+    "MU", "SKHYNIX", "SNDK", "QQQ", "SPY",
+    "NAS100", "NASDAQ100", "SP500", "US500", "NDX", "USTEC", "DOWJONES", "DJ30", "US30", "NIKKEI225",
 }
 
 TF_SECONDS: Dict[str, int] = {
@@ -162,14 +162,6 @@ def _credentials_configured() -> bool:
     return bool(BINGX_API_KEY and BINGX_API_SECRET)
 
 
-def _all_assets() -> List[Dict[str, str]]:
-    out: List[Dict[str, str]] = []
-    for cat, items in MARKET_CATALOG.items():
-        for it in items:
-            out.append({**it, "category": cat})
-    return out
-
-
 def _http_get_json(url: str, headers: Optional[Dict[str, str]] = None, timeout: int = 8) -> Tuple[bool, Any, str]:
     req = Request(url, headers=headers or {"User-Agent": "Mozilla/5.0"})
     try:
@@ -183,6 +175,16 @@ def _http_get_json(url: str, headers: Optional[Dict[str, str]] = None, timeout: 
         return False, None, str(e)
 
 
+def _classify_bx_symbol(bx_sym: str) -> str:
+    up = str(bx_sym or "").strip().upper()
+    base = up.split("-")[0] if "-" in up else (up[:-4] if up.endswith("USDT") else up)
+    if base in COMMODITY_FX_BASES or up.startswith(("XAU", "XAG", "XPT", "XPD")):
+        return "Materie Prime & Forex"
+    if base in STOCK_INDEX_BASES:
+        return "Azioni & Indici Globali"
+    return "Criptovalute Globali"
+
+
 def _sync_bingx_contracts(force: bool = False) -> Dict[str, Dict[str, Any]]:
     now_s = int(time.time())
     with STATE_LOCK:
@@ -192,7 +194,7 @@ def _sync_bingx_contracts(force: bool = False) -> Dict[str, Dict[str, Any]]:
             return cached
 
     url = f"{BINGX_BASE_URL}/openApi/swap/v2/quote/contracts"
-    ok, data, _ = _http_get_json(url, timeout=8)
+    ok, data, _ = _http_get_json(url, timeout=12)
     raw_list = data.get("data") if (ok and isinstance(data, dict)) else None
     contracts: Dict[str, Dict[str, Any]] = {}
     if isinstance(raw_list, list):
@@ -202,13 +204,18 @@ def _sync_bingx_contracts(force: bool = False) -> Dict[str, Dict[str, Any]]:
             sym = str(item.get("symbol") or "").strip().upper()
             if not sym:
                 continue
+            status_val = str(item.get("status") or item.get("apiStateOpen") or "1").lower()
+            if status_val in ("0", "false", "offline", "suspended", "delisted"):
+                continue
             step_size = float(item.get("stepSize") or item.get("tradeMinQuantity") or 0.001)
             min_qty = float(item.get("minQty") or item.get("tradeMinQuantity") or step_size or 0.001)
             min_notional = float(item.get("minNotional") or item.get("notional") or MIN_ORDER_CAPITAL_USD)
             qty_prec = int(item.get("quantityPrecision") if item.get("quantityPrecision") is not None else 4)
             price_prec = int(item.get("pricePrecision") if item.get("pricePrecision") is not None else 4)
+            market_cat = _classify_bx_symbol(sym)
             contracts[sym] = {
                 "symbol": sym,
+                "market": market_cat,
                 "step_size": max(1e-8, step_size),
                 "min_qty": max(1e-8, min_qty),
                 "min_notional": max(MIN_ORDER_CAPITAL_USD, min_notional),
@@ -222,6 +229,81 @@ def _sync_bingx_contracts(force: bool = False) -> Dict[str, Dict[str, Any]]:
             TERMINAL_STATE["last_contracts_sync_ts"] = now_s
         return contracts
     return cached
+
+
+def _build_dynamic_catalog() -> Dict[str, List[Dict[str, str]]]:
+    contracts = _sync_bingx_contracts()
+    catalog: Dict[str, List[Dict[str, str]]] = {
+        cat: [dict(it) for it in items]
+        for cat, items in BASE_MARKET_CATALOG.items()
+    }
+    if not contracts:
+        return catalog
+
+    priority_order = ["BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT"]
+    seen_bx: set[str] = set()
+    crypto_items: List[Dict[str, str]] = []
+
+    for p_sym in priority_order:
+        if p_sym in contracts:
+            base = p_sym.split("-")[0]
+            crypto_items.append({
+                "symbol": f"{base}/USDT",
+                "bx_symbol": p_sym,
+                "name": f"{base} ({p_sym})",
+            })
+            seen_bx.add(p_sym)
+
+    for it in catalog["Criptovalute Globali"]:
+        bx = str(it.get("bx_symbol", "")).upper()
+        if bx in contracts and bx not in seen_bx:
+            crypto_items.append(it)
+            seen_bx.add(bx)
+
+    extra_by_cat: Dict[str, List[Dict[str, str]]] = {
+        "Criptovalute Globali": [],
+        "Materie Prime & Forex": [],
+        "Azioni & Indici Globali": [],
+    }
+
+    for it in catalog["Materie Prime & Forex"]:
+        bx = str(it.get("bx_symbol", "")).upper()
+        if bx not in seen_bx:
+            extra_by_cat["Materie Prime & Forex"].append(it)
+            seen_bx.add(bx)
+
+    for it in catalog["Azioni & Indici Globali"]:
+        bx = str(it.get("bx_symbol", "")).upper()
+        if bx not in seen_bx:
+            extra_by_cat["Azioni & Indici Globali"].append(it)
+            seen_bx.add(bx)
+
+    for bx_sym in sorted(contracts.keys()):
+        if bx_sym in seen_bx:
+            continue
+        cat = _classify_bx_symbol(bx_sym)
+        base_code = bx_sym.split("-")[0] if "-" in bx_sym else bx_sym
+        quote_code = bx_sym.split("-")[1] if "-" in bx_sym else "USDT"
+        extra_by_cat[cat].append({
+            "symbol": f"{base_code}/{quote_code}",
+            "bx_symbol": bx_sym,
+            "name": f"{base_code} ({bx_sym})",
+        })
+        seen_bx.add(bx_sym)
+
+    catalog["Criptovalute Globali"] = crypto_items + extra_by_cat["Criptovalute Globali"]
+    catalog["Materie Prime & Forex"] = extra_by_cat["Materie Prime & Forex"]
+    catalog["Azioni & Indici Globali"] = extra_by_cat["Azioni & Indici Globali"]
+    return catalog
+
+
+def _all_assets() -> List[Dict[str, str]]:
+    dyn_catalog = _build_dynamic_catalog()
+    out: List[Dict[str, str]] = []
+    for cat in MARKET_ORDER:
+        for it in dyn_catalog.get(cat, []):
+            out.append({**it, "category": cat})
+    return out
 
 
 def _resolve_bingx_contract(symbol: str) -> Tuple[str, Optional[Dict[str, Any]]]:
@@ -253,7 +335,7 @@ def _find_asset(symbol: str) -> Dict[str, str]:
         "symbol": clean if "/" in clean else bx.replace("-", "/"),
         "bx_symbol": bx,
         "name": clean,
-        "category": "Criptovalute Globali",
+        "category": _classify_bx_symbol(bx),
     }
 
 
@@ -396,26 +478,6 @@ def _fallback_candles(asset: Dict[str, str], timeframe: str, count: int = 60) ->
         "NATGAS/USDT": 3.54,
         "COPPER/USDT": 5.853,
         "XPT/USDT": 1354.6,
-        "XAUXAG/USDT": 83.65,
-        "XAUXPT/USDT": 2.72,
-        "XAGEUR/USDT": 40.19,
-        "HEATINGOIL/USDT": 37863.4,
-        "XAUEUR/USDT": 3358.2,
-        "XAUZAR/USDT": 63835.27,
-        "XPD/USDT": 913.01,
-        "XAUJPY/USDT": 587032.97,
-        "XAUCAD/USDT": 5280.34,
-        "XAUAUD/USDT": 5536.87,
-        "XAUSGD/USDT": 4750.33,
-        "XAL/USDT": 2872.72,
-        "XAUKRW/USDT": 4935778.76,
-        "XZN/USDT": 3584.68,
-        "XPB/USDT": 1839.43,
-        "XAUCHF/USDT": 3092.93,
-        "XNI/USDT": 15574.3,
-        "XAGJPY/USDT": 7016.02,
-        "XAUINR/USDT": 335858.73,
-        "XAUGBP/USDT": 2812.11,
     }
     base = bases.get(asset["symbol"], 100.0)
     step_s = TF_SECONDS.get(timeframe, 900)
@@ -1141,7 +1203,26 @@ def _sessions_payload() -> Dict[str, Any]:
 
 @app.route("/")
 def index() -> str:
-    return render_template("index.html", market_catalog=MARKET_CATALOG)
+    return render_template("index.html", market_catalog=_build_dynamic_catalog())
+
+
+@app.route("/api/bingx/contracts")
+def api_bingx_contracts():
+    force = request.args.get("force", "1") == "1"
+    contracts = _sync_bingx_contracts(force=force)
+    catalog = _build_dynamic_catalog()
+    by_market = {
+        cat: [it["bx_symbol"] for it in catalog.get(cat, [])]
+        for cat in MARKET_ORDER
+    }
+    return jsonify({
+        "success": True,
+        "total_contracts": len(contracts),
+        "crypto_count": len(by_market["Criptovalute Globali"]),
+        "crypto_symbols": by_market["Criptovalute Globali"],
+        "by_market": by_market,
+        "contracts": contracts,
+    })
 
 
 @app.route("/api/signals")
@@ -1172,7 +1253,7 @@ def api_signals():
     valid_signals = [r for r in rows if r["action"] in ("BUY", "SELL")]
 
     market_diagnostics: Dict[str, Any] = {}
-    for cat_name in MARKET_CATALOG.keys():
+    for cat_name in MARKET_ORDER:
         cat_rows = [r for r in rows if r["category"] == cat_name]
         cat_sigs = [r for r in cat_rows if r["action"] in ("BUY", "SELL")]
         avg_score = round(sum(r["score"] for r in cat_rows) / len(cat_rows), 1) if cat_rows else 0.0
