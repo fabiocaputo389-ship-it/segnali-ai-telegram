@@ -15,8 +15,6 @@ from flask import Flask, jsonify, render_template, request
 
 app = Flask(__name__)
 
-MIN_BINGX_CAPITAL_USD = 2.0
-
 
 def _clean_env_secret(val: str) -> str:
     s = (val or "").strip()
@@ -182,51 +180,23 @@ def quantize_to_tick(value: float, decimals: int) -> float:
     return round(float(value), max(0, int(decimals)))
 
 
-def get_lot_step(bx_symbol: str, price: float) -> float:
-    if "BTC" in bx_symbol:
-        return 0.0001
-    if "ETH" in bx_symbol or "PAXG" in bx_symbol:
-        return 0.001
-    if price >= 50:
-        return 0.01
-    if price >= 1:
-        return 0.1
-    return 1.0
-
-
-def compute_dynamic_leverage(symbol: str, category: str, balance: float, price: float = 0.0, profile: str = "pro_sniper") -> int:
-    cap = max(MIN_BINGX_CAPITAL_USD, safe_float(balance, MIN_BINGX_CAPITAL_USD))
-    bx_symbol, _ = resolve_bingx_symbol(symbol)
-    step = get_lot_step(bx_symbol, price) if price > 0 else 0.01
-    min_notional = max(2.0, step * max(price, 0.0)) if price > 0 else 2.0
-
-    if cap <= 2.50 or (min_notional > cap * 10.0):
-        base_lev = 20
-    elif cap <= 5.0 and profile == "momentum_desk":
-        base_lev = 20
-    elif symbol in ("BTCUSDT", "ETHUSDT") or category == "Criptovalute Globali":
-        base_lev = 10
-    else:
-        base_lev = 5
-
-    needed_lev = int(math.ceil((min_notional * 1.05) / max(cap, MIN_BINGX_CAPITAL_USD)))
-    return max(base_lev, min(25, needed_lev))
-
-
 def compute_order_quantity(bx_symbol: str, price: float, raw_qty: float, balance: float, leverage: int) -> float:
     if price <= 0:
         return 0.0
-    eff_balance = max(MIN_BINGX_CAPITAL_USD, safe_float(balance, MIN_BINGX_CAPITAL_USD))
-    eff_lev = max(1, int(leverage or 1))
-    step = get_lot_step(bx_symbol, price)
-
-    max_notional = eff_balance * eff_lev * 0.92
-    desired_notional = max(raw_qty * price, min(eff_balance * eff_lev * 0.50, max_notional))
-    capped_notional = min(desired_notional, max_notional)
-    capped_qty = max(step, capped_notional / price)
-
+    max_notional = max(balance, 1.0) * max(leverage, 1) * 0.85
+    capped_qty = min(max(raw_qty, 0.0), max_notional / price)
+    if "BTC" in bx_symbol:
+        step = 0.0001
+    elif "ETH" in bx_symbol or "PAXG" in bx_symbol:
+        step = 0.001
+    elif price >= 50:
+        step = 0.01
+    elif price >= 1:
+        step = 0.1
+    else:
+        step = 1.0
     qty = math.floor(capped_qty / step) * step
-    if qty < step:
+    if qty <= 0:
         qty = step
     dec = len(str(step).split(".")[1]) if "." in str(step) else 0
     return round(qty, dec)
@@ -235,11 +205,11 @@ def compute_order_quantity(bx_symbol: str, price: float, raw_qty: float, balance
 def get_timeframe_candle_timing(timeframe: str, now_ts: float = None):
     tf = (timeframe or "15m").strip()
     tf_map = {
-        "5m": (300, "5 minuti (300 secondi)"),
-        "15m": (900, "15 minuti (900 secondi)"),
-        "1h": (3600, "1 ora (3600 secondi)"),
+        "5m": (300, "5m (5 min / 300s)"),
+        "15m": (900, "15m (15 min / 900s)"),
+        "1h": (3600, "1h (1 ora / 3600s)"),
     }
-    duration_sec, label = tf_map.get(tf, (900, "15 minuti (900 secondi)"))
+    duration_sec, label = tf_map.get(tf, (900, "15m (15 min / 900s)"))
     ts = float(now_ts if now_ts is not None else time.time())
     bucket_start = int(ts // duration_sec) * duration_sec
     bucket_end = bucket_start + duration_sec
@@ -259,7 +229,7 @@ def get_timeframe_candle_timing(timeframe: str, now_ts: float = None):
         "candle_open_utc": open_dt.strftime("%H:%M:%S UTC"),
         "candle_close_utc": close_dt.strftime("%H:%M:%S UTC"),
         "signal_opened_at_utc": signal_dt.strftime("%H:%M:%S UTC"),
-        "candle_window_text": f"Candela {label} • Apertura {open_dt.strftime('%H:%M:%S')} → Chiusura {close_dt.strftime('%H:%M:%S UTC')}",
+        "candle_window_text": f"Candela {tf} • Apertura {open_dt.strftime('%H:%M:%S')} → Chiusura {close_dt.strftime('%H:%M:%S UTC')} ({duration_sec}s)",
     }
 
 
@@ -313,7 +283,7 @@ def bingx_signed_request(method: str, path: str, params: dict):
         rl_until = safe_float(STATE.get("bingx_rate_limit_until"), 0.0)
         if now_sec < rl_until:
             rem = int(max(1, rl_until - now_sec))
-            return None, f"Rate limit BingX attivo: riprovo tra {rem} secondi"
+            return None, f"Rate limit BingX attivo: riprovo tra {rem}s"
 
     req_params = dict(params or {})
     req_params["timestamp"] = int(now_sec * 1000)
@@ -330,7 +300,7 @@ def bingx_signed_request(method: str, path: str, params: dict):
         if "100410" in err_str:
             with STATE_LOCK:
                 STATE["bingx_rate_limit_until"] = time.time() + 35.0
-            return None, "code:100410: Limite frequenza BingX raggiunto (pausa 35 secondi)"
+            return None, "code:100410: Limite frequenza BingX raggiunto (cooldown 35s)"
         if resp.status_code != 200:
             return None, f"HTTP {resp.status_code}: {data}"
         if isinstance(data, dict) and data.get("code") not in (0, "0", None):
@@ -340,35 +310,12 @@ def bingx_signed_request(method: str, path: str, params: dict):
         return None, str(exc)
 
 
-def set_bingx_leverage(bx_symbol: str, pos_side: str, leverage: int):
-    lev_val = max(1, min(25, int(leverage or 20)))
-    return bingx_signed_request(
-        "POST",
-        "/openApi/swap/v2/trade/leverage",
-        {
-            "symbol": bx_symbol,
-            "side": pos_side,
-            "leverage": lev_val,
-        },
-    )
-
-
-def place_bingx_order_with_tpsl(
-    symbol: str,
-    action: str,
-    qty: float,
-    sl_price: float = 0.0,
-    tp_price: float = 0.0,
-    leverage: int = 20,
-):
+def place_bingx_order_with_tpsl(symbol: str, action: str, qty: float, sl_price: float = 0.0, tp_price: float = 0.0):
     bx_symbol, bx_prec = resolve_bingx_symbol(symbol)
-    is_buy = str(action or "BUY").upper() == "BUY"
-    side = "BUY" if is_buy else "SELL"
-    close_side = "SELL" if is_buy else "BUY"
-    pos_side = "LONG" if is_buy else "SHORT"
+    side = "BID" if action == "BUY" else "ASK"
+    close_side = "ASK" if action == "BUY" else "BID"
+    pos_side = "LONG" if action == "BUY" else "SHORT"
     dec = bx_prec if bx_prec is not None else 2
-
-    lev_data, lev_err = set_bingx_leverage(bx_symbol, pos_side, leverage)
 
     entry_data, entry_err = bingx_signed_request(
         "POST",
@@ -417,8 +364,6 @@ def place_bingx_order_with_tpsl(
         )
 
     return {
-        "leverage_set": lev_data,
-        "leverage_error": lev_err,
         "entry_order": entry_data,
         "sl_order": sl_data,
         "sl_error": sl_err,
@@ -851,12 +796,18 @@ def evaluate_pro_setup(df, current_price, symbol, category, is_open, balance, ri
     tp1_dist = abs(tp1 - entry)
     rrr = round(tp1_dist / sl_dist, 2) if sl_dist > 0 else 0.0
 
-    eff_balance = max(MIN_BINGX_CAPITAL_USD, safe_float(balance, MIN_BINGX_CAPITAL_USD))
-    lev = compute_dynamic_leverage(symbol, category, eff_balance, entry, cfg["profile"])
+    if balance <= 2.0 and cfg["profile"] == "momentum_desk":
+        lev = 20
+    elif symbol in ("BTCUSDT", "ETHUSDT"):
+        lev = 10
+    elif category == "Criptovalute Globali":
+        lev = 10
+    else:
+        lev = 5
 
     eff_risk_pct = min(risk_pct, cfg["max_risk_pct"])
-    risk_usd = max(eff_balance * (eff_risk_pct / 100.0), eff_balance * 0.10)
-    qty = compute_order_quantity(bx_symbol, entry, risk_usd / sl_dist, eff_balance, lev)
+    risk_usd = balance * (eff_risk_pct / 100.0)
+    qty = compute_order_quantity(bx_symbol, entry, risk_usd / sl_dist, max(balance, 1.0), lev)
     margin_usd = round((qty * entry) / max(lev, 1), 2)
     fee_usd = round((qty * entry) * 0.001, 4)
 
@@ -883,14 +834,14 @@ def evaluate_pro_setup(df, current_price, symbol, category, is_open, balance, ri
         raw_action = "SELL"
 
     action = raw_action
-    reason = f"Setup {action} validato (Score {score}% >= {cfg['min_score']}%) • Leva {lev}x • R:R 1:{rrr}"
+    reason = f"Setup {action} validato (Score {score}% >= {cfg['min_score']}%) • HTF {htf_bias} • R:R 1:{rrr}"
     grade = "A+" if (score >= max(85.0, cfg["min_score"]) and rrr >= 2.0 and not fakeout) else ("VALIDATO" if action in ("BUY", "SELL") else "NO-TRADE")
 
     if action in ("BUY", "SELL") and prev_dir:
         if prev_dir.get("action") != action and (now_ts - safe_float(prev_dir.get("ts"), 0.0)) < DIRECTION_COOLDOWN_SEC:
             rem = int(DIRECTION_COOLDOWN_SEC - (now_ts - safe_float(prev_dir.get("ts"), 0.0)))
             action = "NEUTRAL"
-            reason = f"Anti-flip-flop attivo ({rem} secondi residui dopo {prev_dir.get('action')})"
+            reason = f"Anti-flip-flop attivo ({rem}s residui dopo {prev_dir.get('action')})"
     elif action == "NEUTRAL":
         if not is_open:
             reason = f"Mercato {category} chiuso"
@@ -931,11 +882,10 @@ def evaluate_pro_setup(df, current_price, symbol, category, is_open, balance, ri
         "fakeout_label": "FAKEOUT / SWEEP" if fakeout else "STRUTTURA PULITA",
         "size": qty,
         "leverage": f"{lev}x",
-        "leverage_num": lev,
         "margin": margin_usd,
         "ev_net_usd": ev_usd,
         "win_prob_pct": round(win_prob * 100, 1),
-        "tp_eta_text": f"circa {eta_min} minuti ({candles_est} candele da {cfg['timeframe']}, arrivo stimato {eta_utc})",
+        "tp_eta_text": f"~{eta_min}m ({candles_est} candele {cfg['timeframe']} • ETA {eta_utc})",
         "reason": reason,
         "swing_high": quantize_to_tick(swing_high_20, decimals),
         "swing_low": quantize_to_tick(swing_low_20, decimals),
@@ -999,7 +949,6 @@ def maybe_execute_pro_autotrade(signals_out, live_positions, daily_net_pnl):
         max_pos = int(STATE.get("max_open_positions", 1))
         daily_cap = -abs(safe_float(STATE.get("daily_loss_cap_usd"), 0.50))
         rl_until = safe_float(STATE.get("bingx_rate_limit_until"), 0.0)
-        avail_bal = safe_float(STATE.get("last_bingx_available") or STATE.get("last_bingx_balance"), 0.0)
 
     if not enabled or not signals_out or time.time() < rl_until:
         return []
@@ -1023,16 +972,7 @@ def maybe_execute_pro_autotrade(signals_out, live_positions, daily_net_pnl):
         if (now_ts - _AUTOTRADE_LAST_EXEC.get(sym, 0.0)) < 120.0:
             continue
 
-        entry_p = safe_float(sig.get("price") or sig.get("entry"), 0.0)
-        lev_num = int(safe_float(sig.get("leverage_num"), 20))
-        eff_cap = max(MIN_BINGX_CAPITAL_USD, avail_bal if avail_bal >= MIN_BINGX_CAPITAL_USD else safe_float(sig.get("margin"), MIN_BINGX_CAPITAL_USD) * max(1, lev_num))
-        qty = compute_order_quantity(
-            sig.get("bingx_symbol") or resolve_bingx_symbol(sym)[0],
-            entry_p,
-            safe_float(sig.get("size"), 0.0),
-            eff_cap,
-            lev_num,
-        )
+        qty = safe_float(sig.get("size"), 0.0)
         if qty <= 0:
             continue
 
@@ -1042,15 +982,12 @@ def maybe_execute_pro_autotrade(signals_out, live_positions, daily_net_pnl):
             qty=qty,
             sl_price=safe_float(sig.get("sl"), 0.0),
             tp_price=safe_float(sig.get("tp1"), 0.0),
-            leverage=lev_num,
         )
         _AUTOTRADE_LAST_EXEC[sym] = now_ts
         if not err:
             executed.append({
                 "symbol": sig["bingx_symbol"],
                 "action": sig["action"],
-                "qty": qty,
-                "leverage": f"{lev_num}x",
                 "sl": sig.get("sl"),
                 "tp1": sig.get("tp1"),
                 "candle_duration_sec": sig.get("candle_duration_sec"),
@@ -1153,7 +1090,7 @@ def get_signals():
     timeframe = request.args.get("timeframe", "15m")
     if timeframe not in ("5m", "15m", "1h"):
         timeframe = "15m"
-    balance = max(MIN_BINGX_CAPITAL_USD, safe_float(request.args.get("balance"), MIN_BINGX_CAPITAL_USD))
+    balance = max(1.0, safe_float(request.args.get("balance"), 2.0))
     risk_pct = min(10.0, max(0.25, safe_float(request.args.get("risk"), 1.0)))
     min_score = min(98.0, max(20.0, safe_float(request.args.get("min_score"), 70.0)))
     min_rrr = min(10.0, max(0.5, safe_float(request.args.get("min_rrr"), 1.5)))
@@ -1292,17 +1229,7 @@ def api_execute_manual():
     if action not in ("BUY", "SELL"):
         action = "BUY"
 
-    curr_p = fetch_bingx_ticker(bx_symbol) or safe_float(body.get("entry"), 0.0)
-    with STATE_LOCK:
-        avail_bal = safe_float(STATE.get("last_bingx_available") or STATE.get("last_bingx_balance"), MIN_BINGX_CAPITAL_USD)
-    req_bal = max(MIN_BINGX_CAPITAL_USD, safe_float(body.get("balance"), avail_bal))
-    lev_num = int(safe_float(body.get("leverage"), compute_dynamic_leverage(sym, "Criptovalute Globali", req_bal, curr_p)))
-
-    raw_size = safe_float(body.get("size"), 0.0)
-    qty = compute_order_quantity(bx_symbol, curr_p, raw_size, req_bal, lev_num)
-    if qty <= 0:
-        return jsonify({"success": False, "error": "Quantità ordine non valida per il saldo/prezzo corrente."}), 400
-
+    qty = max(0.0001, safe_float(body.get("size"), 0.001))
     sl_p = safe_float(body.get("sl"), 0.0)
     tp_p = safe_float(body.get("tp1"), 0.0)
     tf = (body.get("timeframe") or "15m").strip()
@@ -1314,7 +1241,6 @@ def api_execute_manual():
         qty=qty,
         sl_price=sl_p,
         tp_price=tp_p,
-        leverage=lev_num,
     )
     if err:
         return jsonify({"success": False, "error": f"Errore BingX ordine reale: {err}"}), 400
@@ -1323,8 +1249,6 @@ def api_execute_manual():
         "success": True,
         "mode": "BINGX PRO DESK",
         "symbol": bx_symbol,
-        "qty": qty,
-        "leverage": f"{lev_num}x",
         "candle_timing": timing,
         "order": exec_res,
     })
