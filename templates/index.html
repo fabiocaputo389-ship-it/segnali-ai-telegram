@@ -33,7 +33,7 @@
 
     body {
       margin: 0;
-      padding: 12px 12px 92px 12px;
+      padding: 12px 12px 96px 12px;
       background: radial-gradient(circle at top, #1a1403 0%, var(--bg-main) 64%);
       color: var(--text-primary);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -103,10 +103,15 @@
       cursor: pointer;
       font-weight: 800;
       letter-spacing: 0.3px;
-      transition: transform 0.1s ease, border-color 0.15s ease;
+      transition: transform 0.1s ease, border-color 0.15s ease, opacity 0.15s ease;
     }
 
-    button:active {
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    button:active:not(:disabled) {
       transform: scale(0.98);
     }
 
@@ -136,6 +141,45 @@
       border: 1px solid var(--neon-red);
     }
 
+    .toast-banner {
+      display: none;
+      margin-bottom: 12px;
+      padding: 10px 14px;
+      border-radius: 11px;
+      font-size: 12px;
+      font-weight: 700;
+      border: 1px solid var(--neon-gold);
+      background: var(--neon-gold-dim);
+      color: var(--neon-gold-bright);
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .toast-banner.show {
+      display: flex;
+    }
+
+    .toast-banner.error {
+      border-color: var(--neon-red);
+      background: var(--neon-red-dim);
+      color: #ff9aa9;
+    }
+
+    .toast-banner.success {
+      border-color: var(--neon-green);
+      background: var(--neon-green-dim);
+      color: var(--neon-green);
+    }
+
+    .toast-close {
+      background: transparent;
+      border: none;
+      color: inherit;
+      padding: 2px 6px;
+      font-size: 14px;
+    }
+
     .panel {
       background: var(--bg-card);
       border: 1px solid var(--border-subtle);
@@ -163,7 +207,10 @@
     }
 
     @media (max-width: 760px) {
-      .grid-3, .grid-4 {
+      .grid-2, .grid-3, .grid-4 {
+        grid-template-columns: 1fr;
+      }
+      .grid-4 {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
@@ -481,6 +528,11 @@
       </div>
     </div>
 
+    <div id="toastBanner" class="toast-banner" role="status" aria-live="polite">
+      <span id="toastMessage"></span>
+      <button id="toastCloseBtn" class="toast-close" type="button" aria-label="Chiudi notifica">✕</button>
+    </div>
+
     <section id="view-segnali" class="view-section active">
       <div class="panel">
         <div class="grid-2">
@@ -499,7 +551,7 @@
               <option value="ALL" selected>Tutti gli Asset</option>
               {% for cat, items in market_catalog.items() %}
                 {% for it in items %}
-                  <option value="{{ it.symbol }}">{{ it.name }}</option>
+                  <option value="{{ it.symbol }}" data-category="{{ cat }}">{{ it.name }}</option>
                 {% endfor %}
               {% endfor %}
             </select>
@@ -744,19 +796,50 @@
   </nav>
 
   <script>
+    const STORAGE_KEYS = {
+      voice: "bingx_pro_voice_enabled",
+      chartSymbol: "bingx_pro_chart_symbol",
+    };
+
     let currentTiming = null;
     let pollingSignals = false;
+    let busyOrderAction = false;
     let scoreTimer = null;
+    let toastTimer = null;
     let latestRowsMap = {};
     let latestPositionsList = [];
-    let voiceEnabled = false;
+    let allSymbolOptionsHtml = "";
+    let voiceEnabled = localStorage.getItem(STORAGE_KEYS.voice) === "1";
     let lastSpokenSignalKey = "";
     let lastVoicePosSnapshot = "";
 
+    function showToast(message, type = "info", durationMs = 4500) {
+      const banner = document.getElementById("toastBanner");
+      const msgEl = document.getElementById("toastMessage");
+      if (!banner || !msgEl) return;
+      msgEl.textContent = message;
+      banner.classList.remove("error", "success");
+      if (type === "error") banner.classList.add("error");
+      if (type === "success") banner.classList.add("success");
+      banner.classList.add("show");
+      clearTimeout(toastTimer);
+      if (durationMs > 0) {
+        toastTimer = setTimeout(() => banner.classList.remove("show"), durationMs);
+      }
+    }
+
     function parseNum(raw, fallback) {
       if (raw === null || raw === undefined) return fallback;
-      const v = parseFloat(String(raw).replace(/\s+/g, "").replace(",", "."));
+      const v = parseFloat(String(raw).trim().replace(/\s+/g, "").replace(",", "."));
       return Number.isFinite(v) ? v : fallback;
+    }
+
+    function formatPrice(val) {
+      const n = Number(val);
+      if (!Number.isFinite(n)) return "--";
+      if (Math.abs(n) >= 100) return n.toFixed(2);
+      if (Math.abs(n) >= 1) return n.toFixed(4);
+      return n.toFixed(6);
     }
 
     function getMinScore() {
@@ -765,6 +848,20 @@
 
     function getBalance() {
       return Math.max(2.0, parseNum(document.getElementById("balanceInput").value, 2.0));
+    }
+
+    async function fetchJson(url, options = {}) {
+      const res = await fetch(url, { cache: "no-store", ...options });
+      let payload = {};
+      try {
+        payload = await res.json();
+      } catch (_) {
+        payload = {};
+      }
+      if (!res.ok) {
+        throw new Error(payload.error || `Errore HTTP ${res.status}`);
+      }
+      return payload;
     }
 
     function buildQuery() {
@@ -797,6 +894,12 @@
       const btn = document.getElementById("toggleAutoBtn");
       btn.textContent = enabled ? "AUTO-TRADE: ON" : "AUTO-TRADE: OFF";
       btn.className = enabled ? "btn-auto-on" : "btn-auto-off";
+    }
+
+    function syncVoiceBtn() {
+      const btn = document.getElementById("toggleVoiceBtn");
+      btn.textContent = voiceEnabled ? "VOCE: ON" : "VOCE: OFF";
+      btn.className = voiceEnabled ? "btn-auto-on" : "btn-auto-off";
     }
 
     function speakText(text) {
@@ -866,9 +969,36 @@
       }
     }
 
+    function syncSymbolSelectWithMarket() {
+      const marketVal = document.getElementById("marketFilterSelect").value;
+      const symSelect = document.getElementById("symbolFilterSelect");
+      if (!allSymbolOptionsHtml) {
+        allSymbolOptionsHtml = symSelect.innerHTML;
+      }
+      const prevSym = symSelect.value;
+      const temp = document.createElement("select");
+      temp.innerHTML = allSymbolOptionsHtml;
+
+      const filtered = ['<option value="ALL">Tutti gli Asset</option>'];
+      Array.from(temp.options).forEach((opt) => {
+        if (opt.value === "ALL") return;
+        const cat = opt.getAttribute("data-category") || "";
+        if (marketVal === "ALL" || cat === marketVal) {
+          filtered.push(`<option value="${opt.value}" data-category="${cat}">${opt.textContent}</option>`);
+        }
+      });
+
+      symSelect.innerHTML = filtered.join("");
+      const stillExists = Array.from(symSelect.options).some((o) => o.value === prevSym);
+      symSelect.value = stillExists ? prevSym : "ALL";
+    }
+
     function openAssetChart(symbol) {
       const sel = document.getElementById("tickerAssetSelect");
-      if (sel) sel.value = symbol;
+      if (sel) {
+        sel.value = symbol;
+        localStorage.setItem(STORAGE_KEYS.chartSymbol, sel.value);
+      }
       switchView("view-grafico");
       refreshChart();
     }
@@ -884,7 +1014,7 @@
       if (viewId === "view-grafico") refreshChart();
     }
 
-    function renderCandleSvg(candles, rowMeta) {
+    function renderCandleSvg(candles, rowMeta, livePrice = null) {
       const svg = document.getElementById("candleSvgChart");
       if (!svg) return;
       if (!Array.isArray(candles) || candles.length < 2) {
@@ -901,6 +1031,10 @@
         minP = Math.min(minP, c.low, c.ema20 || c.low, c.ema50 || c.low);
         maxP = Math.max(maxP, c.high, c.ema20 || c.high, c.ema50 || c.high);
       });
+      if (Number.isFinite(Number(livePrice)) && Number(livePrice) > 0) {
+        minP = Math.min(minP, Number(livePrice));
+        maxP = Math.max(maxP, Number(livePrice));
+      }
       if (rowMeta) {
         [rowMeta.entry, rowMeta.sl, rowMeta.tp1, rowMeta.tp2, rowMeta.tp3].forEach((lv) => {
           const n = Number(lv);
@@ -919,11 +1053,11 @@
 
       const stepX = plotW / candles.length;
       const bodyW = Math.max(3, Math.min(11, stepX * 0.62));
-      let parts = [];
+      const parts = [];
 
       for (let i = 0; i <= 4; i++) {
         const gy = padY + (i / 4) * plotH;
-        const priceLbl = (maxP - (i / 4) * span).toFixed(maxP >= 50 ? 2 : 4);
+        const priceLbl = formatPrice(maxP - (i / 4) * span);
         parts.push(`<line x1="${padX}" y1="${gy.toFixed(1)}" x2="${w - padX}" y2="${gy.toFixed(1)}" stroke="#332908" stroke-dasharray="3,3" />`);
         parts.push(`<text x="${w - padX - 2}" y="${(gy - 3).toFixed(1)}" fill="#a99b6a" text-anchor="end" font-size="10">${priceLbl}</text>`);
       }
@@ -936,13 +1070,20 @@
           parts.push(`<line x1="${padX}" y1="${ly.toFixed(1)}" x2="${w - padX}" y2="${ly.toFixed(1)}" stroke="${color}" stroke-width="1" stroke-dasharray="4,2" />`);
           parts.push(`<text x="${padX + 4}" y="${(ly - 2).toFixed(1)}" fill="${color}" font-size="10">${lbl} ${n}</text>`);
         };
-        drawLvl(rowMeta.tp1, "#00ff66", "TP1");
+        drawLvl(rowMeta.tp3, "#00ff66", "TP3");
         drawLvl(rowMeta.tp2, "#00ff66", "TP2");
+        drawLvl(rowMeta.tp1, "#00ff66", "TP1");
         drawLvl(rowMeta.entry, "#ffd000", "ENTRY");
         drawLvl(rowMeta.sl, "#ff2a4b", "SL");
       }
 
-      let ema20Pts = [], ema50Pts = [];
+      if (Number.isFinite(Number(livePrice)) && Number(livePrice) > 0) {
+        const ly = yPos(Number(livePrice));
+        parts.push(`<line x1="${padX}" y1="${ly.toFixed(1)}" x2="${w - padX}" y2="${ly.toFixed(1)}" stroke="#ffea00" stroke-width="1.2" />`);
+        parts.push(`<text x="${w - padX - 2}" y="${(ly + 11).toFixed(1)}" fill="#ffea00" text-anchor="end" font-size="10">LIVE ${formatPrice(livePrice)}</text>`);
+      }
+
+      const ema20Pts = [], ema50Pts = [];
       candles.forEach((c, idx) => {
         const cx = padX + idx * stepX + stepX / 2;
         const yHigh = yPos(c.high);
@@ -976,10 +1117,7 @@
       pollingSignals = true;
       const reqMin = getMinScore();
       try {
-        const res = await fetch(`/api/signals?${buildQuery()}`, { cache: "no-store" });
-        const data = await res.json();
-        if (!res.ok) return;
-
+        const data = await fetchJson(`/api/signals?${buildQuery()}`);
         const activeCfg = data.active_params || {};
         const effMin = typeof activeCfg.min_score === "number" ? activeCfg.min_score : reqMin;
         currentTiming = data.candle_timing || null;
@@ -1136,6 +1274,7 @@
         announceSignalsAndPositions(sigs, latestPositionsList, false);
       } catch (e) {
         console.error(e);
+        showToast(`Errore aggiornamento segnali: ${e.message}`, "error", 5000);
       } finally {
         pollingSignals = false;
       }
@@ -1143,8 +1282,7 @@
 
     async function refreshAccount() {
       try {
-        const res = await fetch("/api/bingx/live-account", { cache: "no-store" });
-        const data = await res.json();
+        const data = await fetchJson("/api/bingx/live-account");
         const acc = data.account || {};
         document.getElementById("statWallet").textContent = `$${Number(acc.balance || 0).toFixed(2)}`;
         document.getElementById("statAvailMargin").textContent = `$${Number(acc.available_margin || 0).toFixed(2)}`;
@@ -1194,30 +1332,34 @@
     async function refreshChart() {
       const sym = document.getElementById("tickerAssetSelect").value;
       const tf = document.getElementById("timeframeSelect").value;
+      let livePrice = null;
       try {
-        const [tRes, cRes] = await Promise.all([
-          fetch(`/api/live-ticker?symbol=${encodeURIComponent(sym)}`, { cache: "no-store" }),
-          fetch(`/api/candles?symbol=${encodeURIComponent(sym)}&tf=${encodeURIComponent(tf)}`, { cache: "no-store" }),
+        const [tRes, cRes] = await Promise.allSettled([
+          fetchJson(`/api/live-ticker?symbol=${encodeURIComponent(sym)}`),
+          fetchJson(`/api/candles?symbol=${encodeURIComponent(sym)}&tf=${encodeURIComponent(tf)}`),
         ]);
-        if (tRes.ok) {
-          const td = await tRes.json();
-          document.getElementById("tickerPriceDisplay").textContent = `${td.price} USDT`;
-          document.getElementById("tickerMetaDisplay").textContent = `${td.bingx_symbol} • ${td.timestamp}`;
+
+        if (tRes.status === "fulfilled") {
+          const td = tRes.value;
+          livePrice = td.price;
+          document.getElementById("tickerPriceDisplay").textContent = `${formatPrice(td.price)} USDT`;
+          document.getElementById("tickerMetaDisplay").textContent = `${td.bingx_symbol || sym} • ${td.timestamp || ""}`;
         }
-        if (cRes.ok) {
-          const cd = await cRes.json();
+
+        if (cRes.status === "fulfilled") {
+          const cd = cRes.value;
           const allC = Array.isArray(cd.candles) ? cd.candles : [];
-          renderCandleSvg(allC, latestRowsMap[sym] || null);
+          renderCandleSvg(allC, latestRowsMap[sym] || null, livePrice);
           const list = allC.slice(-15).reverse();
           const body = document.getElementById("candlesBody");
           body.innerHTML = list.length ? list.map((c, i) => `
             <tr>
               <td>-${i + 1}</td>
-              <td>${c.open}</td>
-              <td>${c.high}</td>
-              <td>${c.low}</td>
-              <td><strong>${c.close}</strong></td>
-              <td style="font-size:11px;"><span class="pos-amber">20: ${Number(c.ema20 || 0).toFixed(2)}</span> • <span class="pos-green">50: ${Number(c.ema50 || 0).toFixed(2)}</span></td>
+              <td>${formatPrice(c.open)}</td>
+              <td>${formatPrice(c.high)}</td>
+              <td>${formatPrice(c.low)}</td>
+              <td><strong>${formatPrice(c.close)}</strong></td>
+              <td style="font-size:11px;"><span class="pos-amber">20: ${formatPrice(c.ema20 || 0)}</span> • <span class="pos-green">50: ${formatPrice(c.ema50 || 0)}</span></td>
               <td>${c.volume}</td>
             </tr>
           `).join("") : `<tr><td colspan="7" style="color:var(--text-muted);">Nessuna candela.</td></tr>`;
@@ -1228,53 +1370,63 @@
     }
 
     async function sendManualOrder(symbol, action, size, sl, tp1, leverage = 20, candleCloseTs = 0) {
+      if (busyOrderAction) return;
+      busyOrderAction = true;
       const tf = document.getElementById("timeframeSelect").value;
       const balance = getBalance();
       try {
-        const res = await fetch("/api/autotrade/execute-manual", {
+        const data = await fetchJson("/api/autotrade/execute-manual", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ symbol, action, size, sl, tp1, leverage, balance, timeframe: tf, candle_close_ts: candleCloseTs }),
         });
-        const data = await res.json();
         if (data.success) {
           const tpslMsg = `SL: ${data.sl ?? "N/D"}${data.sl_error ? ` (${data.sl_error})` : ""} • TP1: ${data.tp1 ?? "N/D"}${data.tp_error ? ` (${data.tp_error})` : ""} • Chiusura TF: ${data.candle_timing?.candle_close_utc || tf}`;
-          alert(`Ordine inviato su ${data.symbol} (${action} • ${data.leverage} • Size ${data.qty})\n${tpslMsg}`);
+          showToast(`Ordine ${action} inviato su ${data.symbol} (${data.leverage} • Size ${data.qty}) — ${tpslMsg}`, "success", 6000);
           if (voiceEnabled) {
             speakText(`Ordine ${action} eseguito su ${data.symbol} con leva ${data.leverage}. Stop loss ${data.sl}, target 1 ${data.tp1}.`);
           }
         } else {
-          alert(`Errore: ${data.error}`);
+          showToast(`Errore ordine: ${data.error || "Operazione rifiutata"}`, "error", 6000);
         }
-        refreshAccount();
+        await refreshAccount();
       } catch (e) {
-        alert(`Errore invio: ${e.message}`);
+        showToast(`Errore invio ordine: ${e.message}`, "error", 6000);
+      } finally {
+        busyOrderAction = false;
       }
     }
 
     async function closeSinglePosition(symbol, action, size) {
+      if (busyOrderAction) return;
+      busyOrderAction = true;
       try {
-        const res = await fetch("/api/bingx/close-position", {
+        const data = await fetchJson("/api/bingx/close-position", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ symbol, action, size }),
         });
-        const data = await res.json();
         if (!data.success) {
-          alert(`Errore chiusura posizione: ${data.error}`);
+          showToast(`Errore chiusura posizione: ${data.error || "Operazione fallita"}`, "error", 6000);
+        } else {
+          showToast(`Posizione ${symbol} (${action}) chiusa.`, "success", 4000);
         }
-        refreshAccount();
-        refreshSignals(true);
+        await Promise.all([refreshAccount(), refreshSignals(true)]);
       } catch (e) {
-        alert(`Errore chiusura: ${e.message}`);
+        showToast(`Errore chiusura: ${e.message}`, "error", 6000);
+      } finally {
+        busyOrderAction = false;
       }
     }
 
+    document.getElementById("toastCloseBtn").addEventListener("click", () => {
+      document.getElementById("toastBanner").classList.remove("show");
+    });
+
     document.getElementById("toggleVoiceBtn").addEventListener("click", () => {
       voiceEnabled = !voiceEnabled;
-      const btn = document.getElementById("toggleVoiceBtn");
-      btn.textContent = voiceEnabled ? "VOCE: ON" : "VOCE: OFF";
-      btn.className = voiceEnabled ? "btn-auto-on" : "btn-auto-off";
+      localStorage.setItem(STORAGE_KEYS.voice, voiceEnabled ? "1" : "0");
+      syncVoiceBtn();
       if (voiceEnabled) {
         speakText("Annunci vocali live attivati per nuovi segnali e avanzamento posizioni.");
       }
@@ -1282,26 +1434,27 @@
 
     document.getElementById("speakNowBtn").addEventListener("click", () => {
       const rows = Object.values(latestRowsMap || {}).filter((r) => r.action === "BUY" || r.action === "SELL");
-      fetch("/api/bingx/live-account", { cache: "no-store" })
-        .then((r) => r.json())
+      fetchJson("/api/bingx/live-account")
         .then((d) => announceSignalsAndPositions(rows, d.positions || [], true))
         .catch(() => announceSignalsAndPositions(rows, latestPositionsList, true));
     });
 
     document.getElementById("closeAllBtn").addEventListener("click", async () => {
       if (!confirm("Chiudere tutte le posizioni aperte su BingX a mercato?")) return;
+      if (busyOrderAction) return;
+      busyOrderAction = true;
       try {
-        const res = await fetch("/api/bingx/close-all", { method: "POST" });
-        const data = await res.json();
+        const data = await fetchJson("/api/bingx/close-all", { method: "POST" });
         if (!data.success) {
-          alert(`Errore chiusura totale: ${data.error}`);
+          showToast(`Errore chiusura totale: ${data.error || "Operazione fallita"}`, "error", 6000);
         } else {
-          alert(`Chiusura completata (${data.closed_count || 0} posizioni).`);
+          showToast(`Chiusura completata (${data.closed_count || 0} posizioni).`, "success", 5000);
         }
-        refreshAccount();
-        refreshSignals(true);
+        await Promise.all([refreshAccount(), refreshSignals(true)]);
       } catch (e) {
-        alert(`Errore: ${e.message}`);
+        showToast(`Errore chiusura totale: ${e.message}`, "error", 6000);
+      } finally {
+        busyOrderAction = false;
       }
     });
 
@@ -1310,26 +1463,37 @@
       const lossCap = Math.max(0.05, parseNum(document.getElementById("lossCapInput").value, 0.50));
       const onlyAPlus = document.getElementById("onlyAPlusSelect").value === "1";
       const closeAtCandleEnd = document.getElementById("closeAtCandleEndSelect").value === "1";
-      const res = await fetch("/api/autotrade/config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          max_open_positions: maxPos,
-          daily_loss_cap_usd: lossCap,
-          only_a_plus: onlyAPlus,
-          close_at_candle_end: closeAtCandleEnd,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        alert("Parametri Risk, TP/SL e chiusura a fine candela salvati.");
+      try {
+        const data = await fetchJson("/api/autotrade/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            max_open_positions: maxPos,
+            daily_loss_cap_usd: lossCap,
+            only_a_plus: onlyAPlus,
+            close_at_candle_end: closeAtCandleEnd,
+          }),
+        });
+        if (data.success) {
+          showToast("Parametri Risk, TP/SL e chiusura a fine candela salvati.", "success", 4000);
+          await refreshAccount();
+        } else {
+          showToast(data.error || "Impossibile salvare i parametri.", "error", 5000);
+        }
+      } catch (e) {
+        showToast(`Errore salvataggio parametri: ${e.message}`, "error", 5000);
       }
     });
 
     document.getElementById("toggleAutoBtn").addEventListener("click", async () => {
-      const res = await fetch("/api/autotrade/toggle", { method: "POST" });
-      const data = await res.json();
-      syncAutoBtn(Boolean(data.auto_trade));
+      try {
+        const data = await fetchJson("/api/autotrade/toggle", { method: "POST" });
+        const enabled = Boolean(data.auto_trade);
+        syncAutoBtn(enabled);
+        showToast(`Auto-Trade ${enabled ? "ATTIVATO" : "DISATTIVATO"}.`, enabled ? "success" : "info", 3500);
+      } catch (e) {
+        showToast(`Errore toggle Auto-Trade: ${e.message}`, "error", 5000);
+      }
     });
 
     document.getElementById("manualRefreshBtn").addEventListener("click", () => {
@@ -1349,11 +1513,27 @@
       refreshSignals(true);
     });
 
-    ["marketFilterSelect", "symbolFilterSelect", "profileSelect", "timeframeSelect", "balanceInput", "riskInput", "minRrrInput"].forEach((id) => {
-      document.getElementById(id).addEventListener("change", () => refreshSignals(true));
+    document.getElementById("marketFilterSelect").addEventListener("change", () => {
+      syncSymbolSelectWithMarket();
+      refreshSignals(true);
     });
 
-    document.getElementById("tickerAssetSelect").addEventListener("change", refreshChart);
+    ["symbolFilterSelect", "profileSelect", "timeframeSelect", "balanceInput", "riskInput", "minRrrInput"].forEach((id) => {
+      document.getElementById(id).addEventListener("change", () => {
+        refreshSignals(true);
+        if (id === "timeframeSelect") refreshChart();
+      });
+    });
+
+    const tickerSelect = document.getElementById("tickerAssetSelect");
+    const savedChartSym = localStorage.getItem(STORAGE_KEYS.chartSymbol);
+    if (savedChartSym && Array.from(tickerSelect.options).some((o) => o.value === savedChartSym)) {
+      tickerSelect.value = savedChartSym;
+    }
+    tickerSelect.addEventListener("change", () => {
+      localStorage.setItem(STORAGE_KEYS.chartSymbol, tickerSelect.value);
+      refreshChart();
+    });
 
     document.querySelectorAll(".dock-btn").forEach((btn) => {
       btn.addEventListener("click", () => switchView(btn.getAttribute("data-view")));
@@ -1373,6 +1553,8 @@
     }, 12000);
     setInterval(refreshChart, 3000);
 
+    syncVoiceBtn();
+    syncSymbolSelectWithMarket();
     refreshSignals(true);
     refreshAccount();
     refreshChart();
