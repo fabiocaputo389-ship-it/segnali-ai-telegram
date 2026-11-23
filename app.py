@@ -282,7 +282,7 @@ def _calcola_certezza_reale(tfs: dict, side: str, base_tf: str) -> float:
     return round(min(97.5, max(54.0, score)), 1)
 
 
-def calcola_parametri_quantistici_unificati(simbolo, market_type, style="Scalping", margin_usdt=10.0, leverage=10):
+def calcola_parametri_quantistici_unificati(simbolo, market_type, style="Scalping", margin_usdt=2.0, leverage=10):
     fetch_type = "FUTURES" if market_type == "STANDARD_FUTURES" else market_type
     try:
         tfs = {iv: analizza_tf(simbolo, fetch_type, iv) for iv in ("5m", "15m", "1h", "4h")}
@@ -360,8 +360,8 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type, style="Scalpin
             f"e quindi un setup a bassa probabilità e più rischioso."
         )
 
-    eff_lev = _calcola_leva_dinamica(margin_usdt, leverage, market_type)
-    eff_margin = max(0.5, float(margin_usdt or 10.0))
+    eff_margin = max(2.0, float(margin_usdt if margin_usdt is not None else 2.0))
+    eff_lev = _calcola_leva_dinamica(eff_margin, leverage, market_type)
     notional = eff_margin * eff_lev
     size_qty = round(notional / price, 4 if price < 10 else 2) if price > 0 else 0.0
 
@@ -592,14 +592,15 @@ def esegui_ordine_bingx(
     market_type: str = "FUTURES",
     api_key: str = "",
     secret_key: str = "",
-    margin_usdt: float = 0.0,
+    margin_usdt: float = 2.0,
 ):
     active_api, active_secret, _ = _risolvi_credenziali(api_key, secret_key)
 
     if not active_api or not active_secret:
         return {"code": -1, "msg": "API Key o Secret Key BingX mancanti (verifica variabili d'ambiente su Render)."}
 
-    eff_leva = _calcola_leva_dinamica(margin_usdt, leva, market_type)
+    eff_margin = max(2.0, float(margin_usdt if margin_usdt is not None else 2.0))
+    eff_leva = _calcola_leva_dinamica(eff_margin, leva, market_type)
 
     if market_type == "STANDARD_FUTURES":
         endpoint = "/openApi/futures/v1/trade/order"
@@ -648,6 +649,7 @@ def esegui_ordine_bingx(
 
         if isinstance(res, dict):
             res["appliedLeverage"] = eff_leva
+            res["appliedMarginUsdt"] = eff_margin
             if res.get("code") == 0 and market_type == "FUTURES":
                 res["protectionOrders"] = _piazza_sl_tp_swap_reali(
                     simbolo, lato, quantita, prezzo_sl, prezzo_tp, active_api, active_secret
@@ -843,7 +845,7 @@ def api_deep_scan():
     simbolo = request.args.get("symbol", "BTC-USDT")
     mtype = request.args.get("marketType", MARKET_TYPE).upper()
     style = request.args.get("style", "Scalping")
-    margin_usdt = float(request.args.get("margin", 10.0) or 10.0)
+    margin_usdt = max(2.0, float(request.args.get("margin", 2.0) or 2.0))
     leverage = int(float(request.args.get("leverage", 10) or 10))
     res_data = calcola_parametri_quantistici_unificati(
         simbolo, mtype, style=style, margin_usdt=margin_usdt, leverage=leverage
@@ -887,7 +889,7 @@ def webhook_esegui_segnale():
     timeframe = dati.get("timeframe", "15m")
     mtype = dati.get("marketType", MARKET_TYPE).upper()
     is_auto = dati.get("is_auto", False)
-    margin_usdt = float(dati.get("marginUsdt", 0.0) or 0.0)
+    margin_usdt = max(2.0, float(dati.get("marginUsdt", 2.0) or 2.0))
 
     if is_auto and TRADING_MODE != "AUTO":
         return jsonify({"code": -99, "msg": "Modalità Automatica disattivata."})
