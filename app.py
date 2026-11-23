@@ -148,13 +148,15 @@ def _classifica_categoria_e_label(symbol: str, market_type: str) -> tuple[str, s
     return "Criptovalute", symbol
 
 
-def _calcola_finestra_candela_15m(now_ts: float | None = None) -> dict:
+def _calcola_finestra_candela(tf_str: str = "15m", now_ts: float | None = None) -> dict:
     ts = int(now_ts if now_ts is not None else time.time())
-    durata = 900
+    tf_map = {"5m": 300, "15m": 900, "1h": 3600, "4h": 14400}
+    durata = tf_map.get(tf_str, 900)
     apertura_ts = (ts // durata) * durata
     chiusura_ts = apertura_ts + durata
     residuo_sec = max(1, chiusura_ts - ts)
     return {
+        "timeframe": tf_str,
         "tfSeconds": durata,
         "openUtc": datetime.fromtimestamp(apertura_ts, tz=timezone.utc).strftime("%H:%M:%S"),
         "closeUtc": datetime.fromtimestamp(chiusura_ts, tz=timezone.utc).strftime("%H:%M:%S"),
@@ -246,6 +248,18 @@ def analizza_tf(simbolo, market_type, interval, limit=100):
         return None
 
 
+def _calcola_certezza_reale(tfs: dict, side: str, base_tf: str) -> float:
+    all_trends = [tfs[k]["trend"] for k in ("5m", "15m", "1h", "4h")]
+    concordi_all = sum(1 for tr in all_trends if tr == side)
+    htf_concordi = sum(1 for tr in (tfs["1h"]["trend"], tfs["4h"]["trend"]) if tr == side)
+    rsi_val = float(tfs[base_tf]["rsi14"])
+    rsi_aligned = (rsi_val >= 52.0) if side == "BUY" else (rsi_val <= 48.0)
+    anti_false_count = sum(1 for k in ("5m", "15m", "1h", "4h") if tfs[k].get("antiFalseValid"))
+
+    score = 52.0 + (concordi_all * 8.0) + (htf_concordi * 5.0) + (3.5 if rsi_aligned else 0.0) + (anti_false_count * 1.5)
+    return round(min(97.5, max(54.0, score)), 1)
+
+
 def calcola_parametri_quantistici_unificati(simbolo, market_type, style="Scalping", margin_usdt=10.0, leverage=10):
     fetch_type = "FUTURES" if market_type == "STANDARD_FUTURES" else market_type
     try:
@@ -271,19 +285,21 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type, style="Scalpin
     if trend_5m == trend_15m == trend_1h == trend_4h and trend_5m != "NEUTRO":
         side = trend_5m
         score_precisione = 100.0
-        certezza = 96.0
         favorabilita = 88.0
     elif trend_5m == trend_15m and trend_5m != "NEUTRO":
         side = trend_5m
         score_precisione = 78.0
-        certezza = 85.7
         favorabilita = 76.7
+    elif trend_1h == trend_4h and trend_1h != "NEUTRO":
+        side = trend_1h
+        score_precisione = 75.0
+        favorabilita = 75.6
     else:
         side = "BUY" if tfs[style_base_tf]["rsi14"] >= 50 else "SELL"
-        score_precisione = 75.0
-        certezza = 76.7
-        favorabilita = 75.6
+        score_precisione = 65.0
+        favorabilita = 68.0
 
+    certainty = _calcola_certezza_reale(tfs, side, style_base_tf)
     base = tfs[style_base_tf]
     price = tfs["5m"]["last"]["close"]
     atr_reale = base["atr14"] if base["atr14"] > 0 else (price * 0.01)
@@ -322,7 +338,7 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type, style="Scalpin
             f"e quindi un setup a bassa probabilità e più rischioso."
         )
 
-    eff_lev = 1 if market_type == "SPOT" else max(1, int(leverage or 10))
+    eff_lev = _calcola_leva_dinamica(margin_usdt, leverage, market_type)
     eff_margin = max(0.5, float(margin_usdt or 10.0))
     notional = eff_margin * eff_lev
     size_qty = round(notional / price, 4 if price < 10 else 2) if price > 0 else 0.0
@@ -351,7 +367,7 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type, style="Scalpin
     timestamp_ultima_candela = int(ultima_candela["time"])
 
     category, display_label = _classifica_categoria_e_label(simbolo, market_type)
-    candle_15m = _calcola_finestra_candela_15m()
+    candle_window = _calcola_finestra_candela(style_base_tf)
     is_safe, time_msg, borsa_rif, start_t, end_t = verifica_finestra_temporale_sicura()
     momento_giusto = is_safe and (side != "NEUTRO")
 
@@ -363,7 +379,7 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type, style="Scalpin
         "style": style,
         "price": round(price, dec),
         "side": side,
-        "htfBias": "BULLISH" if tfs["1h"]["trend"] == "BUY" or side == "BUY" else "BEARISH",
+        "htfBias": "BULLISH" if (tfs["1h"]["trend"] == "BUY" or tfs["4h"]["trend"] == "BUY" or side == "BUY") else "BEARISH",
         "size": size_qty,
         "leverage": eff_lev,
         "marginUsdt": round(eff_margin, 2),
@@ -374,7 +390,7 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type, style="Scalpin
         "etaMinutes": minuti_eta,
         "etaCandles": candele_eta,
         "etaUtc": target_eta_utc,
-        "candle15m": candle_15m,
+        "candle15m": candle_window,
         "entryZoneMin": entry_zone_min,
         "entryZoneMax": entry_zone_max,
         "sentiment": f"Anti-Falsi Filtro Attivo 🛡️ ({side})" if side != "NEUTRO" else "In attesa di Sincronizzazione",
@@ -484,6 +500,64 @@ def imposta_leva_bingx(simbolo: str, leva: int, lato: str, api_key: str, secret_
             print(f"[LEVERAGE EXCEPT] {e}")
 
 
+def _piazza_sl_tp_swap_reali(
+    simbolo: str,
+    lato_ingresso: str,
+    quantita: float,
+    prezzo_sl: float,
+    prezzo_tp: float,
+    active_api: str,
+    active_secret: str,
+) -> dict:
+    close_side = "SELL" if lato_ingresso == "BUY" else "BUY"
+    position_side = "LONG" if lato_ingresso == "BUY" else "SHORT"
+    out = {}
+
+    if prezzo_sl and float(prezzo_sl) > 0:
+        try:
+            sl_res = _signed_post(
+                "/openApi/swap/v2/trade/order",
+                {
+                    "symbol": simbolo,
+                    "side": close_side,
+                    "positionSide": position_side,
+                    "type": "STOP_MARKET",
+                    "stopPrice": str(prezzo_sl),
+                    "quantity": str(quantita),
+                    "workingType": "MARK_PRICE",
+                    "timestamp": str(int(time.time() * 1000)),
+                },
+                active_api,
+                active_secret,
+            )
+            out["slOrder"] = sl_res
+        except Exception as e:
+            out["slOrderError"] = str(e)
+
+    if prezzo_tp and float(prezzo_tp) > 0:
+        try:
+            tp_res = _signed_post(
+                "/openApi/swap/v2/trade/order",
+                {
+                    "symbol": simbolo,
+                    "side": close_side,
+                    "positionSide": position_side,
+                    "type": "TAKE_PROFIT_MARKET",
+                    "stopPrice": str(prezzo_tp),
+                    "quantity": str(quantita),
+                    "workingType": "MARK_PRICE",
+                    "timestamp": str(int(time.time() * 1000)),
+                },
+                active_api,
+                active_secret,
+            )
+            out["tpOrder"] = tp_res
+        except Exception as e:
+            out["tpOrderError"] = str(e)
+
+    return out
+
+
 def esegui_ordine_bingx(
     simbolo: str,
     lato: str,
@@ -549,11 +623,73 @@ def esegui_ordine_bingx(
                 payload_ordine["quantity"] = str(adjusted_qty)
                 payload_ordine["timestamp"] = str(int(time.time() * 1000))
                 res = _signed_post(endpoint, payload_ordine, active_api, active_secret)
+                quantita = adjusted_qty
+
         if isinstance(res, dict):
             res["appliedLeverage"] = eff_leva
+            if res.get("code") == 0 and market_type == "FUTURES":
+                res["protectionOrders"] = _piazza_sl_tp_swap_reali(
+                    simbolo, lato, quantita, prezzo_sl, prezzo_tp, active_api, active_secret
+                )
         return res
     except Exception as e:
         return {"code": -1, "msg": str(e)}
+
+
+def chiudi_posizione_bingx_reale(
+    simbolo: str,
+    lato_posizione: str = "",
+    quantita: float = 0.0,
+    market_type: str = "FUTURES",
+    api_key: str = "",
+    secret_key: str = "",
+) -> dict:
+    active_api = api_key if api_key else DEFAULT_API_KEY
+    active_secret = secret_key if secret_key else DEFAULT_SECRET_KEY
+
+    if not active_api or not active_secret:
+        return {"code": -1, "msg": "API Key o Secret Key BingX mancanti per chiudere la posizione."}
+
+    if market_type == "SPOT":
+        return {"code": -1, "msg": "Chiusura automatica swap non applicabile a SPOT."}
+
+    target_side = lato_posizione.upper()
+    target_qty = float(quantita or 0.0)
+
+    if not target_side or target_qty <= 0:
+        try:
+            pos_res = _signed_get("/openApi/swap/v2/user/positions", {}, active_api, active_secret)
+            if pos_res.get("code") == 0 and isinstance(pos_res.get("data"), list):
+                for p in pos_res["data"]:
+                    if p.get("symbol") == simbolo:
+                        amt = abs(float(p.get("positionAmt", 0) or 0))
+                        if amt > 0:
+                            target_qty = amt
+                            target_side = str(p.get("positionSide", "LONG")).upper()
+                            break
+        except Exception as e:
+            return {"code": -1, "msg": f"Errore lettura posizione: {e}"}
+
+    if target_qty <= 0:
+        return {"code": 0, "msg": f"Nessuna posizione aperta trovata su BingX per {simbolo}."}
+
+    close_side = "SELL" if target_side in ("BUY", "LONG") else "BUY"
+    pos_side = "LONG" if target_side in ("BUY", "LONG") else "SHORT"
+
+    return _signed_post(
+        "/openApi/swap/v2/trade/order",
+        {
+            "symbol": simbolo,
+            "side": close_side,
+            "positionSide": pos_side,
+            "type": "MARKET",
+            "quantity": str(target_qty),
+            "reduceOnly": "true",
+            "timestamp": str(int(time.time() * 1000)),
+        },
+        active_api,
+        active_secret,
+    )
 
 
 def get_bingx_account_telemetry(api_key: str, secret_key: str) -> dict:
@@ -701,6 +837,20 @@ def api_account_telemetry():
     dati = request.json or {}
     telemetry = get_bingx_account_telemetry(dati.get("apiKey", ""), dati.get("secretKey", ""))
     return jsonify({"code": 0, "data": telemetry})
+
+
+@app.route("/api/close-position", methods=["POST"])
+def api_close_position():
+    dati = request.json or {}
+    res = chiudi_posizione_bingx_reale(
+        simbolo=dati.get("symbol", ""),
+        lato_posizione=dati.get("side", ""),
+        quantita=float(dati.get("size", 0.0) or 0.0),
+        market_type=dati.get("marketType", MARKET_TYPE).upper(),
+        api_key=dati.get("apiKey", ""),
+        secret_key=dati.get("secretKey", ""),
+    )
+    return jsonify(res)
 
 
 @app.route("/api/esegui-segnale", methods=["POST"])
