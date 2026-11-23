@@ -26,8 +26,19 @@ DEFAULT_API_KEY = _leggi_env_chiave(["BINGX_API_KEY", "API_KEY", "BINGX_KEY"])
 DEFAULT_SECRET_KEY = _leggi_env_chiave(["BINGX_SECRET_KEY", "BINGX_API_SECRET", "SECRET_KEY"])
 BASE_URL = "https://open-api.bingx.com"
 
+MIN_ORDER_USDT = 2.0
 TRADING_MODE = "MANUAL"
 MARKET_TYPE = "FUTURES"  # "FUTURES", "SPOT" o "STANDARD_FUTURES"
+
+
+def _normalizza_importo_minimo(valore) -> float:
+    try:
+        num = float(valore if valore is not None else MIN_ORDER_USDT)
+    except (TypeError, ValueError):
+        num = MIN_ORDER_USDT
+    if num != num:  # NaN check
+        return MIN_ORDER_USDT
+    return max(MIN_ORDER_USDT, num)
 
 
 def _risolvi_credenziali(api_key: str = "", secret_key: str = "") -> tuple[str, str, str]:
@@ -282,6 +293,17 @@ def _calcola_certezza_reale(tfs: dict, side: str, base_tf: str) -> float:
     return round(min(97.5, max(54.0, score)), 1)
 
 
+def _formatta_quantita_contratto(qty: float, price: float) -> str:
+    q = max(0.001, float(qty or 0.0))
+    if price >= 5000:
+        return f"{q:.3f}"
+    if price >= 50:
+        return f"{q:.2f}"
+    if price >= 1:
+        return f"{q:.1f}"
+    return f"{int(max(1, round(q)))}"
+
+
 def calcola_parametri_quantistici_unificati(simbolo, market_type, style="Scalping", margin_usdt=2.0, leverage=10):
     fetch_type = "FUTURES" if market_type == "STANDARD_FUTURES" else market_type
     try:
@@ -360,10 +382,11 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type, style="Scalpin
             f"e quindi un setup a bassa probabilità e più rischioso."
         )
 
-    eff_margin = max(2.0, float(margin_usdt if margin_usdt is not None else 2.0))
+    eff_margin = _normalizza_importo_minimo(margin_usdt)
     eff_lev = _calcola_leva_dinamica(eff_margin, leverage, market_type)
     notional = eff_margin * eff_lev
-    size_qty = round(notional / price, 4 if price < 10 else 2) if price > 0 else 0.0
+    raw_qty = (notional / price) if price > 0 else 0.0
+    size_qty = float(_formatta_quantita_contratto(raw_qty, price))
 
     rr_ratio = round(reward_unit / rischio_unit, 2) if rischio_unit > 0 else 1.5
     p_win = min(0.95, max(0.51, certainty / 100.0))
@@ -525,7 +548,7 @@ def imposta_leva_bingx(simbolo: str, leva: int, lato: str, api_key: str, secret_
 def _piazza_sl_tp_swap_reali(
     simbolo: str,
     lato_ingresso: str,
-    quantita: float,
+    quantita_str: str,
     prezzo_sl: float,
     prezzo_tp: float,
     active_api: str,
@@ -545,7 +568,7 @@ def _piazza_sl_tp_swap_reali(
                     "positionSide": position_side,
                     "type": "STOP_MARKET",
                     "stopPrice": str(prezzo_sl),
-                    "quantity": str(quantita),
+                    "quantity": quantita_str,
                     "workingType": "MARK_PRICE",
                     "timestamp": str(int(time.time() * 1000)),
                 },
@@ -566,7 +589,7 @@ def _piazza_sl_tp_swap_reali(
                     "positionSide": position_side,
                     "type": "TAKE_PROFIT_MARKET",
                     "stopPrice": str(prezzo_tp),
-                    "quantity": str(quantita),
+                    "quantity": quantita_str,
                     "workingType": "MARK_PRICE",
                     "timestamp": str(int(time.time() * 1000)),
                 },
@@ -578,6 +601,19 @@ def _piazza_sl_tp_swap_reali(
             out["tpOrderError"] = str(e)
 
     return out
+
+
+def _scala_quantita_fallback(qty_val: float, prezzo_ingresso: float, tentativo: int) -> str:
+    step_table = [1.0, 0.5, 0.25, 0.1, 0.05]
+    fattore = step_table[min(tentativo, len(step_table) - 1)]
+    nuova_qty = qty_val * fattore
+    if prezzo_ingresso >= 5000:
+        return f"{max(0.001, round(nuova_qty, 3)):.3f}"
+    if prezzo_ingresso >= 50:
+        return f"{max(0.01, round(nuova_qty, 2)):.2f}"
+    if prezzo_ingresso >= 1:
+        return f"{max(0.1, round(nuova_qty, 1)):.1f}"
+    return f"{int(max(1, round(nuova_qty)))}"
 
 
 def esegui_ordine_bingx(
@@ -592,15 +628,21 @@ def esegui_ordine_bingx(
     market_type: str = "FUTURES",
     api_key: str = "",
     secret_key: str = "",
-    margin_usdt: float = 2.0,
+    margin_usdt: float = MIN_ORDER_USDT,
 ):
     active_api, active_secret, _ = _risolvi_credenziali(api_key, secret_key)
 
     if not active_api or not active_secret:
         return {"code": -1, "msg": "API Key o Secret Key BingX mancanti (verifica variabili d'ambiente su Render)."}
 
-    eff_margin = max(2.0, float(margin_usdt if margin_usdt is not None else 2.0))
-    eff_leva = _calcola_leva_dinamica(eff_margin, leva, market_type)
+    eff_margin = _normalizza_importo_minimo(margin_usdt)
+    eff_lev = _calcola_leva_dinamica(eff_margin, leva, market_type)
+
+    base_qty = float(quantita or 0.0)
+    if base_qty <= 0 and prezzo_ingresso > 0:
+        base_qty = (eff_margin * eff_lev) / float(prezzo_ingresso)
+
+    qty_str = _formatta_quantita_contratto(base_qty, float(prezzo_ingresso or 0.0))
 
     if market_type == "STANDARD_FUTURES":
         endpoint = "/openApi/futures/v1/trade/order"
@@ -608,12 +650,12 @@ def esegui_ordine_bingx(
             "symbol": simbolo,
             "side": lato,
             "type": "MARKET",
-            "quantity": str(quantita),
-            "leverage": str(eff_leva),
+            "quantity": qty_str,
+            "leverage": str(eff_lev),
             "timestamp": str(int(time.time() * 1000)),
         }
     elif market_type == "FUTURES":
-        imposta_leva_bingx(simbolo, eff_leva, lato, active_api, active_secret)
+        imposta_leva_bingx(simbolo, eff_lev, lato, active_api, active_secret)
         endpoint = "/openApi/swap/v2/trade/order"
         position_side = "LONG" if lato == "BUY" else "SHORT"
         payload_ordine = {
@@ -621,7 +663,7 @@ def esegui_ordine_bingx(
             "side": lato,
             "positionSide": position_side,
             "type": "MARKET",
-            "quantity": str(quantita),
+            "quantity": qty_str,
             "timestamp": str(int(time.time() * 1000)),
         }
     else:
@@ -630,29 +672,37 @@ def esegui_ordine_bingx(
             "symbol": simbolo,
             "side": lato,
             "type": "MARKET",
-            "quantity": str(quantita),
+            "quantity": qty_str,
             "timestamp": str(int(time.time() * 1000)),
         }
 
     try:
         res = _signed_post(endpoint, payload_ordine, active_api, active_secret)
-        msg = str(res.get("msg", ""))
-        if res.get("code") != 0 and ("minimum order amount is" in msg.lower() or "insufficient" in msg.lower()):
-            match = re.search(r"(?:minimum order amount is|is)\s+([0-9.]+)", msg, re.IGNORECASE)
-            if match:
-                min_qty = float(match.group(1))
-                adjusted_qty = round(min_qty * 1.05, 6 if min_qty < 1 else 2)
-                payload_ordine["quantity"] = str(adjusted_qty)
-                payload_ordine["timestamp"] = str(int(time.time() * 1000))
-                res = _signed_post(endpoint, payload_ordine, active_api, active_secret)
-                quantita = adjusted_qty
+
+        for tentativo in range(1, 5):
+            if res.get("code") == 0:
+                break
+            msg = str(res.get("msg", "")).lower()
+            match_min = re.search(r"(?:minimum order amount is|is)\s+([0-9.]+)", msg, re.IGNORECASE)
+            if match_min:
+                min_qty = float(match_min.group(1))
+                qty_str = _formatta_quantita_contratto(min_qty * 1.05, float(prezzo_ingresso or 0.0))
+            elif any(k in msg for k in ["insufficient", "balance", "margin", "precision", "step", "amount"]):
+                qty_str = _scala_quantita_fallback(base_qty, float(prezzo_ingresso or 0.0), tentativo)
+            else:
+                break
+
+            payload_ordine["quantity"] = qty_str
+            payload_ordine["timestamp"] = str(int(time.time() * 1000))
+            res = _signed_post(endpoint, payload_ordine, active_api, active_secret)
 
         if isinstance(res, dict):
-            res["appliedLeverage"] = eff_leva
+            res["appliedLeverage"] = eff_lev
             res["appliedMarginUsdt"] = eff_margin
+            res["appliedQuantity"] = qty_str
             if res.get("code") == 0 and market_type == "FUTURES":
                 res["protectionOrders"] = _piazza_sl_tp_swap_reali(
-                    simbolo, lato, quantita, prezzo_sl, prezzo_tp, active_api, active_secret
+                    simbolo, lato, qty_str, prezzo_sl, prezzo_tp, active_api, active_secret
                 )
         return res
     except Exception as e:
@@ -744,7 +794,8 @@ def get_bingx_account_telemetry(api_key: str, secret_key: str) -> dict:
                 bal_obj = next((b for b in bal_obj if b.get("asset") == "USDT"), bal_obj[0] if bal_obj else {})
             if isinstance(bal_obj, dict):
                 wallet_balance = float(bal_obj.get("balance", bal_obj.get("equity", 0)) or 0)
-                available_margin = float(bal_obj.get("availableMargin", bal_obj.get("crossWalletBalance", wallet_balance)) or 0)
+                raw_avail = bal_obj.get("availableMargin", bal_obj.get("crossWalletBalance", bal_obj.get("free", None)))
+                available_margin = float(raw_avail if raw_avail is not None else wallet_balance)
                 unrealized_pnl = float(bal_obj.get("unrealizedProfit", 0) or 0)
     except Exception as e:
         print(f"[BALANCE ERROR] {e}")
@@ -845,7 +896,7 @@ def api_deep_scan():
     simbolo = request.args.get("symbol", "BTC-USDT")
     mtype = request.args.get("marketType", MARKET_TYPE).upper()
     style = request.args.get("style", "Scalping")
-    margin_usdt = max(2.0, float(request.args.get("margin", 2.0) or 2.0))
+    margin_usdt = _normalizza_importo_minimo(request.args.get("margin", MIN_ORDER_USDT))
     leverage = int(float(request.args.get("leverage", 10) or 10))
     res_data = calcola_parametri_quantistici_unificati(
         simbolo, mtype, style=style, margin_usdt=margin_usdt, leverage=leverage
@@ -881,15 +932,15 @@ def webhook_esegui_segnale():
     dati = request.json or {}
     simbolo = dati.get("symbol")
     lato = dati.get("action")
-    quantita = float(dati.get("size", 1.0))
-    prezzo_ingresso = float(dati.get("entry", dati.get("price", 0)))
-    tp = float(dati.get("tp", 0))
-    sl = float(dati.get("sl", 0))
-    leva = int(dati.get("leverage", 10))
+    quantita = float(dati.get("size", 0.0) or 0.0)
+    prezzo_ingresso = float(dati.get("entry", dati.get("price", 0)) or 0.0)
+    tp = float(dati.get("tp", 0) or 0.0)
+    sl = float(dati.get("sl", 0) or 0.0)
+    leva = int(dati.get("leverage", 10) or 10)
     timeframe = dati.get("timeframe", "15m")
     mtype = dati.get("marketType", MARKET_TYPE).upper()
     is_auto = dati.get("is_auto", False)
-    margin_usdt = max(2.0, float(dati.get("marginUsdt", 2.0) or 2.0))
+    margin_usdt = _normalizza_importo_minimo(dati.get("marginUsdt", MIN_ORDER_USDT))
 
     if is_auto and TRADING_MODE != "AUTO":
         return jsonify({"code": -99, "msg": "Modalità Automatica disattivata."})
@@ -930,6 +981,7 @@ def get_trading_mode():
         "code": 0,
         "mode": TRADING_MODE,
         "marketType": MARKET_TYPE,
+        "minOrderUsdt": MIN_ORDER_USDT,
         "envKeysConfigured": key_source == "render_env",
         "keySource": key_source,
         "utcNow": now_utc,
