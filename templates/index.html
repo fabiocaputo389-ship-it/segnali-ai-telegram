@@ -680,12 +680,12 @@
           </div>
         </div>
 
-        <div class="panel-head" style="margin-top: 8px;">Posizioni Aperte su BingX (Avanzamento TP / SL / Fine Candela)</div>
+        <div class="panel-head" style="margin-top: 8px;">Posizioni Aperte su BingX (Avanzamento TP1/TP2/TP3 / SL / Fine Candela)</div>
         <div id="livePositionsBox" style="color: var(--text-muted); font-size: 13px;">Nessuna posizione aperta.</div>
       </div>
 
       <div class="panel">
-        <div class="panel-head">Parametri Auto-Trade, TP/SL &amp; Chiusura Fine Timeframe</div>
+        <div class="panel-head">Parametri Auto-Trade, TP/SL Multipli &amp; Chiusura Fine Timeframe</div>
         <div class="grid-4">
           <div class="input-group">
             <label for="maxPosInput">Max Posizioni Aperte</label>
@@ -928,7 +928,7 @@
         const dSl = Number(p.dist_to_sl || 0);
         const upnl = Number(p.unrealized_pnl || 0).toFixed(4);
         const parts = [`Posizione ${sym} ${dir}, prezzo live ${p.mark_price || p.entry}, PnL aperto ${upnl} dollari`];
-        if (p.tp > 0) parts.push(`avanzamento verso TP ${prog} percento, mancano ${dTp} punti al target`);
+        if (p.tp > 0) parts.push(`avanzamento verso TP1 ${prog} percento, mancano ${dTp} punti al target`);
         if (p.sl > 0) parts.push(`mancano ${dSl} punti allo stop loss`);
         return parts.join(", ");
       }).join(". ");
@@ -947,7 +947,7 @@
 
       if (force) {
         const msg = topSig
-          ? `Segnale attivo su ${topSig.name}, ${topSig.action}, entry ${topSig.entry}, target 1 ${topSig.tp1}, stop loss ${topSig.sl}. ${buildLivePositionsSpeech(positions)}`
+          ? `Segnale attivo su ${topSig.name}, ${topSig.action}, entry ${topSig.entry}, TP1 ${topSig.tp1}, TP2 ${topSig.tp2}, TP3 ${topSig.tp3}, stop loss ${topSig.sl}. ${buildLivePositionsSpeech(positions)}`
           : buildLivePositionsSpeech(positions);
         speakText(msg);
         lastSpokenSignalKey = sigKey;
@@ -959,7 +959,7 @@
 
       if (sigKey && sigKey !== lastSpokenSignalKey) {
         lastSpokenSignalKey = sigKey;
-        speakText(`Nuovo segnale ${topSig.action} su ${topSig.name}. Entry ${topSig.entry}, TP1 ${topSig.tp1}, SL ${topSig.sl}.`);
+        speakText(`Nuovo segnale ${topSig.action} su ${topSig.name}. Entry ${topSig.entry}, TP1 ${topSig.tp1}, TP2 ${topSig.tp2}, TP3 ${topSig.tp3}, SL ${topSig.sl}.`);
         return;
       }
 
@@ -1193,9 +1193,9 @@
                   <div>🎯 Target ETA: ${s.tp_eta_text}</div>
                 </div>
                 <div class="action-row">
-                  <button class="${isSell ? "btn-sell" : "btn-buy"}" type="button" onclick="sendManualOrder('${s.symbol}', '${s.action}', ${s.size}, ${s.sl}, ${s.tp1}, ${levNum}, ${cCloseTs})">ESEGUI ${s.action} + SL/TP</button>
-                  <button class="btn-buy" type="button" onclick="sendManualOrder('${s.symbol}', 'BUY', ${s.size}, ${s.sl}, ${s.tp1}, ${levNum}, ${cCloseTs})">BUY</button>
-                  <button class="btn-sell" type="button" onclick="sendManualOrder('${s.symbol}', 'SELL', ${s.size}, ${s.sl}, ${s.tp1}, ${levNum}, ${cCloseTs})">SELL</button>
+                  <button class="${isSell ? "btn-sell" : "btn-buy"}" type="button" onclick="sendManualOrder('${s.symbol}', '${s.action}', ${s.size}, ${s.sl}, ${s.tp1}, ${s.tp2}, ${s.tp3}, ${levNum}, ${cCloseTs})">ESEGUI ${s.action} + TP1/TP2/TP3 &amp; SL</button>
+                  <button class="btn-buy" type="button" onclick="sendManualOrder('${s.symbol}', 'BUY', ${s.size}, ${s.sl}, ${s.tp1}, ${s.tp2}, ${s.tp3}, ${levNum}, ${cCloseTs})">BUY</button>
+                  <button class="btn-sell" type="button" onclick="sendManualOrder('${s.symbol}', 'SELL', ${s.size}, ${s.sl}, ${s.tp1}, ${s.tp2}, ${s.tp3}, ${levNum}, ${cCloseTs})">SELL</button>
                   <button class="btn-chart" type="button" onclick="openAssetChart('${s.symbol}')">GRAFICO</button>
                 </div>
               </div>
@@ -1216,7 +1216,7 @@
             const levNum = Number(r.leverage_num || String(r.leverage || "20x").replace("x", "") || 20);
             const cCloseTs = Number(r.candle_close_ts || 0);
             const actHtml = (r.action === "BUY" || r.action === "SELL")
-              ? `${renderBadge(r.action)}<div style="color:var(--text-muted);font-size:11px;margin-top:3px;">Size: ${r.size} • ${r.leverage}</div><div class="action-row" style="margin-top:5px;"><button class="btn-buy" type="button" onclick="sendManualOrder('${r.symbol}', '${r.action}', ${r.size}, ${r.sl}, ${r.tp1}, ${levNum}, ${cCloseTs})">ESEGUI</button><button class="btn-chart" type="button" onclick="openAssetChart('${r.symbol}')">GRAFICO</button></div>`
+              ? `${renderBadge(r.action)}<div style="color:var(--text-muted);font-size:11px;margin-top:3px;">Size: ${r.size} • ${r.leverage}</div><div class="action-row" style="margin-top:5px;"><button class="btn-buy" type="button" onclick="sendManualOrder('${r.symbol}', '${r.action}', ${r.size}, ${r.sl}, ${r.tp1}, ${r.tp2}, ${r.tp3}, ${levNum}, ${cCloseTs})">ESEGUI</button><button class="btn-chart" type="button" onclick="openAssetChart('${r.symbol}')">GRAFICO</button></div>`
               : `${renderBadge(r.action)}<div style="color:var(--text-muted);font-size:11px;margin-top:4px;">${r.reason || ""}</div><div class="action-row" style="margin-top:5px;"><button class="btn-chart" type="button" onclick="openAssetChart('${r.symbol}')">GRAFICO</button></div>`;
 
             return `
@@ -1307,8 +1307,11 @@
             const prog = Number(p.progress_pct || 0);
             const dTp = Number(p.dist_to_tp || 0);
             const dSl = Number(p.dist_to_sl || 0);
+            const multiTpTxt = (Number(p.tp2) > 0 || Number(p.tp3) > 0)
+              ? ` • TP1/TP2/TP3: <strong>${p.tp1 || p.tp}/${p.tp2 || "--"}/${p.tp3 || "--"}</strong>`
+              : "";
             const targetTxt = (p.tp > 0 || p.sl > 0)
-              ? ` • Mark: <strong>${p.mark_price || p.entry}</strong> • Avanzamento TP: <strong class="pos-amber">${prog}%</strong> • Manca TP: <strong class="pos-green">${dTp}</strong> • Manca SL: <strong class="pos-red">${dSl}</strong> • TF ${p.timeframe || "--"} (Chiusura: ${p.candle_close_utc || "--"})`
+              ? ` • Mark: <strong>${p.mark_price || p.entry}</strong>${multiTpTxt} • Avanzamento TP1: <strong class="pos-amber">${prog}%</strong> • Manca TP1: <strong class="pos-green">${dTp}</strong> • Manca SL: <strong class="pos-red">${dSl}</strong> • TF ${p.timeframe || "--"} (Chiusura: ${p.candle_close_utc || "--"})`
               : ` • Mark: <strong>${p.mark_price || p.entry}</strong> • TF ${p.timeframe || "--"}`;
             return `
               <div class="stat-card" style="margin-bottom: 8px; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
@@ -1369,7 +1372,7 @@
       }
     }
 
-    async function sendManualOrder(symbol, action, size, sl, tp1, leverage = 20, candleCloseTs = 0) {
+    async function sendManualOrder(symbol, action, size, sl, tp1, tp2 = 0, tp3 = 0, leverage = 20, candleCloseTs = 0) {
       if (busyOrderAction) return;
       busyOrderAction = true;
       const tf = document.getElementById("timeframeSelect").value;
@@ -1378,13 +1381,13 @@
         const data = await fetchJson("/api/autotrade/execute-manual", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ symbol, action, size, sl, tp1, leverage, balance, timeframe: tf, candle_close_ts: candleCloseTs }),
+          body: JSON.stringify({ symbol, action, size, sl, tp1, tp2, tp3, leverage, balance, timeframe: tf, candle_close_ts: candleCloseTs }),
         });
         if (data.success) {
-          const tpslMsg = `SL: ${data.sl ?? "N/D"}${data.sl_error ? ` (${data.sl_error})` : ""} • TP1: ${data.tp1 ?? "N/D"}${data.tp_error ? ` (${data.tp_error})` : ""} • Chiusura TF: ${data.candle_timing?.candle_close_utc || tf}`;
+          const tpslMsg = `SL: ${data.sl ?? "N/D"}${data.sl_error ? ` (${data.sl_error})` : ""} • TP1/2/3: ${data.tp1 ?? "N/D"} / ${data.tp2 ?? "N/D"} / ${data.tp3 ?? "N/D"}${data.tp_error ? ` (${data.tp_error})` : ""} • Chiusura TF: ${data.candle_timing?.candle_close_utc || tf}`;
           showToast(`Ordine ${action} inviato su ${data.symbol} (${data.leverage} • Size ${data.qty}) — ${tpslMsg}`, "success", 6000);
           if (voiceEnabled) {
-            speakText(`Ordine ${action} eseguito su ${data.symbol} con leva ${data.leverage}. Stop loss ${data.sl}, target 1 ${data.tp1}.`);
+            speakText(`Ordine ${action} eseguito su ${data.symbol} con leva ${data.leverage}. Stop loss ${data.sl}, target 1 ${data.tp1}, target 2 ${data.tp2}, target 3 ${data.tp3}.`);
           }
         } else {
           showToast(`Errore ordine: ${data.error || "Operazione rifiutata"}`, "error", 6000);
@@ -1475,7 +1478,7 @@
           }),
         });
         if (data.success) {
-          showToast("Parametri Risk, TP/SL e chiusura a fine candela salvati.", "success", 4000);
+          showToast("Parametri Risk, TP/SL multipli e chiusura a fine candela salvati.", "success", 4000);
           await refreshAccount();
         } else {
           showToast(data.error || "Impossibile salvare i parametri.", "error", 5000);
