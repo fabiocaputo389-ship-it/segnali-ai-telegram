@@ -1,6 +1,6 @@
-
 import hashlib
 import hmac
+import json
 import os
 import time
 from urllib.parse import urlencode
@@ -90,6 +90,16 @@ def bingx_signed_request(method: str, path: str, params: dict | None = None) -> 
 
     resp.raise_for_status()
     return resp.json()
+
+
+def json_tp_sl_payload(order_type: str, stop_price: float) -> str:
+    return json.dumps(
+        {
+            "type": order_type,
+            "stopPrice": stop_price,
+            "workingType": "MARK_PRICE",
+        }
+    )
 
 
 @app.route("/")
@@ -192,6 +202,43 @@ def api_klines():
         return jsonify({"code": -1, "msg": str(exc), "candles": []}), 500
 
 
+@app.route("/api/positions")
+def api_positions():
+    """Restituisce le posizioni aperte normalizzate da BingX."""
+    symbol_filter = request.args.get("symbol", "").strip().upper()
+    params = {"symbol": symbol_filter} if symbol_filter else {}
+    res = bingx_signed_request("GET", "/openApi/swap/v2/user/positions", params)
+
+    raw_list = res.get("data")
+    if isinstance(raw_list, dict):
+        raw_list = raw_list.get("positions") or []
+    if not isinstance(raw_list, list):
+        raw_list = []
+
+    positions = []
+    for pos in raw_list:
+        amt = abs(float(pos.get("positionAmt") or 0.0))
+        if amt <= 0:
+            continue
+        side_raw = str(pos.get("positionSide") or "").upper()
+        if side_raw not in ("LONG", "SHORT"):
+            side_raw = "LONG" if float(pos.get("positionAmt") or 0.0) > 0 else "SHORT"
+
+        positions.append(
+            {
+                "symbol": str(pos.get("symbol") or ""),
+                "positionSide": side_raw,
+                "positionAmt": amt,
+                "avgPrice": float(pos.get("avgPrice") or pos.get("entryPrice") or 0.0),
+                "markPrice": float(pos.get("markPrice") or 0.0),
+                "unrealizedProfit": float(pos.get("unrealizedProfit") or 0.0),
+                "leverage": pos.get("leverage"),
+            }
+        )
+
+    return jsonify({"code": res.get("code", 0), "positions": positions, "raw": res})
+
+
 @app.route("/api/account-sync")
 def api_account_sync():
     """Sincronizza saldo, posizioni aperte e cronologia chiusure (income) da BingX."""
@@ -251,7 +298,6 @@ def api_execute_signal():
     tp_price = body.get("tp_price")
     sl_price = body.get("sl_price")
 
-    # Separazione direzionale rigorosa: BUY o SELL obbligatorio
     if direction not in ("BUY", "SELL"):
         return jsonify({"code": 400, "msg": "Direzione non valida: usare solo BUY o SELL."}), 400
 
@@ -261,14 +307,12 @@ def api_execute_signal():
     leverage = int(body.get("leverage") or compute_dynamic_leverage(capital))
 
     try:
-        # 1. Imposta leva sul simbolo
         lev_res = bingx_signed_request(
             "POST",
             "/openApi/swap/v2/trade/leverage",
             {"symbol": symbol, "side": "BOTH", "leverage": leverage},
         )
 
-        # 2. Prepara ordine di mercato con TP e SL separati
         order_params = {
             "symbol": symbol,
             "side": direction,
@@ -297,16 +341,58 @@ def api_execute_signal():
         return jsonify({"code": -1, "msg": str(exc)}), 500
 
 
-def json_tp_sl_payload(order_type: str, stop_price: float) -> str:
-    import json
+@app.route("/api/close-position", methods=["POST"])
+def api_close_position():
+    """Chiude parzialmente o totalmente una posizione aperta su BingX."""
+    body = request.get_json(silent=True) or {}
+    symbol = str(body.get("symbol", "")).upper()
+    position_side = str(body.get("positionSide", "LONG")).upper()
+    total_amt = abs(float(body.get("positionAmt", 0.0)))
+    close_ratio = body.get("closeRatio")
+    close_qty = body.get("closeQuantity")
 
-    return json.dumps(
-        {
-            "type": order_type,
-            "stopPrice": stop_price,
-            "workingType": "MARK_PRICE",
-        }
-    )
+    if not symbol:
+        return jsonify({"code": 400, "msg": "Simbolo obbligatorio."}), 400
+
+    if position_side not in ("LONG", "SHORT"):
+        return jsonify({"code": 400, "msg": "positionSide deve essere LONG o SHORT."}), 400
+
+    if close_qty is not None and float(close_qty) > 0:
+        qty_to_close = float(close_qty)
+    elif close_ratio is not None and total_amt > 0:
+        ratio = max(0.01, min(1.0, float(close_ratio)))
+        qty_to_close = round(total_amt * ratio, 4)
+    else:
+        qty_to_close = total_amt
+
+    if qty_to_close <= 0:
+        return jsonify({"code": 400, "msg": "Quantità da chiudere non valida."}), 400
+
+    close_side = "SELL" if position_side == "LONG" else "BUY"
+
+    try:
+        order_res = bingx_signed_request(
+            "POST",
+            "/openApi/swap/v2/trade/order",
+            {
+                "symbol": symbol,
+                "side": close_side,
+                "positionSide": position_side,
+                "type": "MARKET",
+                "quantity": qty_to_close,
+            },
+        )
+        return jsonify(
+            {
+                "code": 0,
+                "symbol": symbol,
+                "positionSide": position_side,
+                "closedQuantity": qty_to_close,
+                "order_response": order_res,
+            }
+        )
+    except Exception as exc:
+        return jsonify({"code": -1, "msg": str(exc)}), 500
 
 
 if __name__ == "__main__":
