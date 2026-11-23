@@ -510,7 +510,7 @@
             </select>
           </div>
           <div class="input-group">
-            <label for="timeframeSelect">Timeframe Candela</label>
+            <label for="timeframeSelect">Timeframe Candela (Chiusura Auto a Fine Candela)</label>
             <select id="timeframeSelect">
               <option value="5m">5m (Durata 300s)</option>
               <option value="15m" selected>15m (Durata 900s)</option>
@@ -521,7 +521,7 @@
 
         <div class="grid-2" style="margin-top: 10px;">
           <div class="input-group">
-            <label for="balanceInput">Capitale ($ • Min $2.00)</label>
+            <label for="balanceInput">Capitale ($ • Min $2.00 BingX)</label>
             <input id="balanceInput" type="text" inputmode="decimal" value="2,00" />
           </div>
           <div class="input-group">
@@ -616,20 +616,19 @@
             <div class="stat-label">PnL Netto Mese</div>
             <div class="stat-value" id="statMonthlyNet">$0.0000</div>
           </div>
-          <div class="stat-label" style="display:none;"></div>
           <div class="stat-card">
             <div class="stat-label">Margine Disponibile</div>
             <div class="stat-value pos-cyan" id="statAvailMargin">$0.00</div>
           </div>
         </div>
 
-        <div class="panel-head" style="margin-top: 8px;">Posizioni Aperte su BingX</div>
+        <div class="panel-head" style="margin-top: 8px;">Posizioni Aperte su BingX (TP / SL / Chiusura Fine Candela)</div>
         <div id="livePositionsBox" style="color: var(--text-muted); font-size: 13px;">Nessuna posizione aperta.</div>
       </div>
 
       <div class="panel">
-        <div class="panel-head">Parametri Auto-Trade &amp; Risk Guard</div>
-        <div class="grid-3">
+        <div class="panel-head">Parametri Auto-Trade, TP/SL &amp; Chiusura Fine Timeframe</div>
+        <div class="grid-4">
           <div class="input-group">
             <label for="maxPosInput">Max Posizioni Aperte</label>
             <input id="maxPosInput" type="number" min="1" max="10" value="1" />
@@ -637,6 +636,13 @@
           <div class="input-group">
             <label for="lossCapInput">Stop Loss Giornaliero ($)</label>
             <input id="lossCapInput" type="text" inputmode="decimal" value="0,50" />
+          </div>
+          <div class="input-group">
+            <label for="closeAtCandleEndSelect">Chiusura a Fine Candela TF</label>
+            <select id="closeAtCandleEndSelect">
+              <option value="1" selected>ON (Chiude a Fine Candela)</option>
+              <option value="0">OFF (Solo TP / SL)</option>
+            </select>
           </div>
           <div class="input-group">
             <label for="onlyAPlusSelect">Filtro Auto-Trade</label>
@@ -647,7 +653,7 @@
           </div>
         </div>
         <div style="margin-top: 10px;">
-          <button id="saveRiskCfgBtn" class="btn-refresh" type="button">SALVA PARAMETRI RISK</button>
+          <button id="saveRiskCfgBtn" class="btn-refresh" type="button">SALVA PARAMETRI RISK &amp; CHIUSURA AUTO</button>
         </div>
       </div>
     </section>
@@ -674,7 +680,7 @@
           </div>
         </div>
         <div id="sessionsStatusList" class="alert-diag" style="margin-bottom: 12px;"></div>
-        <div class="panel-head">Log Scansioni Recenti</div>
+        <div class="panel-head">Log Scansioni &amp; Chiusure Automatiche</div>
         <div id="telemetryLogList" class="alert-diag"></div>
       </div>
     </section>
@@ -953,6 +959,7 @@
           valList.innerHTML = sigs.map((s) => {
             const levNum = Number(s.leverage_num || 20);
             const isSell = s.action === "SELL";
+            const cCloseTs = Number(s.candle_close_ts || 0);
             return `
               <div class="signal-card ${isSell ? "sell" : ""}">
                 <div class="signal-top">
@@ -971,9 +978,9 @@
                   <div>🎯 Target ETA: ${s.tp_eta_text}</div>
                 </div>
                 <div class="action-row">
-                  <button class="${isSell ? "btn-sell" : "btn-buy"}" type="button" onclick="sendManualOrder('${s.symbol}', '${s.action}', ${s.size}, ${s.sl}, ${s.tp1}, ${levNum})">ESEGUI ${s.action} + SL/TP</button>
-                  <button class="btn-buy" type="button" onclick="sendManualOrder('${s.symbol}', 'BUY', ${s.size}, ${s.sl}, ${s.tp1}, ${levNum})">BUY</button>
-                  <button class="btn-sell" type="button" onclick="sendManualOrder('${s.symbol}', 'SELL', ${s.size}, ${s.sl}, ${s.tp1}, ${levNum})">SELL</button>
+                  <button class="${isSell ? "btn-sell" : "btn-buy"}" type="button" onclick="sendManualOrder('${s.symbol}', '${s.action}', ${s.size}, ${s.sl}, ${s.tp1}, ${levNum}, ${cCloseTs})">ESEGUI ${s.action} + SL/TP</button>
+                  <button class="btn-buy" type="button" onclick="sendManualOrder('${s.symbol}', 'BUY', ${s.size}, ${s.sl}, ${s.tp1}, ${levNum}, ${cCloseTs})">BUY</button>
+                  <button class="btn-sell" type="button" onclick="sendManualOrder('${s.symbol}', 'SELL', ${s.size}, ${s.sl}, ${s.tp1}, ${levNum}, ${cCloseTs})">SELL</button>
                   <button class="btn-chart" type="button" onclick="openAssetChart('${s.symbol}')">GRAFICO</button>
                 </div>
               </div>
@@ -992,8 +999,9 @@
         } else {
           tbody.innerHTML = rows.map((r) => {
             const levNum = Number(r.leverage_num || String(r.leverage || "20x").replace("x", "") || 20);
+            const cCloseTs = Number(r.candle_close_ts || 0);
             const actHtml = (r.action === "BUY" || r.action === "SELL")
-              ? `${renderBadge(r.action)}<div style="color:var(--text-muted);font-size:11px;margin-top:3px;">Size: ${r.size} • ${r.leverage}</div><div class="action-row" style="margin-top:5px;"><button class="btn-buy" type="button" onclick="sendManualOrder('${r.symbol}', '${r.action}', ${r.size}, ${r.sl}, ${r.tp1}, ${levNum})">ESEGUI</button><button class="btn-chart" type="button" onclick="openAssetChart('${r.symbol}')">GRAFICO</button></div>`
+              ? `${renderBadge(r.action)}<div style="color:var(--text-muted);font-size:11px;margin-top:3px;">Size: ${r.size} • ${r.leverage}</div><div class="action-row" style="margin-top:5px;"><button class="btn-buy" type="button" onclick="sendManualOrder('${r.symbol}', '${r.action}', ${r.size}, ${r.sl}, ${r.tp1}, ${levNum}, ${cCloseTs})">ESEGUI</button><button class="btn-chart" type="button" onclick="openAssetChart('${r.symbol}')">GRAFICO</button></div>`
               : `${renderBadge(r.action)}<div style="color:var(--text-muted);font-size:11px;margin-top:4px;">${r.reason || ""}</div><div class="action-row" style="margin-top:5px;"><button class="btn-chart" type="button" onclick="openAssetChart('${r.symbol}')">GRAFICO</button></div>`;
 
             return `
@@ -1044,7 +1052,7 @@
           .map(([k, v]) => `<div>• <strong>${k}</strong>: <span style="color:${v.badge_color || "#eef4fc"}">${v.status}</span> (${v.hours})</div>`)
           .join("");
 
-        document.getElementById("telemetryLogList").innerHTML = (telem.telemetry_logs || []).slice(0, 10)
+        document.getElementById("telemetryLogList").innerHTML = (telem.telemetry_logs || []).slice(0, 12)
           .map((l) => `<div>[${l.timestamp}] ${l.status} • Segnali: ${l.signals_found} / Scansionati: ${l.scanned}</div>`)
           .join("");
       } catch (e) {
@@ -1068,6 +1076,7 @@
           document.getElementById("maxPosInput").value = data.risk_config.max_open_positions ?? 1;
           document.getElementById("lossCapInput").value = String(data.risk_config.daily_loss_cap_usd ?? 0.50).replace(".", ",");
           document.getElementById("onlyAPlusSelect").value = data.risk_config.only_a_plus ? "1" : "0";
+          document.getElementById("closeAtCandleEndSelect").value = data.risk_config.close_at_candle_end ? "1" : "0";
         }
 
         const positions = Array.isArray(data.positions) ? data.positions : [];
@@ -1077,11 +1086,14 @@
         } else {
           box.innerHTML = positions.map((p) => {
             const upnl = Number(p.unrealized_pnl || 0);
+            const targetTxt = (p.tp > 0 || p.sl > 0)
+              ? ` • <span class="pos-green">TP: ${p.tp || "--"}</span> • <span class="pos-red">SL: ${p.sl || "--"}</span> • TF ${p.timeframe || "--"} (Chiusura: ${p.candle_close_utc || "--"})`
+              : ` • TF ${p.timeframe || "--"}`;
             return `
               <div class="stat-card" style="margin-bottom: 8px; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
                 <div>
                   <strong>${p.bx_symbol || p.symbol}</strong> ${renderBadge(p.action)} • <strong>${p.leverage}</strong> • Size: <strong>${p.size}</strong> • Entry: <strong>${p.entry}</strong>
-                  <div class="alert-meta">uPnL: <strong class="${upnl >= 0 ? "pos-green" : "pos-red"}">${upnl >= 0 ? "+" : ""}$${upnl.toFixed(4)}</strong></div>
+                  <div class="alert-meta">uPnL: <strong class="${upnl >= 0 ? "pos-green" : "pos-red"}">${upnl >= 0 ? "+" : ""}$${upnl.toFixed(4)}</strong>${targetTxt}</div>
                 </div>
                 <button class="btn-panic" type="button" onclick="closeSinglePosition('${p.symbol}', '${p.action}', ${p.size})">CHIUDI POSIZIONE</button>
               </div>
@@ -1129,18 +1141,18 @@
       }
     }
 
-    async function sendManualOrder(symbol, action, size, sl, tp1, leverage = 20) {
+    async function sendManualOrder(symbol, action, size, sl, tp1, leverage = 20, candleCloseTs = 0) {
       const tf = document.getElementById("timeframeSelect").value;
       const balance = getBalance();
       try {
         const res = await fetch("/api/autotrade/execute-manual", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ symbol, action, size, sl, tp1, leverage, balance, timeframe: tf }),
+          body: JSON.stringify({ symbol, action, size, sl, tp1, leverage, balance, timeframe: tf, candle_close_ts: candleCloseTs }),
         });
         const data = await res.json();
         if (data.success) {
-          const tpslMsg = `SL: ${data.sl ?? "N/D"}${data.sl_error ? ` (${data.sl_error})` : ""} • TP1: ${data.tp1 ?? "N/D"}${data.tp_error ? ` (${data.tp_error})` : ""}`;
+          const tpslMsg = `SL: ${data.sl ?? "N/D"}${data.sl_error ? ` (${data.sl_error})` : ""} • TP1: ${data.tp1 ?? "N/D"}${data.tp_error ? ` (${data.tp_error})` : ""} • Chiusura TF: ${data.candle_timing?.candle_close_utc || tf}`;
           alert(`Ordine inviato su ${data.symbol} (${action} • ${data.leverage} • Size ${data.qty})\n${tpslMsg}`);
         } else {
           alert(`Errore: ${data.error}`);
@@ -1190,14 +1202,20 @@
       const maxPos = Math.max(1, Math.min(10, parseInt(document.getElementById("maxPosInput").value || "1", 10)));
       const lossCap = Math.max(0.05, parseNum(document.getElementById("lossCapInput").value, 0.50));
       const onlyAPlus = document.getElementById("onlyAPlusSelect").value === "1";
+      const closeAtCandleEnd = document.getElementById("closeAtCandleEndSelect").value === "1";
       const res = await fetch("/api/autotrade/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ max_open_positions: maxPos, daily_loss_cap_usd: lossCap, only_a_plus: onlyAPlus }),
+        body: JSON.stringify({
+          max_open_positions: maxPos,
+          daily_loss_cap_usd: lossCap,
+          only_a_plus: onlyAPlus,
+          close_at_candle_end: closeAtCandleEnd,
+        }),
       });
       const data = await res.json();
       if (data.success) {
-        alert("Parametri Risk & Auto-Trade salvati.");
+        alert("Parametri Risk, TP/SL e chiusura a fine candela salvati.");
       }
     });
 
@@ -1242,7 +1260,10 @@
       document.getElementById("signalAlertTiming").textContent = `${currentTiming.candle_window_text} • Residuo: ${rem}s`;
     }, 1000);
 
-    setInterval(() => refreshSignals(false), 12000);
+    setInterval(() => {
+      refreshSignals(false);
+      refreshAccount();
+    }, 12000);
     setInterval(refreshChart, 3000);
 
     refreshSignals(true);
