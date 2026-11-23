@@ -58,7 +58,7 @@ BINGX_API_KEY, _API_KEY_SOURCE = _get_env_first(
     default="",
 )
 BINGX_API_SECRET, _API_SECRET_SOURCE = _get_env_first(
-    ["BINGX_API_SECRET", "BINGX_SECRET", "BX_API_SECRET", "API_SECRET"],
+    ["BINGX_SECRET_KEY", "BINGX_API_SECRET", "BINGX_SECRET", "BX_API_SECRET", "API_SECRET"],
     default="",
 )
 
@@ -194,7 +194,7 @@ def _bingx_signed_request(method: str, path: str, params: Optional[Dict[str, Any
         return (
             False,
             None,
-            "Chiavi API BingX non rilevate su Render (imposta BINGX_API_KEY e BINGX_API_SECRET nelle Environment Variables)",
+            "Chiavi API BingX non rilevate su Render (imposta BINGX_API_KEY e BINGX_SECRET_KEY nelle Environment Variables)",
         )
 
     q_params = {k: v for k, v in (params or {}).items() if v is not None and v != ""}
