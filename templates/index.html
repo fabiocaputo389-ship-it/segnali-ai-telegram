@@ -103,7 +103,7 @@
   <!-- MAIN -->
   <main class="flex-1 max-w-[1920px] w-full mx-auto px-3 sm:px-5 py-4 flex flex-col gap-4">
 
-    <!-- FILTRI CATEGORIA MERCATI + STILE + ANALIZZA GRAFICO -->
+    <!-- FILTRI CATEGORIA MERCATI + STILE + IMPORTO DA 2$ + ANALIZZA GRAFICO -->
     <div class="terminal-card rounded-2xl p-3.5 space-y-3">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-center gap-1.5 flex-wrap" id="categoryFilterBar">
@@ -115,7 +115,12 @@
         </div>
 
         <div class="flex items-center gap-2 flex-wrap">
-          <input type="text" id="quickSymbolInput" list="symbolSuggestions" value="PAXG-USDT" placeholder="Es. PAXG-USDT, BTC-USDT..." class="bg-black border border-white/30 rounded-xl px-3 py-1.5 text-xs font-mono text-white outline-none focus:border-[#FFD700] w-40" />
+          <div class="flex items-center gap-1.5 bg-black/80 border border-[#FFD700]/40 rounded-xl px-2.5 py-1">
+            <span class="text-[11px] font-mono text-[#FFD700] font-bold">Importo $:</span>
+            <input type="number" id="quickAmountInput" min="2" step="0.5" value="2" oninput="onQuickAmountChange(this.value)" class="w-20 bg-transparent text-xs font-mono font-extrabold text-white outline-none tabular-nums" />
+          </div>
+
+          <input type="text" id="quickSymbolInput" list="symbolSuggestions" value="PAXG-USDT" placeholder="Es. PAXG-USDT, BTC-USDT..." class="bg-black border border-white/30 rounded-xl px-3 py-1.5 text-xs font-mono text-white outline-none focus:border-[#FFD700] w-36" />
           <datalist id="symbolSuggestions">
             <option value="PAXG-USDT"></option>
             <option value="BTC-USDT"></option>
@@ -137,7 +142,11 @@
           <button onclick="setTradingStyle('Long Term')" id="styleLongTerm" class="px-3 py-1 rounded-lg text-xs font-bold bg-white/10 text-white/70 hover:text-white">Long Term</button>
         </div>
         <div class="text-[11px] font-mono text-white/70">
-          Margine: <strong class="text-[#FFD700]" id="topMarginSummary">10 USDT</strong> • Leva: <strong class="text-cyan-300" id="topLeverageSummary">10x</strong>
+          Importo: <strong class="text-[#FFD700]" id="topMarginSummary">2.00 USDT</strong>
+          <span class="text-white/40 mx-1">•</span>
+          Leva: <strong class="text-cyan-300" id="topLeverageSummary">20x</strong>
+          <span class="text-white/40 mx-1">•</span>
+          Score Min: <strong class="text-[#00FF66]" id="topMinScoreSummary">70%</strong>
         </div>
       </div>
     </div>
@@ -149,7 +158,7 @@
           <div class="flex items-center justify-between pb-2.5 mb-3 border-b border-[#FFD700]/30">
             <div>
               <h2 class="text-sm font-extrabold uppercase tracking-wider text-white">⚡ SEGNALI OPERATIVI IN TEMPO REALE</h2>
-              <p class="text-[11px] text-[#FFD700]" id="signalsSubtitle">R:R, Expected Value (EV), Kelly, Certezza Multi-TF, Target ETA e Finestra Candela</p>
+              <p class="text-[11px] text-[#FFD700]" id="signalsSubtitle">Importo da 2$+, R:R, Expected Value (EV), Kelly, Score Multi-TF, Target ETA e Finestra Candela</p>
             </div>
             <span class="px-2.5 py-1 rounded-md text-[11px] font-mono font-extrabold bg-[#FFD700] text-black">LIVE</span>
           </div>
@@ -221,8 +230,8 @@
       </div>
 
       <div class="bg-[#000000] border border-white/15 rounded-xl p-4 space-y-4">
-        <h3 class="text-xs font-extrabold uppercase text-[#FFD700]">PARAMETRI AUTO-TRADE, TP/SL &amp; CHIUSURA FINE TIMEFRAME</h3>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <h3 class="text-xs font-extrabold uppercase text-[#FFD700]">PARAMETRI AUTO-TRADE, SCORE SEGNALI &amp; CHIUSURA FINE TIMEFRAME</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <div>
             <label class="text-[10px] text-white/60 uppercase block mb-1">MAX POSIZIONI APERTE</label>
             <input type="number" id="autoMaxPositions" min="1" max="20" value="1" oninput="saveAutoTradeSettings()" class="w-full bg-[#08080A] border border-white/25 rounded-lg px-3 py-2 text-white font-bold outline-none focus:border-[#FFD700]" />
@@ -245,6 +254,20 @@
               <option value="HIGH_CERTAINTY">Solo Certezza &ge; 80%</option>
             </select>
           </div>
+          <div>
+            <label class="text-[10px] text-white/60 uppercase block mb-1">SOGLIA MINIMA SCORE SEGNALI (%)</label>
+            <div class="flex items-center gap-2">
+              <input type="range" id="minScoreRange" min="50" max="95" step="1" value="70" oninput="onMinScoreInput(this.value)" class="w-full accent-[#FFD700] cursor-pointer" />
+              <input type="number" id="minScoreInput" min="50" max="95" step="1" value="70" oninput="onMinScoreInput(this.value)" class="w-20 bg-[#08080A] border border-white/25 rounded-lg px-2 py-1.5 text-white font-bold text-right tabular-nums outline-none focus:border-[#FFD700]" />
+            </div>
+          </div>
+          <div>
+            <label class="text-[10px] text-white/60 uppercase block mb-1">VISUALIZZAZIONE SOTTO SOGLIA</label>
+            <select id="hideBelowScoreSelect" onchange="saveScoreSettings()" class="w-full bg-[#08080A] border border-white/25 rounded-lg px-3 py-2 text-white font-bold outline-none focus:border-[#FFD700]">
+              <option value="SHOW_TAGGED">Mostra tutti (evidenzia sotto soglia)</option>
+              <option value="HIDE_BELOW">Nascondi segnali sotto soglia</option>
+            </select>
+          </div>
         </div>
       </div>
     </section>
@@ -252,22 +275,22 @@
     <!-- VISTA 3: TELEMETRIA LIVE & CONFIGURAZIONE RISCHIO -->
     <section id="viewTelemetry" class="hidden terminal-card rounded-2xl p-4 sm:p-5 space-y-4 font-mono text-xs">
       <div class="border-b border-white/15 pb-3">
-        <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-cyan-300">⚡ TELEMETRIA QUANTISTICA &amp; LEVA / MARGINE</h2>
+        <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-cyan-300">⚡ TELEMETRIA QUANTISTICA, IMPORTO (DA 2$) &amp; LEVA</h2>
         <p class="text-[11px] text-white/70">Parametri reali applicati al calcolo di Size, R:R, EV e Kelly</p>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div class="bg-[#000000] border border-white/15 rounded-xl p-4 space-y-3">
-          <label class="text-xs font-bold text-[#FFD700] block">💰 CAPITALE / MARGINE (USDT)</label>
+          <label class="text-xs font-bold text-[#FFD700] block">💰 IMPORTO / MARGINE OPERATIVO (MINIMO 2 USDT)</label>
           <div class="grid grid-cols-5 gap-1.5">
-            <button onclick="setMarginUsdt(2)" id="marBtn2" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">2 $</button>
+            <button onclick="setMarginUsdt(2)" id="marBtn2" class="py-1.5 rounded-lg border border-[#FFD700] bg-[#FFD700]/20 text-[#FFD700] font-bold">2 $</button>
             <button onclick="setMarginUsdt(5)" id="marBtn5" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">5 $</button>
-            <button onclick="setMarginUsdt(10)" id="marBtn10" class="py-1.5 rounded-lg border border-[#FFD700] bg-[#FFD700]/20 text-[#FFD700] font-bold">10 $</button>
+            <button onclick="setMarginUsdt(10)" id="marBtn10" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">10 $</button>
             <button onclick="setMarginUsdt(25)" id="marBtn25" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">25 $</button>
             <button onclick="setMarginUsdt(100)" id="marBtn100" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">100 $</button>
           </div>
-          <input type="number" id="customMarginInput" oninput="onCustomMarginChange(this.value)" placeholder="Margine USDT personalizzato..." class="w-full bg-[#08080A] border border-white/25 rounded-lg px-3 py-2 text-white outline-none focus:border-[#FFD700]" />
-          <p class="text-[11px] text-cyan-300" id="marginUsdtLabel">10 USDT • Leva effettiva: 10x</p>
+          <input type="number" id="customMarginInput" min="2" step="0.5" value="2" oninput="onCustomMarginChange(this.value)" placeholder="Importo USDT da 2$ in su..." class="w-full bg-[#08080A] border border-white/25 rounded-lg px-3 py-2 text-white outline-none focus:border-[#FFD700] tabular-nums" />
+          <p class="text-[11px] text-cyan-300" id="marginUsdtLabel">2.00 USDT • Leva effettiva: 20x</p>
         </div>
 
         <div class="bg-[#000000] border border-white/15 rounded-xl p-4 space-y-3">
@@ -279,8 +302,8 @@
             <button onclick="setLeverage(20)" id="levBtn20" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">20x</button>
             <button onclick="setLeverage(50)" id="levBtn50" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">50x</button>
           </div>
-          <input type="number" id="customLeverageInput" oninput="onCustomLeverageChange(this.value)" placeholder="Leva personalizzata..." class="w-full bg-[#08080A] border border-white/25 rounded-lg px-3 py-2 text-white outline-none focus:border-[#FFD700]" />
-          <p class="text-[11px] text-white/70">Capitale &le; $2.00 con leva default 10x passa automaticamente a 20x.</p>
+          <input type="number" id="customLeverageInput" min="1" max="125" step="1" placeholder="Leva personalizzata..." class="w-full bg-[#08080A] border border-white/25 rounded-lg px-3 py-2 text-white outline-none focus:border-[#FFD700] tabular-nums" />
+          <p class="text-[11px] text-white/70">Importo &le; $2.00 con leva default 10x passa automaticamente a 20x per aprire la posizione su BingX.</p>
         </div>
       </div>
 
@@ -375,6 +398,9 @@
   </div>
 
   <script>
+    const storedMargin = parseFloat(localStorage.getItem('bingx_margin_usdt') || '2');
+    const initialMargin = (!isNaN(storedMargin) && storedMargin >= 2) ? storedMargin : 2;
+
     let state = {
       activeTab: 'signals',
       selectedCategory: 'Tutti',
@@ -382,7 +408,9 @@
       marketType: 'FUTURES',
       tradingMode: 'MANUAL',
       selectedLeverage: 10,
-      selectedMarginUsdt: 10,
+      selectedMarginUsdt: initialMargin,
+      minSignalScore: Number(localStorage.getItem('bingx_min_signal_score') || 70),
+      hideBelowScore: localStorage.getItem('bingx_hide_below_score') || 'SHOW_TAGGED',
       envKeysConfigured: false,
       keySource: 'none',
       marketData: {},
@@ -539,36 +567,51 @@
       refreshBingxTelemetry();
     }
 
-    function updateRiskLabels() {
-      const effLev = getEffectiveLeverage();
-      document.getElementById('topMarginSummary').textContent = `${state.selectedMarginUsdt} USDT`;
-      document.getElementById('topLeverageSummary').textContent = `${effLev}x`;
-      const mLabel = document.getElementById('marginUsdtLabel');
-      if (mLabel) mLabel.textContent = `${state.selectedMarginUsdt} USDT • Leva effettiva: ${effLev}x`;
-    }
+    function applyMarginAmount(rawVal, syncQuickInput = true, syncCustomInput = true) {
+      const parsed = parseFloat(rawVal);
+      if (isNaN(parsed)) return;
+      const clamped = Math.max(2.0, parsed);
+      state.selectedMarginUsdt = clamped;
+      localStorage.setItem('bingx_margin_usdt', String(clamped));
 
-    function setMarginUsdt(usdt) {
-      state.selectedMarginUsdt = Number(usdt) || 10;
-      const inp = document.getElementById('customMarginInput');
-      if (inp) inp.value = '';
+      const qInp = document.getElementById('quickAmountInput');
+      const cInp = document.getElementById('customMarginInput');
+      if (syncQuickInput && qInp && String(qInp.value) !== String(clamped)) qInp.value = clamped;
+      if (syncCustomInput && cInp && String(cInp.value) !== String(clamped)) cInp.value = clamped;
+
       document.querySelectorAll('[id^="marBtn"]').forEach(b => {
         b.className = "py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold";
       });
-      const active = document.getElementById(`marBtn${usdt}`);
-      if (active) active.className = "py-1.5 rounded-lg border border-[#FFD700] bg-[#FFD700]/20 text-[#FFD700] font-bold";
+      const preset = document.getElementById(`marBtn${clamped}`);
+      if (preset) {
+        preset.className = "py-1.5 rounded-lg border border-[#FFD700] bg-[#FFD700]/20 text-[#FFD700] font-bold";
+      }
+
       updateRiskLabels();
       pollMarketData();
     }
 
+    function onQuickAmountChange(val) {
+      if (val === '' || parseFloat(val) < 2) return;
+      applyMarginAmount(val, false, true);
+    }
+
+    function updateRiskLabels() {
+      const effLev = getEffectiveLeverage();
+      document.getElementById('topMarginSummary').textContent = `${Number(state.selectedMarginUsdt).toFixed(2)} USDT`;
+      document.getElementById('topLeverageSummary').textContent = `${effLev}x`;
+      document.getElementById('topMinScoreSummary').textContent = `${state.minSignalScore}%`;
+      const mLabel = document.getElementById('marginUsdtLabel');
+      if (mLabel) mLabel.textContent = `${Number(state.selectedMarginUsdt).toFixed(2)} USDT • Leva effettiva: ${effLev}x`;
+    }
+
+    function setMarginUsdt(usdt) {
+      applyMarginAmount(usdt, true, true);
+    }
+
     function onCustomMarginChange(val) {
-      const num = parseFloat(val);
-      if (!isNaN(num) && num > 0) {
-        state.selectedMarginUsdt = num;
-        document.querySelectorAll('[id^="marBtn"]').forEach(b => {
-          b.className = "py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold";
-        });
-        updateRiskLabels();
-      }
+      if (val === '' || parseFloat(val) < 2) return;
+      applyMarginAmount(val, true, false);
     }
 
     function setLeverage(lev) {
@@ -593,6 +636,33 @@
         });
         updateRiskLabels();
       }
+    }
+
+    function onMinScoreInput(val) {
+      let num = parseInt(val, 10);
+      if (isNaN(num)) return;
+      num = Math.max(50, Math.min(95, num));
+      state.minSignalScore = num;
+      localStorage.setItem('bingx_min_signal_score', String(num));
+
+      const r = document.getElementById('minScoreRange');
+      const n = document.getElementById('minScoreInput');
+      const topSum = document.getElementById('topMinScoreSummary');
+      if (r && String(r.value) !== String(num)) r.value = num;
+      if (n && String(n.value) !== String(num)) n.value = num;
+      if (topSum) topSum.textContent = `${num}%`;
+
+      renderSignalsList();
+    }
+
+    function saveScoreSettings() {
+      const sel = document.getElementById('hideBelowScoreSelect');
+      if (sel) {
+        state.hideBelowScore = sel.value;
+        localStorage.setItem('bingx_hide_below_score', state.hideBelowScore);
+      }
+      renderSignalsList();
+      logFeed(`[SCORE SEGNALI] Soglia minima: ${state.minSignalScore}% | Modalità: ${state.hideBelowScore}`);
     }
 
     function saveAutoTradeSettings() {
@@ -684,6 +754,87 @@
       } catch (e) {}
     }
 
+    function renderSignalsList() {
+      const container = document.getElementById('signalsCardsContainer');
+      const cards = state.signalsCache;
+      if (!cards || cards.length === 0) return;
+
+      const minScore = Number(state.minSignalScore || 70);
+      const visibleItems = cards
+        .map((d, idx) => ({ d, idx }))
+        .filter(({ d }) => state.hideBelowScore !== 'HIDE_BELOW' || Number(d.certaintyPct || 0) >= minScore);
+
+      if (visibleItems.length === 0) {
+        container.innerHTML = `<div class="text-xs font-mono text-amber-300 py-4 text-center">Nessun segnale sopra la soglia score ${minScore}% al momento (abbassa la soglia o imposta "Mostra tutti").</div>`;
+        return;
+      }
+
+      container.innerHTML = visibleItems.map(({ d, idx }) => {
+        const isBuy = d.side === 'BUY';
+        const meetsScore = Number(d.certaintyPct || 0) >= minScore;
+        const borderClass = isBuy ? 'border-l-4 border-l-[#00FF66]' : 'border-l-4 border-l-[#FF334B]';
+        const dirBadge = isBuy
+          ? '<span class="px-2 py-0.5 rounded bg-[#00FF66]/20 text-[#00FF66] font-extrabold text-[10px]">BUY / LONG</span>'
+          : '<span class="px-2 py-0.5 rounded bg-[#FF334B]/20 text-[#FF334B] font-extrabold text-[10px]">SELL / SHORT</span>';
+        const scoreBadge = meetsScore
+          ? `<span class="px-2 py-0.5 rounded bg-[#00FF66] text-black font-extrabold text-[10px] tabular-nums">SCORE ${d.certaintyPct}% (OK &ge; ${minScore}%)</span>`
+          : `<span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-400/40 font-extrabold text-[10px] tabular-nums">SCORE ${d.certaintyPct}% (&lt; ${minScore}%)</span>`;
+        const execLabel = isBuy ? 'ESEGUI BUY + SL/TP' : 'ESEGUI SELL + SL/TP';
+        const execBtnClass = isBuy
+          ? 'bg-[#00FF66] text-black hover:brightness-110'
+          : 'bg-[#FF334B] text-white hover:brightness-110';
+        const evSign = d.evUsd >= 0 ? `+$${Number(d.evUsd).toFixed(4)}` : `-$${Math.abs(Number(d.evUsd)).toFixed(4)}`;
+
+        return `
+          <div class="bg-[#08080A] border border-white/15 ${borderClass} rounded-xl p-4 space-y-3 font-mono">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center gap-2 flex-wrap">
+                <strong class="text-sm sm:text-base text-white font-extrabold">${d.displayLabel || d.symbol}</strong>
+                ${dirBadge}
+                ${scoreBadge}
+              </div>
+              <span class="text-[11px] text-white/60">${d.category}</span>
+            </div>
+
+            <div class="text-xs text-white/80">
+              HTF: <strong class="text-cyan-300">${d.htfBias}</strong> • Size: <strong class="text-white tabular-nums">${d.size} (${d.leverage}x)</strong> • Importo: <strong class="text-[#FFD700] tabular-nums">$${Number(d.marginUsdt).toFixed(2)}</strong>
+            </div>
+
+            <div class="bg-black/70 border border-white/10 rounded-lg px-3 py-2 text-xs tabular-nums">
+              Entry: <strong class="text-white">${formatPrice(d.price)}</strong>
+              <span class="text-white/40 mx-1">|</span>
+              SL: <strong class="text-[#FF334B]">${formatPrice(d.sl)}</strong>
+              <span class="text-white/40 mx-1">|</span>
+              TP1: <strong class="text-[#00FF66]">${formatPrice(d.tp1)}</strong>
+              <span class="text-white/40 mx-1">|</span>
+              TP2: <strong class="text-[#00FF66]">${formatPrice(d.tp2)}</strong>
+              <span class="text-white/40 mx-1">|</span>
+              TP3: <strong class="text-[#00FF66]">${formatPrice(d.tp3)}</strong>
+            </div>
+
+            <div class="bg-[#0B0F17] border border-cyan-500/25 rounded-xl p-3 space-y-1.5 text-xs">
+              <div class="text-white/85">
+                🕒 Candela ${d.candle15m.timeframe} (${d.candle15m.tfSeconds} secondi) • Apertura ${d.candle15m.openUtc} &rarr; Chiusura ${d.candle15m.closeUtc} UTC
+              </div>
+              <div class="text-cyan-300 font-semibold tabular-nums">
+                ⏳ Residuo candela: <span data-candle-rem="${d.symbol}" data-tf-sec="${d.candle15m.tfSeconds}">${d.candle15m.remainingSec}s</span> • R:R 1:${d.rr} • EV: <span class="${d.evUsd >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'} font-extrabold">${evSign}</span> • Kelly: ${d.kellyPct}% • Score: ${d.certaintyPct}%
+              </div>
+              <div class="text-white/80">
+                🎯 Target ETA: circa ${d.etaMinutes} minuti (${d.etaCandles} candele da 15m, arrivo stimato ${d.etaUtc})
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2 flex-wrap pt-1">
+              <button onclick="executeSignalFromCard(${idx}, '${d.side}')" class="px-4 py-2 rounded-lg text-xs font-extrabold ${execBtnClass} transition-all">${execLabel}</button>
+              <button onclick="executeSignalFromCard(${idx}, 'BUY')" class="px-3 py-2 rounded-lg text-xs font-extrabold bg-[#00FF66] text-black hover:brightness-110 transition-all">BUY</button>
+              <button onclick="executeSignalFromCard(${idx}, 'SELL')" class="px-3 py-2 rounded-lg text-xs font-extrabold bg-[#FF334B] text-white hover:brightness-110 transition-all">SELL</button>
+              <button onclick="openChartForSymbol('${d.symbol}')" class="px-3.5 py-2 rounded-lg text-xs font-extrabold bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 hover:bg-cyan-500/30 transition-all">GRAFICO</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
     async function refreshSignalsWithTelemetry() {
       const symbols = selectCandidateSymbols();
       if (symbols.length === 0) return;
@@ -707,68 +858,7 @@
       if (!state.selectedAssetDetail) {
         state.selectedAssetDetail = cards[0];
       }
-
-      const container = document.getElementById('signalsCardsContainer');
-      container.innerHTML = cards.map((d, idx) => {
-        const isBuy = d.side === 'BUY';
-        const borderClass = isBuy ? 'border-l-4 border-l-[#00FF66]' : 'border-l-4 border-l-[#FF334B]';
-        const dirBadge = isBuy
-          ? '<span class="px-2 py-0.5 rounded bg-[#00FF66]/20 text-[#00FF66] font-extrabold text-[10px]">BUY / LONG</span>'
-          : '<span class="px-2 py-0.5 rounded bg-[#FF334B]/20 text-[#FF334B] font-extrabold text-[10px]">SELL / SHORT</span>';
-        const execLabel = isBuy ? 'ESEGUI BUY + SL/TP' : 'ESEGUI SELL + SL/TP';
-        const execBtnClass = isBuy
-          ? 'bg-[#00FF66] text-black hover:brightness-110'
-          : 'bg-[#FF334B] text-white hover:brightness-110';
-        const evSign = d.evUsd >= 0 ? `+$${Number(d.evUsd).toFixed(4)}` : `-$${Math.abs(Number(d.evUsd)).toFixed(4)}`;
-
-        return `
-          <div class="bg-[#08080A] border border-white/15 ${borderClass} rounded-xl p-4 space-y-3 font-mono">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <div class="flex items-center gap-2 flex-wrap">
-                <strong class="text-sm sm:text-base text-white font-extrabold">${d.displayLabel || d.symbol}</strong>
-                ${dirBadge}
-                <span class="px-2 py-0.5 rounded bg-[#00FF66] text-black font-extrabold text-[10px] tabular-nums">CERTO • ${d.certaintyPct}%</span>
-              </div>
-              <span class="text-[11px] text-white/60">${d.category}</span>
-            </div>
-
-            <div class="text-xs text-white/80">
-              HTF: <strong class="text-cyan-300">${d.htfBias}</strong> • Size: <strong class="text-white tabular-nums">${d.size} (${d.leverage}x)</strong> • Margine: <strong class="text-[#FFD700] tabular-nums">$${Number(d.marginUsdt).toFixed(2)}</strong>
-            </div>
-
-            <div class="bg-black/70 border border-white/10 rounded-lg px-3 py-2 text-xs tabular-nums">
-              Entry: <strong class="text-white">${formatPrice(d.price)}</strong>
-              <span class="text-white/40 mx-1">|</span>
-              SL: <strong class="text-[#FF334B]">${formatPrice(d.sl)}</strong>
-              <span class="text-white/40 mx-1">|</span>
-              TP1: <strong class="text-[#00FF66]">${formatPrice(d.tp1)}</strong>
-              <span class="text-white/40 mx-1">|</span>
-              TP2: <strong class="text-[#00FF66]">${formatPrice(d.tp2)}</strong>
-              <span class="text-white/40 mx-1">|</span>
-              TP3: <strong class="text-[#00FF66]">${formatPrice(d.tp3)}</strong>
-            </div>
-
-            <div class="bg-[#0B0F17] border border-cyan-500/25 rounded-xl p-3 space-y-1.5 text-xs">
-              <div class="text-white/85">
-                🕒 Candela ${d.candle15m.timeframe} (${d.candle15m.tfSeconds} secondi) • Apertura ${d.candle15m.openUtc} &rarr; Chiusura ${d.candle15m.closeUtc} UTC
-              </div>
-              <div class="text-cyan-300 font-semibold tabular-nums">
-                ⏳ Residuo candela: <span data-candle-rem="${d.symbol}" data-tf-sec="${d.candle15m.tfSeconds}">${d.candle15m.remainingSec}s</span> • R:R 1:${d.rr} • EV: <span class="${d.evUsd >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'} font-extrabold">${evSign}</span> • Kelly: ${d.kellyPct}% • Certezza: ${d.certaintyPct}%
-              </div>
-              <div class="text-white/80">
-                🎯 Target ETA: circa ${d.etaMinutes} minuti (${d.etaCandles} candele da 15m, arrivo stimato ${d.etaUtc})
-              </div>
-            </div>
-
-            <div class="flex items-center gap-2 flex-wrap pt-1">
-              <button onclick="executeSignalFromCard(${idx}, '${d.side}')" class="px-4 py-2 rounded-lg text-xs font-extrabold ${execBtnClass} transition-all">${execLabel}</button>
-              <button onclick="executeSignalFromCard(${idx}, 'BUY')" class="px-3 py-2 rounded-lg text-xs font-extrabold bg-[#00FF66] text-black hover:brightness-110 transition-all">BUY</button>
-              <button onclick="executeSignalFromCard(${idx}, 'SELL')" class="px-3 py-2 rounded-lg text-xs font-extrabold bg-[#FF334B] text-white hover:brightness-110 transition-all">SELL</button>
-              <button onclick="openChartForSymbol('${d.symbol}')" class="px-3.5 py-2 rounded-lg text-xs font-extrabold bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 hover:bg-cyan-500/30 transition-all">GRAFICO</button>
-            </div>
-          </div>
-        `;
-      }).join('');
+      renderSignalsList();
     }
 
     async function executeSignalFromCard(idx, overrideSide) {
@@ -776,13 +866,19 @@
       if (!asset) return;
       const keys = getStoredApiKeys();
       const effLev = getEffectiveLeverage();
+      const isAuto = state.tradingMode === 'AUTO';
 
-      if (state.livePositions.length >= state.autoSettings.maxPositions && state.tradingMode === 'AUTO') {
+      if (isAuto && Number(asset.certaintyPct || 0) < Number(state.minSignalScore || 70)) {
+        logFeed(`[AUTO-TRADE SKIP] ${asset.symbol}: score ${asset.certaintyPct}% sotto soglia ${state.minSignalScore}%.`);
+        return;
+      }
+
+      if (state.livePositions.length >= state.autoSettings.maxPositions && isAuto) {
         logFeed(`[AUTO-TRADE] Limite max posizioni (${state.autoSettings.maxPositions}) raggiunto.`);
         return;
       }
 
-      logFeed(`[ORDINE REALE] Invio ${overrideSide} su ${asset.symbol} (Size: ${asset.size}, Leva: ${effLev}x, SL: ${asset.sl}, TP2: ${asset.tp2})...`);
+      logFeed(`[ORDINE REALE] Invio ${overrideSide} su ${asset.symbol} (Importo: $${state.selectedMarginUsdt.toFixed(2)}, Size: ${asset.size}, Leva: ${effLev}x, SL: ${asset.sl}, TP2: ${asset.tp2})...`);
 
       try {
         const res = await fetch('/api/esegui-segnale', {
@@ -801,12 +897,12 @@
             marketType: state.marketType,
             apiKey: keys.apiKey,
             secretKey: keys.secretKey,
-            is_auto: state.tradingMode === 'AUTO'
+            is_auto: isAuto
           })
         });
         const data = await res.json();
         if (data.code === 0) {
-          logFeed(`[OK] Ordine ${overrideSide} eseguito su ${asset.symbol} (Leva ${data.appliedLeverage || effLev}x).`);
+          logFeed(`[OK] Ordine ${overrideSide} eseguito su ${asset.symbol} (Importo $${data.appliedMarginUsdt || state.selectedMarginUsdt}, Leva ${data.appliedLeverage || effLev}x).`);
           alert(`Ordine ${overrideSide} eseguito su BingX per ${asset.symbol}!`);
           refreshBingxTelemetry();
         } else {
@@ -882,7 +978,7 @@
       const d = state.selectedAssetDetail;
       if (!d) return;
       document.getElementById('chartViewSymbolTitle').textContent = `${d.displayLabel || d.symbol} — ANALISI GRAFICA`;
-      document.getElementById('chartViewMeta').textContent = `${d.category} • TF ${d.exactTf} • Certezza ${d.certaintyPct}% • R:R 1:${d.rr}`;
+      document.getElementById('chartViewMeta').textContent = `${d.category} • TF ${d.exactTf} • Score ${d.certaintyPct}% • R:R 1:${d.rr}`;
       document.getElementById('chPrice').textContent = formatPrice(d.price);
       document.getElementById('chSide').textContent = d.side;
       document.getElementById('chEntryZone').textContent = `${formatPrice(d.entryZoneMin)} - ${formatPrice(d.entryZoneMax)}`;
@@ -916,7 +1012,7 @@
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div><span class="text-white/50 text-[10px] block">ASSET</span><strong>${d.displayLabel || d.symbol}</strong></div>
           <div><span class="text-white/50 text-[10px] block">R:R / EV / KELLY</span><strong class="text-[#00FF66]">1:${d.rr} / $${d.evUsd} / ${d.kellyPct}%</strong></div>
-          <div><span class="text-white/50 text-[10px] block">ATR (14)</span><strong class="text-cyan-300">${formatPrice(d.atr14)}</strong></div>
+          <div><span class="text-white/50 text-[10px] block">IMPORTO / LEVA</span><strong class="text-cyan-300">$${Number(state.selectedMarginUsdt).toFixed(2)} • ${getEffectiveLeverage()}x</strong></div>
           <div><span class="text-white/50 text-[10px] block">FINESTRA ${d.candle15m.timeframe.toUpperCase()} UTC</span><strong>${d.candle15m.openUtc} &rarr; ${d.candle15m.closeUtc}</strong></div>
         </div>
       `;
@@ -1011,6 +1107,20 @@
     }
 
     window.addEventListener('DOMContentLoaded', async () => {
+      document.getElementById('quickAmountInput').value = state.selectedMarginUsdt;
+      document.getElementById('customMarginInput').value = state.selectedMarginUsdt;
+      document.getElementById('minScoreRange').value = state.minSignalScore;
+      document.getElementById('minScoreInput').value = state.minSignalScore;
+      document.getElementById('hideBelowScoreSelect').value = state.hideBelowScore;
+
+      document.querySelectorAll('[id^="marBtn"]').forEach(b => {
+        b.className = "py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold";
+      });
+      const initPresetBtn = document.getElementById(`marBtn${state.selectedMarginUsdt}`);
+      if (initPresetBtn) {
+        initPresetBtn.className = "py-1.5 rounded-lg border border-[#FFD700] bg-[#FFD700]/20 text-[#FFD700] font-bold";
+      }
+
       updateApiStatusUI();
       updateRiskLabels();
       await syncServerModeAndEnvKeys();
