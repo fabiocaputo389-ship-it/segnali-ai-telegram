@@ -13,11 +13,54 @@ from urllib.request import Request, urlopen
 
 from flask import Flask, jsonify, render_template, request
 
+
+def _load_optional_dotenv() -> None:
+    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    if not os.path.isfile(env_path):
+        return
+    try:
+        with open(env_path, "r", encoding="utf-8") as fh:
+            for line in fh:
+                s = line.strip()
+                if not s or s.startswith("#") or "=" not in s:
+                    continue
+                k, v = s.split("=", 1)
+                k = k.strip()
+                v = v.strip().strip('"').strip("'")
+                if k and k not in os.environ:
+                    os.environ[k] = v
+    except OSError:
+        pass
+
+
+def _get_env_first(keys: List[str], default: str = "") -> Tuple[str, str]:
+    for key in keys:
+        raw = os.getenv(key)
+        if raw is not None:
+            cleaned = raw.strip().strip('"').strip("'")
+            if cleaned:
+                return cleaned, key
+    return default, ""
+
+
+_load_optional_dotenv()
+
 app = Flask(__name__)
 
-BINGX_BASE_URL = os.getenv("BINGX_BASE_URL", "https://open-api.bingx.com").rstrip("/")
-BINGX_API_KEY = os.getenv("BINGX_API_KEY", "").strip()
-BINGX_API_SECRET = os.getenv("BINGX_API_SECRET", "").strip()
+BINGX_BASE_URL, _BASE_URL_SOURCE = _get_env_first(
+    ["BINGX_BASE_URL", "BINGX_API_URL"],
+    default="https://open-api.bingx.com",
+)
+BINGX_BASE_URL = BINGX_BASE_URL.rstrip("/")
+
+BINGX_API_KEY, _API_KEY_SOURCE = _get_env_first(
+    ["BINGX_API_KEY", "BINGX_KEY", "BX_API_KEY", "API_KEY"],
+    default="",
+)
+BINGX_API_SECRET, _API_SECRET_SOURCE = _get_env_first(
+    ["BINGX_API_SECRET", "BINGX_SECRET", "BX_API_SECRET", "API_SECRET"],
+    default="",
+)
 
 MARKET_CATALOG: Dict[str, List[Dict[str, str]]] = {
     "Criptovalute Globali": [
@@ -73,6 +116,10 @@ TERMINAL_STATE: Dict[str, Any] = {
         "min_rrr": 1.5,
     },
 }
+
+
+def _credentials_configured() -> bool:
+    return bool(BINGX_API_KEY and BINGX_API_SECRET)
 
 
 def _all_assets() -> List[Dict[str, str]]:
@@ -143,8 +190,12 @@ def _http_get_json(url: str, headers: Optional[Dict[str, str]] = None, timeout: 
 
 
 def _bingx_signed_request(method: str, path: str, params: Optional[Dict[str, Any]] = None) -> Tuple[bool, Any, str]:
-    if not BINGX_API_KEY or not BINGX_API_SECRET:
-        return False, None, "Chiavi API BingX non configurate (BINGX_API_KEY / BINGX_API_SECRET)"
+    if not _credentials_configured():
+        return (
+            False,
+            None,
+            "Chiavi API BingX non rilevate su Render (imposta BINGX_API_KEY e BINGX_API_SECRET nelle Environment Variables)",
+        )
 
     q_params = {k: v for k, v in (params or {}).items() if v is not None and v != ""}
     q_params["timestamp"] = int(time.time() * 1000)
@@ -277,7 +328,6 @@ def _round_price(val: float, ref_price: float) -> float:
 
 
 def _validate_directional_levels(action: str, entry: float, sl: float, tp1: float, tp2: float, tp3: float) -> Tuple[float, float, float, float]:
-    """Garantisce coerenza direzionale rigorosa tra BUY (LONG) e SELL (SHORT)."""
     eps = max(entry * 0.0005, 1e-6)
     if action == "BUY":
         s_val = min(sl, entry - eps)
@@ -441,7 +491,8 @@ def _evaluate_asset(
 
 
 def _sync_bingx_income_history() -> None:
-    """Sincronizza PnL realizzato, commissioni e funding da BingX incomeHistory."""
+    if not _credentials_configured():
+        return
     now_s = int(time.time())
     with STATE_LOCK:
         if now_s - int(TERMINAL_STATE.get("last_income_sync_ts", 0)) < 15:
@@ -737,6 +788,8 @@ def _check_candle_end_closures(positions: List[Dict[str, Any]]) -> None:
 
 
 def _maybe_run_autotrade(signals: List[Dict[str, Any]], positions: List[Dict[str, Any]], balance: float) -> None:
+    if not _credentials_configured():
+        return
     with STATE_LOCK:
         auto_on = bool(TERMINAL_STATE["auto_trade"])
         cfg = dict(TERMINAL_STATE["risk_config"])
@@ -927,6 +980,7 @@ def api_signals():
 
     return jsonify({
         "auto_trade": auto_on,
+        "credentials_configured": _credentials_configured(),
         "active_params": {
             "profile": profile,
             "timeframe": timeframe,
@@ -965,6 +1019,12 @@ def api_bingx_live_account():
     status_err = pos_err or bal_err
     return jsonify({
         "auto_trade": auto_on,
+        "credentials_configured": _credentials_configured(),
+        "env_sources": {
+            "api_key": _API_KEY_SOURCE or "missing",
+            "api_secret": _API_SECRET_SOURCE or "missing",
+            "base_url": _BASE_URL_SOURCE or "default",
+        },
         "risk_config": risk_cfg,
         "account": acc_info,
         "positions": positions,
@@ -1018,7 +1078,7 @@ def api_autotrade_toggle():
     with STATE_LOCK:
         TERMINAL_STATE["auto_trade"] = not bool(TERMINAL_STATE["auto_trade"])
         new_state = TERMINAL_STATE["auto_trade"]
-    return jsonify({"success": True, "auto_trade": new_state})
+    return jsonify({"success": True, "auto_trade": new_state, "credentials_configured": _credentials_configured()})
 
 
 @app.route("/api/autotrade/config", methods=["POST"])
@@ -1155,4 +1215,6 @@ def api_close_all():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    port = int(os.getenv("PORT", "5000"))
+    is_render = bool(os.getenv("RENDER"))
+    app.run(host="0.0.0.0", port=port, debug=not is_render)
