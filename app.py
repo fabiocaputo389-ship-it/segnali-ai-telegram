@@ -7,9 +7,9 @@ import threading
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
-from urllib.error import HTTPError, URLError
 
 from flask import Flask, jsonify, render_template, request
 
@@ -58,10 +58,12 @@ TERMINAL_STATE: Dict[str, Any] = {
         "daily_loss_cap_usd": 0.50,
         "only_a_plus": False,
         "close_at_candle_end": True,
+        "tp_split_pct": [50.0, 30.0, 20.0],
     },
     "tracked_positions": {},
     "closed_trades_today": [],
     "closed_trades_month": [],
+    "last_income_sync_ts": 0,
     "last_params": {
         "profile": "pro_sniper",
         "timeframe": "15m",
@@ -274,6 +276,24 @@ def _round_price(val: float, ref_price: float) -> float:
     return round(val, 6)
 
 
+def _validate_directional_levels(action: str, entry: float, sl: float, tp1: float, tp2: float, tp3: float) -> Tuple[float, float, float, float]:
+    """Garantisce coerenza direzionale rigorosa tra BUY (LONG) e SELL (SHORT)."""
+    eps = max(entry * 0.0005, 1e-6)
+    if action == "BUY":
+        s_val = min(sl, entry - eps)
+        t1 = max(tp1, entry + eps)
+        t2 = max(tp2, t1 + eps)
+        t3 = max(tp3, t2 + eps)
+        return s_val, t1, t2, t3
+    if action == "SELL":
+        s_val = max(sl, entry + eps)
+        t1 = min(tp1, entry - eps)
+        t2 = min(tp2, t1 - eps)
+        t3 = min(tp3, t2 - eps)
+        return s_val, t1, t2, t3
+    return sl, tp1, tp2, tp3
+
+
 def _evaluate_asset(
     asset: Dict[str, str],
     profile: str,
@@ -301,7 +321,6 @@ def _evaluate_asset(
     bear_trend = price < e20 and e20 <= e50
 
     body_last = abs(last["close"] - last["open"])
-    range_last = max(last["high"] - last["low"], 1e-9)
     upper_wick = last["high"] - max(last["open"], last["close"])
     lower_wick = min(last["open"], last["close"]) - last["low"]
     fakeout = (upper_wick > body_last * 1.8 and bull_trend) or (lower_wick > body_last * 1.8 and bear_trend)
@@ -334,18 +353,25 @@ def _evaluate_asset(
     tp2_dist = sl_dist * max(min_rrr * 1.5, 2.3)
     tp3_dist = sl_dist * max(min_rrr * 2.0, 3.1)
 
+    entry = _round_price(price, price)
     if action == "SELL":
-        entry = _round_price(price, price)
-        sl = _round_price(price + sl_dist, price)
-        tp1 = _round_price(price - tp1_dist, price)
-        tp2 = _round_price(price - tp2_dist, price)
-        tp3 = _round_price(price - tp3_dist, price)
+        raw_sl = price + sl_dist
+        raw_tp1 = price - tp1_dist
+        raw_tp2 = price - tp2_dist
+        raw_tp3 = price - tp3_dist
     else:
-        entry = _round_price(price, price)
-        sl = _round_price(max(0.000001, price - sl_dist), price)
-        tp1 = _round_price(price + tp1_dist, price)
-        tp2 = _round_price(price + tp2_dist, price)
-        tp3 = _round_price(price + tp3_dist, price)
+        raw_sl = max(0.000001, price - sl_dist)
+        raw_tp1 = price + tp1_dist
+        raw_tp2 = price + tp2_dist
+        raw_tp3 = price + tp3_dist
+
+    if action in ("BUY", "SELL"):
+        raw_sl, raw_tp1, raw_tp2, raw_tp3 = _validate_directional_levels(action, entry, raw_sl, raw_tp1, raw_tp2, raw_tp3)
+
+    sl = _round_price(raw_sl, price)
+    tp1 = _round_price(raw_tp1, price)
+    tp2 = _round_price(raw_tp2, price)
+    tp3 = _round_price(raw_tp3, price)
 
     rrr = round(abs(tp1 - entry) / max(abs(entry - sl), 1e-9), 2)
     leverage = _compute_leverage(balance)
@@ -414,6 +440,55 @@ def _evaluate_asset(
     }
 
 
+def _sync_bingx_income_history() -> None:
+    """Sincronizza PnL realizzato, commissioni e funding da BingX incomeHistory."""
+    now_s = int(time.time())
+    with STATE_LOCK:
+        if now_s - int(TERMINAL_STATE.get("last_income_sync_ts", 0)) < 15:
+            return
+        TERMINAL_STATE["last_income_sync_ts"] = now_s
+
+    start_ms = (now_s - 86400 * 30) * 1000
+    ok, payload, _ = _bingx_signed_request("GET", "/openApi/swap/v2/user/income", {
+        "startTime": start_ms,
+        "limit": 100,
+    })
+    if not ok or not isinstance(payload, dict):
+        return
+
+    items = payload.get("data")
+    if not isinstance(items, list):
+        return
+
+    today_start = int(datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
+    today_trades: List[Dict[str, Any]] = []
+    month_trades: List[Dict[str, Any]] = []
+
+    for row in items:
+        inc_type = str(row.get("incomeType", "")).upper()
+        if inc_type not in ("REALIZED_PNL", "TRADING_FEE", "COMMISSION", "FUNDING_FEE"):
+            continue
+        amt = float(row.get("income", 0) or 0)
+        ts_sec = int(float(row.get("time", 0) or 0)) // 1000
+        sym = str(row.get("symbol", "BINGX"))
+        is_fee = inc_type in ("TRADING_FEE", "COMMISSION", "FUNDING_FEE")
+        rec = {
+            "symbol": sym,
+            "pnl": 0.0 if is_fee else amt,
+            "fee": abs(amt) if is_fee else 0.0,
+            "type": inc_type,
+            "ts": ts_sec,
+        }
+        month_trades.append(rec)
+        if ts_sec >= today_start:
+            today_trades.append(rec)
+
+    with STATE_LOCK:
+        if month_trades:
+            TERMINAL_STATE["closed_trades_month"] = month_trades
+            TERMINAL_STATE["closed_trades_today"] = today_trades
+
+
 def _fetch_bingx_positions() -> Tuple[List[Dict[str, Any]], float, float, str]:
     ok, payload, err = _bingx_signed_request("GET", "/openApi/swap/v2/user/positions", {})
     if not ok:
@@ -454,7 +529,9 @@ def _fetch_bingx_positions() -> Tuple[List[Dict[str, Any]], float, float, str]:
         used_margin += margin
 
         meta = tracked_map.get(asset["symbol"], {})
-        tp = float(meta.get("tp", 0) or 0)
+        tp1 = float(meta.get("tp1", meta.get("tp", 0)) or 0)
+        tp2 = float(meta.get("tp2", 0) or 0)
+        tp3 = float(meta.get("tp3", 0) or 0)
         sl = float(meta.get("sl", 0) or 0)
         tf = str(meta.get("timeframe", "15m"))
         close_ts = int(meta.get("candle_close_ts", 0) or 0)
@@ -465,13 +542,13 @@ def _fetch_bingx_positions() -> Tuple[List[Dict[str, Any]], float, float, str]:
         progress_pct = 0.0
         dist_to_tp = 0.0
         dist_to_sl = 0.0
-        if tp > 0 and entry > 0 and abs(tp - entry) > 1e-9:
+        if tp1 > 0 and entry > 0 and abs(tp1 - entry) > 1e-9:
             if action == "BUY":
-                progress_pct = round(max(0.0, min(100.0, ((mark - entry) / (tp - entry)) * 100.0)), 1)
-                dist_to_tp = _round_price(max(0.0, tp - mark), mark or entry)
+                progress_pct = round(max(0.0, min(100.0, ((mark - entry) / (tp1 - entry)) * 100.0)), 1)
+                dist_to_tp = _round_price(max(0.0, tp1 - mark), mark or entry)
             else:
-                progress_pct = round(max(0.0, min(100.0, ((entry - mark) / (entry - tp)) * 100.0)), 1)
-                dist_to_tp = _round_price(max(0.0, mark - tp), mark or entry)
+                progress_pct = round(max(0.0, min(100.0, ((entry - mark) / (entry - tp1)) * 100.0)), 1)
+                dist_to_tp = _round_price(max(0.0, mark - tp1), mark or entry)
         if sl > 0 and mark > 0:
             dist_to_sl = _round_price(abs(mark - sl), mark or entry)
 
@@ -485,7 +562,10 @@ def _fetch_bingx_positions() -> Tuple[List[Dict[str, Any]], float, float, str]:
             "unrealized_pnl": round(upnl, 4),
             "leverage": f"{lev}x",
             "margin": round(margin, 2),
-            "tp": tp,
+            "tp": tp1,
+            "tp1": tp1,
+            "tp2": tp2,
+            "tp3": tp3,
             "sl": sl,
             "progress_pct": progress_pct,
             "dist_to_tp": dist_to_tp,
@@ -521,21 +601,24 @@ def _fetch_bingx_balance(used_margin: float = 0.0) -> Tuple[Dict[str, float], st
     }, ""
 
 
-def _place_bingx_order(
+def _place_bingx_multi_tpsl_order(
     symbol: str,
     action: str,
     qty: float,
     leverage: int = 20,
     sl: Optional[float] = None,
     tp1: Optional[float] = None,
+    tp2: Optional[float] = None,
+    tp3: Optional[float] = None,
     reduce_only: bool = False,
 ) -> Tuple[bool, Dict[str, Any]]:
     asset = _find_asset(symbol)
     bx_sym = asset["bx_symbol"]
     side = "BUY" if action.upper() == "BUY" else "SELL"
     pos_side = "LONG" if action.upper() == "BUY" else "SHORT"
+    exit_side = "SELL" if action.upper() == "BUY" else "BUY"
     if reduce_only:
-        side = "SELL" if action.upper() == "BUY" else "BUY"
+        side = exit_side
 
     if not reduce_only and leverage > 0:
         _bingx_signed_request("POST", "/openApi/swap/v2/trade/leverage", {
@@ -558,13 +641,16 @@ def _place_bingx_order(
     if not ok:
         return False, {"error": err}
 
+    if reduce_only:
+        return True, {"bingx": res_data, "sl_error": "", "tp_error": ""}
+
     sl_error = ""
-    tp_error = ""
-    if not reduce_only and sl and float(sl) > 0:
-        sl_side = "SELL" if action.upper() == "BUY" else "BUY"
+    tp_errors: List[str] = []
+
+    if sl and float(sl) > 0:
         ok_sl, _, err_sl = _bingx_signed_request("POST", "/openApi/swap/v2/trade/order", {
             "symbol": bx_sym,
-            "side": sl_side,
+            "side": exit_side,
             "positionSide": pos_side,
             "type": "STOP_MARKET",
             "stopPrice": float(sl),
@@ -574,24 +660,42 @@ def _place_bingx_order(
         if not ok_sl:
             sl_error = err_sl
 
-    if not reduce_only and tp1 and float(tp1) > 0:
-        tp_side = "SELL" if action.upper() == "BUY" else "BUY"
-        ok_tp, _, err_tp = _bingx_signed_request("POST", "/openApi/swap/v2/trade/order", {
-            "symbol": bx_sym,
-            "side": tp_side,
-            "positionSide": pos_side,
-            "type": "TAKE_PROFIT_MARKET",
-            "stopPrice": float(tp1),
-            "quantity": qty,
-            "workingType": "MARK_PRICE",
-        })
-        if not ok_tp:
-            tp_error = err_tp
+    with STATE_LOCK:
+        splits = list(TERMINAL_STATE["risk_config"].get("tp_split_pct") or [50.0, 30.0, 20.0])
+
+    tp_targets = [
+        (float(tp1 or 0), float(splits[0] if len(splits) > 0 else 50.0) / 100.0, "TP1"),
+        (float(tp2 or 0), float(splits[1] if len(splits) > 1 else 30.0) / 100.0, "TP2"),
+        (float(tp3 or 0), float(splits[2] if len(splits) > 2 else 20.0) / 100.0, "TP3"),
+    ]
+    active_tps = [(price_lv, frac, label) for (price_lv, frac, label) in tp_targets if price_lv > 0]
+    if active_tps:
+        total_frac = sum(f for _, f, _ in active_tps) or 1.0
+        rem_qty = float(qty)
+        for idx, (price_lv, frac, label) in enumerate(active_tps):
+            if idx == len(active_tps) - 1:
+                leg_qty = round(rem_qty, 6)
+            else:
+                leg_qty = round(float(qty) * (frac / total_frac), 6)
+                rem_qty = max(0.0, round(rem_qty - leg_qty, 6))
+            if leg_qty <= 0:
+                continue
+            ok_tp, _, err_tp = _bingx_signed_request("POST", "/openApi/swap/v2/trade/order", {
+                "symbol": bx_sym,
+                "side": exit_side,
+                "positionSide": pos_side,
+                "type": "TAKE_PROFIT_MARKET",
+                "stopPrice": price_lv,
+                "quantity": leg_qty,
+                "workingType": "MARK_PRICE",
+            })
+            if not ok_tp:
+                tp_errors.append(f"{label}: {err_tp}")
 
     return True, {
         "bingx": res_data,
         "sl_error": sl_error,
-        "tp_error": tp_error,
+        "tp_error": "; ".join(tp_errors),
     }
 
 
@@ -605,7 +709,7 @@ def _check_candle_end_closures(positions: List[Dict[str, Any]]) -> None:
     for p in positions:
         close_ts = int(p.get("candle_close_ts", 0) or 0)
         if close_ts > 0 and now_s >= close_ts:
-            ok, _ = _place_bingx_order(
+            ok, _ = _place_bingx_multi_tpsl_order(
                 symbol=p["symbol"],
                 action=p["action"],
                 qty=float(p["size"]),
@@ -653,18 +757,23 @@ def _maybe_run_autotrade(signals: List[Dict[str, Any]], positions: List[Dict[str
         if cfg.get("only_a_plus") and sig.get("grade") != "A+":
             continue
         lev = _compute_leverage(balance)
-        ok, _ = _place_bingx_order(
+        ok, _ = _place_bingx_multi_tpsl_order(
             symbol=sig["symbol"],
             action=sig["action"],
             qty=float(sig["size"]),
             leverage=lev,
             sl=float(sig["sl"]),
             tp1=float(sig["tp1"]),
+            tp2=float(sig["tp2"]),
+            tp3=float(sig["tp3"]),
         )
         if ok:
             with STATE_LOCK:
                 TERMINAL_STATE["tracked_positions"][sig["symbol"]] = {
                     "tp": float(sig["tp1"]),
+                    "tp1": float(sig["tp1"]),
+                    "tp2": float(sig["tp2"]),
+                    "tp3": float(sig["tp3"]),
                     "sl": float(sig["sl"]),
                     "timeframe": sig["timeframe"],
                     "candle_close_ts": int(sig["candle_close_ts"]),
@@ -672,7 +781,7 @@ def _maybe_run_autotrade(signals: List[Dict[str, Any]], positions: List[Dict[str
                 }
                 TERMINAL_STATE["telemetry_logs"].insert(0, {
                     "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S"),
-                    "status": f"AUTO-EXEC {sig['action']} {sig['symbol']} ({lev}x)",
+                    "status": f"AUTO-EXEC {sig['action']} {sig['symbol']} ({lev}x • TP1/TP2/TP3+SL)",
                     "signals_found": len(signals),
                     "scanned": len(_all_assets()),
                 })
@@ -786,6 +895,7 @@ def api_signals():
             ),
         }
 
+    _sync_bingx_income_history()
     positions, total_upnl, used_margin, _ = _fetch_bingx_positions()
     _check_candle_end_closures(positions)
     acc_info, _ = _fetch_bingx_balance(used_margin)
@@ -841,6 +951,7 @@ def api_signals():
 
 @app.route("/api/bingx/live-account")
 def api_bingx_live_account():
+    _sync_bingx_income_history()
     positions, total_upnl, used_margin, pos_err = _fetch_bingx_positions()
     _check_candle_end_closures(positions)
     acc_info, bal_err = _fetch_bingx_balance(used_margin)
@@ -923,6 +1034,8 @@ def api_autotrade_config():
             cfg["only_a_plus"] = bool(body["only_a_plus"])
         if "close_at_candle_end" in body:
             cfg["close_at_candle_end"] = bool(body["close_at_candle_end"])
+        if "tp_split_pct" in body and isinstance(body["tp_split_pct"], list) and len(body["tp_split_pct"]) == 3:
+            cfg["tp_split_pct"] = [max(0.0, float(x)) for x in body["tp_split_pct"]]
         saved = dict(cfg)
     return jsonify({"success": True, "risk_config": saved})
 
@@ -941,6 +1054,8 @@ def api_execute_manual():
 
     sl = float(body.get("sl", 0) or 0)
     tp1 = float(body.get("tp1", 0) or 0)
+    tp2 = float(body.get("tp2", 0) or 0)
+    tp3 = float(body.get("tp3", 0) or 0)
     balance = max(2.0, float(body.get("balance", 2.0) or 2.0))
     leverage = int(body.get("leverage") or _compute_leverage(balance))
     tf = str(body.get("timeframe", "15m"))
@@ -949,13 +1064,15 @@ def api_execute_manual():
     timing = _candle_timing(tf)
     c_close_ts = int(body.get("candle_close_ts") or timing["candle_close_ts"])
 
-    ok, info = _place_bingx_order(
+    ok, info = _place_bingx_multi_tpsl_order(
         symbol=symbol,
         action=action,
         qty=qty,
         leverage=leverage,
         sl=sl if sl > 0 else None,
         tp1=tp1 if tp1 > 0 else None,
+        tp2=tp2 if tp2 > 0 else None,
+        tp3=tp3 if tp3 > 0 else None,
     )
     if not ok:
         return jsonify({"success": False, "error": info.get("error", "Errore invio ordine BingX")}), 400
@@ -964,6 +1081,9 @@ def api_execute_manual():
     with STATE_LOCK:
         TERMINAL_STATE["tracked_positions"][asset["symbol"]] = {
             "tp": tp1,
+            "tp1": tp1,
+            "tp2": tp2,
+            "tp3": tp3,
             "sl": sl,
             "timeframe": tf,
             "candle_close_ts": c_close_ts,
@@ -978,6 +1098,8 @@ def api_execute_manual():
         "leverage": f"{leverage}x",
         "sl": sl if sl > 0 else None,
         "tp1": tp1 if tp1 > 0 else None,
+        "tp2": tp2 if tp2 > 0 else None,
+        "tp3": tp3 if tp3 > 0 else None,
         "sl_error": info.get("sl_error", ""),
         "tp_error": info.get("tp_error", ""),
         "candle_timing": timing,
@@ -993,7 +1115,7 @@ def api_close_position():
     if not symbol or qty <= 0:
         return jsonify({"success": False, "error": "Parametri posizione non validi"}), 400
 
-    ok, info = _place_bingx_order(symbol=symbol, action=action, qty=qty, reduce_only=True)
+    ok, info = _place_bingx_multi_tpsl_order(symbol=symbol, action=action, qty=qty, reduce_only=True)
     if not ok:
         return jsonify({"success": False, "error": info.get("error", "Errore chiusura posizione")}), 400
 
@@ -1012,7 +1134,7 @@ def api_close_all():
     closed = 0
     errors: List[str] = []
     for p in positions:
-        ok, info = _place_bingx_order(
+        ok, info = _place_bingx_multi_tpsl_order(
             symbol=p["symbol"],
             action=p["action"],
             qty=float(p["size"]),
