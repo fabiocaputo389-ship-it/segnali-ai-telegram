@@ -99,6 +99,14 @@
       border-color: rgba(239, 68, 68, 0.45);
     }
 
+    button.partial {
+      padding: 5px 8px;
+      font-size: 11px;
+      background: rgba(245, 158, 11, 0.14);
+      color: #fbbf24;
+      border-color: rgba(245, 158, 11, 0.4);
+    }
+
     .metric-box {
       background: var(--bg-card);
       border: 1px solid var(--border);
@@ -157,22 +165,22 @@
       border: 1px solid var(--border);
     }
 
-    .signal-list {
+    .signal-list, .positions-list {
       display: flex;
       flex-direction: column;
       gap: 10px;
-      max-height: 440px;
+      max-height: 340px;
       overflow-y: auto;
     }
 
-    .signal-card {
+    .signal-card, .pos-card {
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: 12px;
     }
 
-    .signal-top {
+    .signal-top, .pos-top {
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -195,6 +203,13 @@
       gap: 8px;
       font-size: 12px;
       margin: 8px 0;
+    }
+
+    .partial-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
     }
 
     .form-grid {
@@ -293,6 +308,16 @@
           </div>
         </div>
         <canvas id="priceCanvas"></canvas>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">
+          <span>Posizioni Aperte & Chiusura Parziale BingX</span>
+          <button onclick="loadPositions()">Aggiorna Posizioni</button>
+        </div>
+        <div class="positions-list" id="positionsList">
+          <div style="font-size:12px; color:var(--muted);">Nessuna posizione aperta o in attesa di sincronizzazione.</div>
+        </div>
       </div>
 
       <div class="panel">
@@ -427,6 +452,60 @@
       drawChart();
     }
 
+    async function loadPositions() {
+      const res = await fetch("/api/positions");
+      const data = await res.json();
+      const container = document.getElementById("positionsList");
+      const list = data.positions || [];
+
+      if (!list.length) {
+        container.innerHTML = `<div style="font-size:12px; color:var(--muted);">Nessuna posizione aperta trovata su BingX.</div>`;
+        return;
+      }
+
+      container.innerHTML = "";
+      list.forEach((pos) => {
+        const card = document.createElement("div");
+        card.className = "pos-card";
+        const sideCls = pos.positionSide === "LONG" ? "dir-long" : "dir-short";
+        const upnl = Number(pos.unrealizedProfit || 0);
+        const upnlColor = upnl >= 0 ? "var(--long)" : "var(--short)";
+
+        card.innerHTML = `
+          <div class="pos-top">
+            <div><strong>${pos.symbol}</strong> · <span class="${sideCls}">${pos.positionSide}</span></div>
+            <span style="color:${upnlColor}; font-weight:700;">uPnL: ${upnl >= 0 ? "+" : ""}${upnl.toFixed(2)} USDT</span>
+          </div>
+          <div style="font-size:12px; color:var(--muted);">
+            Size: <strong>${pos.positionAmt}</strong> · Entry: <strong>${pos.avgPrice}</strong> · Mark: <strong>${pos.markPrice}</strong> · Leva: <strong>${pos.leverage || "--"}x</strong>
+          </div>
+          <div class="partial-actions">
+            <button class="partial" onclick="closePosition('${pos.symbol}', '${pos.positionSide}', ${pos.positionAmt}, 0.25)">Chiudi 25%</button>
+            <button class="partial" onclick="closePosition('${pos.symbol}', '${pos.positionSide}', ${pos.positionAmt}, 0.50)">Chiudi 50%</button>
+            <button class="partial" onclick="closePosition('${pos.symbol}', '${pos.positionSide}', ${pos.positionAmt}, 0.75)">Chiudi 75%</button>
+            <button class="sell" style="padding:5px 8px; font-size:11px;" onclick="closePosition('${pos.symbol}', '${pos.positionSide}', ${pos.positionAmt}, 1.0)">Chiudi 100%</button>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    async function closePosition(symbol, positionSide, positionAmt, closeRatio) {
+      const res = await fetch("/api/close-position", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          symbol,
+          positionSide,
+          positionAmt,
+          closeRatio,
+        }),
+      });
+      const data = await res.json();
+      document.getElementById("rawJsonOutput").textContent = JSON.stringify(data, null, 2);
+      await Promise.all([loadPositions(), syncAccount()]);
+    }
+
     async function syncAccount() {
       const res = await fetch("/api/account-sync");
       const data = await res.json();
@@ -534,6 +613,7 @@
       });
       const data = await res.json();
       document.getElementById("rawJsonOutput").textContent = JSON.stringify(data, null, 2);
+      await loadPositions();
     }
 
     function zoomChart(factor) {
@@ -632,7 +712,9 @@
     initSelects();
     refreshAll();
     syncAccount();
+    loadPositions();
     setInterval(loadLiveTickers, 5000);
+    setInterval(loadPositions, 10000);
   </script>
 </body>
 </html>
