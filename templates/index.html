@@ -813,7 +813,7 @@
     let lastSpokenSignalKey = "";
     let lastVoicePosSnapshot = "";
 
-    function showToast(message, type = "info", durationMs = 4500) {
+    function showToast(message, type = "info", durationMs = 6000) {
       const banner = document.getElementById("toastBanner");
       const msgEl = document.getElementById("toastMessage");
       if (!banner || !msgEl) return;
@@ -832,6 +832,11 @@
       if (raw === null || raw === undefined) return fallback;
       const v = parseFloat(String(raw).trim().replace(/\s+/g, "").replace(",", "."));
       return Number.isFinite(v) ? v : fallback;
+    }
+
+    function safeNum(val, fallback = 0) {
+      const n = Number(val);
+      return Number.isFinite(n) ? n : fallback;
     }
 
     function formatPrice(val) {
@@ -1172,20 +1177,25 @@
           valList.innerHTML = `<div style="color: var(--text-muted); font-size: 12px;">In attesa di segnali certi senza false rotture con Score >= ${Number(effMin).toFixed(1)}% e R:R >= ${activeCfg.min_rrr || 1.5}.</div>`;
         } else {
           valList.innerHTML = sigs.map((s) => {
-            const levNum = Number(s.leverage_num || 20);
+            const levNum = safeNum(s.leverage_num, 20);
             const isSell = s.action === "SELL";
-            const cCloseTs = Number(s.candle_close_ts || 0);
+            const cCloseTs = safeNum(s.candle_close_ts, 0);
+            const sz = Math.max(0.0001, safeNum(s.size, 0.001));
+            const slV = safeNum(s.sl, 0);
+            const tp1V = safeNum(s.tp1, 0);
+            const tp2V = safeNum(s.tp2, 0);
+            const tp3V = safeNum(s.tp3, 0);
             return `
               <div class="signal-card ${isSell ? "sell" : ""}">
                 <div class="signal-top">
                   <div>
                     <strong>${s.name}</strong> ${renderBadge(s.action)}
-                    <div class="alert-meta">HTF: <strong>${s.htf_bias}</strong> • Size: <strong>${s.size}</strong> (${s.leverage}) • Margine: <strong>$${s.margin}</strong></div>
+                    <div class="alert-meta">HTF: <strong>${s.htf_bias}</strong> • Size: <strong>${sz}</strong> (${s.leverage}) • Margine: <strong>$${s.margin}</strong></div>
                   </div>
                   <span class="badge-grade">${s.grade} • ${s.score}%</span>
                 </div>
                 <div class="signal-levels">
-                  Entry: <strong>${s.entry}</strong> | <span class="pos-red">SL: <strong>${s.sl}</strong></span> | <span class="pos-green">TP1: <strong>${s.tp1}</strong></span> | TP2: <strong>${s.tp2}</strong> | TP3: <strong>${s.tp3}</strong>
+                  Entry: <strong>${s.entry}</strong> | <span class="pos-red">SL: <strong>${slV}</strong></span> | <span class="pos-green">TP1: <strong>${tp1V}</strong></span> | TP2: <strong>${tp2V}</strong> | TP3: <strong>${tp3V}</strong>
                 </div>
                 <div class="candle-strip">
                   <div>🕒 ${s.candle_window_text}</div>
@@ -1193,9 +1203,9 @@
                   <div>🎯 Target ETA: ${s.tp_eta_text}</div>
                 </div>
                 <div class="action-row">
-                  <button class="${isSell ? "btn-sell" : "btn-buy"}" type="button" onclick="sendManualOrder('${s.symbol}', '${s.action}', ${s.size}, ${s.sl}, ${s.tp1}, ${s.tp2}, ${s.tp3}, ${levNum}, ${cCloseTs})">ESEGUI ${s.action} + TP1/TP2/TP3 &amp; SL</button>
-                  <button class="btn-buy" type="button" onclick="sendManualOrder('${s.symbol}', 'BUY', ${s.size}, ${s.sl}, ${s.tp1}, ${s.tp2}, ${s.tp3}, ${levNum}, ${cCloseTs})">BUY</button>
-                  <button class="btn-sell" type="button" onclick="sendManualOrder('${s.symbol}', 'SELL', ${s.size}, ${s.sl}, ${s.tp1}, ${s.tp2}, ${s.tp3}, ${levNum}, ${cCloseTs})">SELL</button>
+                  <button class="${isSell ? "btn-sell" : "btn-buy"}" type="button" onclick="sendManualOrder('${s.symbol}', '${s.action}', ${sz}, ${slV}, ${tp1V}, ${tp2V}, ${tp3V}, ${levNum}, ${cCloseTs})">ESEGUI ${s.action} + TP1/TP2/TP3 &amp; SL</button>
+                  <button class="btn-buy" type="button" onclick="sendManualOrder('${s.symbol}', 'BUY', ${sz}, ${slV}, ${tp1V}, ${tp2V}, ${tp3V}, ${levNum}, ${cCloseTs})">BUY</button>
+                  <button class="btn-sell" type="button" onclick="sendManualOrder('${s.symbol}', 'SELL', ${sz}, ${slV}, ${tp1V}, ${tp2V}, ${tp3V}, ${levNum}, ${cCloseTs})">SELL</button>
                   <button class="btn-chart" type="button" onclick="openAssetChart('${s.symbol}')">GRAFICO</button>
                 </div>
               </div>
@@ -1213,10 +1223,15 @@
           tbody.innerHTML = `<tr><td colspan="6" style="color: var(--text-muted);">Nessun asset scansionato con i filtri selezionati.</td></tr>`;
         } else {
           tbody.innerHTML = rows.map((r) => {
-            const levNum = Number(r.leverage_num || String(r.leverage || "20x").replace("x", "") || 20);
-            const cCloseTs = Number(r.candle_close_ts || 0);
+            const levNum = safeNum(r.leverage_num || String(r.leverage || "20x").replace("x", ""), 20);
+            const cCloseTs = safeNum(r.candle_close_ts, 0);
+            const sz = Math.max(0.0001, safeNum(r.size, 0.001));
+            const slV = safeNum(r.sl, 0);
+            const tp1V = safeNum(r.tp1, 0);
+            const tp2V = safeNum(r.tp2, 0);
+            const tp3V = safeNum(r.tp3, 0);
             const actHtml = (r.action === "BUY" || r.action === "SELL")
-              ? `${renderBadge(r.action)}<div style="color:var(--text-muted);font-size:11px;margin-top:3px;">Size: ${r.size} • ${r.leverage}</div><div class="action-row" style="margin-top:5px;"><button class="btn-buy" type="button" onclick="sendManualOrder('${r.symbol}', '${r.action}', ${r.size}, ${r.sl}, ${r.tp1}, ${r.tp2}, ${r.tp3}, ${levNum}, ${cCloseTs})">ESEGUI</button><button class="btn-chart" type="button" onclick="openAssetChart('${r.symbol}')">GRAFICO</button></div>`
+              ? `${renderBadge(r.action)}<div style="color:var(--text-muted);font-size:11px;margin-top:3px;">Size: ${sz} • ${r.leverage}</div><div class="action-row" style="margin-top:5px;"><button class="btn-buy" type="button" onclick="sendManualOrder('${r.symbol}', '${r.action}', ${sz}, ${slV}, ${tp1V}, ${tp2V}, ${tp3V}, ${levNum}, ${cCloseTs})">ESEGUI</button><button class="btn-chart" type="button" onclick="openAssetChart('${r.symbol}')">GRAFICO</button></div>`
               : `${renderBadge(r.action)}<div style="color:var(--text-muted);font-size:11px;margin-top:4px;">${r.reason || ""}</div><div class="action-row" style="margin-top:5px;"><button class="btn-chart" type="button" onclick="openAssetChart('${r.symbol}')">GRAFICO</button></div>`;
 
             return `
@@ -1274,7 +1289,7 @@
         announceSignalsAndPositions(sigs, latestPositionsList, false);
       } catch (e) {
         console.error(e);
-        showToast(`Errore aggiornamento segnali: ${e.message}`, "error", 5000);
+        showToast(`Errore aggiornamento segnali: ${e.message}`, "error", 6000);
       } finally {
         pollingSignals = false;
       }
@@ -1373,28 +1388,46 @@
     }
 
     async function sendManualOrder(symbol, action, size, sl, tp1, tp2 = 0, tp3 = 0, leverage = 20, candleCloseTs = 0) {
-      if (busyOrderAction) return;
+      if (busyOrderAction) {
+        showToast("Attendere: operazione già in corso...", "info", 2500);
+        return;
+      }
       busyOrderAction = true;
       const tf = document.getElementById("timeframeSelect").value;
       const balance = getBalance();
+      const cleanQty = Math.max(0.0001, safeNum(size, 0.001));
+      const cleanLev = Math.max(1, Math.round(safeNum(leverage, 20)));
+      showToast(`Invio ordine ${action} su ${symbol} (capitale $${balance.toFixed(2)}, leva ${cleanLev}x)...`, "info", 4000);
       try {
         const data = await fetchJson("/api/autotrade/execute-manual", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ symbol, action, size, sl, tp1, tp2, tp3, leverage, balance, timeframe: tf, candle_close_ts: candleCloseTs }),
+          body: JSON.stringify({
+            symbol,
+            action,
+            size: cleanQty,
+            sl: safeNum(sl, 0),
+            tp1: safeNum(tp1, 0),
+            tp2: safeNum(tp2, 0),
+            tp3: safeNum(tp3, 0),
+            leverage: cleanLev,
+            balance,
+            timeframe: tf,
+            candle_close_ts: safeNum(candleCloseTs, 0),
+          }),
         });
         if (data.success) {
           const tpslMsg = `SL: ${data.sl ?? "N/D"}${data.sl_error ? ` (${data.sl_error})` : ""} • TP1/2/3: ${data.tp1 ?? "N/D"} / ${data.tp2 ?? "N/D"} / ${data.tp3 ?? "N/D"}${data.tp_error ? ` (${data.tp_error})` : ""} • Chiusura TF: ${data.candle_timing?.candle_close_utc || tf}`;
-          showToast(`Ordine ${action} inviato su ${data.symbol} (${data.leverage} • Size ${data.qty}) — ${tpslMsg}`, "success", 6000);
+          showToast(`Ordine ${action} inviato su ${data.symbol} (${data.leverage} • Size ${data.qty}) — ${tpslMsg}`, "success", 7000);
           if (voiceEnabled) {
             speakText(`Ordine ${action} eseguito su ${data.symbol} con leva ${data.leverage}. Stop loss ${data.sl}, target 1 ${data.tp1}, target 2 ${data.tp2}, target 3 ${data.tp3}.`);
           }
         } else {
-          showToast(`Errore ordine: ${data.error || "Operazione rifiutata"}`, "error", 6000);
+          showToast(`Errore ordine: ${data.error || "Operazione rifiutata"}`, "error", 7000);
         }
         await refreshAccount();
       } catch (e) {
-        showToast(`Errore invio ordine: ${e.message}`, "error", 6000);
+        showToast(`Errore invio ordine: ${e.message}`, "error", 7000);
       } finally {
         busyOrderAction = false;
       }
