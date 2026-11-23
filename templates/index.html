@@ -103,6 +103,46 @@
   <!-- MAIN -->
   <main class="flex-1 max-w-[1920px] w-full mx-auto px-3 sm:px-5 py-4 flex flex-col gap-4">
 
+    <!-- TABELLA IN CIMA: MODIFICA IMPORTO (MIN 2$) E SCORE SEGNALI -->
+    <div class="terminal-card rounded-2xl p-3 font-mono text-xs overflow-x-auto">
+      <table class="w-full text-left border-collapse">
+        <thead>
+          <tr class="border-b border-white/15 text-[10px] uppercase text-white/60">
+            <th class="py-1.5 px-2">Parametro</th>
+            <th class="py-1.5 px-2">Controllo Rapido</th>
+            <th class="py-1.5 px-2">Valore Attivo</th>
+            <th class="py-1.5 px-2">Effetto sul Terminale</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-white/10">
+          <tr>
+            <td class="py-2 px-2 font-bold text-[#FFD700] whitespace-nowrap">Importo Operativo (Min 2 USDT)</td>
+            <td class="py-2 px-2">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <input type="number" id="topTableAmountInput" min="2" step="0.5" value="2" oninput="onTopTableAmountChange(this.value)" onblur="onTopTableAmountBlur(this.value)" class="w-24 bg-black border border-[#FFD700]/50 rounded-lg px-2 py-1 text-xs font-extrabold text-white tabular-nums outline-none focus:border-[#FFD700]" />
+                <button onclick="setMarginUsdt(2)" class="px-2 py-1 rounded bg-white/10 hover:bg-[#FFD700] hover:text-black text-[10px] font-bold">2$</button>
+                <button onclick="setMarginUsdt(5)" class="px-2 py-1 rounded bg-white/10 hover:bg-[#FFD700] hover:text-black text-[10px] font-bold">5$</button>
+                <button onclick="setMarginUsdt(10)" class="px-2 py-1 rounded bg-white/10 hover:bg-[#FFD700] hover:text-black text-[10px] font-bold">10$</button>
+              </div>
+            </td>
+            <td class="py-2 px-2 font-extrabold text-[#FFD700] tabular-nums whitespace-nowrap" id="tableActiveAmount">2.00 USDT</td>
+            <td class="py-2 px-2 text-white/75">Parte da minimo 2.00 USDT, ricalcola taglia (`size`), `EV`, `Kelly` e leva dinamica (`20x` su `&le; 2$` con leva default `10x`) per l'esecuzione su BingX.</td>
+          </tr>
+          <tr>
+            <td class="py-2 px-2 font-bold text-[#00FF66] whitespace-nowrap">Score Minimo Segnali (%)</td>
+            <td class="py-2 px-2">
+              <div class="flex items-center gap-2">
+                <input type="range" id="topTableScoreRange" min="50" max="95" step="1" value="70" oninput="onTopTableScoreChange(this.value)" class="w-28 accent-[#00FF66] cursor-pointer" />
+                <input type="number" id="topTableScoreInput" min="50" max="95" step="1" value="70" oninput="onTopTableScoreChange(this.value)" class="w-16 bg-black border border-[#00FF66]/50 rounded-lg px-2 py-1 text-xs font-extrabold text-white text-right tabular-nums outline-none focus:border-[#00FF66]" />
+              </div>
+            </td>
+            <td class="py-2 px-2 font-extrabold text-[#00FF66] tabular-nums whitespace-nowrap" id="tableActiveScore">70%</td>
+            <td class="py-2 px-2 text-white/75">Filtra o evidenzia i segnali sotto soglia e blocca l'esecuzione automatica in modalità `AUTO`.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
     <!-- FILTRI CATEGORIA MERCATI + STILE + IMPORTO DA 2$ + ANALIZZA GRAFICO -->
     <div class="terminal-card rounded-2xl p-3.5 space-y-3">
       <div class="flex flex-wrap items-center justify-between gap-2">
@@ -116,8 +156,8 @@
 
         <div class="flex items-center gap-2 flex-wrap">
           <div class="flex items-center gap-1.5 bg-black/80 border border-[#FFD700]/40 rounded-xl px-2.5 py-1">
-            <span class="text-[11px] font-mono text-[#FFD700] font-bold">Importo $:</span>
-            <input type="number" id="quickAmountInput" min="2" step="0.5" value="2" oninput="onQuickAmountChange(this.value)" class="w-20 bg-transparent text-xs font-mono font-extrabold text-white outline-none tabular-nums" />
+            <span class="text-[11px] font-mono text-[#FFD700] font-bold">Importo Min 2$:</span>
+            <input type="number" id="quickAmountInput" min="2" step="0.5" value="2" oninput="onQuickAmountChange(this.value)" onblur="onQuickAmountBlur(this.value)" class="w-20 bg-transparent text-xs font-mono font-extrabold text-white outline-none tabular-nums" />
           </div>
 
           <input type="text" id="quickSymbolInput" list="symbolSuggestions" value="PAXG-USDT" placeholder="Es. PAXG-USDT, BTC-USDT..." class="bg-black border border-white/30 rounded-xl px-3 py-1.5 text-xs font-mono text-white outline-none focus:border-[#FFD700] w-36" />
@@ -158,7 +198,7 @@
           <div class="flex items-center justify-between pb-2.5 mb-3 border-b border-[#FFD700]/30">
             <div>
               <h2 class="text-sm font-extrabold uppercase tracking-wider text-white">⚡ SEGNALI OPERATIVI IN TEMPO REALE</h2>
-              <p class="text-[11px] text-[#FFD700]" id="signalsSubtitle">Importo da 2$+, R:R, Expected Value (EV), Kelly, Score Multi-TF, Target ETA e Finestra Candela</p>
+              <p class="text-[11px] text-[#FFD700]" id="signalsSubtitle">Ordini da minimo 2.00 USDT su BingX, R:R, Expected Value (EV), Kelly, Score Multi-TF, Target ETA e Finestra Candela</p>
             </div>
             <span class="px-2.5 py-1 rounded-md text-[11px] font-mono font-extrabold bg-[#FFD700] text-black">LIVE</span>
           </div>
@@ -175,7 +215,7 @@
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2 max-h-[720px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">[System] Motore live attivo.</div>
+          <div class="p-2 rounded bg-white/5 text-white/70">[System] Motore live attivo (minimo 2.00 USDT su BingX).</div>
         </div>
       </aside>
     </div>
@@ -289,7 +329,7 @@
             <button onclick="setMarginUsdt(25)" id="marBtn25" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">25 $</button>
             <button onclick="setMarginUsdt(100)" id="marBtn100" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">100 $</button>
           </div>
-          <input type="number" id="customMarginInput" min="2" step="0.5" value="2" oninput="onCustomMarginChange(this.value)" placeholder="Importo USDT da 2$ in su..." class="w-full bg-[#08080A] border border-white/25 rounded-lg px-3 py-2 text-white outline-none focus:border-[#FFD700] tabular-nums" />
+          <input type="number" id="customMarginInput" min="2" step="0.5" value="2" oninput="onCustomMarginChange(this.value)" onblur="onCustomMarginBlur(this.value)" placeholder="Importo USDT da 2$ in su..." class="w-full bg-[#08080A] border border-white/25 rounded-lg px-3 py-2 text-white outline-none focus:border-[#FFD700] tabular-nums" />
           <p class="text-[11px] text-cyan-300" id="marginUsdtLabel">2.00 USDT • Leva effettiva: 20x</p>
         </div>
 
@@ -398,8 +438,9 @@
   </div>
 
   <script>
-    const storedMargin = parseFloat(localStorage.getItem('bingx_margin_usdt') || '2');
-    const initialMargin = (!isNaN(storedMargin) && storedMargin >= 2) ? storedMargin : 2;
+    const MIN_ORDER_USDT = 2.0;
+    const storedMargin = parseFloat(localStorage.getItem('bingx_margin_usdt') || String(MIN_ORDER_USDT));
+    const initialMargin = (!isNaN(storedMargin) && storedMargin >= MIN_ORDER_USDT) ? storedMargin : MIN_ORDER_USDT;
 
     let state = {
       activeTab: 'signals',
@@ -428,7 +469,7 @@
 
     function getEffectiveLeverage() {
       if (state.marketType === 'SPOT') return 1;
-      if (state.selectedMarginUsdt > 0 && state.selectedMarginUsdt <= 2.0 && state.selectedLeverage === 10) {
+      if (state.selectedMarginUsdt > 0 && state.selectedMarginUsdt <= MIN_ORDER_USDT && state.selectedLeverage === 10) {
         return 20;
       }
       return Math.max(1, state.selectedLeverage);
@@ -570,14 +611,18 @@
     function applyMarginAmount(rawVal, syncQuickInput = true, syncCustomInput = true) {
       const parsed = parseFloat(rawVal);
       if (isNaN(parsed)) return;
-      const clamped = Math.max(2.0, parsed);
+      const clamped = Math.max(MIN_ORDER_USDT, parsed);
       state.selectedMarginUsdt = clamped;
       localStorage.setItem('bingx_margin_usdt', String(clamped));
 
       const qInp = document.getElementById('quickAmountInput');
       const cInp = document.getElementById('customMarginInput');
+      const tInp = document.getElementById('topTableAmountInput');
+      const tAct = document.getElementById('tableActiveAmount');
       if (syncQuickInput && qInp && String(qInp.value) !== String(clamped)) qInp.value = clamped;
       if (syncCustomInput && cInp && String(cInp.value) !== String(clamped)) cInp.value = clamped;
+      if (tInp && String(tInp.value) !== String(clamped)) tInp.value = clamped;
+      if (tAct) tAct.textContent = `${clamped.toFixed(2)} USDT`;
 
       document.querySelectorAll('[id^="marBtn"]').forEach(b => {
         b.className = "py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold";
@@ -592,8 +637,27 @@
     }
 
     function onQuickAmountChange(val) {
-      if (val === '' || parseFloat(val) < 2) return;
+      if (val === '' || parseFloat(val) < MIN_ORDER_USDT) return;
       applyMarginAmount(val, false, true);
+    }
+
+    function onQuickAmountBlur(val) {
+      const parsed = parseFloat(val);
+      if (isNaN(parsed) || parsed < MIN_ORDER_USDT) {
+        applyMarginAmount(MIN_ORDER_USDT, true, true);
+      }
+    }
+
+    function onTopTableAmountChange(val) {
+      if (val === '' || parseFloat(val) < MIN_ORDER_USDT) return;
+      applyMarginAmount(val, true, true);
+    }
+
+    function onTopTableAmountBlur(val) {
+      const parsed = parseFloat(val);
+      if (isNaN(parsed) || parsed < MIN_ORDER_USDT) {
+        applyMarginAmount(MIN_ORDER_USDT, true, true);
+      }
     }
 
     function updateRiskLabels() {
@@ -610,8 +674,15 @@
     }
 
     function onCustomMarginChange(val) {
-      if (val === '' || parseFloat(val) < 2) return;
+      if (val === '' || parseFloat(val) < MIN_ORDER_USDT) return;
       applyMarginAmount(val, true, false);
+    }
+
+    function onCustomMarginBlur(val) {
+      const parsed = parseFloat(val);
+      if (isNaN(parsed) || parsed < MIN_ORDER_USDT) {
+        applyMarginAmount(MIN_ORDER_USDT, true, true);
+      }
     }
 
     function setLeverage(lev) {
@@ -647,12 +718,22 @@
 
       const r = document.getElementById('minScoreRange');
       const n = document.getElementById('minScoreInput');
+      const tr = document.getElementById('topTableScoreRange');
+      const tn = document.getElementById('topTableScoreInput');
+      const ta = document.getElementById('tableActiveScore');
       const topSum = document.getElementById('topMinScoreSummary');
       if (r && String(r.value) !== String(num)) r.value = num;
       if (n && String(n.value) !== String(num)) n.value = num;
+      if (tr && String(tr.value) !== String(num)) tr.value = num;
+      if (tn && String(tn.value) !== String(num)) tn.value = num;
+      if (ta) ta.textContent = `${num}%`;
       if (topSum) topSum.textContent = `${num}%`;
 
       renderSignalsList();
+    }
+
+    function onTopTableScoreChange(val) {
+      onMinScoreInput(val);
     }
 
     function saveScoreSettings() {
@@ -839,12 +920,13 @@
       const symbols = selectCandidateSymbols();
       if (symbols.length === 0) return;
 
+      const effMargin = Math.max(MIN_ORDER_USDT, Number(state.selectedMarginUsdt || MIN_ORDER_USDT));
       const effLev = getEffectiveLeverage();
       const cards = [];
 
       for (const sym of symbols) {
         try {
-          const url = `/api/deep-scan?symbol=${encodeURIComponent(sym)}&marketType=${state.marketType}&style=${encodeURIComponent(state.tradingStyle)}&margin=${encodeURIComponent(state.selectedMarginUsdt)}&leverage=${encodeURIComponent(effLev)}`;
+          const url = `/api/deep-scan?symbol=${encodeURIComponent(sym)}&marketType=${state.marketType}&style=${encodeURIComponent(state.tradingStyle)}&margin=${encodeURIComponent(effMargin)}&leverage=${encodeURIComponent(effLev)}`;
           const res = await fetch(url);
           const json = await res.json();
           if (json.code === 0 && json.data) {
@@ -865,6 +947,10 @@
       const asset = state.signalsCache[idx];
       if (!asset) return;
       const keys = getStoredApiKeys();
+      const effMargin = Math.max(MIN_ORDER_USDT, Number(state.selectedMarginUsdt || MIN_ORDER_USDT));
+      if (state.selectedMarginUsdt !== effMargin) {
+        applyMarginAmount(effMargin, true, true);
+      }
       const effLev = getEffectiveLeverage();
       const isAuto = state.tradingMode === 'AUTO';
 
@@ -878,7 +964,7 @@
         return;
       }
 
-      logFeed(`[ORDINE REALE] Invio ${overrideSide} su ${asset.symbol} (Importo: $${state.selectedMarginUsdt.toFixed(2)}, Size: ${asset.size}, Leva: ${effLev}x, SL: ${asset.sl}, TP2: ${asset.tp2})...`);
+      logFeed(`[ORDINE BINGX] Invio ${overrideSide} su ${asset.symbol} (Min Importo: $${effMargin.toFixed(2)}, Size: ${asset.size}, Leva: ${effLev}x, SL: ${asset.sl}, TP2: ${asset.tp2})...`);
 
       try {
         const res = await fetch('/api/esegui-segnale', {
@@ -892,7 +978,7 @@
             tp: asset.tp2,
             sl: asset.sl,
             leverage: effLev,
-            marginUsdt: state.selectedMarginUsdt,
+            marginUsdt: effMargin,
             timeframe: asset.exactTf || '15m',
             marketType: state.marketType,
             apiKey: keys.apiKey,
@@ -902,11 +988,11 @@
         });
         const data = await res.json();
         if (data.code === 0) {
-          logFeed(`[OK] Ordine ${overrideSide} eseguito su ${asset.symbol} (Importo $${data.appliedMarginUsdt || state.selectedMarginUsdt}, Leva ${data.appliedLeverage || effLev}x).`);
-          alert(`Ordine ${overrideSide} eseguito su BingX per ${asset.symbol}!`);
+          logFeed(`[OK BINGX] Ordine ${overrideSide} eseguito su ${asset.symbol} (Qty: ${data.appliedQuantity || asset.size}, Importo $${data.appliedMarginUsdt || effMargin}, Leva ${data.appliedLeverage || effLev}x).`);
+          alert(`Ordine ${overrideSide} eseguito su BingX per ${asset.symbol} (Importo $${data.appliedMarginUsdt || effMargin}, Qty: ${data.appliedQuantity || asset.size})!`);
           refreshBingxTelemetry();
         } else {
-          logFeed(`[ERRORE] ${data.msg || 'Esito negativo ordine'}`);
+          logFeed(`[ERRORE BINGX] ${data.msg || 'Esito negativo ordine'}`);
           alert(data.msg || "Impossibile completare l'ordine su BingX.");
         }
       } catch (e) {
@@ -963,8 +1049,9 @@
       state.selectedAssetDetail = state.signalsCache.find(s => s.symbol === symbol) || state.selectedAssetDetail;
       setBottomTab('charts');
       try {
+        const effMargin = Math.max(MIN_ORDER_USDT, Number(state.selectedMarginUsdt || MIN_ORDER_USDT));
         const effLev = getEffectiveLeverage();
-        const res = await fetch(`/api/deep-scan?symbol=${encodeURIComponent(symbol)}&marketType=${state.marketType}&style=${encodeURIComponent(state.tradingStyle)}&margin=${encodeURIComponent(state.selectedMarginUsdt)}&leverage=${encodeURIComponent(effLev)}`);
+        const res = await fetch(`/api/deep-scan?symbol=${encodeURIComponent(symbol)}&marketType=${state.marketType}&style=${encodeURIComponent(state.tradingStyle)}&margin=${encodeURIComponent(effMargin)}&leverage=${encodeURIComponent(effLev)}`);
         const json = await res.json();
         if (json.code === 0 && json.data) {
           state.selectedAssetDetail = json.data;
@@ -1109,8 +1196,13 @@
     window.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('quickAmountInput').value = state.selectedMarginUsdt;
       document.getElementById('customMarginInput').value = state.selectedMarginUsdt;
+      document.getElementById('topTableAmountInput').value = state.selectedMarginUsdt;
+      document.getElementById('tableActiveAmount').textContent = `${Number(state.selectedMarginUsdt).toFixed(2)} USDT`;
       document.getElementById('minScoreRange').value = state.minSignalScore;
       document.getElementById('minScoreInput').value = state.minSignalScore;
+      document.getElementById('topTableScoreRange').value = state.minSignalScore;
+      document.getElementById('topTableScoreInput').value = state.minSignalScore;
+      document.getElementById('tableActiveScore').textContent = `${state.minSignalScore}%`;
       document.getElementById('hideBelowScoreSelect').value = state.hideBelowScore;
 
       document.querySelectorAll('[id^="marBtn"]').forEach(b => {
