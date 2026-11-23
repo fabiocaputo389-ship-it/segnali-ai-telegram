@@ -16,8 +16,6 @@ from flask import Flask, jsonify, render_template, request
 app = Flask(__name__)
 
 MIN_BINGX_CAPITAL_USD = 2.0
-BINANCE_FAPI_BASE = "https://fapi.binance.com"
-BINANCE_SPOT_BASE = "https://api.binance.com"
 
 
 def _clean_env_secret(val: str) -> str:
@@ -593,53 +591,6 @@ def fetch_bingx_real_positions():
     return active, None
 
 
-def _fetch_binance_ticker_fallback(symbol_key: str):
-    clean = canonicalize_symbol_key(symbol_key)
-    for base in (BINANCE_FAPI_BASE, BINANCE_SPOT_BASE):
-        path = "/fapi/v1/ticker/price" if "fapi" in base else "/api/v3/ticker/price"
-        try:
-            resp = requests.get(f"{base}{path}", params={"symbol": clean}, timeout=1.2)
-            if resp.status_code == 200:
-                p = safe_float((resp.json() or {}).get("price"), 0.0)
-                if p > 0:
-                    return p
-        except Exception:
-            continue
-    return None
-
-
-def _fetch_binance_klines_fallback(symbol_key: str, interval: str, limit: int = 100):
-    clean = canonicalize_symbol_key(symbol_key)
-    tf_map = {"5m": "5m", "15m": "15m", "1h": "1h"}
-    b_int = tf_map.get(interval, "15m")
-    for base in (BINANCE_FAPI_BASE, BINANCE_SPOT_BASE):
-        path = "/fapi/v1/klines" if "fapi" in base else "/api/v3/klines"
-        try:
-            resp = requests.get(
-                f"{base}{path}",
-                params={"symbol": clean, "interval": b_int, "limit": limit},
-                timeout=1.4,
-            )
-            if resp.status_code == 200:
-                rows = resp.json() or []
-                if isinstance(rows, list) and len(rows) >= 40:
-                    parsed = []
-                    for r in rows[-limit:]:
-                        if isinstance(r, (list, tuple)) and len(r) >= 6:
-                            o = safe_float(r[1])
-                            h = safe_float(r[2])
-                            l = safe_float(r[3])
-                            c = safe_float(r[4])
-                            v = safe_float(r[5], 0.0)
-                            if c > 0 and h >= l > 0:
-                                parsed.append({"Open": o or c, "High": h, "Low": l, "Close": c, "Volume": max(v, 0.0)})
-                    if len(parsed) >= 40:
-                        return pd.DataFrame(parsed)
-        except Exception:
-            continue
-    return None
-
-
 def fetch_bingx_ticker(bx_symbol: str):
     cached = _LIVE_PRICE_CACHE.get(bx_symbol)
     if cached and (time.time() - cached["ts"]) < 2.2:
@@ -647,7 +598,7 @@ def fetch_bingx_ticker(bx_symbol: str):
     base_url = get_bingx_base_url()
     try:
         url = f"{base_url}/openApi/swap/v2/quote/ticker"
-        resp = requests.get(url, params={"symbol": bx_symbol}, timeout=1.2)
+        resp = requests.get(url, params={"symbol": bx_symbol}, timeout=2.2)
         if resp.status_code == 200:
             payload = resp.json()
             data = payload.get("data")
@@ -660,11 +611,6 @@ def fetch_bingx_ticker(bx_symbol: str):
                     return price
     except Exception:
         pass
-
-    fb_price = _fetch_binance_ticker_fallback(bx_symbol)
-    if fb_price and fb_price > 0:
-        _LIVE_PRICE_CACHE[bx_symbol] = {"price": fb_price, "ts": time.time()}
-        return fb_price
     return cached["price"] if cached else None
 
 
@@ -679,7 +625,7 @@ def fetch_bingx_klines(bx_symbol: str, interval: str, limit: int = 100):
     bx_int = tf_map.get(interval, "15m")
     try:
         url = f"{base_url}/openApi/swap/v2/quote/klines"
-        resp = requests.get(url, params={"symbol": bx_symbol, "interval": bx_int, "limit": limit}, timeout=1.4)
+        resp = requests.get(url, params={"symbol": bx_symbol, "interval": bx_int, "limit": limit}, timeout=2.5)
         if resp.status_code == 200:
             rows = resp.json().get("data") or []
             if isinstance(rows, list) and len(rows) >= 40:
@@ -707,11 +653,6 @@ def fetch_bingx_klines(bx_symbol: str, interval: str, limit: int = 100):
                     return df_out
     except Exception:
         pass
-
-    fb_df = _fetch_binance_klines_fallback(bx_symbol, interval, limit=limit)
-    if fb_df is not None and len(fb_df) >= 40:
-        _KLINES_CACHE[cache_key] = {"df": fb_df.copy(), "ts": time.time()}
-        return fb_df
     return cached["df"].copy() if cached else None
 
 
@@ -1243,11 +1184,11 @@ def get_signals():
             return None
         return evaluate_pro_setup(df_m, p_m, m_item["symbol"], cat, open_flag, balance, risk_pct, cfg)
 
-    with ThreadPoolExecutor(max_workers=12) as pool:
+    with ThreadPoolExecutor(max_workers=8) as pool:
         futs = [pool.submit(_worker, c, o, m) for (c, o, m) in tasks]
-        for fut in as_completed(futs, timeout=12.0):
+        for fut in as_completed(futs, timeout=9.0):
             try:
-                ev = fut.result(timeout=2.0)
+                ev = fut.result(timeout=1.5)
                 if ev:
                     monitoring_rows.append(ev)
                     if ev["taken"]:
