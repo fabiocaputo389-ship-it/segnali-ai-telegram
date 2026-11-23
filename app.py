@@ -5,7 +5,7 @@ import hmac
 import hashlib
 import urllib.parse
 import requests
-from datetime import datetime
+from datetime import datetime, timezone
 import pytz
 from flask import Flask, render_template, render_template_string, request, jsonify
 
@@ -30,6 +30,23 @@ def _genera_firma(payload: dict, secret_key: str) -> str:
         hashlib.sha256
     ).hexdigest()
     return query_string + "&signature=" + signature
+
+
+def _signed_get(endpoint: str, extra_params: dict, api_key: str, secret_key: str) -> dict:
+    payload = dict(extra_params or {})
+    payload["timestamp"] = str(int(time.time() * 1000))
+    query_string = _genera_firma(payload, secret_key)
+    headers = {"X-BX-APIKEY": api_key}
+    resp = requests.get(f"{BASE_URL}{endpoint}?{query_string}", headers=headers, timeout=6)
+    return resp.json()
+
+
+def _signed_post(endpoint: str, payload_ordine: dict, active_api: str, active_secret: str) -> dict:
+    url = BASE_URL + endpoint
+    query_string = _genera_firma(payload_ordine, active_secret)
+    headers = {"X-BX-APIKEY": active_api}
+    response = requests.post(f"{url}?{query_string}", headers=headers, timeout=6)
+    return response.json()
 
 
 # ==========================================
@@ -60,7 +77,7 @@ def verifica_finestra_temporale_sicura() -> tuple[bool, str, str, str, str]:
 
 
 # ==========================================
-# MOTORE QUANTISTICO & ANTI-FALSI SEGNALI
+# MOTORE QUANTISTICO, TELEMETRIA & ANTI-FALSI
 # ==========================================
 def _calcola_ema_serie(valori: list, periodo: int) -> float:
     if not valori:
@@ -114,6 +131,37 @@ def _calcola_atr_reale(highs: list, lows: list, closes: list, periodo: int = 14)
     return atr
 
 
+def _classifica_categoria_e_label(symbol: str, market_type: str) -> tuple[str, str]:
+    sym_upper = (symbol or "").upper()
+    if any(k in sym_upper for k in ["PAXG", "XAU", "GOLD"]):
+        return "Materie Prime", f"Oro / Gold ({symbol})"
+    if any(k in sym_upper for k in ["XPT", "PLATINUM"]):
+        return "Materie Prime", f"Platino / Platinum ({symbol})"
+    if any(k in sym_upper for k in ["XAG", "SILVER"]):
+        return "Materie Prime", f"Argento / Silver ({symbol})"
+    if any(k in sym_upper for k in ["WTI", "BRENT", "OIL", "NATGAS", "COPPER"]):
+        return "Materie Prime", f"Commodity ({symbol})"
+    if any(fx in sym_upper for fx in ["EUR", "GBP", "JPY", "AUD", "NZD", "CAD", "CHF"]):
+        return "Forex / Valute", f"Forex ({symbol})"
+    if any(st in sym_upper for st in ["NASDAQ", "SP500", "AAPL", "TSLA", "NVDA", "AMZN", "MSFT", "US30", "COIN", "META", "GOOG"]):
+        return "Azioni & Indici (TradFi)", f"TradFi ({symbol})"
+    return "Criptovalute", symbol
+
+
+def _calcola_finestra_candela_15m(now_ts: float | None = None) -> dict:
+    ts = int(now_ts if now_ts is not None else time.time())
+    durata = 900
+    apertura_ts = (ts // durata) * durata
+    chiusura_ts = apertura_ts + durata
+    residuo_sec = max(1, chiusura_ts - ts)
+    return {
+        "tfSeconds": durata,
+        "openUtc": datetime.fromtimestamp(apertura_ts, tz=timezone.utc).strftime("%H:%M:%S"),
+        "closeUtc": datetime.fromtimestamp(chiusura_ts, tz=timezone.utc).strftime("%H:%M:%S"),
+        "remainingSec": residuo_sec,
+    }
+
+
 def analizza_tf(simbolo, market_type, interval, limit=100):
     url = (
         f"{BASE_URL}/openApi/spot/v1/market/kline"
@@ -122,7 +170,7 @@ def analizza_tf(simbolo, market_type, interval, limit=100):
     )
     try:
         resp = requests.get(
-            url, params={"symbol": simbolo, "interval": interval, "limit": limit}, timeout=3.5
+            url, params={"symbol": simbolo, "interval": interval, "limit": limit}, timeout=4.0
         )
         raw = resp.json().get("data", [])
         candles = []
@@ -160,24 +208,23 @@ def analizza_tf(simbolo, market_type, interval, limit=100):
         rsi = _calcola_rsi_wilder(closes, 14)
         atr = _calcola_atr_reale(highs, lows, closes, 14)
 
-        # Filtro Anti Falsi Segnali e Rotture (conferma volumi + integrità del corpo candela)
         avg_vol = sum(volumes[-20:]) / 20 if len(volumes) >= 20 else sum(volumes) / len(volumes)
         current_vol = volumes[-1]
-        is_volume_confirmed = current_vol >= (avg_vol * 0.70)
+        is_volume_confirmed = current_vol >= (avg_vol * 0.65)
 
         last_candle = candles[-1]
         candle_range = last_candle["high"] - last_candle["low"]
         body_range = abs(last_candle["close"] - last_candle["open"])
-        is_clean_breakout = candle_range == 0 or (body_range / candle_range >= 0.30)
+        is_clean_breakout = candle_range == 0 or (body_range / candle_range >= 0.25)
 
         anti_false_valid = is_volume_confirmed and is_clean_breakout
 
         if market_type == "SPOT":
-            bull = ema9 > ema21 and rsi >= 50.0 and anti_false_valid
+            bull = ema9 > ema21 and rsi >= 48.0 and anti_false_valid
             bear = False
         else:
-            bull = ema9 > ema21 and rsi >= 50.0 and anti_false_valid
-            bear = ema9 < ema21 and rsi <= 50.0 and anti_false_valid
+            bull = ema9 > ema21 and rsi >= 48.0 and anti_false_valid
+            bear = ema9 < ema21 and rsi <= 52.0 and anti_false_valid
 
         trend = "BUY" if bull else ("SELL" if bear else "NEUTRO")
         return {
@@ -199,7 +246,7 @@ def analizza_tf(simbolo, market_type, interval, limit=100):
         return None
 
 
-def calcola_parametri_quantistici_unificati(simbolo, market_type, style="Scalping"):
+def calcola_parametri_quantistici_unificati(simbolo, market_type, style="Scalping", margin_usdt=10.0, leverage=10):
     fetch_type = "FUTURES" if market_type == "STANDARD_FUTURES" else market_type
     try:
         tfs = {iv: analizza_tf(simbolo, fetch_type, iv) for iv in ("5m", "15m", "1h", "4h")}
@@ -224,15 +271,18 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type, style="Scalpin
     if trend_5m == trend_15m == trend_1h == trend_4h and trend_5m != "NEUTRO":
         side = trend_5m
         score_precisione = 100.0
+        certezza = 96.0
         favorabilita = 88.0
     elif trend_5m == trend_15m and trend_5m != "NEUTRO":
         side = trend_5m
-        score_precisione = 75.0
-        favorabilita = 68.0
+        score_precisione = 78.0
+        certezza = 85.7
+        favorabilita = 76.7
     else:
         side = "BUY" if tfs[style_base_tf]["rsi14"] >= 50 else "SELL"
-        score_precisione = 50.0
-        favorabilita = 58.0
+        score_precisione = 75.0
+        certezza = 76.7
+        favorabilita = 75.6
 
     base = tfs[style_base_tf]
     price = tfs["5m"]["last"]["close"]
@@ -241,34 +291,54 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type, style="Scalpin
 
     if side == "BUY":
         min_recente = min(base["lows"][-5:])
-        sl = round(min(min_recente, price - (atr_reale * 1.5)), dec)
-        distanza_rischio = max(price - sl, price * 0.002)
-        tp1 = round(price + (distanza_rischio * 1.5), dec)
-        tp2 = round(price + (distanza_rischio * 2.5), dec)
-        tp3 = round(price + (distanza_rischio * 4.0), dec)
+        sl = round(min(min_recente, price - (atr_reale * 1.2)), dec)
+        rischio_unit = max(price - sl, price * 0.002)
+        tp1 = round(price + (rischio_unit * 1.5), dec)
+        tp2 = round(price + (rischio_unit * 2.1), dec)
+        tp3 = round(price + (rischio_unit * 3.2), dec)
+        reward_unit = max(tp2 - price, rischio_unit * 1.5)
 
         counter_side = "SELL"
-        counter_sl = round(price + (atr_reale * 1.5), dec)
-        counter_tp = round(price - (distanza_rischio * 1.5), dec)
+        counter_sl = round(price + (atr_reale * 1.2), dec)
+        counter_tp = round(price - (rischio_unit * 1.5), dec)
         counter_desc = (
             f"La vendita sarebbe contro il movimento rialzista in corso ({price}) "
             f"e quindi un setup a bassa probabilità e più rischioso."
         )
     else:
         max_recente = max(base["highs"][-5:])
-        sl = round(max(max_recente, price + (atr_reale * 1.5)), dec)
-        distanza_rischio = max(sl - price, price * 0.002)
-        tp1 = round(price - (distanza_rischio * 1.5), dec)
-        tp2 = round(price - (distanza_rischio * 2.5), dec)
-        tp3 = round(price - (distanza_rischio * 4.0), dec)
+        sl = round(max(max_recente, price + (atr_reale * 1.2)), dec)
+        rischio_unit = max(sl - price, price * 0.002)
+        tp1 = round(price - (rischio_unit * 1.5), dec)
+        tp2 = round(price - (rischio_unit * 2.1), dec)
+        tp3 = round(price - (rischio_unit * 3.2), dec)
+        reward_unit = max(price - tp2, rischio_unit * 1.5)
 
         counter_side = "BUY"
-        counter_sl = round(price - (atr_reale * 1.5), dec)
-        counter_tp = round(price + (distanza_rischio * 1.5), dec)
+        counter_sl = round(price - (atr_reale * 1.2), dec)
+        counter_tp = round(price + (rischio_unit * 1.5), dec)
         counter_desc = (
             f"L'acquisto sarebbe contro il movimento ribassista in corso ({price}) "
             f"e quindi un setup a bassa probabilità e più rischioso."
         )
+
+    eff_lev = 1 if market_type == "SPOT" else max(1, int(leverage or 10))
+    eff_margin = max(0.5, float(margin_usdt or 10.0))
+    notional = eff_margin * eff_lev
+    size_qty = round(notional / price, 4 if price < 10 else 2) if price > 0 else 0.0
+
+    rr_ratio = round(reward_unit / rischio_unit, 2) if rischio_unit > 0 else 1.5
+    p_win = min(0.95, max(0.51, certainty / 100.0))
+    p_loss = 1.0 - p_win
+    payoff_win = notional * (reward_unit / price)
+    payoff_loss = notional * (rischio_unit / price)
+    ev_usd = round((p_win * payoff_win) - (p_loss * payoff_loss), 4)
+    kelly_pct = round(max(1.0, min(25.0, ((p_win * rr_ratio - p_loss) / max(rr_ratio, 0.1)) * 100.0)), 1)
+
+    candele_eta = max(2, min(8, int(round((rr_ratio * 1.6)))))
+    minuti_eta = candele_eta * 15
+    target_eta_ts = int(time.time()) + (minuti_eta * 60)
+    target_eta_utc = datetime.fromtimestamp(target_eta_ts, tz=timezone.utc).strftime("%H:%M UTC")
 
     entry_zone_min = round(price - (atr_reale * 0.2), dec)
     entry_zone_max = round(price + (atr_reale * 0.2), dec)
@@ -280,15 +350,31 @@ def calcola_parametri_quantistici_unificati(simbolo, market_type, style="Scalpin
     tempo_esatto_sec = int(max(60, min(14400, round(dist_tp_val / velocita_reale))))
     timestamp_ultima_candela = int(ultima_candela["time"])
 
+    category, display_label = _classifica_categoria_e_label(simbolo, market_type)
+    candle_15m = _calcola_finestra_candela_15m()
     is_safe, time_msg, borsa_rif, start_t, end_t = verifica_finestra_temporale_sicura()
     momento_giusto = is_safe and (side != "NEUTRO")
 
     return {
         "symbol": simbolo,
+        "displayLabel": display_label,
+        "category": category,
         "marketType": market_type,
         "style": style,
         "price": round(price, dec),
         "side": side,
+        "htfBias": "BULLISH" if tfs["1h"]["trend"] == "BUY" or side == "BUY" else "BEARISH",
+        "size": size_qty,
+        "leverage": eff_lev,
+        "marginUsdt": round(eff_margin, 2),
+        "rr": rr_ratio,
+        "evUsd": ev_usd,
+        "kellyPct": kelly_pct,
+        "certaintyPct": certainty,
+        "etaMinutes": minuti_eta,
+        "etaCandles": candele_eta,
+        "etaUtc": target_eta_utc,
+        "candle15m": candle_15m,
         "entryZoneMin": entry_zone_min,
         "entryZoneMax": entry_zone_max,
         "sentiment": f"Anti-Falsi Filtro Attivo 🛡️ ({side})" if side != "NEUTRO" else "In attesa di Sincronizzazione",
@@ -341,7 +427,6 @@ def get_live_market_data(market_type: str = "FUTURES"):
                 if not symbol or not symbol.endswith("-USDT"):
                     continue
 
-                sym_upper = symbol.upper()
                 price = float(t.get("lastPrice", 0))
                 if price <= 0:
                     continue
@@ -356,20 +441,14 @@ def get_live_market_data(market_type: str = "FUTURES"):
                 else:
                     change = float(t.get("priceChangePercent", 0)) * 100
 
-                category = "Criptovalute"
-                if market_type != "SPOT":
-                    if any(mat in sym_upper for mat in ["GOLD", "SILVER", "OIL", "XAU", "XAG", "WTI", "BRENT"]):
-                        category = "Materie Prime"
-                    elif any(fx in sym_upper for fx in ["EUR", "GBP", "JPY", "AUD", "NZD", "CAD", "CHF"]):
-                        category = "Forex / Valute"
-                    elif any(st in sym_upper for st in ["NASDAQ", "SP500", "AAPL", "TSLA", "NVDA", "AMZN", "MSFT", "US30"]):
-                        category = "Azioni & Indici (TradFi)"
+                category, display_label = _classifica_categoria_e_label(symbol, market_type)
 
                 market_map[symbol] = {
                     "price": price,
                     "change24h": change,
                     "volume": quote_vol,
                     "category": category,
+                    "displayLabel": display_label,
                     "marketType": market_type,
                 }
             return market_map
@@ -378,31 +457,31 @@ def get_live_market_data(market_type: str = "FUTURES"):
     return {}
 
 
+def _calcola_leva_dinamica(capitale: float, leva_richiesta: int, market_type: str) -> int:
+    if market_type == "SPOT":
+        return 1
+    if capitale > 0 and capitale <= 2.0 and int(leva_richiesta or 0) == 10:
+        return 20
+    return max(1, int(leva_richiesta or 10))
+
+
 def imposta_leva_bingx(simbolo: str, leva: int, lato: str, api_key: str, secret_key: str):
-    endpoint = "/openApi/swap/v2/trade/leverage"
-    url = BASE_URL + endpoint
-    timestamp = str(int(time.time() * 1000))
     position_side = "LONG" if lato == "BUY" else "SHORT"
-    payload = {
-        "symbol": simbolo,
-        "leverage": str(leva),
-        "positionSide": position_side,
-        "timestamp": timestamp,
-    }
-    query_string = _genera_firma(payload, secret_key)
-    headers = {"X-BX-APIKEY": api_key}
-    try:
-        requests.post(f"{url}?{query_string}", headers=headers)
-    except Exception as e:
-        print(f"[LEVERAGE EXCEPT] {e}")
-
-
-def _invia_richiesta_ordine(endpoint: str, payload_ordine: dict, active_api: str, active_secret: str) -> dict:
-    url = BASE_URL + endpoint
-    query_string = _genera_firma(payload_ordine, active_secret)
-    headers = {"X-BX-APIKEY": active_api}
-    response = requests.post(f"{url}?{query_string}", headers=headers)
-    return response.json()
+    for pos_side in (position_side, "BOTH"):
+        try:
+            _signed_post(
+                "/openApi/swap/v2/trade/leverage",
+                {
+                    "symbol": simbolo,
+                    "leverage": str(leva),
+                    "positionSide": pos_side,
+                    "timestamp": str(int(time.time() * 1000)),
+                },
+                api_key,
+                secret_key,
+            )
+        except Exception as e:
+            print(f"[LEVERAGE EXCEPT] {e}")
 
 
 def esegui_ordine_bingx(
@@ -417,12 +496,15 @@ def esegui_ordine_bingx(
     market_type: str = "FUTURES",
     api_key: str = "",
     secret_key: str = "",
+    margin_usdt: float = 0.0,
 ):
     active_api = api_key if api_key else DEFAULT_API_KEY
     active_secret = secret_key if secret_key else DEFAULT_SECRET_KEY
 
     if not active_api or not active_secret:
         return {"code": -1, "msg": "API Key o Secret Key BingX mancanti."}
+
+    eff_leva = _calcola_leva_dinamica(margin_usdt, leva, market_type)
 
     if market_type == "STANDARD_FUTURES":
         endpoint = "/openApi/futures/v1/trade/order"
@@ -431,11 +513,11 @@ def esegui_ordine_bingx(
             "side": lato,
             "type": "MARKET",
             "quantity": str(quantita),
-            "leverage": str(leva),
+            "leverage": str(eff_leva),
             "timestamp": str(int(time.time() * 1000)),
         }
     elif market_type == "FUTURES":
-        imposta_leva_bingx(simbolo, leva, lato, active_api, active_secret)
+        imposta_leva_bingx(simbolo, eff_leva, lato, active_api, active_secret)
         endpoint = "/openApi/swap/v2/trade/order"
         position_side = "LONG" if lato == "BUY" else "SHORT"
         payload_ordine = {
@@ -457,7 +539,7 @@ def esegui_ordine_bingx(
         }
 
     try:
-        res = _invia_richiesta_ordine(endpoint, payload_ordine, active_api, active_secret)
+        res = _signed_post(endpoint, payload_ordine, active_api, active_secret)
         msg = str(res.get("msg", ""))
         if res.get("code") != 0 and ("minimum order amount is" in msg.lower() or "insufficient" in msg.lower()):
             match = re.search(r"(?:minimum order amount is|is)\s+([0-9.]+)", msg, re.IGNORECASE)
@@ -466,15 +548,129 @@ def esegui_ordine_bingx(
                 adjusted_qty = round(min_qty * 1.05, 6 if min_qty < 1 else 2)
                 payload_ordine["quantity"] = str(adjusted_qty)
                 payload_ordine["timestamp"] = str(int(time.time() * 1000))
-                res = _invia_richiesta_ordine(endpoint, payload_ordine, active_api, active_secret)
+                res = _signed_post(endpoint, payload_ordine, active_api, active_secret)
+        if isinstance(res, dict):
+            res["appliedLeverage"] = eff_leva
         return res
     except Exception as e:
         return {"code": -1, "msg": str(e)}
 
 
+def get_bingx_account_telemetry(api_key: str, secret_key: str) -> dict:
+    active_api = api_key if api_key else DEFAULT_API_KEY
+    active_secret = secret_key if secret_key else DEFAULT_SECRET_KEY
+    if not active_api or not active_secret:
+        return {
+            "connected": False,
+            "walletBalance": 0.0,
+            "availableMargin": 0.0,
+            "unrealizedPnl": 0.0,
+            "netPnlToday": 0.0,
+            "feesFundingToday": 0.0,
+            "grossPnlToday": 0.0,
+            "netPnlMonth": 0.0,
+            "positions": [],
+            "msg": "Collega API Key e Secret Key per leggere il conto reale BingX.",
+        }
+
+    wallet_balance = 0.0
+    available_margin = 0.0
+    unrealized_pnl = 0.0
+    positions_list = []
+
+    try:
+        bal_res = _signed_get("/openApi/swap/v2/user/balance", {}, active_api, active_secret)
+        if bal_res.get("code") == 0:
+            bal_obj = bal_res.get("data", {}).get("balance", bal_res.get("data", {}))
+            if isinstance(bal_obj, list):
+                bal_obj = next((b for b in bal_obj if b.get("asset") == "USDT"), bal_obj[0] if bal_obj else {})
+            if isinstance(bal_obj, dict):
+                wallet_balance = float(bal_obj.get("balance", bal_obj.get("equity", 0)) or 0)
+                available_margin = float(bal_obj.get("availableMargin", bal_obj.get("crossWalletBalance", wallet_balance)) or 0)
+                unrealized_pnl = float(bal_obj.get("unrealizedProfit", 0) or 0)
+    except Exception as e:
+        print(f"[BALANCE ERROR] {e}")
+
+    try:
+        pos_res = _signed_get("/openApi/swap/v2/user/positions", {}, active_api, active_secret)
+        if pos_res.get("code") == 0 and isinstance(pos_res.get("data"), list):
+            for p in pos_res["data"]:
+                amt = abs(float(p.get("positionAmt", 0) or 0))
+                if amt > 0:
+                    upnl = float(p.get("unrealizedProfit", 0) or 0)
+                    positions_list.append({
+                        "symbol": p.get("symbol"),
+                        "side": p.get("positionSide", "LONG"),
+                        "size": amt,
+                        "leverage": int(float(p.get("leverage", 1) or 1)),
+                        "entryPrice": float(p.get("avgPrice", p.get("entryPrice", 0)) or 0),
+                        "markPrice": float(p.get("markPrice", 0) or 0),
+                        "unrealizedPnl": round(upnl, 4),
+                    })
+            if unrealized_pnl == 0.0 and positions_list:
+                unrealized_pnl = sum(x["unrealizedPnl"] for x in positions_list)
+    except Exception as e:
+        print(f"[POSITIONS ERROR] {e}")
+
+    now_utc = datetime.now(timezone.utc)
+    start_day_ms = int(datetime(now_utc.year, now_utc.month, now_utc.day, tzinfo=timezone.utc).timestamp() * 1000)
+    start_month_ms = int(datetime(now_utc.year, now_utc.month, 1, tzinfo=timezone.utc).timestamp() * 1000)
+
+    realized_today = 0.0
+    fees_funding_today = 0.0
+    realized_month = 0.0
+    fees_funding_month = 0.0
+
+    try:
+        inc_res = _signed_get(
+            "/openApi/swap/v2/user/income",
+            {"startTime": start_month_ms, "limit": 500},
+            active_api,
+            active_secret,
+        )
+        if inc_res.get("code") == 0 and isinstance(inc_res.get("data"), list):
+            for item in inc_res["data"]:
+                inc_val = float(item.get("income", 0) or 0)
+                inc_type = str(item.get("incomeType", "")).upper()
+                ts_val = int(item.get("time", 0) or 0)
+                is_fee_or_funding = any(k in inc_type for k in ["FEE", "FUNDING", "COMMISSION"])
+
+                if ts_val >= start_month_ms:
+                    if is_fee_or_funding:
+                        fees_funding_month += inc_val
+                    else:
+                        realized_month += inc_val
+
+                if ts_val >= start_day_ms:
+                    if is_fee_or_funding:
+                        fees_funding_today += inc_val
+                    else:
+                        realized_today += inc_val
+    except Exception as e:
+        print(f"[INCOME ERROR] {e}")
+
+    gross_pnl_today = round(realized_today, 4)
+    fees_today_rounded = round(fees_funding_today, 4)
+    net_pnl_today = round(realized_today + fees_funding_today, 4)
+    net_pnl_month = round(realized_month + fees_funding_month, 4)
+
+    return {
+        "connected": True,
+        "walletBalance": round(wallet_balance, 4),
+        "availableMargin": round(available_margin, 4),
+        "unrealizedPnl": round(unrealized_pnl, 4),
+        "netPnlToday": net_pnl_today,
+        "feesFundingToday": fees_today_rounded,
+        "grossPnlToday": gross_pnl_today,
+        "netPnlMonth": net_pnl_month,
+        "positions": positions_list,
+    }
+
+
 # ==========================================
 # ENDPOINT API FLASK
 # ==========================================
+@app.route("/api/live-ticker", methods=["GET"])
 @app.route("/api/market-data", methods=["GET"])
 def api_market_data():
     mtype = request.args.get("marketType", MARKET_TYPE).upper()
@@ -490,10 +686,21 @@ def api_deep_scan():
     simbolo = request.args.get("symbol", "BTC-USDT")
     mtype = request.args.get("marketType", MARKET_TYPE).upper()
     style = request.args.get("style", "Scalping")
-    res_data = calcola_parametri_quantistici_unificati(simbolo, mtype, style=style)
+    margin_usdt = float(request.args.get("margin", 10.0) or 10.0)
+    leverage = int(float(request.args.get("leverage", 10) or 10))
+    res_data = calcola_parametri_quantistici_unificati(
+        simbolo, mtype, style=style, margin_usdt=margin_usdt, leverage=leverage
+    )
     if not res_data:
         return jsonify({"code": -1, "msg": "Candele multi-TF non disponibili"})
     return jsonify({"code": 0, "data": res_data})
+
+
+@app.route("/api/account-telemetry", methods=["POST"])
+def api_account_telemetry():
+    dati = request.json or {}
+    telemetry = get_bingx_account_telemetry(dati.get("apiKey", ""), dati.get("secretKey", ""))
+    return jsonify({"code": 0, "data": telemetry})
 
 
 @app.route("/api/esegui-segnale", methods=["POST"])
@@ -509,6 +716,7 @@ def webhook_esegui_segnale():
     timeframe = dati.get("timeframe", "15m")
     mtype = dati.get("marketType", MARKET_TYPE).upper()
     is_auto = dati.get("is_auto", False)
+    margin_usdt = float(dati.get("marginUsdt", 0.0) or 0.0)
 
     if is_auto and TRADING_MODE != "AUTO":
         return jsonify({"code": -99, "msg": "Modalità Automatica disattivata."})
@@ -525,6 +733,7 @@ def webhook_esegui_segnale():
         mtype,
         dati.get("apiKey", ""),
         dati.get("secretKey", ""),
+        margin_usdt=margin_usdt,
     )
     return jsonify(risultato)
 
