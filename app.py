@@ -86,25 +86,21 @@ MARKET_CATALOG = {
         {"symbol": "SUIUSDT", "bx": "SUI-USDT", "name": "Sui (SUI-USDT)", "precision": 4},
     ],
     "Materie Prime & Forex": [
-        # Materie Prime - Metalli
         {"symbol": "PAXGUSDT", "bx": "PAXG-USDT", "name": "Oro / Gold (PAXG-USDT)", "precision": 2},
         {"symbol": "XAGUSDT", "bx": "XAG-USDT", "name": "Argento / Silver (XAG-USDT)", "precision": 3},
         {"symbol": "XPTUSDT", "bx": "XPT-USDT", "name": "Platino / Platinum (XPT-USDT)", "precision": 2},
         {"symbol": "XPDUSDT", "bx": "XPD-USDT", "name": "Palladio / Palladium (XPD-USDT)", "precision": 2},
         {"symbol": "COPPERUSDT", "bx": "COPPER-USDT", "name": "Rame / Copper (COPPER-USDT)", "precision": 4},
         {"symbol": "ALUMINIUMUSDT", "bx": "ALUMINIUM-USDT", "name": "Alluminio / Aluminium (ALUMINIUM-USDT)", "precision": 2},
-        # Materie Prime - Energia
         {"symbol": "WTIUSDT", "bx": "WTI-USDT", "name": "Petrolio WTI Crude (WTI-USDT)", "precision": 2},
         {"symbol": "BRENTUSDT", "bx": "BRENT-USDT", "name": "Petrolio Brent Crude (BRENT-USDT)", "precision": 2},
         {"symbol": "NATGASUSDT", "bx": "NATGAS-USDT", "name": "Gas Naturale (NATGAS-USDT)", "precision": 3},
-        # Materie Prime - Agricole / Soft
         {"symbol": "WHEATUSDT", "bx": "WHEAT-USDT", "name": "Grano / Wheat (WHEAT-USDT)", "precision": 2},
         {"symbol": "CORNUSDT", "bx": "CORN-USDT", "name": "Mais / Corn (CORN-USDT)", "precision": 2},
         {"symbol": "SOYBEANUSDT", "bx": "SOYBEAN-USDT", "name": "Soia / Soybeans (SOYBEAN-USDT)", "precision": 2},
         {"symbol": "COFFEEUSDT", "bx": "COFFEE-USDT", "name": "Caffè / Coffee (COFFEE-USDT)", "precision": 2},
         {"symbol": "SUGARUSDT", "bx": "SUGAR-USDT", "name": "Zucchero / Sugar (SUGAR-USDT)", "precision": 3},
         {"symbol": "COCOAUSDT", "bx": "COCOA-USDT", "name": "Cacao / Cocoa (COCOA-USDT)", "precision": 1},
-        # Forex - Major & Cross
         {"symbol": "EURUSDT", "bx": "EUR-USDT", "name": "EUR/USD (EUR-USDT)", "precision": 4},
         {"symbol": "GBPUSDT", "bx": "GBP-USDT", "name": "GBP/USD (GBP-USDT)", "precision": 4},
         {"symbol": "USDJPY", "bx": "USDJPY-USDT", "name": "USD/JPY (USDJPY-USDT)", "precision": 2},
@@ -119,7 +115,6 @@ MARKET_CATALOG = {
         {"symbol": "CHFJPY", "bx": "CHFJPY-USDT", "name": "CHF/JPY (CHFJPY-USDT)", "precision": 2},
     ],
     "Azioni & Indici Globali": [
-        # Azioni USA Big Tech & AI
         {"symbol": "AAPLUSDT", "bx": "AAPL-USDT", "name": "Apple Inc. (AAPL-USDT)", "precision": 2},
         {"symbol": "TSLAUSDT", "bx": "TSLA-USDT", "name": "Tesla Inc. (TSLA-USDT)", "precision": 2},
         {"symbol": "NVDAUSDT", "bx": "NVDA-USDT", "name": "Nvidia Corp. (NVDA-USDT)", "precision": 2},
@@ -128,17 +123,14 @@ MARKET_CATALOG = {
         {"symbol": "GOOGLUSDT", "bx": "GOOGL-USDT", "name": "Alphabet Inc. (GOOGL-USDT)", "precision": 2},
         {"symbol": "METAUSDT", "bx": "META-USDT", "name": "Meta Platforms (META-USDT)", "precision": 2},
         {"symbol": "NFLXUSDT", "bx": "NFLX-USDT", "name": "Netflix Inc. (NFLX-USDT)", "precision": 2},
-        # Semiconduttori & Crypto Equities
         {"symbol": "AMDUSDT", "bx": "AMD-USDT", "name": "AMD (AMD-USDT)", "precision": 2},
         {"symbol": "INTCUSDT", "bx": "INTC-USDT", "name": "Intel Corp. (INTC-USDT)", "precision": 2},
         {"symbol": "AVGOUSDT", "bx": "AVGO-USDT", "name": "Broadcom Inc. (AVGO-USDT)", "precision": 2},
         {"symbol": "COINUSDT", "bx": "COIN-USDT", "name": "Coinbase Global (COIN-USDT)", "precision": 2},
         {"symbol": "MSTRUSDT", "bx": "MSTR-USDT", "name": "Strategy / MSTR (MSTR-USDT)", "precision": 2},
-        # Finanziari
         {"symbol": "JPMUSDT", "bx": "JPM-USDT", "name": "JPMorgan Chase (JPM-USDT)", "precision": 2},
         {"symbol": "VUSDT", "bx": "V-USDT", "name": "Visa Inc. (V-USDT)", "precision": 2},
         {"symbol": "MAUSDT", "bx": "MA-USDT", "name": "Mastercard Inc. (MA-USDT)", "precision": 2},
-        # Indici & ETF
         {"symbol": "SP500USDT", "bx": "SP500-USDT", "name": "S&P 500 Index (SP500-USDT)", "precision": 2},
         {"symbol": "NASDAQ100USDT", "bx": "NASDAQ100-USDT", "name": "NASDAQ 100 Index (NASDAQ100-USDT)", "precision": 2},
         {"symbol": "DOWJONESUSDT", "bx": "DOWJONES-USDT", "name": "Dow Jones Index (DOWJONES-USDT)", "precision": 2},
@@ -160,6 +152,8 @@ def safe_float(val, default=0.0):
     try:
         if val is None or (isinstance(val, float) and (math.isnan(val) or math.isinf(val))):
             return float(default)
+        if isinstance(val, str):
+            val = val.replace(",", ".").strip()
         out = float(val)
         return float(default) if (math.isnan(out) or math.isinf(out)) else out
     except Exception:
@@ -639,48 +633,60 @@ def get_higher_tf_bias(bx_symbol: str, timeframe: str) -> str:
     return "NEUTRAL"
 
 
+def _required_factors_for_score(min_score: float, default_factors: int) -> int:
+    if min_score < 65.0:
+        return 2
+    if min_score < 75.0:
+        return 3
+    if min_score < 85.0:
+        return min(4, default_factors)
+    return default_factors
+
+
 def build_pro_profile_config(profile: str, timeframe: str, min_score: float, min_rrr_input: float):
     p = (profile or "pro_sniper").lower()
+    clean_min_score = min(98.0, max(20.0, safe_float(min_score, 70.0)))
+    clean_rrr = min(10.0, max(0.5, safe_float(min_rrr_input, 1.5)))
     if p == "pro_sniper":
         return {
             "profile": "pro_sniper",
-            "profile_label": "PRO SNIPER (A+ ONLY)",
+            "profile_label": "PRO SNIPER (SCORE DINAMICO)",
             "timeframe": timeframe,
-            "min_score": max(min_score, 85.0),
-            "required_factors": 5,
-            "min_rrr": max(min_rrr_input, 2.0),
+            "min_score": clean_min_score,
+            "required_factors": _required_factors_for_score(clean_min_score, 5),
+            "min_rrr": clean_rrr,
             "max_risk_pct": 1.0,
             "sl_atr": 1.25,
             "tp1_atr": 2.60,
             "tp2_atr": 4.00,
-            "min_vol_ratio": 1.15,
+            "min_vol_ratio": 0.90,
         }
     if p == "institutional_swing":
         return {
             "profile": "institutional_swing",
             "profile_label": "STRUTTURA & LIQUIDITÀ",
             "timeframe": timeframe,
-            "min_score": max(min_score, 80.0),
-            "required_factors": 5,
-            "min_rrr": max(min_rrr_input, 1.8),
+            "min_score": clean_min_score,
+            "required_factors": _required_factors_for_score(clean_min_score, 5),
+            "min_rrr": clean_rrr,
             "max_risk_pct": 1.5,
             "sl_atr": 1.40,
             "tp1_atr": 2.80,
             "tp2_atr": 4.40,
-            "min_vol_ratio": 1.05,
+            "min_vol_ratio": 0.85,
         }
     return {
         "profile": "momentum_desk",
         "profile_label": "MOMENTUM DESK",
         "timeframe": timeframe,
-        "min_score": max(min_score, 76.0),
-        "required_factors": 4,
-        "min_rrr": max(min_rrr_input, 1.6),
+        "min_score": clean_min_score,
+        "required_factors": _required_factors_for_score(clean_min_score, 4),
+        "min_rrr": clean_rrr,
         "max_risk_pct": 2.0,
         "sl_atr": 1.15,
         "tp1_atr": 2.20,
         "tp2_atr": 3.50,
-        "min_vol_ratio": 1.00,
+        "min_vol_ratio": 0.80,
     }
 
 
@@ -735,25 +741,25 @@ def evaluate_pro_setup(df, current_price, symbol, category, is_open, balance, ri
 
     sweep_high = (last_high > swing_high_20) and (current_price < swing_high_20)
     sweep_low = (last_low < swing_low_20) and (current_price > swing_low_20)
-    fakeout = sweep_high or sweep_low or (upper_wick > body * 2.2 and upper_wick > atr * 0.4) or (lower_wick > body * 2.2 and lower_wick > atr * 0.4)
+    fakeout = sweep_high or sweep_low or (upper_wick > body * 2.5 and upper_wick > atr * 0.5) or (lower_wick > body * 2.5 and lower_wick > atr * 0.5)
 
     htf_bias = get_higher_tf_bias(bx_symbol, cfg["timeframe"])
 
     bull_checks = [
         ema20 > ema50,
-        current_price >= ema20 * 0.996,
-        current_price >= ema200 * 0.990,
-        macd_curr > 0 and macd_curr >= macd_prev,
-        50.0 <= rsi <= 66.0,
+        current_price >= ema20 * 0.995,
+        current_price >= ema200 * 0.985,
+        macd_curr > 0 or macd_curr >= macd_prev,
+        45.0 <= rsi <= 72.0,
         vol_ratio >= cfg["min_vol_ratio"],
         htf_bias != "BEARISH",
     ]
     bear_checks = [
         ema20 < ema50,
-        current_price <= ema20 * 1.004,
-        current_price <= ema200 * 1.010,
-        macd_curr < 0 and macd_curr <= macd_prev,
-        34.0 <= rsi <= 50.0,
+        current_price <= ema20 * 1.005,
+        current_price <= ema200 * 1.015,
+        macd_curr < 0 or macd_curr <= macd_prev,
+        28.0 <= rsi <= 55.0,
         vol_ratio >= cfg["min_vol_ratio"],
         htf_bias != "BULLISH",
     ]
@@ -767,7 +773,7 @@ def evaluate_pro_setup(df, current_price, symbol, category, is_open, balance, ri
     factor_strength = (max(bull_hits, bear_hits) / 7.0) * 30.0
     raw_score = trend_strength + mom_strength + vol_strength + factor_strength
     if fakeout:
-        raw_score *= 0.65
+        raw_score *= 0.80
     score = round(max(10.0, min(99.0, raw_score)), 1)
 
     side_bias = "LONG" if bull_hits >= bear_hits else "SHORT"
@@ -822,14 +828,14 @@ def evaluate_pro_setup(df, current_price, symbol, category, is_open, balance, ri
     prev_dir = _LAST_CONFIRMED_DIRECTION.get(clean_sym)
 
     raw_action = "NEUTRAL"
-    if bull_hits >= cfg["required_factors"] and bull_hits > bear_hits and score >= cfg["min_score"] and rrr >= cfg["min_rrr"] and ev_usd > 0 and not fakeout and is_open:
+    if bull_hits >= cfg["required_factors"] and bull_hits > bear_hits and score >= cfg["min_score"] and rrr >= cfg["min_rrr"] and is_open:
         raw_action = "BUY"
-    elif bear_hits >= cfg["required_factors"] and bear_hits > bull_hits and score >= cfg["min_score"] and rrr >= cfg["min_rrr"] and ev_usd > 0 and not fakeout and is_open:
+    elif bear_hits >= cfg["required_factors"] and bear_hits > bull_hits and score >= cfg["min_score"] and rrr >= cfg["min_rrr"] and is_open:
         raw_action = "SELL"
 
     action = raw_action
-    reason = f"Setup {action} A+ confermato • HTF {htf_bias} • EV +${ev_usd:.4f} • R:R 1:{rrr}"
-    grade = "A+" if (score >= 88 and rrr >= 2.0 and ev_usd > 0 and not fakeout) else ("A" if score >= 80 and not fakeout else "B / NO-TRADE")
+    reason = f"Setup {action} validato (Score {score}% >= {cfg['min_score']}%) • HTF {htf_bias} • R:R 1:{rrr}"
+    grade = "A+" if (score >= max(85.0, cfg["min_score"]) and rrr >= 2.0 and not fakeout) else ("VALIDATO" if action in ("BUY", "SELL") else "NO-TRADE")
 
     if action in ("BUY", "SELL") and prev_dir:
         if prev_dir.get("action") != action and (now_ts - safe_float(prev_dir.get("ts"), 0.0)) < DIRECTION_COOLDOWN_SEC:
@@ -839,12 +845,8 @@ def evaluate_pro_setup(df, current_price, symbol, category, is_open, balance, ri
     elif action == "NEUTRAL":
         if not is_open:
             reason = f"Mercato {category} chiuso"
-        elif fakeout:
-            reason = "Bloccato: possibile falsa rottura / liquidità sweep"
-        elif ev_usd <= 0:
-            reason = f"Bloccato: EV netto negativo (${ev_usd:.4f}) al netto fee"
         elif rrr < cfg["min_rrr"]:
-            reason = f"Bloccato: R:R 1:{rrr} inferiore al minimo 1:{cfg['min_rrr']}"
+            reason = f"R:R 1:{rrr} inferiore al minimo 1:{cfg['min_rrr']}"
         elif score < cfg["min_score"]:
             reason = f"Score {score}% sotto soglia {cfg['min_score']}% ({max(bull_hits, bear_hits)}/7 fattori)"
         else:
@@ -962,7 +964,7 @@ def maybe_execute_pro_autotrade(signals_out, live_positions, daily_net_pnl):
     for sig in signals_out:
         if sig.get("action") not in ("BUY", "SELL"):
             continue
-        if only_a_plus and sig.get("grade") != "A+":
+        if only_a_plus and sig.get("grade") not in ("A+", "VALIDATO"):
             continue
         sym = sig["symbol"]
         if sym in active_syms:
@@ -1090,8 +1092,8 @@ def get_signals():
         timeframe = "15m"
     balance = max(1.0, safe_float(request.args.get("balance"), 2.0))
     risk_pct = min(10.0, max(0.25, safe_float(request.args.get("risk"), 1.0)))
-    min_score = min(98.0, max(50.0, safe_float(request.args.get("min_score"), 85.0)))
-    min_rrr = min(5.0, max(1.0, safe_float(request.args.get("min_rrr"), 2.0)))
+    min_score = min(98.0, max(20.0, safe_float(request.args.get("min_score"), 70.0)))
+    min_rrr = min(10.0, max(0.5, safe_float(request.args.get("min_rrr"), 1.5)))
     market_filter = request.args.get("market", "ALL")
     symbol_filter = request.args.get("symbol", "ALL")
 
@@ -1150,9 +1152,9 @@ def get_signals():
         if not sess.get("is_open", True):
             reason = f"Mercato chiuso ({sess.get('hours')})."
         elif cat_sigs:
-            reason = f"{len(cat_sigs)} setup validati EV+ su {category}{top_txt}."
+            reason = f"{len(cat_sigs)} setup validati (score >= {cfg['min_score']}%) su {category}{top_txt}."
         else:
-            reason = f"Nessun setup A+ sopra soglia {cfg['min_score']}% e R:R 1:{cfg['min_rrr']}{top_txt}."
+            reason = f"Nessun setup con score >= {cfg['min_score']}% e R:R 1:{cfg['min_rrr']}{top_txt}."
         market_diagnostics[category] = {
             "scanned": len(cat_rows),
             "signals_count": len(cat_sigs),
