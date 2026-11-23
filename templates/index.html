@@ -3,14 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>BINGX PRO DESK • Institutional Terminal</title>
+  <title>SALA SEGNALI PRO • BingX Institutional Terminal</title>
   <style>
     :root {
       --bg-main: #06090f;
       --bg-card: #0c121e;
       --bg-card-alt: #111929;
       --border-subtle: #1c2940;
-      --border-glow: rgba(0, 255, 102, 0.28);
       --text-primary: #eef4fc;
       --text-muted: #7f93b0;
       --neon-green: #00ff66;
@@ -20,6 +19,7 @@
       --amber: #ffb020;
       --amber-dim: rgba(255, 176, 32, 0.15);
       --cyan: #38bdf8;
+      --cyan-dim: rgba(56, 189, 248, 0.14);
     }
 
     * {
@@ -30,15 +30,15 @@
 
     body {
       margin: 0;
-      padding: 12px 12px 88px 12px;
-      background: radial-gradient(circle at top, #0d1626 0%, var(--bg-main) 60%);
+      padding: 12px 12px 92px 12px;
+      background: radial-gradient(circle at top, #0d1626 0%, var(--bg-main) 62%);
       color: var(--text-primary);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       font-size: 14px;
     }
 
     .app-shell {
-      max-width: 1020px;
+      max-width: 1080px;
       margin: 0 auto;
     }
 
@@ -60,7 +60,6 @@
       font-size: 16px;
       font-weight: 900;
       letter-spacing: 0.6px;
-      color: var(--text-primary);
     }
 
     .title-wrap .main-title span {
@@ -82,7 +81,7 @@
 
     button, select, input {
       font-family: inherit;
-      font-size: 14px;
+      font-size: 13px;
       color: var(--text-primary);
       background: var(--bg-card-alt);
       border: 1px solid var(--border-subtle);
@@ -125,6 +124,12 @@
       box-shadow: 0 0 12px rgba(0, 255, 102, 0.2);
     }
 
+    .btn-panic {
+      background: var(--neon-red-dim);
+      color: var(--neon-red);
+      border: 1px solid var(--neon-red);
+    }
+
     .panel {
       background: var(--bg-card);
       border: 1px solid var(--border-subtle);
@@ -139,14 +144,20 @@
       gap: 10px;
     }
 
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
     .grid-4 {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 10px;
     }
 
-    @media (max-width: 720px) {
-      .grid-4 {
+    @media (max-width: 760px) {
+      .grid-3, .grid-4 {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
@@ -168,7 +179,8 @@
     .alert-box {
       margin-top: 12px;
       background: var(--amber-dim);
-      border: 1px solid rgba(255, 176, 32, 0.5);
+      border: 1px solid rgba(255, 176, 32, 0.55);
+      border-left: 4px solid var(--amber);
       border-radius: 11px;
       padding: 12px;
     }
@@ -176,6 +188,7 @@
     .alert-box.active-signals {
       background: var(--neon-green-dim);
       border-color: var(--neon-green);
+      border-left-color: var(--neon-green);
     }
 
     .alert-title {
@@ -202,6 +215,113 @@
       line-height: 1.45;
     }
 
+    .market-status-card {
+      background: var(--bg-card-alt);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 11px;
+    }
+
+    .market-pill {
+      display: inline-block;
+      margin-top: 6px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 900;
+      background: var(--neon-green-dim);
+      color: var(--neon-green);
+      border: 1px solid rgba(0, 255, 102, 0.45);
+    }
+
+    .market-pill.closed {
+      background: var(--neon-red-dim);
+      color: var(--neon-red);
+      border-color: rgba(255, 42, 75, 0.45);
+    }
+
+    .signal-card {
+      background: var(--bg-card-alt);
+      border: 1px solid var(--border-subtle);
+      border-left: 4px solid var(--neon-green);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+
+    .signal-card.sell {
+      border-left-color: var(--neon-red);
+    }
+
+    .signal-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .badge-grade {
+      background: var(--neon-green-dim);
+      color: var(--neon-green);
+      border: 1px solid var(--neon-green);
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .signal-levels {
+      margin-top: 8px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .candle-strip {
+      margin-top: 8px;
+      background: rgba(6, 9, 15, 0.65);
+      border: 1px solid var(--border-subtle);
+      border-radius: 9px;
+      padding: 8px 10px;
+      font-size: 12px;
+      line-height: 1.45;
+      color: var(--cyan);
+    }
+
+    .action-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .btn-buy {
+      background: var(--neon-green);
+      color: #041008;
+      border: none;
+      padding: 7px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+    }
+
+    .btn-sell {
+      background: var(--neon-red);
+      color: #ffffff;
+      border: none;
+      padding: 7px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+    }
+
+    .btn-chart {
+      background: var(--cyan-dim);
+      color: var(--cyan);
+      border: 1px solid var(--cyan);
+      padding: 7px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+    }
+
     .panel-head {
       display: flex;
       justify-content: space-between;
@@ -212,7 +332,6 @@
       font-weight: 900;
       letter-spacing: 0.5px;
       text-transform: uppercase;
-      color: var(--text-primary);
     }
 
     .table-scroll {
@@ -333,14 +452,12 @@
       background: rgba(0, 255, 102, 0.08);
     }
 
-    .btn-exec {
-      margin-top: 6px;
-      padding: 5px 9px;
-      font-size: 11px;
-      border-radius: 7px;
-      background: var(--neon-green);
-      color: #041008;
-      border: none;
+    .chart-box {
+      background: #070b14;
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 8px;
+      margin-bottom: 12px;
     }
   </style>
 </head>
@@ -348,11 +465,12 @@
   <div class="app-shell">
     <div class="header-bar">
       <div class="title-wrap">
-        <div class="main-title">BINGX <span>PRO DESK</span> • INSTITUTIONAL</div>
-        <div class="sub-status" id="headerLiveMeta">Inizializzazione motore segnali e conto reale...</div>
+        <div class="main-title">SALA SEGNALI <span>PRO</span> • BINGX INSTITUTIONAL</div>
+        <div class="sub-status" id="headerLiveMeta">Scansioni Globali: 0 • Ordini Attivi Totali: 0 • PnL Netto Oggi: $0.0000</div>
       </div>
       <div class="header-controls">
         <button id="toggleAutoBtn" class="btn-auto-off" type="button">AUTO-TRADE: OFF</button>
+        <button id="closeAllBtn" class="btn-panic" type="button">✕ CHIUDI TUTTE</button>
         <button id="manualRefreshBtn" class="btn-refresh" type="button">↻ AGGIORNA</button>
       </div>
     </div>
@@ -361,11 +479,34 @@
       <div class="panel">
         <div class="grid-2">
           <div class="input-group">
+            <label for="marketFilterSelect">Mercato</label>
+            <select id="marketFilterSelect">
+              <option value="ALL" selected>Tutti i Mercati</option>
+              <option value="Criptovalute Globali">Criptovalute Globali</option>
+              <option value="Materie Prime & Forex">Materie Prime &amp; Forex</option>
+              <option value="Azioni & Indici Globali">Azioni &amp; Indici Globali</option>
+            </select>
+          </div>
+          <div class="input-group">
+            <label for="symbolFilterSelect">Asset</label>
+            <select id="symbolFilterSelect">
+              <option value="ALL" selected>Tutti gli Asset</option>
+              {% for cat, items in market_catalog.items() %}
+                {% for it in items %}
+                  <option value="{{ it.symbol }}">{{ it.name }}</option>
+                {% endfor %}
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="grid-2" style="margin-top: 10px;">
+          <div class="input-group">
             <label for="profileSelect">Profilo Strategia</label>
             <select id="profileSelect">
               <option value="pro_sniper" selected>Pro Sniper (Score Dinamico)</option>
               <option value="institutional_swing">Struttura &amp; Liquidità</option>
-              <option value="momentum_desk">Momentum Desk</option>
+              <option value="momentum_desk">Momentum Desk (Bilanciato)</option>
             </select>
           </div>
           <div class="input-group">
@@ -401,21 +542,28 @@
         </div>
 
         <div id="signalAlertBox" class="alert-box">
-          <div id="signalAlertTitle" class="alert-title">SCANSIONE IN CORSO...</div>
+          <div id="signalAlertTitle" class="alert-title">CARTELLO BLOCCO FILTRI • SCANSIONE IN CORSO...</div>
           <div id="signalAlertTiming" class="alert-meta">Finestra candela: --:--:-- → --:--:-- UTC</div>
           <div id="signalAlertDiag" class="alert-diag"></div>
+        </div>
+
+        <div class="grid-3" id="marketCardsGrid" style="margin-top: 12px;"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <span>Segnali Operativi Validati</span>
+          <span id="validatedSignalsCount" class="pos-green">0 ATTIVI</span>
+        </div>
+        <div id="validatedSignalsList">
+          <div style="color: var(--text-muted); font-size: 12px;">In attesa di setup che superano soglia Score e R:R...</div>
         </div>
       </div>
 
       <div class="panel">
         <div class="panel-head">
           <span>Watchlist Scanner (Struttura, R:R, EV &amp; Anti-Fakeout)</span>
-          <select id="marketFilterSelect" style="font-size: 12px; padding: 6px 8px;">
-            <option value="ALL" selected>Tutti gli Asset</option>
-            <option value="Criptovalute Globali">Criptovalute Globali</option>
-            <option value="Materie Prime & Forex">Materie Prime &amp; Forex</option>
-            <option value="Azioni & Indici Globali">Azioni &amp; Indici Globali</option>
-          </select>
+          <span id="watchlistCountLabel" class="pos-cyan">0 ASSET</span>
         </div>
         <div class="table-scroll">
           <table>
@@ -424,7 +572,7 @@
                 <th>Asset</th>
                 <th>Prezzo / HTF</th>
                 <th>Score &amp; Grade</th>
-                <th>Entry / SL / TP1 / TP2</th>
+                <th>Entry / SL / TP1 / TP2 / TP3</th>
                 <th>Candela &amp; Margine</th>
                 <th>Azione</th>
               </tr>
@@ -447,18 +595,60 @@
           </div>
           <div class="stat-card">
             <div class="stat-label">PnL Aperto (uPnL)</div>
-            <div class="stat-value" id="statUnrealized">$0.00</div>
+            <div class="stat-value" id="statUnrealized">$0.0000</div>
           </div>
           <div class="stat-card">
             <div class="stat-label">PnL Netto Oggi</div>
-            <div class="stat-value" id="statDailyNet">$0.00</div>
+            <div class="stat-value" id="statDailyNet">$0.0000</div>
           </div>
           <div class="stat-card">
             <div class="stat-label">Commissioni / Funding Oggi</div>
-            <div class="stat-value pos-amber" id="statDailyFees">$0.00</div>
+            <div class="stat-value pos-amber" id="statDailyFees">$0.0000</div>
           </div>
         </div>
+
+        <div class="grid-3" style="margin-bottom: 12px;">
+          <div class="stat-card">
+            <div class="stat-label">PnL Lordo Trade Oggi</div>
+            <div class="stat-value" id="statDailyGross">$0.0000</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">PnL Netto Mese</div>
+            <div class="stat-value" id="statMonthlyNet">$0.0000</div>
+          </div>
+          <div class="stat-label" style="display:none;"></div>
+          <div class="stat-card">
+            <div class="stat-label">Margine Disponibile</div>
+            <div class="stat-value pos-cyan" id="statAvailMargin">$0.00</div>
+          </div>
+        </div>
+
+        <div class="panel-head" style="margin-top: 8px;">Posizioni Aperte su BingX</div>
         <div id="livePositionsBox" style="color: var(--text-muted); font-size: 13px;">Nessuna posizione aperta.</div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">Parametri Auto-Trade &amp; Risk Guard</div>
+        <div class="grid-3">
+          <div class="input-group">
+            <label for="maxPosInput">Max Posizioni Aperte</label>
+            <input id="maxPosInput" type="number" min="1" max="10" value="1" />
+          </div>
+          <div class="input-group">
+            <label for="lossCapInput">Stop Loss Giornaliero ($)</label>
+            <input id="lossCapInput" type="text" inputmode="decimal" value="0,50" />
+          </div>
+          <div class="input-group">
+            <label for="onlyAPlusSelect">Filtro Auto-Trade</label>
+            <select id="onlyAPlusSelect">
+              <option value="0" selected>Tutti i Setup Validati</option>
+              <option value="1">Solo Alta Certezza / A+</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-top: 10px;">
+          <button id="saveRiskCfgBtn" class="btn-refresh" type="button">SALVA PARAMETRI RISK</button>
+        </div>
       </div>
     </section>
 
@@ -467,7 +657,7 @@
         <div class="panel-head">Telemetria Motore &amp; Sessioni</div>
         <div class="grid-4" style="margin-bottom: 12px;">
           <div class="stat-card">
-            <div class="stat-label">Scansioni</div>
+            <div class="stat-label">Scansioni Globali</div>
             <div class="stat-value pos-cyan" id="statScans">0</div>
           </div>
           <div class="stat-card">
@@ -483,7 +673,8 @@
             <div class="stat-value pos-green" id="statWinRate">0%</div>
           </div>
         </div>
-        <div id="sessionsStatusList" class="alert-diag" style="margin-bottom: 10px;"></div>
+        <div id="sessionsStatusList" class="alert-diag" style="margin-bottom: 12px;"></div>
+        <div class="panel-head">Log Scansioni Recenti</div>
         <div id="telemetryLogList" class="alert-diag"></div>
       </div>
     </section>
@@ -491,21 +682,26 @@
     <section id="view-grafico" class="view-section">
       <div class="panel">
         <div class="panel-head">
-          <span>Monitor Prezzo Live &amp; Candele</span>
+          <span>Grafico Live, EMA 20/50 &amp; Candele</span>
           <select id="tickerAssetSelect" style="font-size: 12px; padding: 6px 8px;">
-            <option value="BTCUSDT" selected>Bitcoin (BTC-USDT)</option>
-            <option value="ETHUSDT">Ethereum (ETH-USDT)</option>
-            <option value="SOLUSDT">Solana (SOL-USDT)</option>
-            <option value="XRPUSDT">Ripple (XRP-USDT)</option>
-            <option value="PAXGUSDT">Oro / Gold (PAXG-USDT)</option>
-            <option value="EURUSDT">EUR/USD (EUR-USDT)</option>
+            {% for cat, items in market_catalog.items() %}
+              {% for it in items %}
+                <option value="{{ it.symbol }}">{{ it.name }}</option>
+              {% endfor %}
+            {% endfor %}
           </select>
         </div>
+
         <div class="stat-card" style="margin-bottom: 10px;">
           <div class="stat-label">Prezzo Live Ticker</div>
           <div class="stat-value pos-green" id="tickerPriceDisplay">--</div>
           <div class="alert-meta" id="tickerMetaDisplay">--</div>
         </div>
+
+        <div class="chart-box">
+          <svg id="candleSvgChart" viewBox="0 0 640 240" width="100%" height="220"></svg>
+        </div>
+
         <div class="table-scroll">
           <table>
             <thead>
@@ -515,11 +711,12 @@
                 <th>High</th>
                 <th>Low</th>
                 <th>Close</th>
+                <th>EMA20 / EMA50</th>
                 <th>Volume</th>
               </tr>
             </thead>
             <tbody id="candlesBody">
-              <tr><td colspan="6" style="color: var(--text-muted);">Caricamento candele...</td></tr>
+              <tr><td colspan="7" style="color: var(--text-muted);">Caricamento candele...</td></tr>
             </tbody>
           </table>
         </div>
@@ -531,13 +728,14 @@
     <button class="dock-btn active" data-view="view-segnali" type="button">◎ Segnali</button>
     <button class="dock-btn" data-view="view-posizioni" type="button">💼 Posizioni</button>
     <button class="dock-btn" data-view="view-telemetria" type="button">⚡ Telemetria</button>
-    <button class="dock-btn" data-view="view-grafico" type="button">📈 Grafico</button>
+    <button class="dock-btn" data-view="view-grafico" type="button">📈 Grafici</button>
   </nav>
 
   <script>
     let currentTiming = null;
     let pollingSignals = false;
     let scoreTimer = null;
+    let latestRowsMap = {};
 
     function parseNum(raw, fallback) {
       if (raw === null || raw === undefined) return fallback;
@@ -562,7 +760,7 @@
         min_score: String(getMinScore()),
         min_rrr: String(Math.min(10, Math.max(0.5, parseNum(document.getElementById("minRrrInput").value, 1.5)))),
         market: document.getElementById("marketFilterSelect").value,
-        symbol: "ALL",
+        symbol: document.getElementById("symbolFilterSelect").value,
       }).toString();
     }
 
@@ -585,6 +783,111 @@
       btn.className = enabled ? "btn-auto-on" : "btn-auto-off";
     }
 
+    function openAssetChart(symbol) {
+      const sel = document.getElementById("tickerAssetSelect");
+      if (sel) sel.value = symbol;
+      switchView("view-grafico");
+      refreshChart();
+    }
+
+    function switchView(viewId) {
+      document.querySelectorAll(".dock-btn").forEach((b) => {
+        b.classList.toggle("active", b.getAttribute("data-view") === viewId);
+      });
+      document.querySelectorAll(".view-section").forEach((v) => {
+        v.classList.toggle("active", v.id === viewId);
+      });
+      if (viewId === "view-posizioni") refreshAccount();
+      if (viewId === "view-grafico") refreshChart();
+    }
+
+    function renderCandleSvg(candles, rowMeta) {
+      const svg = document.getElementById("candleSvgChart");
+      if (!svg) return;
+      if (!Array.isArray(candles) || candles.length < 2) {
+        svg.innerHTML = `<text x="320" y="120" fill="#7f93b0" text-anchor="middle" font-size="13">Nessun dato candela disponibile</text>`;
+        return;
+      }
+
+      const w = 640, h = 240, padX = 16, padY = 18;
+      const plotW = w - padX * 2;
+      const plotH = h - padY * 2;
+
+      let minP = Infinity, maxP = -Infinity;
+      candles.forEach((c) => {
+        minP = Math.min(minP, c.low, c.ema20 || c.low, c.ema50 || c.low);
+        maxP = Math.max(maxP, c.high, c.ema20 || c.high, c.ema50 || c.high);
+      });
+      if (rowMeta) {
+        [rowMeta.entry, rowMeta.sl, rowMeta.tp1, rowMeta.tp2, rowMeta.tp3].forEach((lv) => {
+          const n = Number(lv);
+          if (Number.isFinite(n) && n > 0) {
+            minP = Math.min(minP, n);
+            maxP = Math.max(maxP, n);
+          }
+        });
+      }
+      if (!(maxP > minP)) {
+        minP = candles[0].close * 0.99;
+        maxP = candles[0].close * 1.01;
+      }
+      const span = maxP - minP;
+      const yPos = (p) => padY + (1 - (p - minP) / span) * plotH;
+
+      const stepX = plotW / candles.length;
+      const bodyW = Math.max(3, Math.min(11, stepX * 0.62));
+      let parts = [];
+
+      for (let i = 0; i <= 4; i++) {
+        const gy = padY + (i / 4) * plotH;
+        const priceLbl = (maxP - (i / 4) * span).toFixed(maxP >= 50 ? 2 : 4);
+        parts.push(`<line x1="${padX}" y1="${gy.toFixed(1)}" x2="${w - padX}" y2="${gy.toFixed(1)}" stroke="#1c2940" stroke-dasharray="3,3" />`);
+        parts.push(`<text x="${w - padX - 2}" y="${(gy - 3).toFixed(1)}" fill="#7f93b0" text-anchor="end" font-size="10">${priceLbl}</text>`);
+      }
+
+      if (rowMeta) {
+        const drawLvl = (val, color, lbl) => {
+          const n = Number(val);
+          if (!Number.isFinite(n) || n <= 0) return;
+          const ly = yPos(n);
+          parts.push(`<line x1="${padX}" y1="${ly.toFixed(1)}" x2="${w - padX}" y2="${ly.toFixed(1)}" stroke="${color}" stroke-width="1" stroke-dasharray="4,2" />`);
+          parts.push(`<text x="${padX + 4}" y="${(ly - 2).toFixed(1)}" fill="${color}" font-size="10">${lbl} ${n}</text>`);
+        };
+        drawLvl(rowMeta.tp1, "#00ff66", "TP1");
+        drawLvl(rowMeta.tp2, "#00ff66", "TP2");
+        drawLvl(rowMeta.entry, "#38bdf8", "ENTRY");
+        drawLvl(rowMeta.sl, "#ff2a4b", "SL");
+      }
+
+      let ema20Pts = [], ema50Pts = [];
+      candles.forEach((c, idx) => {
+        const cx = padX + idx * stepX + stepX / 2;
+        const yHigh = yPos(c.high);
+        const yLow = yPos(c.low);
+        const yOpen = yPos(c.open);
+        const yClose = yPos(c.close);
+        const isBull = c.close >= c.open;
+        const col = isBull ? "#00ff66" : "#ff2a4b";
+        const topY = Math.min(yOpen, yClose);
+        const boxH = Math.max(1.5, Math.abs(yClose - yOpen));
+
+        parts.push(`<line x1="${cx.toFixed(1)}" y1="${yHigh.toFixed(1)}" x2="${cx.toFixed(1)}" y2="${yLow.toFixed(1)}" stroke="${col}" stroke-width="1.2" />`);
+        parts.push(`<rect x="${(cx - bodyW / 2).toFixed(1)}" y="${topY.toFixed(1)}" width="${bodyW.toFixed(1)}" height="${boxH.toFixed(1)}" fill="${col}" />`);
+
+        if (c.ema20) ema20Pts.push(`${cx.toFixed(1)},${yPos(c.ema20).toFixed(1)}`);
+        if (c.ema50) ema50Pts.push(`${cx.toFixed(1)},${yPos(c.ema50).toFixed(1)}`);
+      });
+
+      if (ema20Pts.length > 1) {
+        parts.push(`<polyline fill="none" stroke="#38bdf8" stroke-width="1.5" points="${ema20Pts.join(" ")}" />`);
+      }
+      if (ema50Pts.length > 1) {
+        parts.push(`<polyline fill="none" stroke="#ffb020" stroke-width="1.5" points="${ema50Pts.join(" ")}" />`);
+      }
+
+      svg.innerHTML = parts.join("");
+    }
+
     async function refreshSignals(force = false) {
       if (pollingSignals && !force) return;
       pollingSignals = true;
@@ -601,6 +904,15 @@
         document.getElementById("statMinScore").textContent = `${Number(effMin).toFixed(1)}%`;
         syncAutoBtn(Boolean(data.auto_trade));
 
+        const perf = data.performance || {};
+        const acc = perf.account || {};
+        const daily = perf.daily || {};
+        const monthly = perf.monthly || {};
+        const telem = data.telemetry || {};
+
+        document.getElementById("headerLiveMeta").textContent =
+          `Scansioni Globali: ${telem.scans_count || 0} • Ordini Attivi Totali: ${telem.active_orders_count || 0} • PnL Netto Oggi: ${Number(daily.net_pnl || 0) >= 0 ? "+" : ""}$${Number(daily.net_pnl || 0).toFixed(4)}`;
+
         const sigs = Array.isArray(data.signals) ? data.signals : [];
         const box = document.getElementById("signalAlertBox");
         const title = document.getElementById("signalAlertTitle");
@@ -609,30 +921,80 @@
 
         if (sigs.length > 0) {
           box.classList.add("active-signals");
-          title.textContent = `${sigs.length} SETUP OPERATIVI CON SCORE >= ${Number(effMin).toFixed(1)}%`;
+          title.textContent = `${sigs.length} SETUP OPERATIVI VALIDATI • SOGLIA SCORE >= ${Number(effMin).toFixed(1)}%`;
         } else {
           box.classList.remove("active-signals");
-          title.textContent = `NESSUN SETUP VALIDATO AL MOMENTO • SOGLIA SCORE >= ${Number(effMin).toFixed(1)}%`;
+          title.textContent = `CARTELLO BLOCCO FILTRI • NESSUN SETUP VALIDATO (SCORE >= ${Number(effMin).toFixed(1)}%)`;
         }
 
         if (currentTiming) {
           timing.textContent = `${currentTiming.candle_window_text} • Residuo: ${currentTiming.candle_remaining_sec}s`;
         }
 
-        diag.innerHTML = Object.entries(data.market_diagnostics || {})
+        const mDiag = data.market_diagnostics || {};
+        diag.innerHTML = Object.entries(mDiag)
           .map(([k, v]) => `<div>• <strong>${k}</strong>: ${v.reason}</div>`)
           .join("");
 
+        document.getElementById("marketCardsGrid").innerHTML = Object.entries(mDiag)
+          .map(([k, v]) => `
+            <div class="market-status-card">
+              <div style="font-weight:900;font-size:13px;">${k}</div>
+              <span class="market-pill ${v.is_open ? "" : "closed"}">${v.status} • ${v.signals_count} VALIDI • ${v.scanned} ASSET</span>
+              <div class="alert-meta" style="margin-top:6px;">Score medio: <strong>${v.market_score}%</strong> • Certi/A+: <strong>${v.certain_count}</strong></div>
+            </div>
+          `).join("");
+
+        document.getElementById("validatedSignalsCount").textContent = `${sigs.length} ATTIVI`;
+        const valList = document.getElementById("validatedSignalsList");
+        if (!sigs.length) {
+          valList.innerHTML = `<div style="color: var(--text-muted); font-size: 12px;">In attesa di segnali certi senza false rotture con Score >= ${Number(effMin).toFixed(1)}% e R:R >= ${activeCfg.min_rrr || 1.5}.</div>`;
+        } else {
+          valList.innerHTML = sigs.map((s) => {
+            const levNum = Number(s.leverage_num || 20);
+            const isSell = s.action === "SELL";
+            return `
+              <div class="signal-card ${isSell ? "sell" : ""}">
+                <div class="signal-top">
+                  <div>
+                    <strong>${s.name}</strong> ${renderBadge(s.action)}
+                    <div class="alert-meta">HTF: <strong>${s.htf_bias}</strong> • Size: <strong>${s.size}</strong> (${s.leverage}) • Margine: <strong>$${s.margin}</strong></div>
+                  </div>
+                  <span class="badge-grade">${s.grade} • ${s.score}%</span>
+                </div>
+                <div class="signal-levels">
+                  Entry: <strong>${s.entry}</strong> | <span class="pos-red">SL: <strong>${s.sl}</strong></span> | <span class="pos-green">TP1: <strong>${s.tp1}</strong></span> | TP2: <strong>${s.tp2}</strong> | TP3: <strong>${s.tp3}</strong>
+                </div>
+                <div class="candle-strip">
+                  <div>🕒 ${s.candle_window_text}</div>
+                  <div>⏳ Residuo candela: <strong>${s.candle_remaining_sec}s</strong> • R:R 1:${s.rrr} • EV: <strong>${s.ev_net_usd >= 0 ? "+" : ""}$${s.ev_net_usd}</strong> • Kelly: <strong>${s.kelly_pct}%</strong> • Certezza: <strong>${s.certainty_pct}%</strong></div>
+                  <div>🎯 Target ETA: ${s.tp_eta_text}</div>
+                </div>
+                <div class="action-row">
+                  <button class="${isSell ? "btn-sell" : "btn-buy"}" type="button" onclick="sendManualOrder('${s.symbol}', '${s.action}', ${s.size}, ${s.sl}, ${s.tp1}, ${levNum})">ESEGUI ${s.action} + SL/TP</button>
+                  <button class="btn-buy" type="button" onclick="sendManualOrder('${s.symbol}', 'BUY', ${s.size}, ${s.sl}, ${s.tp1}, ${levNum})">BUY</button>
+                  <button class="btn-sell" type="button" onclick="sendManualOrder('${s.symbol}', 'SELL', ${s.size}, ${s.sl}, ${s.tp1}, ${levNum})">SELL</button>
+                  <button class="btn-chart" type="button" onclick="openAssetChart('${s.symbol}')">GRAFICO</button>
+                </div>
+              </div>
+            `;
+          }).join("");
+        }
+
         const rows = Array.isArray(data.market_monitoring_table) ? data.market_monitoring_table : [];
+        latestRowsMap = {};
+        rows.forEach((r) => { latestRowsMap[r.symbol] = r; });
+
+        document.getElementById("watchlistCountLabel").textContent = `${rows.length} ASSET`;
         const tbody = document.getElementById("signalsTableBody");
         if (!rows.length) {
-          tbody.innerHTML = `<tr><td colspan="6" style="color: var(--text-muted);">Nessun asset scansionato.</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="6" style="color: var(--text-muted);">Nessun asset scansionato con i filtri selezionati.</td></tr>`;
         } else {
           tbody.innerHTML = rows.map((r) => {
             const levNum = Number(r.leverage_num || String(r.leverage || "20x").replace("x", "") || 20);
             const actHtml = (r.action === "BUY" || r.action === "SELL")
-              ? `${renderBadge(r.action)}<div style="color:var(--text-muted);font-size:11px;margin-top:3px;">Size: ${r.size} • ${r.leverage}</div><button class="btn-exec" type="button" onclick="sendManualOrder('${r.symbol}', '${r.action}', ${r.size}, ${r.sl}, ${r.tp1}, ${levNum})">Esegui</button>`
-              : `${renderBadge(r.action)}<div style="color:var(--text-muted);font-size:11px;margin-top:4px;">${r.reason || ""}</div>`;
+              ? `${renderBadge(r.action)}<div style="color:var(--text-muted);font-size:11px;margin-top:3px;">Size: ${r.size} • ${r.leverage}</div><div class="action-row" style="margin-top:5px;"><button class="btn-buy" type="button" onclick="sendManualOrder('${r.symbol}', '${r.action}', ${r.size}, ${r.sl}, ${r.tp1}, ${levNum})">ESEGUI</button><button class="btn-chart" type="button" onclick="openAssetChart('${r.symbol}')">GRAFICO</button></div>`
+              : `${renderBadge(r.action)}<div style="color:var(--text-muted);font-size:11px;margin-top:4px;">${r.reason || ""}</div><div class="action-row" style="margin-top:5px;"><button class="btn-chart" type="button" onclick="openAssetChart('${r.symbol}')">GRAFICO</button></div>`;
 
             return `
               <tr>
@@ -646,19 +1008,19 @@
                 </td>
                 <td>
                   <strong class="${Number(r.score) >= Number(effMin) ? "pos-green" : ""}">${r.score}%</strong>
-                  <div style="color:var(--text-muted);font-size:11px;">(${r.grade}) • ${r.confluence}</div>
-                  <div style="color:var(--neon-green);font-size:11px;">${r.fakeout_label || ""}</div>
+                  <div style="color:var(--text-muted);font-size:11px;">(${r.grade}) • Cert: ${r.certainty_pct}%</div>
+                  <div style="color:${r.fakeout ? "var(--amber)" : "var(--neon-green)"};font-size:11px;">${r.fakeout_label || ""}</div>
                 </td>
                 <td style="font-size:11px;line-height:1.4;">
                   <div>E: <strong>${r.entry}</strong></div>
                   <div class="pos-red">SL: ${r.sl}</div>
                   <div class="pos-green">TP1: ${r.tp1} (1:${r.rrr})</div>
-                  <div>TP2: ${r.tp2}</div>
+                  <div>TP2: ${r.tp2} • TP3: ${r.tp3}</div>
                 </td>
                 <td style="font-size:11px;line-height:1.35;">
                   <div><strong>${r.candle_duration_label || r.timeframe}</strong></div>
                   <div>${r.candle_open_utc} → ${r.candle_close_utc}</div>
-                  <div style="color:var(--text-muted);">Margine: $${r.margin}</div>
+                  <div style="color:var(--text-muted);">Margine: $${r.margin} • EV: $${r.ev_net_usd}</div>
                 </td>
                 <td>${actHtml}</td>
               </tr>
@@ -666,15 +1028,15 @@
           }).join("");
         }
 
-        const perf = data.performance || {};
-        const acc = perf.account || {};
-        const daily = perf.daily || {};
         document.getElementById("statWallet").textContent = `$${Number(acc.balance || 0).toFixed(2)}`;
+        document.getElementById("statAvailMargin").textContent = `$${Number(acc.available_margin || 0).toFixed(2)}`;
         applyPnlColor(document.getElementById("statUnrealized"), acc.unrealized_pnl || 0);
         applyPnlColor(document.getElementById("statDailyNet"), daily.net_pnl || 0);
-        document.getElementById("statDailyFees").textContent = `$${Number(daily.fees_pnl || 0).toFixed(4)}`;
+        applyPnlColor(document.getElementById("statDailyGross"), daily.gross_pnl || 0);
+        applyPnlColor(document.getElementById("statMonthlyNet"), monthly.net_pnl || 0);
+        document.getElementById("statDailyFees").textContent = `${Number(daily.fees_pnl || 0) >= 0 ? "+" : ""}$${Number(daily.fees_pnl || 0).toFixed(4)}`;
 
-        document.getElementById("statScans").textContent = String((data.telemetry || {}).scans_count || 0);
+        document.getElementById("statScans").textContent = String(telem.scans_count || 0);
         document.getElementById("statTradesCount").textContent = String(daily.total_trades || 0);
         document.getElementById("statWinRate").textContent = `${Number(daily.win_pct || 0).toFixed(0)}%`;
 
@@ -682,7 +1044,7 @@
           .map(([k, v]) => `<div>• <strong>${k}</strong>: <span style="color:${v.badge_color || "#eef4fc"}">${v.status}</span> (${v.hours})</div>`)
           .join("");
 
-        document.getElementById("telemetryLogList").innerHTML = ((data.telemetry || {}).telemetry_logs || []).slice(0, 8)
+        document.getElementById("telemetryLogList").innerHTML = (telem.telemetry_logs || []).slice(0, 10)
           .map((l) => `<div>[${l.timestamp}] ${l.status} • Segnali: ${l.signals_found} / Scansionati: ${l.scanned}</div>`)
           .join("");
       } catch (e) {
@@ -698,19 +1060,33 @@
         const data = await res.json();
         const acc = data.account || {};
         document.getElementById("statWallet").textContent = `$${Number(acc.balance || 0).toFixed(2)}`;
+        document.getElementById("statAvailMargin").textContent = `$${Number(acc.available_margin || 0).toFixed(2)}`;
         applyPnlColor(document.getElementById("statUnrealized"), acc.unrealized_pnl || 0);
         syncAutoBtn(Boolean(data.auto_trade));
+
+        if (data.risk_config) {
+          document.getElementById("maxPosInput").value = data.risk_config.max_open_positions ?? 1;
+          document.getElementById("lossCapInput").value = String(data.risk_config.daily_loss_cap_usd ?? 0.50).replace(".", ",");
+          document.getElementById("onlyAPlusSelect").value = data.risk_config.only_a_plus ? "1" : "0";
+        }
 
         const positions = Array.isArray(data.positions) ? data.positions : [];
         const box = document.getElementById("livePositionsBox");
         if (!positions.length) {
           box.textContent = data.positions_error ? `Stato: ${data.positions_error}` : "Nessuna posizione aperta su BingX.";
         } else {
-          box.innerHTML = positions.map((p) => `
-            <div class="stat-card" style="margin-bottom: 8px;">
-              <strong>${p.symbol}</strong> (${p.action} • ${p.leverage}) • Size: ${p.size} • Entry: ${p.entry} • uPnL: <strong>${Number(p.unrealized_pnl || 0) >= 0 ? "+" : ""}$${Number(p.unrealized_pnl || 0).toFixed(4)}</strong>
-            </div>
-          `).join("");
+          box.innerHTML = positions.map((p) => {
+            const upnl = Number(p.unrealized_pnl || 0);
+            return `
+              <div class="stat-card" style="margin-bottom: 8px; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+                <div>
+                  <strong>${p.bx_symbol || p.symbol}</strong> ${renderBadge(p.action)} • <strong>${p.leverage}</strong> • Size: <strong>${p.size}</strong> • Entry: <strong>${p.entry}</strong>
+                  <div class="alert-meta">uPnL: <strong class="${upnl >= 0 ? "pos-green" : "pos-red"}">${upnl >= 0 ? "+" : ""}$${upnl.toFixed(4)}</strong></div>
+                </div>
+                <button class="btn-panic" type="button" onclick="closeSinglePosition('${p.symbol}', '${p.action}', ${p.size})">CHIUDI POSIZIONE</button>
+              </div>
+            `;
+          }).join("");
         }
       } catch (e) {
         console.error(e);
@@ -732,7 +1108,9 @@
         }
         if (cRes.ok) {
           const cd = await cRes.json();
-          const list = Array.isArray(cd.candles) ? cd.candles.slice(-15).reverse() : [];
+          const allC = Array.isArray(cd.candles) ? cd.candles : [];
+          renderCandleSvg(allC, latestRowsMap[sym] || null);
+          const list = allC.slice(-15).reverse();
           const body = document.getElementById("candlesBody");
           body.innerHTML = list.length ? list.map((c, i) => `
             <tr>
@@ -741,9 +1119,10 @@
               <td>${c.high}</td>
               <td>${c.low}</td>
               <td><strong>${c.close}</strong></td>
+              <td style="font-size:11px;"><span class="pos-cyan">20: ${Number(c.ema20 || 0).toFixed(2)}</span> • <span class="pos-amber">50: ${Number(c.ema50 || 0).toFixed(2)}</span></td>
               <td>${c.volume}</td>
             </tr>
-          `).join("") : `<tr><td colspan="6" style="color:var(--text-muted);">Nessuna candela.</td></tr>`;
+          `).join("") : `<tr><td colspan="7" style="color:var(--text-muted);">Nessuna candela.</td></tr>`;
         }
       } catch (e) {
         console.error(e);
@@ -772,6 +1151,56 @@
       }
     }
 
+    async function closeSinglePosition(symbol, action, size) {
+      try {
+        const res = await fetch("/api/bingx/close-position", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ symbol, action, size }),
+        });
+        const data = await res.json();
+        if (!data.success) {
+          alert(`Errore chiusura posizione: ${data.error}`);
+        }
+        refreshAccount();
+        refreshSignals(true);
+      } catch (e) {
+        alert(`Errore chiusura: ${e.message}`);
+      }
+    }
+
+    document.getElementById("closeAllBtn").addEventListener("click", async () => {
+      if (!confirm("Chiudere tutte le posizioni aperte su BingX a mercato?")) return;
+      try {
+        const res = await fetch("/api/bingx/close-all", { method: "POST" });
+        const data = await res.json();
+        if (!data.success) {
+          alert(`Errore chiusura totale: ${data.error}`);
+        } else {
+          alert(`Chiusura completata (${data.closed_count || 0} posizioni).`);
+        }
+        refreshAccount();
+        refreshSignals(true);
+      } catch (e) {
+        alert(`Errore: ${e.message}`);
+      }
+    });
+
+    document.getElementById("saveRiskCfgBtn").addEventListener("click", async () => {
+      const maxPos = Math.max(1, Math.min(10, parseInt(document.getElementById("maxPosInput").value || "1", 10)));
+      const lossCap = Math.max(0.05, parseNum(document.getElementById("lossCapInput").value, 0.50));
+      const onlyAPlus = document.getElementById("onlyAPlusSelect").value === "1";
+      const res = await fetch("/api/autotrade/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ max_open_positions: maxPos, daily_loss_cap_usd: lossCap, only_a_plus: onlyAPlus }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert("Parametri Risk & Auto-Trade salvati.");
+      }
+    });
+
     document.getElementById("toggleAutoBtn").addEventListener("click", async () => {
       const res = await fetch("/api/autotrade/toggle", { method: "POST" });
       const data = await res.json();
@@ -795,22 +1224,14 @@
       refreshSignals(true);
     });
 
-    ["profileSelect", "timeframeSelect", "balanceInput", "riskInput", "minRrrInput", "marketFilterSelect"].forEach((id) => {
+    ["marketFilterSelect", "symbolFilterSelect", "profileSelect", "timeframeSelect", "balanceInput", "riskInput", "minRrrInput"].forEach((id) => {
       document.getElementById(id).addEventListener("change", () => refreshSignals(true));
     });
 
     document.getElementById("tickerAssetSelect").addEventListener("change", refreshChart);
 
     document.querySelectorAll(".dock-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        document.querySelectorAll(".dock-btn").forEach((b) => b.classList.remove("active"));
-        document.querySelectorAll(".view-section").forEach((v) => v.classList.remove("active"));
-        btn.classList.add("active");
-        const viewId = btn.getAttribute("data-view");
-        document.getElementById(viewId).classList.add("active");
-        if (viewId === "view-posizioni") refreshAccount();
-        if (viewId === "view-grafico") refreshChart();
-      });
+      btn.addEventListener("click", () => switchView(btn.getAttribute("data-view")));
     });
 
     setInterval(() => {
@@ -819,7 +1240,6 @@
       const rem = Math.max(0, Number(currentTiming.candle_close_ts || nowS) - nowS);
       currentTiming.candle_remaining_sec = rem;
       document.getElementById("signalAlertTiming").textContent = `${currentTiming.candle_window_text} • Residuo: ${rem}s`;
-      document.getElementById("headerLiveMeta").textContent = `Candela ${currentTiming.candle_duration_label || currentTiming.timeframe} • Chiusura ${currentTiming.candle_close_utc} (${rem}s) • Score Min: ${getMinScore().toFixed(1)}%`;
     }, 1000);
 
     setInterval(() => refreshSignals(false), 12000);
