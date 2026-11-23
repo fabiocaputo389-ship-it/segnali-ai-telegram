@@ -191,6 +191,8 @@ def _sync_bingx_contracts(force: bool = False) -> Dict[str, Dict[str, Any]]:
             sym = str(item.get("symbol") or "").strip().upper()
             if not sym:
                 continue
+            if sym == "XAUT-USDT" and force:
+                print(f"[BINGX RAW CONTRACT XAUT-USDT] {json.dumps(item)}", flush=True)
             status_val = str(item.get("status") or item.get("apiStateOpen") or "1").lower()
             if status_val in ("0", "false", "offline", "suspended", "delisted"):
                 continue
@@ -282,7 +284,7 @@ def _all_bingx_assets() -> List[Dict[str, Any]]:
 
 
 def _compute_leverage(balance: float) -> int:
-    if balance <= 2.0:
+    if balance <= MIN_ORDER_CAPITAL_USD:
         return 20
     if balance <= 10.0:
         return 15
@@ -337,8 +339,11 @@ def _normalize_order_qty(
     safe_price = max(float(price or 0.0), 1e-8)
     effective_margin = max(float(balance or 0.0), MIN_ORDER_CAPITAL_USD)
     effective_lev = max(int(leverage or 20), 1)
-    min_margin_qty = (MIN_ORDER_CAPITAL_USD * effective_lev) / safe_price
-    target_qty = max(float(raw_qty or 0.0), min_margin_qty, min_qty)
+
+    # Calcola la quantità a partire dal margine minimo di $2.00 e dalla leva applicata
+    base_margin_qty = (effective_margin * effective_lev) / safe_price
+    requested_qty = float(raw_qty or 0.0)
+    target_qty = max(min(requested_qty, base_margin_qty) if requested_qty > 0 else base_margin_qty, base_margin_qty, min_qty)
 
     qty = _round_to_step(target_qty, step, prec, rounding_mode=ROUND_UP)
     if qty < min_qty:
@@ -357,8 +362,8 @@ def _normalize_order_qty(
 
     qty = float(d_qty)
     if qty <= 0:
-        qty = max(step, round(min_margin_qty, max(prec, 4)))
-    if (effective_margin * effective_lev) < MIN_ORDER_CAPITAL_USD:
+        qty = max(step, round(base_margin_qty, max(prec, 4)))
+    if effective_margin < MIN_ORDER_CAPITAL_USD:
         return False, 0.0, f"Capitale minimo ordine ${MIN_ORDER_CAPITAL_USD:.2f}"
     return True, qty, ""
 
@@ -413,12 +418,12 @@ def _bingx_signed_request(method: str, path: str, params: Optional[Dict[str, Any
             payload = json.loads(raw)
             if isinstance(payload, dict) and payload.get("code") not in (0, "0", None):
                 err_msg = payload.get("msg") or f"BingX code {payload.get('code')}"
-                print(f"[BINGX ERR] {method.upper()} {path} -> {err_msg} | payload={raw[:240]}", flush=True)
+                print(f"[BINGX ERR] {method.upper()} {path} -> {err_msg} | payload={raw[:400]}", flush=True)
                 return False, payload, err_msg
             return True, payload, ""
     except HTTPError as e:
         body = e.read().decode("utf-8", errors="replace") if e.fp else ""
-        err_msg = f"HTTP {e.code}: {body[:200] or e.reason}"
+        err_msg = f"HTTP {e.code}: {body[:250] or e.reason}"
         print(f"[BINGX HTTP] {method.upper()} {path} -> {err_msg}", flush=True)
         return False, None, err_msg
     except (URLError, TimeoutError, json.JSONDecodeError) as e:
@@ -612,11 +617,7 @@ def _evaluate_asset(
     rrr = round(abs(tp1 - entry) / max(abs(entry - sl), 1e-9), 2)
     order_capital = max(float(balance or MIN_ORDER_CAPITAL_USD), MIN_ORDER_CAPITAL_USD)
     leverage = _compute_leverage(order_capital)
-    risk_usd = order_capital * (risk_pct / 100.0)
-    raw_qty = max(
-        (risk_usd / max(abs(entry - sl), 1e-9)) / max(price, 1e-9),
-        (MIN_ORDER_CAPITAL_USD * leverage) / max(price, 1e-9),
-    )
+    raw_qty = (order_capital * leverage) / max(price, 1e-9)
     _, size, _ = _normalize_order_qty(raw_qty, price, leverage, order_capital, contract)
     margin = round(max(MIN_ORDER_CAPITAL_USD, (size * price) / max(leverage, 1)), 2)
 
@@ -863,6 +864,9 @@ def _place_bingx_multi_tpsl_order(
         _sync_bingx_contracts(force=True)
         bx_sym, contract = _resolve_bingx_symbol_and_contract(symbol)
 
+    if bx_sym == "XAUT-USDT" and contract and isinstance(contract.get("raw"), dict):
+        print(f"[BINGX RAW CONTRACT XAUT-USDT] {json.dumps(contract['raw'])}", flush=True)
+
     if not contract and not reduce_only:
         return False, {"error": f"Contratto {bx_sym} non attivo su BingX Swap v2"}
 
@@ -875,6 +879,7 @@ def _place_bingx_multi_tpsl_order(
         side = exit_side
 
     applied_lev = max(1, int(leverage or 20))
+    effective_margin = max(float(balance or 0.0), MIN_ORDER_CAPITAL_USD)
 
     if not reduce_only:
         ref_price = _get_live_mark_or_last_price(bx_sym)
@@ -883,17 +888,6 @@ def _place_bingx_multi_tpsl_order(
             ref_price = float(kl[-1]["close"]) if kl else 0.0
         if ref_price <= 0:
             return False, {"error": f"Prezzo live non disponibile per {bx_sym}"}
-
-        ok_qty, norm_qty, qty_err = _normalize_order_qty(
-            raw_qty=float(qty),
-            price=ref_price,
-            leverage=applied_lev,
-            balance=max(float(balance or MIN_ORDER_CAPITAL_USD), MIN_ORDER_CAPITAL_USD),
-            contract=contract,
-        )
-        if not ok_qty:
-            return False, {"error": qty_err}
-        exec_qty = norm_qty
 
         for cand_lev in [applied_lev, 10, 5, 2, 1]:
             if cand_lev <= 0:
@@ -906,6 +900,17 @@ def _place_bingx_multi_tpsl_order(
             if ok_lev:
                 applied_lev = int(cand_lev)
                 break
+
+        ok_qty, norm_qty, qty_err = _normalize_order_qty(
+            raw_qty=float(qty),
+            price=ref_price,
+            leverage=applied_lev,
+            balance=effective_margin,
+            contract=contract,
+        )
+        if not ok_qty:
+            return False, {"error": qty_err}
+        exec_qty = norm_qty
     else:
         exec_qty = _round_to_step(float(qty), step, prec, rounding_mode=ROUND_DOWN)
 
@@ -920,7 +925,15 @@ def _place_bingx_multi_tpsl_order(
     if reduce_only:
         order_params["reduceOnly"] = "true"
 
+    if bx_sym == "XAUT-USDT":
+        safe_contract = {k: v for k, v in (contract or {}).items() if k != "raw"}
+        print(f"[BINGX CONTRACT USED] {json.dumps(safe_contract)}", flush=True)
+        print(f"[BINGX ORDER PARAMS] {json.dumps(order_params)}", flush=True)
+
     ok, res_data, err = _bingx_signed_request("POST", "/openApi/swap/v2/trade/order", order_params)
+    if bx_sym == "XAUT-USDT":
+        print(f"[BINGX ORDER RESP] ok={ok} err={err} data={json.dumps(res_data) if res_data is not None else 'None'}", flush=True)
+
     if not ok and not reduce_only:
         one_way_params = {
             "symbol": bx_sym,
@@ -928,10 +941,14 @@ def _place_bingx_multi_tpsl_order(
             "type": "MARKET",
             "quantity": qty_str,
         }
+        if bx_sym == "XAUT-USDT":
+            print(f"[BINGX ONE-WAY PARAMS] {json.dumps(one_way_params)}", flush=True)
         ok, res_data, err = _bingx_signed_request("POST", "/openApi/swap/v2/trade/order", one_way_params)
+        if bx_sym == "XAUT-USDT":
+            print(f"[BINGX ONE-WAY RESP] ok={ok} err={err} data={json.dumps(res_data) if res_data is not None else 'None'}", flush=True)
 
     if not ok:
-        return False, {"error": f"{err} (sym={bx_sym}, qty={qty_str})"}
+        return False, {"error": f"{err} (sym={bx_sym}, qty={qty_str}, min_margin=${MIN_ORDER_CAPITAL_USD:.2f})"}
 
     if reduce_only:
         return True, {"bingx": res_data, "exec_qty": exec_qty, "sl_error": "", "tp_error": ""}
@@ -1176,7 +1193,6 @@ def api_signals():
         sf = symbol_filter.strip().upper()
         candidates = [a for a in candidates if a["symbol"].upper() == sf or a["bx_symbol"].upper() == sf]
 
-    # Per evitare latenze eccessive su centinaia di coppie quando si scansiona "ALL", valuta priorità + primi 40 asset del filtro
     if len(candidates) > 45:
         candidates = candidates[:45]
 
@@ -1359,16 +1375,18 @@ def api_execute_manual():
     if action not in ("BUY", "SELL"):
         return jsonify({"success": False, "error": "Azione non valida (usa BUY o SELL)"}), 400
 
+    balance = max(MIN_ORDER_CAPITAL_USD, float(body.get("balance", MIN_ORDER_CAPITAL_USD) or MIN_ORDER_CAPITAL_USD))
+    leverage = int(body.get("leverage") or _compute_leverage(balance))
     qty = float(body.get("size", 0) or 0)
     if qty <= 0:
-        return jsonify({"success": False, "error": "Quantità ordine non valida"}), 400
+        bx_tmp, _ = _resolve_bingx_symbol_and_contract(symbol)
+        p_tmp = _get_live_mark_or_last_price(bx_tmp) or 1.0
+        qty = (balance * max(leverage, 1)) / max(p_tmp, 1e-8)
 
     sl = float(body.get("sl", 0) or 0)
     tp1 = float(body.get("tp1", 0) or 0)
     tp2 = float(body.get("tp2", 0) or 0)
     tp3 = float(body.get("tp3", 0) or 0)
-    balance = max(MIN_ORDER_CAPITAL_USD, float(body.get("balance", MIN_ORDER_CAPITAL_USD) or MIN_ORDER_CAPITAL_USD))
-    leverage = int(body.get("leverage") or _compute_leverage(balance))
     tf = str(body.get("timeframe", "15m"))
     if tf not in TF_SECONDS:
         tf = "15m"
