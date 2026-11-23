@@ -852,6 +852,13 @@ def _place_bingx_multi_tpsl_order(
         _sync_bingx_contracts(force=True)
         bx_sym, contract = _resolve_bingx_contract(symbol)
 
+    if not contract and not reduce_only:
+        contracts_now = _sync_bingx_contracts()
+        if contracts_now:
+            return False, {
+                "error": f"Simbolo {symbol} ({bx_sym}) non presente tra i contratti BingX Swap v2"
+            }
+
     step = float(contract["step_size"]) if contract else 0.001
     prec = int(contract["qty_precision"]) if contract else 4
     side = "BUY" if action.upper() == "BUY" else "SELL"
@@ -905,9 +912,23 @@ def _place_bingx_multi_tpsl_order(
     if reduce_only:
         order_params["reduceOnly"] = "true"
 
+    print(
+        f"[BINGX ORDER TRY] sym={bx_sym} side={side} posSide={pos_side} qty={qty_str} step={step} prec={prec}",
+        flush=True,
+    )
     ok, res_data, err = _bingx_signed_request("POST", "/openApi/swap/v2/trade/order", order_params)
+    if not ok and not reduce_only:
+        one_way_params = {
+            "symbol": bx_sym,
+            "side": side,
+            "type": "MARKET",
+            "quantity": qty_str,
+        }
+        print(f"[BINGX ORDER RETRY ONE-WAY] sym={bx_sym} side={side} qty={qty_str}", flush=True)
+        ok, res_data, err = _bingx_signed_request("POST", "/openApi/swap/v2/trade/order", one_way_params)
+
     if not ok:
-        return False, {"error": err}
+        return False, {"error": f"{err} (sym={bx_sym}, qty={qty_str})"}
 
     if reduce_only:
         return True, {"bingx": res_data, "exec_qty": exec_qty, "sl_error": "", "tp_error": ""}
