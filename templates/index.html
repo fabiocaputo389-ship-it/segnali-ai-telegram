@@ -531,6 +531,15 @@
       return Number.isFinite(num) ? num : fallback;
     }
 
+    function normalizeSpeechText(text) {
+      if (!text) return "";
+      return String(text)
+        .replace(/\b(\d+)\s*h\b/gi, (_, n) => `${n} ${Number(n) === 1 ? "ora" : "ore"}`)
+        .replace(/~?\b(\d+)\s*m\b/gi, (_, n) => `${n} ${Number(n) === 1 ? "minuto" : "minuti"}`)
+        .replace(/\b(\d+)\s*min\b/gi, (_, n) => `${n} ${Number(n) === 1 ? "minuto" : "minuti"}`)
+        .replace(/\b(\d+)\s*s\b/gi, (_, n) => `${n} ${Number(n) === 1 ? "secondo" : "secondi"}`);
+    }
+
     function getCurrentMinScore() {
       const el = document.getElementById("minScoreInput");
       const val = parseLocaleNumber(el ? el.value : 70, 70);
@@ -763,12 +772,7 @@
           body: JSON.stringify({ symbol, action, size, sl, tp1, leverage, balance, timeframe: tf }),
         });
         const data = await res.json();
-        if (data.success) {
-          const tpslInfo = `SL: ${data.sl ?? "N/D"}${data.sl_error ? ` (${data.sl_error})` : ""} • TP1: ${data.tp1 ?? "N/D"}${data.tp_error ? ` (${data.tp_error})` : ""}`;
-          alert(`Ordine inviato su ${data.symbol} (${action} • ${data.leverage} • Qty ${data.qty})\n${tpslInfo}`);
-        } else {
-          alert(`Errore: ${data.error}`);
-        }
+        alert(data.success ? `Ordine inviato su ${data.symbol} (${action} • ${data.leverage} • Qty ${data.qty})` : `Errore: ${data.error}`);
         fetchAccountAndPositions();
       } catch (err) {
         alert(`Errore invio ordine: ${err.message}`);
