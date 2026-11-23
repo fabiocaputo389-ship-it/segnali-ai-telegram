@@ -157,7 +157,6 @@ def _sync_bingx_contracts(force: bool = False) -> Dict[str, Dict[str, Any]]:
     now_s = int(time.time())
     with STATE_LOCK:
         cached_swap = dict(TERMINAL_STATE.get("bingx_contracts") or {})
-        cached_spot = dict(TERMINAL_STATE.get("bingx_spot_symbols") or {})
         last_ts = int(TERMINAL_STATE.get("last_contracts_sync_ts") or 0)
         if not force and cached_swap and (now_s - last_ts) < 300:
             return cached_swap
@@ -360,6 +359,7 @@ def _normalize_order_qty(
     step = float(contract["step_size"]) if contract else 0.001
     min_qty = float(contract["min_qty"]) if contract else max(0.001, step)
     prec = int(contract["qty_precision"]) if contract else 4
+    min_notional = float(contract["min_notional"]) if contract else MIN_ORDER_CAPITAL_USD
 
     safe_price = max(float(price or 0.0), 1e-8)
     effective_margin = max(float(balance or 0.0), MIN_ORDER_CAPITAL_USD)
@@ -368,6 +368,11 @@ def _normalize_order_qty(
     target_qty = max(float(raw_qty or 0.0), min_margin_qty, min_qty)
 
     qty = _round_to_step(target_qty, step, prec)
+    if qty < min_qty:
+        qty = _round_to_step(min_qty, step, prec)
+    if safe_price > 0 and min_notional > 0:
+        while (qty * safe_price) < min_notional:
+            qty = _round_to_step(qty + step, step, prec)
     if qty <= 0:
         qty = max(step, round(min_margin_qty, max(prec, 4)))
     if (effective_margin * effective_lev) < MIN_ORDER_CAPITAL_USD:
