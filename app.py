@@ -62,6 +62,8 @@ BINGX_API_SECRET, _API_SECRET_SOURCE = _get_env_first(
     default="",
 )
 
+MIN_ORDER_CAPITAL_USD = 2.0
+
 MARKET_CATALOG: Dict[str, List[Dict[str, str]]] = {
     "Criptovalute Globali": [
         {"symbol": "BTC/USDT", "bx_symbol": "BTC-USDT", "name": "Bitcoin (BTC-USDT)"},
@@ -148,7 +150,7 @@ TERMINAL_STATE: Dict[str, Any] = {
     "last_params": {
         "profile": "pro_sniper",
         "timeframe": "15m",
-        "balance": 2.0,
+        "balance": MIN_ORDER_CAPITAL_USD,
         "risk": 1.0,
         "min_score": 70.0,
         "min_rrr": 1.5,
@@ -200,16 +202,16 @@ def _sync_bingx_contracts(force: bool = False) -> Dict[str, Dict[str, Any]]:
             sym = str(item.get("symbol") or "").strip().upper()
             if not sym:
                 continue
-            step_size = float(item.get("stepSize") or item.get("tradeMinQuantity") or 0.001 or 0.001)
+            step_size = float(item.get("stepSize") or item.get("tradeMinQuantity") or 0.001)
             min_qty = float(item.get("minQty") or item.get("tradeMinQuantity") or step_size or 0.001)
-            min_notional = float(item.get("minNotional") or item.get("notional") or 5.0)
+            min_notional = float(item.get("minNotional") or item.get("notional") or MIN_ORDER_CAPITAL_USD)
             qty_prec = int(item.get("quantityPrecision") if item.get("quantityPrecision") is not None else 4)
             price_prec = int(item.get("pricePrecision") if item.get("pricePrecision") is not None else 4)
             contracts[sym] = {
                 "symbol": sym,
                 "step_size": max(1e-8, step_size),
                 "min_qty": max(1e-8, min_qty),
-                "min_notional": max(0.1, min_notional),
+                "min_notional": max(MIN_ORDER_CAPITAL_USD, min_notional),
                 "qty_precision": max(0, min(8, qty_prec)),
                 "price_precision": max(0, min(8, price_prec)),
             }
@@ -268,7 +270,7 @@ def _compute_leverage(balance: float) -> int:
 def _round_to_step(val: float, step: float, precision: int) -> float:
     if step <= 0:
         return round(max(0.0, val), precision)
-    steps = math.ceil((max(0.0, val) - 1e-12) / step)
+    steps = max(1, math.floor((max(0.0, val) + 1e-12) / step))
     return round(steps * step, precision)
 
 
@@ -281,26 +283,19 @@ def _normalize_order_qty(
 ) -> Tuple[bool, float, str]:
     step = float(contract["step_size"]) if contract else 0.001
     min_qty = float(contract["min_qty"]) if contract else max(0.001, step)
-    min_notional = float(contract["min_notional"]) if contract else 5.0
     prec = int(contract["qty_precision"]) if contract else 4
 
     safe_price = max(float(price or 0.0), 1e-8)
-    qty = max(float(raw_qty or 0.0), min_qty)
-    if (qty * safe_price) < min_notional:
-        qty = max(qty, min_notional / safe_price)
+    effective_margin = max(float(balance or 0.0), MIN_ORDER_CAPITAL_USD)
+    effective_lev = max(int(leverage or 20), 1)
+    min_margin_qty = (MIN_ORDER_CAPITAL_USD * effective_lev) / safe_price
+    target_qty = max(float(raw_qty or 0.0), min_margin_qty, min_qty)
 
-    qty = _round_to_step(qty, step, prec)
-    if qty < min_qty:
-        qty = _round_to_step(min_qty, step, prec)
-
-    req_margin = (qty * safe_price) / max(int(leverage or 1), 1)
-    max_affordable_margin = max(float(balance or 0.0) * 0.98, 0.0)
-    if max_affordable_margin > 0 and req_margin > max_affordable_margin:
-        return (
-            False,
-            0.0,
-            f"Margine richiesto ${req_margin:.2f} (minimo contratto ~${max_affordable_margin:.2f} disponibile con leva {leverage}x)",
-        )
+    qty = _round_to_step(target_qty, step, prec)
+    if qty <= 0:
+        qty = max(step, round(min_margin_qty, max(prec, 4)))
+    if (effective_margin * effective_lev) < MIN_ORDER_CAPITAL_USD:
+        return False, 0.0, f"Capitale minimo ordine ${MIN_ORDER_CAPITAL_USD:.2f}"
     return True, qty, ""
 
 
@@ -592,11 +587,13 @@ def _evaluate_asset(
     tp3 = _round_price(raw_tp3, price)
 
     rrr = round(abs(tp1 - entry) / max(abs(entry - sl), 1e-9), 2)
-    leverage = _compute_leverage(balance)
-    risk_usd = balance * (risk_pct / 100.0)
-    raw_qty = (risk_usd / max(abs(entry - sl), 1e-9)) / max(price, 1e-9)
-    size = max(0.001, round(min(raw_qty, (balance * leverage * 0.5) / max(price, 1e-9)), 4))
-    margin = round((size * price) / max(leverage, 1), 2)
+    order_capital = max(float(balance or MIN_ORDER_CAPITAL_USD), MIN_ORDER_CAPITAL_USD)
+    leverage = _compute_leverage(order_capital)
+    risk_usd = order_capital * (risk_pct / 100.0)
+    raw_qty = max((risk_usd / max(abs(entry - sl), 1e-9)) / max(price, 1e-9), (MIN_ORDER_CAPITAL_USD * leverage) / max(price, 1e-9))
+    resolved_bx, contract = _resolve_bingx_contract(asset["bx_symbol"])
+    _, size, _ = _normalize_order_qty(raw_qty, price, leverage, order_capital, contract)
+    margin = round(max(MIN_ORDER_CAPITAL_USD, (size * price) / max(leverage, 1)), 2)
 
     p_win = max(0.35, min(0.85, score / 100.0))
     win_usd = abs(tp1 - entry) * size * leverage * 0.25
@@ -620,8 +617,6 @@ def _evaluate_asset(
         if action != "NEUTRAL"
         else ("Rischio fakeout / coda lunga" if fakeout else f"Filtro Score/Trend non allineato ({score}% < {min_score}%)")
     )
-
-    resolved_bx, _ = _resolve_bingx_contract(asset["bx_symbol"])
 
     return {
         "symbol": asset["symbol"],
@@ -837,7 +832,7 @@ def _place_bingx_multi_tpsl_order(
     action: str,
     qty: float,
     leverage: int = 20,
-    balance: float = 2.0,
+    balance: float = MIN_ORDER_CAPITAL_USD,
     sl: Optional[float] = None,
     tp1: Optional[float] = None,
     tp2: Optional[float] = None,
@@ -868,7 +863,7 @@ def _place_bingx_multi_tpsl_order(
             raw_qty=float(qty),
             price=ref_price,
             leverage=int(leverage or 20),
-            balance=float(balance or 2.0),
+            balance=max(float(balance or MIN_ORDER_CAPITAL_USD), MIN_ORDER_CAPITAL_USD),
             contract=contract,
         )
         if not ok_qty:
@@ -1010,19 +1005,20 @@ def _maybe_run_autotrade(signals: List[Dict[str, Any]], positions: List[Dict[str
     if daily_pnl <= -abs(loss_cap):
         return
 
+    effective_bal = max(float(balance or MIN_ORDER_CAPITAL_USD), MIN_ORDER_CAPITAL_USD)
     open_syms = {p["symbol"] for p in positions}
     for sig in signals:
         if sig["symbol"] in open_syms:
             continue
         if cfg.get("only_a_plus") and sig.get("grade") != "A+":
             continue
-        lev = _compute_leverage(balance)
+        lev = _compute_leverage(effective_bal)
         ok, _ = _place_bingx_multi_tpsl_order(
             symbol=sig["symbol"],
             action=sig["action"],
             qty=float(sig["size"]),
             leverage=lev,
-            balance=balance,
+            balance=effective_bal,
             sl=float(sig["sl"]),
             tp1=float(sig["tp1"]),
             tp2=float(sig["tp2"]),
@@ -1117,7 +1113,7 @@ def api_signals():
     timeframe = request.args.get("timeframe", "15m")
     if timeframe not in TF_SECONDS:
         timeframe = "15m"
-    balance = max(2.0, float(request.args.get("balance", 2.0) or 2.0))
+    balance = max(MIN_ORDER_CAPITAL_USD, float(request.args.get("balance", MIN_ORDER_CAPITAL_USD) or MIN_ORDER_CAPITAL_USD))
     risk_pct = min(10.0, max(0.25, float(request.args.get("risk", 1.0) or 1.0)))
     min_score = min(98.0, max(20.0, float(request.args.get("min_score", 70.0) or 70.0)))
     min_rrr = min(10.0, max(0.5, float(request.args.get("min_rrr", 1.5) or 1.5)))
@@ -1326,7 +1322,7 @@ def api_execute_manual():
     tp1 = float(body.get("tp1", 0) or 0)
     tp2 = float(body.get("tp2", 0) or 0)
     tp3 = float(body.get("tp3", 0) or 0)
-    balance = max(2.0, float(body.get("balance", 2.0) or 2.0))
+    balance = max(MIN_ORDER_CAPITAL_USD, float(body.get("balance", MIN_ORDER_CAPITAL_USD) or MIN_ORDER_CAPITAL_USD))
     leverage = int(body.get("leverage") or _compute_leverage(balance))
     tf = str(body.get("timeframe", "15m"))
     if tf not in TF_SECONDS:
