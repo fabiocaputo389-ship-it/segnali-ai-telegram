@@ -6,6 +6,7 @@ import os
 import threading
 import time
 from datetime import datetime, timezone
+from decimal import Decimal, ROUND_DOWN, ROUND_UP
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
@@ -153,6 +154,15 @@ def _classify_bx_symbol(bx_sym: str) -> str:
     return "Criptovalute Globali"
 
 
+def _step_decimals(step: float) -> int:
+    try:
+        d = Decimal(str(step)).normalize()
+        exp = -int(d.as_tuple().exponent)
+        return max(0, min(8, exp))
+    except Exception:
+        return 4
+
+
 def _sync_bingx_contracts(force: bool = False) -> Dict[str, Dict[str, Any]]:
     now_s = int(time.time())
     with STATE_LOCK:
@@ -179,7 +189,10 @@ def _sync_bingx_contracts(force: bool = False) -> Dict[str, Dict[str, Any]]:
             step_size = float(item.get("stepSize") or item.get("tradeMinQuantity") or 0.001)
             min_qty = float(item.get("minQty") or item.get("tradeMinQuantity") or step_size or 0.001)
             min_notional = float(item.get("minNotional") or item.get("notional") or MIN_ORDER_CAPITAL_USD)
-            qty_prec = int(item.get("quantityPrecision") if item.get("quantityPrecision") is not None else 4)
+            step_dec = _step_decimals(step_size)
+            raw_qty_prec = item.get("quantityPrecision")
+            qty_prec = int(raw_qty_prec) if raw_qty_prec is not None else step_dec
+            qty_prec = min(max(0, min(8, qty_prec)), step_dec) if step_size > 0 else max(0, min(8, qty_prec))
             price_prec = int(item.get("pricePrecision") if item.get("pricePrecision") is not None else 4)
             market_cat = _classify_bx_symbol(sym)
             contracts[sym] = {
@@ -189,7 +202,7 @@ def _sync_bingx_contracts(force: bool = False) -> Dict[str, Dict[str, Any]]:
                 "step_size": max(1e-8, step_size),
                 "min_qty": max(1e-8, min_qty),
                 "min_notional": max(MIN_ORDER_CAPITAL_USD, min_notional),
-                "qty_precision": max(0, min(8, qty_prec)),
+                "qty_precision": qty_prec,
                 "price_precision": max(0, min(8, price_prec)),
             }
 
@@ -219,7 +232,7 @@ def _sync_bingx_contracts(force: bool = False) -> Dict[str, Dict[str, Any]]:
                 "step_size": max(1e-8, step_size),
                 "min_qty": max(1e-8, min_qty),
                 "min_notional": max(MIN_ORDER_CAPITAL_USD, min_notional),
-                "qty_precision": 6,
+                "qty_precision": _step_decimals(step_size),
                 "price_precision": 6,
             }
 
@@ -334,19 +347,35 @@ def _compute_leverage(balance: float) -> int:
     return 5
 
 
-def _round_to_step(val: float, step: float, precision: int) -> float:
-    if step <= 0:
-        return round(max(0.0, val), precision)
-    steps = max(1, math.floor((max(0.0, val) + 1e-12) / step))
-    return round(steps * step, precision)
-
-
-def _fmt_qty(val: float, precision: int) -> str:
+def _effective_qty_precision(step: float, precision: int) -> int:
     p = max(0, min(8, int(precision)))
-    formatted = f"{max(0.0, float(val)):.{p}f}"
-    if "." in formatted:
-        formatted = formatted.rstrip("0").rstrip(".")
-    return formatted or "0.001"
+    if step and step > 0:
+        return min(p, _step_decimals(step))
+    return p
+
+
+def _round_to_step(val: float, step: float, precision: int, rounding_mode=ROUND_DOWN) -> float:
+    eff_prec = _effective_qty_precision(step, precision)
+    q_fmt = Decimal("1") if eff_prec == 0 else Decimal("1." + ("0" * eff_prec))
+    safe_val = max(Decimal("0"), Decimal(str(val or 0.0)))
+    if step and step > 0:
+        d_step = Decimal(str(step))
+        steps_count = (safe_val / d_step).to_integral_value(rounding=rounding_mode)
+        if steps_count < Decimal("1"):
+            steps_count = Decimal("1")
+        rounded = (steps_count * d_step).quantize(q_fmt, rounding=ROUND_DOWN)
+        return float(rounded)
+    return float(safe_val.quantize(q_fmt, rounding=rounding_mode))
+
+
+def _fmt_qty(val: float, precision: int, step: float = 0.0) -> str:
+    eff_prec = _effective_qty_precision(step, precision)
+    q_fmt = Decimal("1") if eff_prec == 0 else Decimal("1." + ("0" * eff_prec))
+    d_val = max(Decimal("0"), Decimal(str(val or 0.0))).quantize(q_fmt, rounding=ROUND_DOWN)
+    s_val = format(d_val, "f")
+    if "." in s_val:
+        s_val = s_val.rstrip("0").rstrip(".")
+    return s_val or "0.001"
 
 
 def _normalize_order_qty(
@@ -358,7 +387,7 @@ def _normalize_order_qty(
 ) -> Tuple[bool, float, str]:
     step = float(contract["step_size"]) if contract else 0.001
     min_qty = float(contract["min_qty"]) if contract else max(0.001, step)
-    prec = int(contract["qty_precision"]) if contract else 4
+    prec = _effective_qty_precision(step, int(contract["qty_precision"]) if contract else 4)
     min_notional = float(contract["min_notional"]) if contract else MIN_ORDER_CAPITAL_USD
 
     safe_price = max(float(price or 0.0), 1e-8)
@@ -367,12 +396,22 @@ def _normalize_order_qty(
     min_margin_qty = (MIN_ORDER_CAPITAL_USD * effective_lev) / safe_price
     target_qty = max(float(raw_qty or 0.0), min_margin_qty, min_qty)
 
-    qty = _round_to_step(target_qty, step, prec)
+    qty = _round_to_step(target_qty, step, prec, rounding_mode=ROUND_UP)
     if qty < min_qty:
-        qty = _round_to_step(min_qty, step, prec)
-    if safe_price > 0 and min_notional > 0:
-        while (qty * safe_price) < min_notional:
-            qty = _round_to_step(qty + step, step, prec)
+        qty = _round_to_step(min_qty, step, prec, rounding_mode=ROUND_UP)
+
+    d_step = Decimal(str(step)) if step > 0 else Decimal("0.001")
+    d_price = Decimal(str(safe_price))
+    d_min_notional = Decimal(str(min_notional))
+    d_qty = Decimal(str(qty))
+    q_fmt = Decimal("1") if prec == 0 else Decimal("1." + ("0" * prec))
+
+    guard = 0
+    while (d_qty * d_price) < d_min_notional and guard < 1000:
+        d_qty = (d_qty + d_step).quantize(q_fmt, rounding=ROUND_DOWN)
+        guard += 1
+
+    qty = float(d_qty)
     if qty <= 0:
         qty = max(step, round(min_margin_qty, max(prec, 4)))
     if (effective_margin * effective_lev) < MIN_ORDER_CAPITAL_USD:
@@ -909,7 +948,7 @@ def _place_bingx_multi_tpsl_order(
             }
 
     step = float(contract["step_size"]) if contract else 0.001
-    prec = int(contract["qty_precision"]) if contract else 4
+    prec = _effective_qty_precision(step, int(contract["qty_precision"]) if contract else 4)
     side = "BUY" if action.upper() == "BUY" else "SELL"
     pos_side = "LONG" if action.upper() == "BUY" else "SHORT"
     exit_side = "SELL" if action.upper() == "BUY" else "BUY"
@@ -948,9 +987,9 @@ def _place_bingx_multi_tpsl_order(
                 applied_lev = int(cand_lev)
                 break
     else:
-        exec_qty = _round_to_step(float(qty), step, prec)
+        exec_qty = _round_to_step(float(qty), step, prec, rounding_mode=ROUND_DOWN)
 
-    qty_str = _fmt_qty(exec_qty, prec)
+    qty_str = _fmt_qty(exec_qty, prec, step)
     order_params: Dict[str, Any] = {
         "symbol": bx_sym,
         "side": side,
@@ -1012,9 +1051,9 @@ def _place_bingx_multi_tpsl_order(
         rem_qty = float(exec_qty)
         for idx, (price_lv, frac, label) in enumerate(active_tps):
             if idx == len(active_tps) - 1:
-                leg_qty = _round_to_step(rem_qty, step, prec)
+                leg_qty = _round_to_step(rem_qty, step, prec, rounding_mode=ROUND_DOWN)
             else:
-                leg_qty = _round_to_step(float(exec_qty) * (frac / total_frac), step, prec)
+                leg_qty = _round_to_step(float(exec_qty) * (frac / total_frac), step, prec, rounding_mode=ROUND_DOWN)
                 rem_qty = max(0.0, round(rem_qty - leg_qty, prec))
             if leg_qty <= 0:
                 continue
@@ -1024,7 +1063,7 @@ def _place_bingx_multi_tpsl_order(
                 "positionSide": pos_side,
                 "type": "TAKE_PROFIT_MARKET",
                 "stopPrice": price_lv,
-                "quantity": _fmt_qty(leg_qty, prec),
+                "quantity": _fmt_qty(leg_qty, prec, step),
                 "workingType": "MARK_PRICE",
             })
             if not ok_tp:
