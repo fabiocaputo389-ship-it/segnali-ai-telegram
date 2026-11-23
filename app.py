@@ -183,6 +183,8 @@ def _sync_bingx_contracts(force: bool = False) -> Dict[str, Dict[str, Any]]:
             sym = str(item.get("symbol") or "").strip().upper()
             if not sym:
                 continue
+            if sym == "XAUT-USDT":
+                print(f"[BINGX RAW CONTRACT XAUT-USDT] {json.dumps(item)}", flush=True)
             status_val = str(item.get("status") or item.get("apiStateOpen") or "1").lower()
             if status_val in ("0", "false", "offline", "suspended", "delisted"):
                 continue
@@ -999,6 +1001,10 @@ def _place_bingx_multi_tpsl_order(
     }
     if reduce_only:
         order_params["reduceOnly"] = "true"
+
+    if bx_sym == "XAUT-USDT":
+        print(f"[BINGX CONTRACT USED] {json.dumps(contract)}", flush=True)
+        print(f"[BINGX ORDER PARAMS] {json.dumps(order_params)}", flush=True)
 
     print(
         f"[BINGX ORDER TRY] sym={bx_sym} side={side} posSide={pos_side} qty={qty_str} step={step} prec={prec}",
