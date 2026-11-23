@@ -274,6 +274,14 @@ def _round_to_step(val: float, step: float, precision: int) -> float:
     return round(steps * step, precision)
 
 
+def _fmt_qty(val: float, precision: int) -> str:
+    p = max(0, min(8, int(precision)))
+    formatted = f"{max(0.0, float(val)):.{p}f}"
+    if "." in formatted:
+        formatted = formatted.rstrip("0").rstrip(".")
+    return formatted or "0.001"
+
+
 def _normalize_order_qty(
     raw_qty: float,
     price: float,
@@ -852,6 +860,8 @@ def _place_bingx_multi_tpsl_order(
     if reduce_only:
         side = exit_side
 
+    applied_lev = max(1, int(leverage or 20))
+
     if not reduce_only:
         ref_price = _get_live_mark_or_last_price(bx_sym)
         if ref_price <= 0:
@@ -862,7 +872,7 @@ def _place_bingx_multi_tpsl_order(
         ok_qty, norm_qty, qty_err = _normalize_order_qty(
             raw_qty=float(qty),
             price=ref_price,
-            leverage=int(leverage or 20),
+            leverage=applied_lev,
             balance=max(float(balance or MIN_ORDER_CAPITAL_USD), MIN_ORDER_CAPITAL_USD),
             contract=contract,
         )
@@ -870,21 +880,27 @@ def _place_bingx_multi_tpsl_order(
             return False, {"error": qty_err}
         exec_qty = norm_qty
 
-        if leverage > 0:
-            _bingx_signed_request("POST", "/openApi/swap/v2/trade/leverage", {
+        for cand_lev in [applied_lev, 10, 5, 2, 1]:
+            if cand_lev <= 0:
+                continue
+            ok_lev, _, _ = _bingx_signed_request("POST", "/openApi/swap/v2/trade/leverage", {
                 "symbol": bx_sym,
                 "side": pos_side,
-                "leverage": int(leverage),
+                "leverage": int(cand_lev),
             })
+            if ok_lev:
+                applied_lev = int(cand_lev)
+                break
     else:
         exec_qty = _round_to_step(float(qty), step, prec)
 
+    qty_str = _fmt_qty(exec_qty, prec)
     order_params: Dict[str, Any] = {
         "symbol": bx_sym,
         "side": side,
         "positionSide": pos_side,
         "type": "MARKET",
-        "quantity": exec_qty,
+        "quantity": qty_str,
     }
     if reduce_only:
         order_params["reduceOnly"] = "true"
@@ -906,7 +922,7 @@ def _place_bingx_multi_tpsl_order(
             "positionSide": pos_side,
             "type": "STOP_MARKET",
             "stopPrice": float(sl),
-            "quantity": exec_qty,
+            "quantity": qty_str,
             "workingType": "MARK_PRICE",
         })
         if not ok_sl:
@@ -938,7 +954,7 @@ def _place_bingx_multi_tpsl_order(
                 "positionSide": pos_side,
                 "type": "TAKE_PROFIT_MARKET",
                 "stopPrice": price_lv,
-                "quantity": leg_qty,
+                "quantity": _fmt_qty(leg_qty, prec),
                 "workingType": "MARK_PRICE",
             })
             if not ok_tp:
@@ -1247,7 +1263,7 @@ def api_live_ticker():
     ok, data, _ = _http_get_json(url, timeout=5)
     price = 0.0
     if ok and isinstance(data, dict) and isinstance(data.get("data"), dict):
-        price = float(data["data"].get("lastPrice", 0) or 0)
+        price = float(data["data"].get("lastPrice") or 0)
     if price <= 0:
         with STATE_LOCK:
             tf = TERMINAL_STATE["last_params"].get("timeframe", "15m")
