@@ -356,17 +356,17 @@
           <div class="field">
             <label for="timeframeSelect">Timeframe Candela</label>
             <select id="timeframeSelect">
-              <option value="5m">5 minuti (Durata 5m)</option>
-              <option value="15m" selected>15 minuti (Durata 15m)</option>
-              <option value="1h">1 ora (Durata 1h)</option>
+              <option value="5m">5m (Durata 5m)</option>
+              <option value="15m" selected>15m (Durata 15m)</option>
+              <option value="1h">1h (Durata 1h)</option>
             </select>
           </div>
         </div>
 
         <div class="grid-2" style="margin-top: 10px;">
           <div class="field">
-            <label for="balanceInput">Capitale ($ • Min $2.00)</label>
-            <input id="balanceInput" type="text" inputmode="decimal" value="2,00" />
+            <label for="balanceInput">Capitale ($)</label>
+            <input id="balanceInput" type="text" inputmode="decimal" value="2,45" />
           </div>
           <div class="field">
             <label for="riskInput">Rischio (%)</label>
@@ -531,30 +531,16 @@
       return Number.isFinite(num) ? num : fallback;
     }
 
-    function normalizeSpeechText(text) {
-      if (!text) return "";
-      return String(text)
-        .replace(/\b(\d+)\s*h\b/gi, (_, n) => `${n} ${Number(n) === 1 ? "ora" : "ore"}`)
-        .replace(/~?\b(\d+)\s*m\b/gi, (_, n) => `${n} ${Number(n) === 1 ? "minuto" : "minuti"}`)
-        .replace(/\b(\d+)\s*min\b/gi, (_, n) => `${n} ${Number(n) === 1 ? "minuto" : "minuti"}`)
-        .replace(/\b(\d+)\s*s\b/gi, (_, n) => `${n} ${Number(n) === 1 ? "secondo" : "secondi"}`);
-    }
-
     function getCurrentMinScore() {
       const el = document.getElementById("minScoreInput");
       const val = parseLocaleNumber(el ? el.value : 70, 70);
       return Math.min(98, Math.max(20, val));
     }
 
-    function getCurrentBalance() {
-      const el = document.getElementById("balanceInput");
-      return Math.max(2.0, parseLocaleNumber(el ? el.value : 2.0, 2.0));
-    }
-
     function getFilterParams() {
       const profile = document.getElementById("profileSelect").value;
       const timeframe = document.getElementById("timeframeSelect").value;
-      const balance = getCurrentBalance();
+      const balance = Math.max(1, parseLocaleNumber(document.getElementById("balanceInput").value, 2.45));
       const risk = Math.min(10, Math.max(0.25, parseLocaleNumber(document.getElementById("riskInput").value, 1.0)));
       const minScore = getCurrentMinScore();
       const minRrr = Math.min(10, Math.max(0.5, parseLocaleNumber(document.getElementById("minRrrInput").value, 1.5)));
@@ -609,7 +595,7 @@
         }
 
         if (latestCandleTiming) {
-          timingEl.textContent = `${latestCandleTiming.candle_window_text} • Residuo: ${latestCandleTiming.candle_remaining_sec} secondi`;
+          timingEl.textContent = `${latestCandleTiming.candle_window_text} • Residuo: ${latestCandleTiming.candle_remaining_sec}s`;
         }
 
         const diags = data.market_diagnostics || {};
@@ -623,9 +609,8 @@
           tbody.innerHTML = `<tr><td colspan="6" style="color: var(--muted);">Nessun dato disponibile.</td></tr>`;
         } else {
           tbody.innerHTML = rows.map((r) => {
-            const levNum = Number(r.leverage_num || String(r.leverage || "20x").replace("x", "") || 20);
             const actionCell = (r.action === "BUY" || r.action === "SELL")
-              ? `${renderActionBadge(r.action)}<div style="color: var(--muted); font-size: 11px; margin-top: 3px;">Qty: ${r.size} • ${r.leverage}</div><div style="margin-top:6px;"><button class="small-btn btn-primary" type="button" onclick="executeManualOrder('${r.symbol}', '${r.action}', ${r.size}, ${r.sl}, ${r.tp1}, ${levNum})">Esegui</button></div>`
+              ? `${renderActionBadge(r.action)}<div style="margin-top:6px;"><button class="small-btn btn-primary" type="button" onclick="executeManualOrder('${r.symbol}', '${r.action}', ${r.size}, ${r.sl}, ${r.tp1})">Esegui</button></div>`
               : `${renderActionBadge(r.action)}<div style="color: var(--muted); font-size: 11px; margin-top: 4px;">${r.reason || ""}</div>`;
 
             return `
@@ -636,7 +621,7 @@
                 </td>
                 <td>
                   <strong>${r.price}</strong>
-                  <div style="color: var(--info); font-size: 11px;">HTF: ${r.htf_bias} • ${r.leverage}</div>
+                  <div style="color: var(--info); font-size: 11px;">HTF: ${r.htf_bias}</div>
                 </td>
                 <td>
                   <strong>${r.score}%</strong>
@@ -650,9 +635,9 @@
                   <div>TP2: ${r.tp2}</div>
                 </td>
                 <td style="font-size: 11px; line-height: 1.35;">
-                  <div><strong>${r.candle_duration_label || r.timeframe}</strong></div>
+                  <div><strong>${r.timeframe}</strong> (${r.candle_duration_sec}s)</div>
                   <div>${r.candle_open_utc} → ${r.candle_close_utc}</div>
-                  <div style="color: var(--muted);">Margine: $${r.margin}</div>
+                  <div style="color: var(--muted);">EV: $${r.ev_net_usd}</div>
                 </td>
                 <td>${actionCell}</td>
               </tr>
@@ -762,17 +747,16 @@
       }
     }
 
-    async function executeManualOrder(symbol, action, size, sl, tp1, leverage = 20) {
+    async function executeManualOrder(symbol, action, size, sl, tp1) {
       const tf = document.getElementById("timeframeSelect").value;
-      const balance = getCurrentBalance();
       try {
         const res = await fetch("/api/autotrade/execute-manual", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ symbol, action, size, sl, tp1, leverage, balance, timeframe: tf }),
+          body: JSON.stringify({ symbol, action, size, sl, tp1, timeframe: tf }),
         });
         const data = await res.json();
-        alert(data.success ? `Ordine inviato su ${data.symbol} (${action} • ${data.leverage} • Qty ${data.qty})` : `Errore: ${data.error}`);
+        alert(data.success ? `Ordine inviato su ${data.symbol} (${action})` : `Errore: ${data.error}`);
         fetchAccountAndPositions();
       } catch (err) {
         alert(`Errore invio ordine: ${err.message}`);
@@ -828,9 +812,9 @@
       const rem = Math.max(0, Number(latestCandleTiming.candle_close_ts || nowSec) - nowSec);
       latestCandleTiming.candle_remaining_sec = rem;
       document.getElementById("scannerTiming").textContent =
-        `${latestCandleTiming.candle_window_text} • Residuo: ${rem} secondi`;
+        `${latestCandleTiming.candle_window_text} • Residuo: ${rem}s`;
       document.getElementById("liveMetaLine").textContent =
-        `Candela ${latestCandleTiming.candle_duration_label || latestCandleTiming.timeframe} • Chiusura ${latestCandleTiming.candle_close_utc} (${rem} secondi) • Score Min: ${getCurrentMinScore().toFixed(1)}%`;
+        `Candela ${latestCandleTiming.timeframe} • Chiusura ${latestCandleTiming.candle_close_utc} (${rem}s) • Score Min: ${getCurrentMinScore().toFixed(1)}%`;
     }, 1000);
 
     setInterval(() => fetchSignals(false), 12000);
