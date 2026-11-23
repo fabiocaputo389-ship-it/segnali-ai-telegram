@@ -74,6 +74,7 @@ STATE = {
     "last_bingx_balance": 0.0,
     "last_bingx_equity": 0.0,
     "last_bingx_available": 0.0,
+    "last_bingx_unrealized": 0.0,
     "last_bingx_balance_error": None,
     "bingx_rate_limit_until": 0.0,
 }
@@ -534,7 +535,7 @@ def fetch_bingx_real_balance():
             "balance": STATE.get("last_bingx_balance", 0.0),
             "equity": STATE.get("last_bingx_equity", 0.0),
             "available_margin": STATE.get("last_bingx_available", 0.0),
-            "unrealized_pnl": 0.0,
+            "unrealized_pnl": STATE.get("last_bingx_unrealized", 0.0),
             "asset": "USDT",
         }, err or "Errore lettura saldo BingX"
 
@@ -581,6 +582,7 @@ def fetch_bingx_real_balance():
         STATE["last_bingx_balance"] = info["balance"]
         STATE["last_bingx_equity"] = info["equity"]
         STATE["last_bingx_available"] = info["available_margin"]
+        STATE["last_bingx_unrealized"] = info["unrealized_pnl"]
         STATE["last_bingx_balance_error"] = None
     return info, None
 
@@ -601,7 +603,7 @@ def sync_bingx_real_closed_trades():
     payload, err = bingx_signed_request(
         "GET",
         "/openApi/swap/v2/user/income",
-        {"startTime": start_ms, "endTime": now_ms, "limit": 200},
+        {"startTime": start_ms, "endTime": now_ms, "limit": 500},
     )
     if err or not isinstance(payload, dict):
         return
@@ -610,35 +612,40 @@ def sync_bingx_real_closed_trades():
     if not isinstance(rows, list):
         return
 
-    parsed_trades = []
-    for item in rows:
+    parsed_map = {}
+    for idx, item in enumerate(rows):
         if not isinstance(item, dict):
             continue
         inc_type = str(item.get("incomeType") or "").upper()
-        if inc_type not in ("REALIZED_PNL", "PROFIT", "TRADE_PNL"):
+        if inc_type not in ("REALIZED_PNL", "PROFIT", "TRADE_PNL", "COMMISSION", "FUNDING_FEE"):
             continue
-        pnl_val = safe_float(item.get("income"), 0.0)
-        if pnl_val == 0.0:
+        amt_val = safe_float(item.get("income"), 0.0)
+        if amt_val == 0.0:
             continue
         t_ms = int(safe_float(item.get("time"), now_ms))
         dt_utc = datetime.fromtimestamp(t_ms / 1000.0, tz=timezone.utc)
-        trade_id = str(item.get("tranId") or item.get("orderId") or f"bx_{t_ms}_{pnl_val}")
-        parsed_trades.append({
+        raw_id = item.get("tranId") or item.get("orderId")
+        trade_id = f"{raw_id}_{inc_type}" if raw_id else f"bx_{inc_type}_{t_ms}_{idx}_{round(amt_val, 6)}"
+        is_fee = inc_type in ("COMMISSION", "FUNDING_FEE")
+        parsed_map[trade_id] = {
             "id": trade_id,
             "symbol": canonicalize_symbol_key(item.get("symbol") or "BTCUSDT"),
-            "realized_pnl": round(pnl_val, 4),
+            "income_type": inc_type,
+            "is_fee": is_fee,
+            "realized_pnl": round(amt_val, 4),
             "closed_date": dt_utc.strftime("%Y-%m-%d"),
             "closed_month": dt_utc.strftime("%Y-%m"),
             "closed_at": dt_utc.strftime("%Y-%m-%d %H:%M:%S UTC"),
-        })
+            "ts_ms": t_ms,
+        }
+
+    ordered_trades = sorted(parsed_map.values(), key=lambda x: x["ts_ms"], reverse=True)
+    today_key = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today_net = round(sum(safe_float(t.get("realized_pnl")) for t in ordered_trades if t["closed_date"] == today_key), 4)
 
     with STATE_LOCK:
-        existing_ids = {t.get("id") for t in STATE["closed_trades"]}
-        for tr in parsed_trades:
-            if tr["id"] not in existing_ids:
-                STATE["closed_trades"].append(tr)
-                existing_ids.add(tr["id"])
-        STATE["session_pnl"] = round(sum(safe_float(t.get("realized_pnl")) for t in STATE["closed_trades"]), 4)
+        STATE["closed_trades"] = ordered_trades
+        STATE["session_pnl"] = today_net
 
 
 def fetch_bingx_real_positions():
@@ -1104,16 +1111,18 @@ def build_performance_payload():
 
     def agg(predicate):
         items = [t for t in closed if predicate(t)]
-        wins = [t for t in items if safe_float(t.get("realized_pnl")) > 0]
-        losses = [t for t in items if safe_float(t.get("realized_pnl")) < 0]
-        total = len(items)
+        trade_items = [t for t in items if not t.get("is_fee")]
+        wins = [t for t in trade_items if safe_float(t.get("realized_pnl")) > 0]
+        losses = [t for t in trade_items if safe_float(t.get("realized_pnl")) < 0]
+        total = len(trade_items)
         w_cnt = len(wins)
         l_cnt = len(losses)
         win_pct = round((w_cnt / total) * 100.0, 0) if total > 0 else 0.0
         loss_pct = round((l_cnt / total) * 100.0, 0) if total > 0 else 0.0
-        won_amt = round(sum(safe_float(t.get("realized_pnl")) for t in wins), 2)
-        lost_amt = round(sum(abs(safe_float(t.get("realized_pnl"))) for t in losses), 2)
-        net_pnl = round(sum(safe_float(t.get("realized_pnl")) for t in items), 2)
+        won_amt = round(sum(safe_float(t.get("realized_pnl")) for t in wins), 4)
+        lost_amt = round(sum(abs(safe_float(t.get("realized_pnl"))) for t in losses), 4)
+        fees_amt = round(sum(safe_float(t.get("realized_pnl")) for t in items if t.get("is_fee")), 4)
+        net_pnl = round(sum(safe_float(t.get("realized_pnl")) for t in items), 4)
         return {
             "total_trades": total,
             "wins": w_cnt,
@@ -1122,6 +1131,7 @@ def build_performance_payload():
             "loss_pct": loss_pct,
             "won_amount": won_amt,
             "lost_amount": lost_amt,
+            "fees_pnl": fees_amt,
             "net_pnl": net_pnl,
         }
 
