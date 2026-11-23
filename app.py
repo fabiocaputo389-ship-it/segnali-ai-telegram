@@ -12,14 +12,36 @@ from flask import Flask, render_template, render_template_string, request, jsoni
 app = Flask(__name__, template_folder="templates")
 
 # ==========================================
-# CREDENZIALI DI DEFAULT (Fallback / Sistema)
+# CREDENZIALI DA VARIABILI D'AMBIENTE RENDER
 # ==========================================
-DEFAULT_API_KEY = os.environ.get("BINGX_API_KEY", "")
-DEFAULT_SECRET_KEY = os.environ.get("BINGX_SECRET_KEY", "")
+def _leggi_env_chiave(nomi: list[str]) -> str:
+    for nome in nomi:
+        val = os.environ.get(nome)
+        if val and val.strip():
+            return val.strip()
+    return ""
+
+
+DEFAULT_API_KEY = _leggi_env_chiave(["BINGX_API_KEY", "API_KEY", "BINGX_KEY"])
+DEFAULT_SECRET_KEY = _leggi_env_chiave(["BINGX_SECRET_KEY", "BINGX_API_SECRET", "SECRET_KEY"])
 BASE_URL = "https://open-api.bingx.com"
 
 TRADING_MODE = "MANUAL"
 MARKET_TYPE = "FUTURES"  # "FUTURES", "SPOT" o "STANDARD_FUTURES"
+
+
+def _risolvi_credenziali(api_key: str = "", secret_key: str = "") -> tuple[str, str, str]:
+    env_api = _leggi_env_chiave(["BINGX_API_KEY", "API_KEY", "BINGX_KEY"]) or DEFAULT_API_KEY
+    env_secret = _leggi_env_chiave(["BINGX_SECRET_KEY", "BINGX_API_SECRET", "SECRET_KEY"]) or DEFAULT_SECRET_KEY
+
+    clean_api = (api_key or "").strip()
+    clean_secret = (secret_key or "").strip()
+
+    if clean_api and clean_secret:
+        return clean_api, clean_secret, "custom"
+    if env_api and env_secret:
+        return env_api, env_secret, "render_env"
+    return "", "", "none"
 
 
 def _genera_firma(payload: dict, secret_key: str) -> str:
@@ -572,11 +594,10 @@ def esegui_ordine_bingx(
     secret_key: str = "",
     margin_usdt: float = 0.0,
 ):
-    active_api = api_key if api_key else DEFAULT_API_KEY
-    active_secret = secret_key if secret_key else DEFAULT_SECRET_KEY
+    active_api, active_secret, _ = _risolvi_credenziali(api_key, secret_key)
 
     if not active_api or not active_secret:
-        return {"code": -1, "msg": "API Key o Secret Key BingX mancanti."}
+        return {"code": -1, "msg": "API Key o Secret Key BingX mancanti (verifica variabili d'ambiente su Render)."}
 
     eff_leva = _calcola_leva_dinamica(margin_usdt, leva, market_type)
 
@@ -644,8 +665,7 @@ def chiudi_posizione_bingx_reale(
     api_key: str = "",
     secret_key: str = "",
 ) -> dict:
-    active_api = api_key if api_key else DEFAULT_API_KEY
-    active_secret = secret_key if secret_key else DEFAULT_SECRET_KEY
+    active_api, active_secret, _ = _risolvi_credenziali(api_key, secret_key)
 
     if not active_api or not active_secret:
         return {"code": -1, "msg": "API Key o Secret Key BingX mancanti per chiudere la posizione."}
@@ -693,11 +713,11 @@ def chiudi_posizione_bingx_reale(
 
 
 def get_bingx_account_telemetry(api_key: str, secret_key: str) -> dict:
-    active_api = api_key if api_key else DEFAULT_API_KEY
-    active_secret = secret_key if secret_key else DEFAULT_SECRET_KEY
+    active_api, active_secret, source = _risolvi_credenziali(api_key, secret_key)
     if not active_api or not active_secret:
         return {
             "connected": False,
+            "keySource": "none",
             "walletBalance": 0.0,
             "availableMargin": 0.0,
             "unrealizedPnl": 0.0,
@@ -706,7 +726,7 @@ def get_bingx_account_telemetry(api_key: str, secret_key: str) -> dict:
             "grossPnlToday": 0.0,
             "netPnlMonth": 0.0,
             "positions": [],
-            "msg": "Collega API Key e Secret Key per leggere il conto reale BingX.",
+            "msg": "Imposta BINGX_API_KEY e BINGX_SECRET_KEY su Render oppure inseriscile in Chiavi API.",
         }
 
     wallet_balance = 0.0
@@ -792,6 +812,7 @@ def get_bingx_account_telemetry(api_key: str, secret_key: str) -> dict:
 
     return {
         "connected": True,
+        "keySource": source,
         "walletBalance": round(wallet_balance, 4),
         "availableMargin": round(available_margin, 4),
         "unrealizedPnl": round(unrealized_pnl, 4),
@@ -901,10 +922,15 @@ def set_trading_mode():
 @app.route("/api/get-mode", methods=["GET"])
 def get_trading_mode():
     is_safe, time_msg, borsa_rif, start_t, end_t = verifica_finestra_temporale_sicura()
+    _, _, key_source = _risolvi_credenziali("", "")
+    now_utc = datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
     return jsonify({
         "code": 0,
         "mode": TRADING_MODE,
         "marketType": MARKET_TYPE,
+        "envKeysConfigured": key_source == "render_env",
+        "keySource": key_source,
+        "utcNow": now_utc,
         "isSafeTime": is_safe,
         "timeMsg": time_msg,
         "borsaRif": borsa_rif,
