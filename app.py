@@ -5,1154 +5,1807 @@ import math
 import os
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
-from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
 
+import numpy as np
+import pandas as pd
+import requests
 from flask import Flask, jsonify, render_template, request
 
 app = Flask(__name__)
 
-BINGX_BASE_URL = os.getenv("BINGX_BASE_URL", "https://open-api.bingx.com").rstrip("/")
-BINGX_API_KEY = os.getenv("BINGX_API_KEY", "").strip()
-BINGX_API_SECRET = os.getenv("BINGX_API_SECRET", "").strip()
+MIN_BINGX_CAPITAL_USD = 2.0
+BINANCE_FAPI_BASE = "https://fapi.binance.com"
+BINANCE_SPOT_BASE = "https://api.binance.com"
 
-MARKET_CATALOG: Dict[str, List[Dict[str, str]]] = {
-    "Criptovalute Globali": [
-        {"symbol": "BTC/USDT", "bx_symbol": "BTC-USDT", "name": "Bitcoin (BTC-USDT)"},
-        {"symbol": "ETH/USDT", "bx_symbol": "ETH-USDT", "name": "Ethereum (ETH-USDT)"},
-        {"symbol": "SOL/USDT", "bx_symbol": "SOL-USDT", "name": "Solana (SOL-USDT)"},
-        {"symbol": "XRP/USDT", "bx_symbol": "XRP-USDT", "name": "Ripple (XRP-USDT)"},
-    ],
-    "Materie Prime & Forex": [
-        {"symbol": "XAU/USDT", "bx_symbol": "XAU-USDT", "name": "Gold Spot (XAU-USDT)"},
-        {"symbol": "EUR/USDT", "bx_symbol": "EUR-USDT", "name": "Euro / USDT (EUR-USDT)"},
-    ],
-    "Azioni & Indici Globali": [
-        {"symbol": "NVDA/USDT", "bx_symbol": "NVDA-USDT", "name": "NVIDIA (NVDA-USDT)"},
-        {"symbol": "NAS100/USDT", "bx_symbol": "NAS100-USDT", "name": "Nasdaq 100 (NAS100-USDT)"},
-    ],
-}
 
-TF_SECONDS: Dict[str, int] = {
-    "5m": 300,
-    "15m": 900,
-    "1h": 3600,
-}
+def _clean_env_secret(val: str) -> str:
+    s = (val or "").strip()
+    if len(s) >= 2 and ((s.startswith('"') and s.endswith('"')) or (s.startswith("'") and s.endswith("'"))):
+        s = s[1:-1].strip()
+    return s
 
-TF_BINGX_INTERVAL: Dict[str, str] = {
-    "5m": "5m",
-    "15m": "15m",
-    "1h": "1h",
-}
+
+def get_bingx_base_url() -> str:
+    raw = _clean_env_secret(os.getenv("BINGX_BASE_URL") or "https://open-api.bingx.com")
+    return (raw or "https://open-api.bingx.com").rstrip("/")
+
+
+def get_bingx_credentials():
+    api_key = _clean_env_secret(
+        os.getenv("BINGX_API_KEY")
+        or os.getenv("BX_API_KEY")
+        or os.getenv("BINGX_KEY")
+        or ""
+    )
+    api_secret = _clean_env_secret(
+        os.getenv("BINGX_API_SECRET")
+        or os.getenv("BINGX_SECRET_KEY")
+        or os.getenv("BX_API_SECRET")
+        or os.getenv("BINGX_SECRET")
+        or ""
+    )
+    return api_key, api_secret
+
+
+BINGX_BASE_URL = get_bingx_base_url()
+BINGX_API_KEY, BINGX_API_SECRET = get_bingx_credentials()
+
+DIRECTION_COOLDOWN_SEC = 240.0
+_LAST_CONFIRMED_DIRECTION = {}
+_LIVE_PRICE_CACHE = {}
+_KLINES_CACHE = {}
+_AUTOTRADE_LAST_EXEC = {}
+_CONTRACT_SPECS_CACHE = {"specs": {}, "ts": 0.0}
 
 STATE_LOCK = threading.Lock()
-TERMINAL_STATE: Dict[str, Any] = {
+STATE = {
     "auto_trade": False,
+    "only_a_plus": False,
+    "max_open_positions": 1,
+    "daily_loss_cap_usd": 0.50,
+    "close_at_candle_end": True,
+    "active_timeframe": "15m",
+    "position_targets": {},
     "scans_count": 0,
+    "session_pnl": 0.0,
     "telemetry_logs": [],
-    "risk_config": {
-        "max_open_positions": 1,
-        "daily_loss_cap_usd": 0.50,
-        "only_a_plus": False,
-        "close_at_candle_end": True,
-        "tp_split_pct": [50.0, 30.0, 20.0],
-    },
-    "tracked_positions": {},
-    "closed_trades_today": [],
-    "closed_trades_month": [],
-    "last_income_sync_ts": 0,
-    "last_params": {
-        "profile": "pro_sniper",
-        "timeframe": "15m",
-        "balance": 2.0,
-        "risk": 1.0,
-        "min_score": 70.0,
-        "min_rrr": 1.5,
-    },
+    "closed_trades": [],
+    "last_bingx_sync": 0.0,
+    "last_bingx_balance": 0.0,
+    "last_bingx_equity": 0.0,
+    "last_bingx_available": 0.0,
+    "last_bingx_unrealized": 0.0,
+    "last_bingx_balance_error": None,
+    "bingx_rate_limit_until": 0.0,
 }
 
+MARKET_CATALOG = {
+    "Criptovalute Globali": [
+        {"symbol": "BTCUSDT", "bx": "BTC-USDT", "name": "Bitcoin (BTC-USDT)", "precision": 1},
+        {"symbol": "ETHUSDT", "bx": "ETH-USDT", "name": "Ethereum (ETH-USDT)", "precision": 2},
+        {"symbol": "SOLUSDT", "bx": "SOL-USDT", "name": "Solana (SOL-USDT)", "precision": 2},
+        {"symbol": "XRPUSDT", "bx": "XRP-USDT", "name": "Ripple (XRP-USDT)", "precision": 4},
+        {"symbol": "BNBUSDT", "bx": "BNB-USDT", "name": "BNB (BNB-USDT)", "precision": 2},
+        {"symbol": "ADAUSDT", "bx": "ADA-USDT", "name": "Cardano (ADA-USDT)", "precision": 4},
+        {"symbol": "DOGEUSDT", "bx": "DOGE-USDT", "name": "Dogecoin (DOGE-USDT)", "precision": 5},
+        {"symbol": "AVAXUSDT", "bx": "AVAX-USDT", "name": "Avalanche (AVAX-USDT)", "precision": 2},
+        {"symbol": "LINKUSDT", "bx": "LINK-USDT", "name": "Chainlink (LINK-USDT)", "precision": 3},
+        {"symbol": "SUIUSDT", "bx": "SUI-USDT", "name": "Sui (SUI-USDT)", "precision": 4},
+    ],
+    "Materie Prime & Forex": [
+        {"symbol": "PAXGUSDT", "bx": "PAXG-USDT", "name": "Oro / Gold (PAXG-USDT)", "precision": 2},
+        {"symbol": "XAGUSDT", "bx": "XAG-USDT", "name": "Argento / Silver (XAG-USDT)", "precision": 3},
+        {"symbol": "XPTUSDT", "bx": "XPT-USDT", "name": "Platino / Platinum (XPT-USDT)", "precision": 2},
+        {"symbol": "XPDUSDT", "bx": "XPD-USDT", "name": "Palladio / Palladium (XPD-USDT)", "precision": 2},
+        {"symbol": "COPPERUSDT", "bx": "COPPER-USDT", "name": "Rame / Copper (COPPER-USDT)", "precision": 4},
+        {"symbol": "ALUMINIUMUSDT", "bx": "ALUMINIUM-USDT", "name": "Alluminio / Aluminium (ALUMINIUM-USDT)", "precision": 2},
+        {"symbol": "WTIUSDT", "bx": "WTI-USDT", "name": "Petrolio WTI Crude (WTI-USDT)", "precision": 2},
+        {"symbol": "BRENTUSDT", "bx": "BRENT-USDT", "name": "Petrolio Brent Crude (BRENT-USDT)", "precision": 2},
+        {"symbol": "NATGASUSDT", "bx": "NATGAS-USDT", "name": "Gas Naturale (NATGAS-USDT)", "precision": 3},
+        {"symbol": "WHEATUSDT", "bx": "WHEAT-USDT", "name": "Grano / Wheat (WHEAT-USDT)", "precision": 2},
+        {"symbol": "CORNUSDT", "bx": "CORN-USDT", "name": "Mais / Corn (CORN-USDT)", "precision": 2},
+        {"symbol": "SOYBEANUSDT", "bx": "SOYBEAN-USDT", "name": "Soia / Soybeans (SOYBEAN-USDT)", "precision": 2},
+        {"symbol": "COFFEEUSDT", "bx": "COFFEE-USDT", "name": "Caffè / Coffee (COFFEE-USDT)", "precision": 2},
+        {"symbol": "SUGARUSDT", "bx": "SUGAR-USDT", "name": "Zucchero / Sugar (SUGAR-USDT)", "precision": 3},
+        {"symbol": "COCOAUSDT", "bx": "COCOA-USDT", "name": "Cacao / Cocoa (COCOA-USDT)", "precision": 1},
+        {"symbol": "EURUSDT", "bx": "EUR-USDT", "name": "EUR/USD (EUR-USDT)", "precision": 4},
+        {"symbol": "GBPUSDT", "bx": "GBP-USDT", "name": "GBP/USD (GBP-USDT)", "precision": 4},
+        {"symbol": "USDJPY", "bx": "USDJPY-USDT", "name": "USD/JPY (USDJPY-USDT)", "precision": 2},
+        {"symbol": "AUDUSDT", "bx": "AUD-USDT", "name": "AUD/USD (AUD-USDT)", "precision": 4},
+        {"symbol": "USDCHF", "bx": "USDCHF-USDT", "name": "USD/CHF (USDCHF-USDT)", "precision": 4},
+        {"symbol": "USDCAD", "bx": "USDCAD-USDT", "name": "USD/CAD (USDCAD-USDT)", "precision": 4},
+        {"symbol": "NZDUSDT", "bx": "NZD-USDT", "name": "NZD/USD (NZD-USDT)", "precision": 4},
+        {"symbol": "EURGBP", "bx": "EURGBP-USDT", "name": "EUR/GBP (EURGBP-USDT)", "precision": 4},
+        {"symbol": "EURJPY", "bx": "EURJPY-USDT", "name": "EUR/JPY (EURJPY-USDT)", "precision": 2},
+        {"symbol": "GBPJPY", "bx": "GBPJPY-USDT", "name": "GBP/JPY (GBPJPY-USDT)", "precision": 2},
+        {"symbol": "AUDJPY", "bx": "AUDJPY-USDT", "name": "AUD/JPY (AUDJPY-USDT)", "precision": 2},
+        {"symbol": "CHFJPY", "bx": "CHFJPY-USDT", "name": "CHF/JPY (CHFJPY-USDT)", "precision": 2},
+    ],
+    "Azioni & Indici Globali": [
+        {"symbol": "AAPLUSDT", "bx": "AAPL-USDT", "name": "Apple Inc. (AAPL-USDT)", "precision": 2},
+        {"symbol": "TSLAUSDT", "bx": "TSLA-USDT", "name": "Tesla Inc. (TSLA-USDT)", "precision": 2},
+        {"symbol": "NVDAUSDT", "bx": "NVDA-USDT", "name": "Nvidia Corp. (NVDA-USDT)", "precision": 2},
+        {"symbol": "AMZNUSDT", "bx": "AMZN-USDT", "name": "Amazon.com (AMZN-USDT)", "precision": 2},
+        {"symbol": "MSFTUSDT", "bx": "MSFT-USDT", "name": "Microsoft Corp. (MSFT-USDT)", "precision": 2},
+        {"symbol": "GOOGLUSDT", "bx": "GOOGL-USDT", "name": "Alphabet Inc. (GOOGL-USDT)", "precision": 2},
+        {"symbol": "METAUSDT", "bx": "META-USDT", "name": "Meta Platforms (META-USDT)", "precision": 2},
+        {"symbol": "NFLXUSDT", "bx": "NFLX-USDT", "name": "Netflix Inc. (NFLX-USDT)", "precision": 2},
+        {"symbol": "AMDUSDT", "bx": "AMD-USDT", "name": "AMD (AMD-USDT)", "precision": 2},
+        {"symbol": "INTCUSDT", "bx": "INTC-USDT", "name": "Intel Corp. (INTC-USDT)", "precision": 2},
+        {"symbol": "AVGOUSDT", "bx": "AVGO-USDT", "name": "Broadcom Inc. (AVGO-USDT)", "precision": 2},
+        {"symbol": "COINUSDT", "bx": "COIN-USDT", "name": "Coinbase Global (COIN-USDT)", "precision": 2},
+        {"symbol": "MSTRUSDT", "bx": "MSTR-USDT", "name": "Strategy / MSTR (MSTR-USDT)", "precision": 2},
+        {"symbol": "JPMUSDT", "bx": "JPM-USDT", "name": "JPMorgan Chase (JPM-USDT)", "precision": 2},
+        {"symbol": "VUSDT", "bx": "V-USDT", "name": "Visa Inc. (V-USDT)", "precision": 2},
+        {"symbol": "MAUSDT", "bx": "MA-USDT", "name": "Mastercard Inc. (MA-USDT)", "precision": 2},
+        {"symbol": "SP500USDT", "bx": "SP500-USDT", "name": "S&P 500 Index (SP500-USDT)", "precision": 2},
+        {"symbol": "NASDAQ100USDT", "bx": "NASDAQ100-USDT", "name": "NASDAQ 100 Index (NASDAQ100-USDT)", "precision": 2},
+        {"symbol": "DOWJONESUSDT", "bx": "DOWJONES-USDT", "name": "Dow Jones Index (DOWJONES-USDT)", "precision": 2},
+        {"symbol": "NIKKEI225USDT", "bx": "NIKKEI225-USDT", "name": "Nikkei 225 Index (NIKKEI225-USDT)", "precision": 1},
+        {"symbol": "SPYUSDT", "bx": "SPY-USDT", "name": "SPDR S&P 500 ETF (SPY-USDT)", "precision": 2},
+        {"symbol": "QQQUSDT", "bx": "QQQ-USDT", "name": "Invesco QQQ ETF (QQQ-USDT)", "precision": 2},
+        {"symbol": "DIAUSDT", "bx": "DIA-USDT", "name": "SPDR Dow Jones ETF (DIA-USDT)", "precision": 2},
+        {"symbol": "IWMUSDT", "bx": "IWM-USDT", "name": "iShares Russell 2000 ETF (IWM-USDT)", "precision": 2},
+    ],
+}
 
-def _all_assets() -> List[Dict[str, str]]:
-    out: List[Dict[str, str]] = []
-    for cat, items in MARKET_CATALOG.items():
-        for it in items:
-            out.append({**it, "category": cat})
-    return out
+ASSET_LOOKUP = {}
+for _cat, _items in MARKET_CATALOG.items():
+    for _it in _items:
+        ASSET_LOOKUP[_it["symbol"]] = {**_it, "category": _cat}
 
 
-def _find_asset(symbol: str) -> Dict[str, str]:
-    clean = (symbol or "BTC/USDT").strip().upper()
-    for it in _all_assets():
-        if it["symbol"].upper() == clean or it["bx_symbol"].upper() == clean:
-            return it
-    bx = clean.replace("/", "-")
-    return {
-        "symbol": clean if "/" in clean else f"{clean}-USDT",
-        "bx_symbol": bx if "-" in bx else f"{clean}-USDT",
-        "name": clean,
-        "category": "Criptovalute Globali",
+def safe_float(val, default=0.0):
+    try:
+        if val is None or (isinstance(val, float) and (math.isnan(val) or math.isinf(val))):
+            return float(default)
+        if isinstance(val, str):
+            val = val.replace(",", ".").strip()
+        out = float(val)
+        return float(default) if (math.isnan(out) or math.isinf(out)) else out
+    except Exception:
+        return float(default)
+
+
+def canonicalize_symbol_key(sym: str) -> str:
+    s = (sym or "").upper().replace("-", "").replace("/", "").replace(":USDT", "").strip()
+    if s.endswith("USDT") and len(s) > 4:
+        return s
+    return f"{s}USDT" if s else "BTCUSDT"
+
+
+def resolve_bingx_symbol(symbol: str):
+    key = canonicalize_symbol_key(symbol)
+    meta = ASSET_LOOKUP.get(key)
+    if meta:
+        return meta["bx"], meta["precision"]
+    base = key[:-4] if key.endswith("USDT") else key
+    return f"{base}-USDT", 2
+
+
+def _decimals_from_step(step_val: float, fallback: int = 2) -> int:
+    s = safe_float(step_val, 0.0)
+    if s <= 0:
+        return max(0, int(fallback))
+    if s >= 1.0:
+        return 0
+    txt = f"{s:.10f}".rstrip("0").rstrip(".")
+    if "." in txt:
+        return len(txt.split(".")[1])
+    return max(0, int(fallback))
+
+
+def get_bingx_contract_spec(bx_symbol: str, default_price_dec: int = 2):
+    now_ts = time.time()
+    if (now_ts - _CONTRACT_SPECS_CACHE["ts"]) > 300.0:
+        try:
+            resp = requests.get(f"{get_bingx_base_url()}/openApi/swap/v2/quote/contracts", timeout=2.5)
+            if resp.status_code == 200:
+                rows = (resp.json() or {}).get("data") or []
+                parsed = {}
+                for item in rows:
+                    if isinstance(item, dict) and item.get("symbol"):
+                        sym_key = str(item["symbol"]).upper().strip()
+                        p_step = safe_float(item.get("pricePrecision") or item.get("tickSize"), 0.0)
+                        q_step = safe_float(item.get("quantityPrecision") or item.get("stepSize"), 0.0)
+                        min_q = safe_float(item.get("minQty") or item.get("tradeMinQuantity"), 0.0)
+                        parsed[sym_key] = {
+                            "price_dec": int(p_step) if 0 < p_step <= 8 else _decimals_from_step(p_step, default_price_dec),
+                            "qty_step": q_step if q_step > 0 else None,
+                            "min_qty": min_q if min_q > 0 else None,
+                        }
+                if parsed:
+                    _CONTRACT_SPECS_CACHE["specs"] = parsed
+                    _CONTRACT_SPECS_CACHE["ts"] = now_ts
+        except Exception:
+            pass
+
+    spec = _CONTRACT_SPECS_CACHE["specs"].get(str(bx_symbol or "").upper().strip())
+    if spec:
+        return spec
+    return {"price_dec": max(0, int(default_price_dec)), "qty_step": None, "min_qty": None}
+
+
+def quantize_to_tick(value: float, decimals: int) -> float:
+    return round(float(value), max(0, int(decimals)))
+
+
+def get_lot_step(bx_symbol: str, price: float) -> float:
+    spec = get_bingx_contract_spec(bx_symbol, 2)
+    if spec.get("qty_step"):
+        q_val = safe_float(spec["qty_step"])
+        if 0 < q_val <= 100:
+            return q_val if q_val < 1 else float(int(q_val))
+    if "BTC" in bx_symbol:
+        return 0.0001
+    if "ETH" in bx_symbol or "PAXG" in bx_symbol:
+        return 0.001
+    if price >= 50:
+        return 0.01
+    if price >= 1:
+        return 0.1
+    return 1.0
+
+
+def compute_dynamic_leverage(symbol: str, category: str, balance: float, price: float = 0.0, profile: str = "pro_sniper") -> int:
+    cap = max(MIN_BINGX_CAPITAL_USD, safe_float(balance, MIN_BINGX_CAPITAL_USD))
+    bx_symbol, _ = resolve_bingx_symbol(symbol)
+    step = get_lot_step(bx_symbol, price) if price > 0 else 0.01
+    min_notional = max(MIN_BINGX_CAPITAL_USD, step * max(price, 0.0)) if price > 0 else MIN_BINGX_CAPITAL_USD
+
+    if cap <= 2.50 or (min_notional > cap * 10.0):
+        base_lev = 20
+    elif cap <= 5.0 and profile == "momentum_desk":
+        base_lev = 20
+    elif symbol in ("BTCUSDT", "ETHUSDT") or category == "Criptovalute Globali":
+        base_lev = 10
+    else:
+        base_lev = 5
+
+    needed_lev = int(math.ceil((min_notional * 1.05) / max(cap, MIN_BINGX_CAPITAL_USD)))
+    return max(base_lev, min(25, needed_lev))
+
+
+def compute_order_quantity(bx_symbol: str, price: float, raw_qty: float, balance: float, leverage: int) -> float:
+    if price <= 0:
+        return 0.0
+    eff_balance = max(MIN_BINGX_CAPITAL_USD, safe_float(balance, MIN_BINGX_CAPITAL_USD))
+    eff_lev = max(1, int(leverage or 1))
+    step = get_lot_step(bx_symbol, price)
+
+    # Consente ordini anche con capitale/nozionnale minimo da $2.00 su BingX
+    min_order_notional = MIN_BINGX_CAPITAL_USD
+    max_notional = max(min_order_notional, eff_balance * eff_lev * 0.95)
+    desired_notional = max(min_order_notional, raw_qty * price, min(eff_balance * eff_lev * 0.50, max_notional))
+    capped_notional = min(desired_notional, max_notional)
+    capped_qty = max(step, capped_notional / price)
+
+    qty = math.floor(capped_qty / step) * step
+    if qty < step:
+        qty = step
+    dec = len(str(step).split(".")[1]) if "." in str(step) else 0
+    return round(qty, dec)
+
+
+def get_timeframe_candle_timing(timeframe: str, now_ts: float = None):
+    tf = (timeframe or "15m").strip()
+    tf_map = {
+        "5m": (300, "5 minuti (300 secondi)"),
+        "15m": (900, "15 minuti (900 secondi)"),
+        "1h": (3600, "1 ora (3600 secondi)"),
     }
+    duration_sec, label = tf_map.get(tf, (900, "15 minuti (900 secondi)"))
+    ts = float(now_ts if now_ts is not None else time.time())
+    bucket_start = int(ts // duration_sec) * duration_sec
+    bucket_end = bucket_start + duration_sec
+    remaining_sec = max(0, int(bucket_end - ts))
 
+    open_dt = datetime.fromtimestamp(bucket_start, tz=timezone.utc)
+    close_dt = datetime.fromtimestamp(bucket_end, tz=timezone.utc)
+    signal_dt = datetime.fromtimestamp(ts, tz=timezone.utc)
 
-def _compute_leverage(balance: float) -> int:
-    if balance <= 2.0:
-        return 20
-    if balance <= 10.0:
-        return 15
-    if balance <= 50.0:
-        return 10
-    return 5
-
-
-def _candle_timing(timeframe: str, now_ts: Optional[int] = None) -> Dict[str, Any]:
-    tf = timeframe if timeframe in TF_SECONDS else "15m"
-    dur = TF_SECONDS[tf]
-    now_s = int(now_ts if now_ts is not None else time.time())
-    open_ts = (now_s // dur) * dur
-    close_ts = open_ts + dur
-    rem = max(0, close_ts - now_s)
-    open_dt = datetime.fromtimestamp(open_ts, tz=timezone.utc).strftime("%H:%M:%S")
-    close_dt = datetime.fromtimestamp(close_ts, tz=timezone.utc).strftime("%H:%M:%S")
     return {
         "timeframe": tf,
-        "candle_duration_sec": dur,
-        "candle_duration_label": f"{tf} ({dur}s)",
-        "candle_open_ts": open_ts,
-        "candle_close_ts": close_ts,
-        "candle_remaining_sec": rem,
-        "candle_open_utc": open_dt,
-        "candle_close_utc": close_dt,
-        "candle_window_text": f"Candela {tf}: {open_dt} → {close_dt} UTC",
+        "candle_duration_sec": duration_sec,
+        "candle_duration_label": label,
+        "candle_open_ts": bucket_start,
+        "candle_close_ts": bucket_end,
+        "candle_remaining_sec": remaining_sec,
+        "candle_open_utc": open_dt.strftime("%H:%M:%S UTC"),
+        "candle_close_utc": close_dt.strftime("%H:%M:%S UTC"),
+        "signal_opened_at_utc": signal_dt.strftime("%H:%M:%S UTC"),
+        "candle_window_text": f"Candela {label} • Apertura {open_dt.strftime('%H:%M:%S')} → Chiusura {close_dt.strftime('%H:%M:%S UTC')}",
     }
 
 
-def _http_get_json(url: str, headers: Optional[Dict[str, str]] = None, timeout: int = 8) -> Tuple[bool, Any, str]:
-    req = Request(url, headers=headers or {"User-Agent": "Mozilla/5.0"})
+def get_session_statuses():
+    now_utc = datetime.now(timezone.utc)
+    weekday = now_utc.weekday()
+    hour_float = now_utc.hour + now_utc.minute / 60.0
+
+    crypto_open = True
+    commodities_open = weekday < 5
+    equities_open = (weekday < 5) and (14.5 <= hour_float <= 21.0)
+
+    return {
+        "Criptovalute Globali": {
+            "status": "APERTO (24/7)",
+            "is_open": crypto_open,
+            "hours": "24/7 Continuo (UTC)",
+            "badge_color": "#00ff66",
+        },
+        "Materie Prime & Forex": {
+            "status": "APERTO (Live)" if commodities_open else "CHIUSO (Weekend)",
+            "is_open": commodities_open,
+            "hours": "Lun-Ven Sessione Globale UTC",
+            "badge_color": "#00ff66" if commodities_open else "#ff2a4b",
+        },
+        "Azioni & Indici Globali": {
+            "status": "APERTO (NYSE/NASDAQ)" if equities_open else "CHIUSO (Fuori Orario)",
+            "is_open": equities_open,
+            "hours": "NYSE/NASDAQ: 14:30 - 21:00 UTC (Lun-Ven)",
+            "badge_color": "#00ff66" if equities_open else "#ff2a4b",
+        },
+    }
+
+
+def sign_bingx_query(params: dict, api_secret: str) -> str:
+    query_str = urlencode(sorted(params.items()))
+    sig = hmac.new(api_secret.encode("utf-8"), query_str.encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"{query_str}&signature={sig}"
+
+
+def bingx_signed_request(method: str, path: str, params: dict):
+    global BINGX_BASE_URL, BINGX_API_KEY, BINGX_API_SECRET
+    base_url = get_bingx_base_url()
+    api_key, api_secret = get_bingx_credentials()
+    BINGX_BASE_URL, BINGX_API_KEY, BINGX_API_SECRET = base_url, api_key, api_secret
+    if not (api_key and api_secret):
+        return None, "Configura BINGX_API_KEY e BINGX_SECRET_KEY su Render"
+
+    now_sec = time.time()
+    with STATE_LOCK:
+        rl_until = safe_float(STATE.get("bingx_rate_limit_until"), 0.0)
+        if now_sec < rl_until:
+            rem = int(max(1, rl_until - now_sec))
+            return None, f"Rate limit BingX attivo: riprovo tra {rem} secondi"
+
+    req_params = dict(params or {})
+    req_params["timestamp"] = int(now_sec * 1000)
+    signed_qs = sign_bingx_query(req_params, api_secret)
+    url = f"{base_url}{path}?{signed_qs}"
+    headers = {"X-BX-APIKEY": api_key}
     try:
-        with urlopen(req, timeout=timeout) as resp:
-            raw = resp.read().decode("utf-8", errors="replace")
-            return True, json.loads(raw), ""
-    except HTTPError as e:
-        body = e.read().decode("utf-8", errors="replace") if e.fp else ""
-        return False, None, f"HTTP {e.code}: {body[:200] or e.reason}"
-    except (URLError, TimeoutError, json.JSONDecodeError) as e:
-        return False, None, str(e)
+        if method.upper() == "POST":
+            resp = requests.post(url, headers=headers, timeout=3.5)
+        else:
+            resp = requests.get(url, headers=headers, timeout=3.5)
+        data = resp.json()
+        err_str = str(data)
+        if "100410" in err_str:
+            with STATE_LOCK:
+                STATE["bingx_rate_limit_until"] = time.time() + 35.0
+            return None, "code:100410: Limite frequenza BingX raggiunto (pausa 35 secondi)"
+        if resp.status_code != 200:
+            return None, f"HTTP {resp.status_code}: {data}"
+        if isinstance(data, dict) and data.get("code") not in (0, "0", None):
+            return None, str(data.get("msg") or data)
+        return data, None
+    except Exception as exc:
+        return None, str(exc)
 
 
-def _bingx_signed_request(method: str, path: str, params: Optional[Dict[str, Any]] = None) -> Tuple[bool, Any, str]:
-    if not BINGX_API_KEY or not BINGX_API_SECRET:
-        return False, None, "Chiavi API BingX non configurate (BINGX_API_KEY / BINGX_API_SECRET)"
+def set_bingx_leverage(bx_symbol: str, pos_side: str, leverage: int):
+    lev_val = max(1, min(25, int(leverage or 20)))
+    return bingx_signed_request(
+        "POST",
+        "/openApi/swap/v2/trade/leverage",
+        {
+            "symbol": bx_symbol,
+            "side": pos_side,
+            "leverage": lev_val,
+        },
+    )
 
-    q_params = {k: v for k, v in (params or {}).items() if v is not None and v != ""}
-    q_params["timestamp"] = int(time.time() * 1000)
-    query_str = urlencode(sorted(q_params.items()))
-    signature = hmac.new(
-        BINGX_API_SECRET.encode("utf-8"),
-        query_str.encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
-    signed_url = f"{BINGX_BASE_URL}{path}?{query_str}&signature={signature}"
-    headers = {
-        "X-BX-APIKEY": BINGX_API_KEY,
-        "Content-Type": "application/json",
+
+def _register_position_target(symbol: str, action: str, sl_price: float, tp_price: float, timeframe: str, candle_close_ts: int):
+    clean_sym = canonicalize_symbol_key(symbol)
+    act = (action or "BUY").upper()
+    key = f"{clean_sym}_{act}"
+    with STATE_LOCK:
+        STATE["position_targets"][key] = {
+            "symbol": clean_sym,
+            "action": act,
+            "sl": safe_float(sl_price, 0.0),
+            "tp": safe_float(tp_price, 0.0),
+            "timeframe": timeframe or "15m",
+            "candle_close_ts": int(safe_float(candle_close_ts, 0)),
+            "opened_ts": time.time(),
+        }
+
+
+def place_bingx_order_with_tpsl(
+    symbol: str,
+    action: str,
+    qty: float,
+    sl_price: float = 0.0,
+    tp_price: float = 0.0,
+    leverage: int = 20,
+    timeframe: str = "15m",
+    candle_close_ts: int = 0,
+):
+    bx_symbol, bx_prec = resolve_bingx_symbol(symbol)
+    spec = get_bingx_contract_spec(bx_symbol, bx_prec if bx_prec is not None else 2)
+    dec = int(spec.get("price_dec", bx_prec if bx_prec is not None else 2))
+
+    is_buy = str(action or "BUY").upper() == "BUY"
+    side = "BUY" if is_buy else "SELL"
+    close_side = "SELL" if is_buy else "BUY"
+    pos_side = "LONG" if is_buy else "SHORT"
+
+    lev_data, lev_err = set_bingx_leverage(bx_symbol, pos_side, leverage)
+
+    sl_q = quantize_to_tick(safe_float(sl_price, 0.0), dec) if safe_float(sl_price, 0.0) > 0 else 0.0
+    tp_q = quantize_to_tick(safe_float(tp_price, 0.0), dec) if safe_float(tp_price, 0.0) > 0 else 0.0
+
+    entry_params = {
+        "symbol": bx_symbol,
+        "side": side,
+        "positionSide": pos_side,
+        "type": "MARKET",
+        "quantity": qty,
     }
-    req = Request(signed_url, method=method.upper(), headers=headers)
-    try:
-        with urlopen(req, timeout=10) as resp:
-            raw = resp.read().decode("utf-8", errors="replace")
-            payload = json.loads(raw)
-            if isinstance(payload, dict) and payload.get("code") not in (0, "0", None):
-                return False, payload, payload.get("msg") or f"BingX code {payload.get('code')}"
-            return True, payload, ""
-    except HTTPError as e:
-        body = e.read().decode("utf-8", errors="replace") if e.fp else ""
-        return False, None, f"HTTP {e.code}: {body[:200] or e.reason}"
-    except (URLError, TimeoutError, json.JSONDecodeError) as e:
-        return False, None, str(e)
-
-
-def _ema_series(values: List[float], period: int) -> List[float]:
-    if not values:
-        return []
-    k = 2.0 / (period + 1.0)
-    ema_vals = [values[0]]
-    for v in values[1:]:
-        ema_vals.append(v * k + ema_vals[-1] * (1.0 - k))
-    return ema_vals
-
-
-def _fallback_candles(asset: Dict[str, str], timeframe: str, count: int = 60) -> List[Dict[str, Any]]:
-    bases = {
-        "BTC/USDT": 94250.0,
-        "ETH/USDT": 3240.0,
-        "SOL/USDT": 218.5,
-        "XRP/USDT": 1.485,
-        "XAU/USDT": 2715.0,
-        "EUR/USDT": 1.0842,
-        "NVDA/USDT": 142.8,
-        "NAS100/USDT": 20890.0,
-    }
-    base = bases.get(asset["symbol"], 100.0)
-    step_s = TF_SECONDS.get(timeframe, 900)
-    now_aligned = (int(time.time()) // step_s) * step_s
-    seed = sum(ord(ch) for ch in asset["symbol"]) + step_s
-    candles: List[Dict[str, Any]] = []
-    cur = base
-    for i in range(count):
-        ts = now_aligned - (count - 1 - i) * step_s
-        wave = math.sin((i + seed % 17) * 0.35) * 0.0035 + math.cos((i + seed % 11) * 0.19) * 0.002
-        op = cur
-        cl = max(0.000001, op * (1.0 + wave))
-        wick_up = abs(math.sin(i * 0.7 + seed)) * 0.0022
-        wick_dn = abs(math.cos(i * 0.5 + seed)) * 0.0022
-        hi = max(op, cl) * (1.0 + wick_up)
-        lo = min(op, cl) * (1.0 - wick_dn)
-        vol = round(120.0 + abs(math.sin(i * 0.9 + seed)) * 850.0, 2)
-        candles.append({
-            "ts": ts,
-            "open": op,
-            "high": hi,
-            "low": lo,
-            "close": cl,
-            "volume": vol,
+    if sl_q > 0:
+        entry_params["stopLoss"] = json.dumps({
+            "type": "STOP_MARKET",
+            "stopPrice": sl_q,
+            "workingType": "MARK_PRICE",
         })
-        cur = cl
-    return candles
+    if tp_q > 0:
+        entry_params["takeProfit"] = json.dumps({
+            "type": "TAKE_PROFIT_MARKET",
+            "stopPrice": tp_q,
+            "workingType": "MARK_PRICE",
+        })
 
+    entry_data, entry_err = bingx_signed_request("POST", "/openApi/swap/v2/trade/order", entry_params)
 
-def _fetch_candles(asset: Dict[str, str], timeframe: str, limit: int = 60) -> Tuple[List[Dict[str, Any]], bool]:
-    tf = timeframe if timeframe in TF_BINGX_INTERVAL else "15m"
-    interval = TF_BINGX_INTERVAL[tf]
-    bx_sym = asset["bx_symbol"]
-    url = f"{BINGX_BASE_URL}/openApi/swap/v2/quote/klines?symbol={bx_sym}&interval={interval}&limit={limit}"
-    ok, data, _ = _http_get_json(url, timeout=6)
-    raw_list = data.get("data") if (ok and isinstance(data, dict)) else None
-    candles: List[Dict[str, Any]] = []
-    if isinstance(raw_list, list) and len(raw_list) >= 10:
-        for item in raw_list[-limit:]:
-            if isinstance(item, dict):
-                op = float(item.get("open", 0))
-                hi = float(item.get("high", 0))
-                lo = float(item.get("low", 0))
-                cl = float(item.get("close", 0))
-                vol = float(item.get("volume", 0))
-                ts = int(item.get("time", 0)) // 1000
-            elif isinstance(item, list) and len(item) >= 6:
-                ts = int(item[0]) // 1000
-                op = float(item[1])
-                hi = float(item[2])
-                lo = float(item[3])
-                cl = float(item[4])
-                vol = float(item[5])
-            else:
-                continue
-            if cl > 0:
-                candles.append({"ts": ts, "open": op, "high": hi, "low": lo, "close": cl, "volume": vol})
-        candles.sort(key=lambda x: x["ts"])
+    if entry_err and ("stopLoss" in entry_params or "takeProfit" in entry_params):
+        entry_data, entry_err = bingx_signed_request(
+            "POST",
+            "/openApi/swap/v2/trade/order",
+            {
+                "symbol": bx_symbol,
+                "side": side,
+                "positionSide": pos_side,
+                "type": "MARKET",
+                "quantity": qty,
+            },
+        )
+    if entry_err:
+        return None, entry_err
 
-    is_live = len(candles) >= 10
-    if not is_live:
-        candles = _fallback_candles(asset, tf, count=limit)
+    sl_data, sl_err = None, None
+    if sl_q > 0:
+        for sl_type in ("STOP_MARKET", "STOP"):
+            sl_data, sl_err = bingx_signed_request(
+                "POST",
+                "/openApi/swap/v2/trade/order",
+                {
+                    "symbol": bx_symbol,
+                    "side": close_side,
+                    "positionSide": pos_side,
+                    "type": sl_type,
+                    "stopPrice": sl_q,
+                    "workingType": "MARK_PRICE",
+                    "quantity": qty,
+                },
+            )
+            if not sl_err:
+                break
 
-    closes = [c["close"] for c in candles]
-    ema20 = _ema_series(closes, 20)
-    ema50 = _ema_series(closes, 50)
-    for idx, c in enumerate(candles):
-        c["ema20"] = ema20[idx]
-        c["ema50"] = ema50[idx]
-    return candles, is_live
+    tp_data, tp_err = None, None
+    if tp_q > 0:
+        for tp_type in ("TAKE_PROFIT_MARKET", "TAKE_PROFIT"):
+            tp_data, tp_err = bingx_signed_request(
+                "POST",
+                "/openApi/swap/v2/trade/order",
+                {
+                    "symbol": bx_symbol,
+                    "side": close_side,
+                    "positionSide": pos_side,
+                    "type": tp_type,
+                    "stopPrice": tp_q,
+                    "workingType": "MARK_PRICE",
+                    "quantity": qty,
+                },
+            )
+            if not tp_err:
+                break
 
-
-def _round_price(val: float, ref_price: float) -> float:
-    if ref_price >= 1000:
-        return round(val, 1)
-    if ref_price >= 50:
-        return round(val, 2)
-    if ref_price >= 1:
-        return round(val, 4)
-    return round(val, 6)
-
-
-def _validate_directional_levels(action: str, entry: float, sl: float, tp1: float, tp2: float, tp3: float) -> Tuple[float, float, float, float]:
-    """Garantisce coerenza direzionale rigorosa tra BUY (LONG) e SELL (SHORT)."""
-    eps = max(entry * 0.0005, 1e-6)
-    if action == "BUY":
-        s_val = min(sl, entry - eps)
-        t1 = max(tp1, entry + eps)
-        t2 = max(tp2, t1 + eps)
-        t3 = max(tp3, t2 + eps)
-        return s_val, t1, t2, t3
-    if action == "SELL":
-        s_val = max(sl, entry + eps)
-        t1 = min(tp1, entry - eps)
-        t2 = min(tp2, t1 - eps)
-        t3 = min(tp3, t2 - eps)
-        return s_val, t1, t2, t3
-    return sl, tp1, tp2, tp3
-
-
-def _evaluate_asset(
-    asset: Dict[str, str],
-    profile: str,
-    timeframe: str,
-    balance: float,
-    risk_pct: float,
-    min_score: float,
-    min_rrr: float,
-) -> Dict[str, Any]:
-    candles, _ = _fetch_candles(asset, timeframe, limit=60)
-    timing = _candle_timing(timeframe)
-    last = candles[-1]
-    prev = candles[-2] if len(candles) >= 2 else last
-    price = last["close"]
-    e20 = last["ema20"]
-    e50 = last["ema50"]
-
-    atr_samples = [
-        max(c["high"] - c["low"], abs(c["high"] - candles[max(0, i - 1)]["close"]), abs(c["low"] - candles[max(0, i - 1)]["close"]))
-        for i, c in enumerate(candles[-14:])
-    ]
-    atr = max(sum(atr_samples) / max(1, len(atr_samples)), price * 0.0012)
-
-    bull_trend = price > e20 and e20 >= e50
-    bear_trend = price < e20 and e20 <= e50
-
-    body_last = abs(last["close"] - last["open"])
-    upper_wick = last["high"] - max(last["open"], last["close"])
-    lower_wick = min(last["open"], last["close"]) - last["low"]
-    fakeout = (upper_wick > body_last * 1.8 and bull_trend) or (lower_wick > body_last * 1.8 and bear_trend)
-
-    momentum_pct = ((price - prev["close"]) / max(prev["close"], 1e-9)) * 100.0
-    base_score = 54.0
-    if bull_trend or bear_trend:
-        base_score += 18.0
-    if abs(momentum_pct) >= 0.08:
-        base_score += 8.0
-    if profile == "pro_sniper":
-        base_score += 5.0
-    elif profile == "institutional_swing":
-        base_score += 3.0
-    if fakeout:
-        base_score -= 14.0
-
-    sym_bias = (sum(ord(ch) for ch in asset["symbol"]) % 19) - 9
-    score = round(max(35.0, min(94.0, base_score + sym_bias)), 1)
-
-    if bull_trend and not fakeout and score >= min_score:
-        action = "BUY"
-    elif bear_trend and not fakeout and score >= min_score:
-        action = "SELL"
-    else:
-        action = "NEUTRAL"
-
-    sl_dist = max(atr * 1.15, price * 0.0025)
-    tp1_dist = max(sl_dist * max(min_rrr, 1.5), atr * 1.8)
-    tp2_dist = sl_dist * max(min_rrr * 1.5, 2.3)
-    tp3_dist = sl_dist * max(min_rrr * 2.0, 3.1)
-
-    entry = _round_price(price, price)
-    if action == "SELL":
-        raw_sl = price + sl_dist
-        raw_tp1 = price - tp1_dist
-        raw_tp2 = price - tp2_dist
-        raw_tp3 = price - tp3_dist
-    else:
-        raw_sl = max(0.000001, price - sl_dist)
-        raw_tp1 = price + tp1_dist
-        raw_tp2 = price + tp2_dist
-        raw_tp3 = price + tp3_dist
-
-    if action in ("BUY", "SELL"):
-        raw_sl, raw_tp1, raw_tp2, raw_tp3 = _validate_directional_levels(action, entry, raw_sl, raw_tp1, raw_tp2, raw_tp3)
-
-    sl = _round_price(raw_sl, price)
-    tp1 = _round_price(raw_tp1, price)
-    tp2 = _round_price(raw_tp2, price)
-    tp3 = _round_price(raw_tp3, price)
-
-    rrr = round(abs(tp1 - entry) / max(abs(entry - sl), 1e-9), 2)
-    leverage = _compute_leverage(balance)
-    risk_usd = balance * (risk_pct / 100.0)
-    raw_qty = (risk_usd / max(abs(entry - sl), 1e-9)) / max(price, 1e-9)
-    size = max(0.001, round(min(raw_qty, (balance * leverage * 0.5) / max(price, 1e-9)), 4))
-    margin = round((size * price) / max(leverage, 1), 2)
-
-    p_win = max(0.35, min(0.85, score / 100.0))
-    win_usd = abs(tp1 - entry) * size * leverage * 0.25
-    loss_usd = abs(entry - sl) * size * leverage * 0.25
-    ev_net_usd = round((p_win * win_usd) - ((1.0 - p_win) * loss_usd), 4)
-    kelly_pct = round(max(0.5, min(12.0, (p_win - ((1.0 - p_win) / max(rrr, 0.5))) * 100.0)), 1)
-    certainty_pct = round(max(25.0, min(96.0, score * 0.92 + (4.0 if not fakeout else -12.0))), 1)
-
-    if score >= 85 and not fakeout:
-        grade = "A+"
-    elif score >= 75:
-        grade = "A"
-    elif score >= 65:
-        grade = "B"
-    else:
-        grade = "C"
-
-    htf_bias = "BULLISH" if bull_trend else ("BEARISH" if bear_trend else "RANGE")
-    reason = (
-        f"Setup {action} valido (Score {score}%, R:R 1:{rrr})"
-        if action != "NEUTRAL"
-        else ("Rischio fakeout / coda lunga" if fakeout else f"Filtro Score/Trend non allineato ({score}% < {min_score}%)")
+    timing = get_timeframe_candle_timing(timeframe, time.time())
+    _register_position_target(
+        symbol=symbol,
+        action=action,
+        sl_price=sl_q,
+        tp_price=tp_q,
+        timeframe=timeframe,
+        candle_close_ts=int(safe_float(candle_close_ts, timing["candle_close_ts"])),
     )
 
     return {
-        "symbol": asset["symbol"],
-        "bx_symbol": asset["bx_symbol"],
-        "name": asset["name"],
-        "category": asset["category"],
-        "price": _round_price(price, price),
-        "htf_bias": htf_bias,
-        "action": action,
-        "score": score,
-        "grade": grade,
-        "certainty_pct": certainty_pct,
-        "fakeout": fakeout,
-        "fakeout_label": "FAKEOUT RISK" if fakeout else "STRUTTURA PULITA",
+        "leverage_set": lev_data,
+        "leverage_error": lev_err,
+        "entry_order": entry_data,
+        "sl_price": sl_q,
+        "sl_order": sl_data,
+        "sl_error": sl_err,
+        "tp_price": tp_q,
+        "tp_order": tp_data,
+        "tp_error": tp_err,
+        "timeframe": timeframe,
+        "candle_close_ts": int(safe_float(candle_close_ts, timing["candle_close_ts"])),
+    }, None
+
+
+def close_bingx_position(symbol: str, action: str = "", size: float = 0.0, reason: str = "MANUAL"):
+    positions, pos_err = fetch_bingx_real_positions()
+    if pos_err:
+        return None, pos_err
+
+    target_sym = canonicalize_symbol_key(symbol)
+    target_act = (action or "").upper().strip()
+    matches = []
+    for p in positions:
+        if canonicalize_symbol_key(p.get("symbol")) != target_sym:
+            continue
+        if target_act in ("BUY", "SELL") and p.get("action") != target_act:
+            continue
+        matches.append(p)
+
+    if not matches:
+        return None, f"Nessuna posizione aperta trovata per {target_sym}"
+
+    results = []
+    for pos in matches:
+        qty_to_close = safe_float(size, 0.0) if safe_float(size, 0.0) > 0 else safe_float(pos.get("size"), 0.0)
+        if qty_to_close <= 0:
+            continue
+        is_long = pos.get("action") == "BUY"
+        close_side = "SELL" if is_long else "BUY"
+        pos_side = "LONG" if is_long else "SHORT"
+        order_data, order_err = bingx_signed_request(
+            "POST",
+            "/openApi/swap/v2/trade/order",
+            {
+                "symbol": pos.get("bx_symbol") or resolve_bingx_symbol(target_sym)[0],
+                "side": close_side,
+                "positionSide": pos_side,
+                "type": "MARKET",
+                "quantity": qty_to_close,
+                "reduceOnly": "true",
+            },
+        )
+        if order_err:
+            return None, order_err
+        with STATE_LOCK:
+            STATE["position_targets"].pop(f"{target_sym}_{pos.get('action')}", None)
+            STATE["telemetry_logs"] = ([{
+                "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
+                "status": f"CHIUSURA [{reason}] {target_sym} {pos.get('action')} ({qty_to_close})",
+                "signals_found": 0,
+                "scanned": 1,
+            }] + STATE["telemetry_logs"])[:40]
+        results.append({
+            "symbol": pos.get("bx_symbol"),
+            "side": close_side,
+            "qty": qty_to_close,
+            "reason": reason,
+            "order": order_data,
+        })
+
+    with STATE_LOCK:
+        STATE["last_bingx_sync"] = 0.0
+    sync_bingx_real_closed_trades()
+    return results, None
+
+
+def monitor_and_enforce_tpsl_and_timeframe_close(live_positions):
+    if not live_positions:
+        return []
+
+    with STATE_LOCK:
+        targets = dict(STATE.get("position_targets") or {})
+        close_at_end = bool(STATE.get("close_at_candle_end", True))
+        active_tf = STATE.get("active_timeframe") or "15m"
+
+    now_ts = time.time()
+    auto_closed = []
+
+    for pos in live_positions:
+        sym = canonicalize_symbol_key(pos.get("symbol"))
+        act = (pos.get("action") or "BUY").upper()
+        bx_sym = pos.get("bx_symbol") or resolve_bingx_symbol(sym)[0]
+        curr_p = fetch_bingx_ticker(bx_sym) or safe_float(pos.get("mark_price") or pos.get("entry"), 0.0)
+        if curr_p <= 0:
+            continue
+
+        t_meta = targets.get(f"{sym}_{act}") or {}
+        sl_p = safe_float(t_meta.get("sl"), 0.0)
+        tp_p = safe_float(t_meta.get("tp"), 0.0)
+        tf_val = t_meta.get("timeframe") or active_tf
+        close_ts = int(safe_float(t_meta.get("candle_close_ts"), 0))
+        opened_ts = safe_float(t_meta.get("opened_ts"), 0.0)
+
+        reason = None
+        if act == "BUY":
+            if tp_p > 0 and curr_p >= tp_p:
+                reason = f"TP RAGGIUNTO ({curr_p} >= {tp_p})"
+            elif sl_p > 0 and curr_p <= sl_p:
+                reason = f"SL RAGGIUNTO ({curr_p} <= {sl_p})"
+        else:
+            if tp_p > 0 and curr_p <= tp_p:
+                reason = f"TP RAGGIUNTO ({curr_p} <= {tp_p})"
+            elif sl_p > 0 and curr_p >= sl_p:
+                reason = f"SL RAGGIUNTO ({curr_p} >= {sl_p})"
+
+        if not reason and close_at_end:
+            timing = get_timeframe_candle_timing(tf_val, now_ts)
+            if close_ts > 0 and now_ts >= close_ts:
+                reason = f"FINE CANDELA {tf_val} ({timing['candle_open_utc']} → {timing['candle_close_utc']})"
+            elif opened_ts > 0 and (now_ts - opened_ts) >= timing["candle_duration_sec"]:
+                reason = f"SCADENZA TIMEFRAME {tf_val} ({timing['candle_duration_sec']}s)"
+
+        if reason:
+            res, err = close_bingx_position(sym, act, safe_float(pos.get("size"), 0.0), reason=reason)
+            if not err and res:
+                auto_closed.extend(res)
+
+    return auto_closed
+
+
+def fetch_bingx_real_balance():
+    api_key, api_secret = get_bingx_credentials()
+    if not (api_key and api_secret):
+        return {
+            "balance": 0.0,
+            "equity": 0.0,
+            "available_margin": 0.0,
+            "unrealized_pnl": 0.0,
+            "asset": "USDT",
+        }, "Configura BINGX_API_KEY e BINGX_SECRET_KEY su Render"
+
+    payload, err = bingx_signed_request("GET", "/openApi/swap/v2/user/balance", {})
+    if err or not isinstance(payload, dict):
+        with STATE_LOCK:
+            STATE["last_bingx_balance_error"] = err or "Errore lettura saldo BingX"
+        return {
+            "balance": STATE.get("last_bingx_balance", 0.0),
+            "equity": STATE.get("last_bingx_equity", 0.0),
+            "available_margin": STATE.get("last_bingx_available", 0.0),
+            "unrealized_pnl": STATE.get("last_bingx_unrealized", 0.0),
+            "asset": "USDT",
+        }, err or "Errore lettura saldo BingX"
+
+    raw_data = payload.get("data")
+    bal_obj = None
+    if isinstance(raw_data, dict):
+        if isinstance(raw_data.get("balance"), dict):
+            bal_obj = raw_data["balance"]
+        elif isinstance(raw_data.get("balances"), list) and raw_data["balances"]:
+            for item in raw_data["balances"]:
+                if isinstance(item, dict) and str(item.get("asset") or "USDT").upper() == "USDT":
+                    bal_obj = item
+                    break
+            if bal_obj is None and isinstance(raw_data["balances"][0], dict):
+                bal_obj = raw_data["balances"][0]
+        else:
+            bal_obj = raw_data
+    elif isinstance(raw_data, list) and raw_data:
+        for item in raw_data:
+            if isinstance(item, dict) and str(item.get("asset") or "USDT").upper() == "USDT":
+                bal_obj = item
+                break
+        if bal_obj is None and isinstance(raw_data[0], dict):
+            bal_obj = raw_data[0]
+
+    bal_obj = bal_obj or {}
+    wallet_bal = safe_float(bal_obj.get("balance") or bal_obj.get("walletBalance"), 0.0)
+    unrealized = safe_float(bal_obj.get("unrealizedProfit"), 0.0)
+    equity_val = safe_float(bal_obj.get("equity"), wallet_bal + unrealized)
+    avail_val = safe_float(
+        bal_obj.get("availableMargin") or bal_obj.get("availableBalance"),
+        max(0.0, equity_val),
+    )
+    asset_code = str(bal_obj.get("asset") or "USDT").upper()
+
+    info = {
+        "balance": round(wallet_bal, 4),
+        "equity": round(equity_val, 4),
+        "available_margin": round(avail_val, 4),
+        "unrealized_pnl": round(unrealized, 4),
+        "asset": asset_code,
+    }
+    with STATE_LOCK:
+        STATE["last_bingx_balance"] = info["balance"]
+        STATE["last_bingx_equity"] = info["equity"]
+        STATE["last_bingx_available"] = info["available_margin"]
+        STATE["last_bingx_unrealized"] = info["unrealized_pnl"]
+        STATE["last_bingx_balance_error"] = None
+    return info, None
+
+
+def sync_bingx_real_closed_trades():
+    api_key, api_secret = get_bingx_credentials()
+    if not (api_key and api_secret):
+        return
+    with STATE_LOCK:
+        if time.time() - STATE.get("last_bingx_sync", 0.0) < 8.0:
+            return
+        if time.time() < safe_float(STATE.get("bingx_rate_limit_until"), 0.0):
+            return
+        STATE["last_bingx_sync"] = time.time()
+
+    now_utc = datetime.now(timezone.utc)
+    now_ms = int(now_utc.timestamp() * 1000)
+    month_start_utc = datetime(now_utc.year, now_utc.month, 1, 0, 0, 0, tzinfo=timezone.utc)
+    start_ms = int(month_start_utc.timestamp() * 1000)
+    current_month_key = now_utc.strftime("%Y-%m")
+    today_key = now_utc.strftime("%Y-%m-%d")
+
+    allowed_types = ("REALIZED_PNL", "PROFIT", "TRADE_PNL", "COMMISSION", "FUNDING_FEE")
+    parsed_map = {}
+    cursor_end = now_ms
+
+    for _ in range(6):
+        payload, err = bingx_signed_request(
+            "GET",
+            "/openApi/swap/v2/user/income",
+            {"startTime": start_ms, "endTime": cursor_end, "limit": 500},
+        )
+        if err or not isinstance(payload, dict):
+            break
+        rows = payload.get("data") or []
+        if not isinstance(rows, list) or not rows:
+            break
+
+        oldest_ts = None
+        for idx, item in enumerate(rows):
+            if not isinstance(item, dict):
+                continue
+            inc_type = str(item.get("incomeType") or "").upper()
+            if inc_type not in allowed_types:
+                continue
+            amt_val = safe_float(item.get("income"), 0.0)
+            if amt_val == 0.0:
+                continue
+            t_ms = int(safe_float(item.get("time"), now_ms))
+            if oldest_ts is None or t_ms < oldest_ts:
+                oldest_ts = t_ms
+
+            dt_utc = datetime.fromtimestamp(t_ms / 1000.0, tz=timezone.utc)
+            m_key = dt_utc.strftime("%Y-%m")
+            if m_key != current_month_key:
+                continue
+
+            raw_id = str(item.get("tranId") or item.get("orderId") or "").strip()
+            trade_id = f"{raw_id}_{inc_type}" if raw_id else f"bx_{inc_type}_{t_ms}_{idx}_{round(amt_val, 6)}"
+            parsed_map[trade_id] = {
+                "id": trade_id,
+                "symbol": canonicalize_symbol_key(item.get("symbol") or "BTCUSDT"),
+                "income_type": inc_type,
+                "is_fee": inc_type in ("COMMISSION", "FUNDING_FEE"),
+                "realized_pnl": round(amt_val, 4),
+                "closed_date": dt_utc.strftime("%Y-%m-%d"),
+                "closed_month": m_key,
+                "closed_at": dt_utc.strftime("%Y-%m-%d %H:%M:%S UTC"),
+                "ts_ms": t_ms,
+            }
+
+        if len(rows) < 500 or oldest_ts is None or oldest_ts <= start_ms:
+            break
+        cursor_end = oldest_ts - 1
+
+    ordered_trades = sorted(parsed_map.values(), key=lambda x: x["ts_ms"], reverse=True)
+    today_net = round(
+        sum(safe_float(t.get("realized_pnl")) for t in ordered_trades if t["closed_date"] == today_key),
+        4,
+    )
+
+    with STATE_LOCK:
+        STATE["closed_trades"] = ordered_trades
+        STATE["session_pnl"] = today_net
+
+
+def fetch_bingx_real_positions():
+    api_key, api_secret = get_bingx_credentials()
+    if not (api_key and api_secret):
+        return [], "Configura BINGX_API_KEY e BINGX_SECRET_KEY su Render"
+    payload, err = bingx_signed_request("GET", "/openApi/swap/v2/user/positions", {})
+    if err or not isinstance(payload, dict):
+        return [], err or "Errore lettura posizioni BingX"
+    raw_pos = payload.get("data") or []
+    if not isinstance(raw_pos, list):
+        return [], None
+
+    active = []
+    for p in raw_pos:
+        if not isinstance(p, dict):
+            continue
+        amt = abs(safe_float(p.get("positionAmt"), 0.0))
+        if amt <= 0:
+            continue
+        side_raw = str(p.get("positionSide") or "").upper()
+        if side_raw in ("LONG", "BUY"):
+            action = "BUY"
+        elif side_raw in ("SHORT", "SELL"):
+            action = "SELL"
+        else:
+            action = "BUY" if safe_float(p.get("positionAmt"), 0.0) > 0 else "SELL"
+
+        sym_key = canonicalize_symbol_key(p.get("symbol") or "")
+        with STATE_LOCK:
+            t_cfg = STATE["position_targets"].get(f"{sym_key}_{action}") or {}
+
+        active.append({
+            "symbol": sym_key,
+            "bx_symbol": p.get("symbol") or "",
+            "action": action,
+            "entry": safe_float(p.get("avgPrice"), 0.0),
+            "mark_price": safe_float(p.get("markPrice"), 0.0),
+            "size": amt,
+            "leverage": f"{int(safe_float(p.get('leverage'), 1))}x",
+            "unrealized_pnl": round(safe_float(p.get("unrealizedProfit"), 0.0), 4),
+            "sl": safe_float(t_cfg.get("sl"), 0.0),
+            "tp": safe_float(t_cfg.get("tp"), 0.0),
+            "timeframe": t_cfg.get("timeframe") or STATE.get("active_timeframe") or "15m",
+            "candle_close_utc": datetime.fromtimestamp(safe_float(t_cfg.get("candle_close_ts"), 0), tz=timezone.utc).strftime("%H:%M:%S UTC") if safe_float(t_cfg.get("candle_close_ts"), 0) > 0 else "--",
+        })
+    return active, None
+
+
+def _fetch_binance_ticker_fallback(symbol_key: str):
+    clean = canonicalize_symbol_key(symbol_key)
+    for base in (BINANCE_FAPI_BASE, BINANCE_SPOT_BASE):
+        path = "/fapi/v1/ticker/price" if "fapi" in base else "/api/v3/ticker/price"
+        try:
+            resp = requests.get(f"{base}{path}", params={"symbol": clean}, timeout=1.2)
+            if resp.status_code == 200:
+                p = safe_float((resp.json() or {}).get("price"), 0.0)
+                if p > 0:
+                    return p
+        except Exception:
+            continue
+    return None
+
+
+def _fetch_binance_klines_fallback(symbol_key: str, interval: str, limit: int = 100):
+    clean = canonicalize_symbol_key(symbol_key)
+    tf_map = {"5m": "5m", "15m": "15m", "1h": "1h"}
+    b_int = tf_map.get(interval, "15m")
+    for base in (BINANCE_FAPI_BASE, BINANCE_SPOT_BASE):
+        path = "/fapi/v1/klines" if "fapi" in base else "/api/v3/klines"
+        try:
+            resp = requests.get(
+                f"{base}{path}",
+                params={"symbol": clean, "interval": b_int, "limit": limit},
+                timeout=1.4,
+            )
+            if resp.status_code == 200:
+                rows = resp.json() or []
+                if isinstance(rows, list) and len(rows) >= 40:
+                    parsed = []
+                    for r in rows[-limit:]:
+                        if isinstance(r, (list, tuple)) and len(r) >= 6:
+                            o = safe_float(r[1])
+                            h = safe_float(r[2])
+                            l = safe_float(r[3])
+                            c = safe_float(r[4])
+                            v = safe_float(r[5], 0.0)
+                            if c > 0 and h >= l > 0:
+                                parsed.append({"Open": o or c, "High": h, "Low": l, "Close": c, "Volume": max(v, 0.0)})
+                    if len(parsed) >= 40:
+                        return pd.DataFrame(parsed)
+        except Exception:
+            continue
+    return None
+
+
+def fetch_bingx_ticker(bx_symbol: str):
+    cached = _LIVE_PRICE_CACHE.get(bx_symbol)
+    if cached and (time.time() - cached["ts"]) < 2.2:
+        return cached["price"]
+    base_url = get_bingx_base_url()
+    try:
+        url = f"{base_url}/openApi/swap/v2/quote/ticker"
+        resp = requests.get(url, params={"symbol": bx_symbol}, timeout=1.2)
+        if resp.status_code == 200:
+            payload = resp.json()
+            data = payload.get("data")
+            if isinstance(data, list) and data:
+                data = data[0]
+            if isinstance(data, dict):
+                price = safe_float(data.get("lastPrice"), 0.0)
+                if price > 0:
+                    _LIVE_PRICE_CACHE[bx_symbol] = {"price": price, "ts": time.time()}
+                    return price
+    except Exception:
+        pass
+
+    fb_price = _fetch_binance_ticker_fallback(bx_symbol)
+    if fb_price and fb_price > 0:
+        _LIVE_PRICE_CACHE[bx_symbol] = {"price": fb_price, "ts": time.time()}
+        return fb_price
+    return cached["price"] if cached else None
+
+
+def fetch_bingx_klines(bx_symbol: str, interval: str, limit: int = 100):
+    cache_key = f"{bx_symbol}_{interval}_{limit}"
+    cached = _KLINES_CACHE.get(cache_key)
+    if cached and (time.time() - cached["ts"]) < 8.0:
+        return cached["df"].copy()
+
+    base_url = get_bingx_base_url()
+    tf_map = {"5m": "5m", "15m": "15m", "1h": "1h"}
+    bx_int = tf_map.get(interval, "15m")
+    try:
+        url = f"{base_url}/openApi/swap/v2/quote/klines"
+        resp = requests.get(url, params={"symbol": bx_symbol, "interval": bx_int, "limit": limit}, timeout=1.4)
+        if resp.status_code == 200:
+            rows = resp.json().get("data") or []
+            if isinstance(rows, list) and len(rows) >= 40:
+                parsed = []
+                for r in rows[-limit:]:
+                    if isinstance(r, dict):
+                        o = safe_float(r.get("open"))
+                        h = safe_float(r.get("high"))
+                        l = safe_float(r.get("low"))
+                        c = safe_float(r.get("close"))
+                        v = safe_float(r.get("volume"), 0.0)
+                    elif isinstance(r, (list, tuple)) and len(r) >= 6:
+                        o = safe_float(r[1])
+                        h = safe_float(r[2])
+                        l = safe_float(r[3])
+                        c = safe_float(r[4])
+                        v = safe_float(r[5], 0.0)
+                    else:
+                        continue
+                    if c > 0 and h >= l > 0:
+                        parsed.append({"Open": o or c, "High": h, "Low": l, "Close": c, "Volume": max(v, 0.0)})
+                if len(parsed) >= 40:
+                    df_out = pd.DataFrame(parsed)
+                    _KLINES_CACHE[cache_key] = {"df": df_out.copy(), "ts": time.time()}
+                    return df_out
+    except Exception:
+        pass
+
+    fb_df = _fetch_binance_klines_fallback(bx_symbol, interval, limit=limit)
+    if fb_df is not None and len(fb_df) >= 40:
+        _KLINES_CACHE[cache_key] = {"df": fb_df.copy(), "ts": time.time()}
+        return fb_df
+    return cached["df"].copy() if cached else None
+
+
+def get_real_market_dataframe(meta: dict, timeframe: str):
+    bx_sym = meta["bx"]
+    live_price = fetch_bingx_ticker(bx_sym)
+    klines_df = fetch_bingx_klines(bx_sym, timeframe, limit=100)
+
+    if klines_df is not None and len(klines_df) >= 40:
+        price_out = live_price if (live_price and live_price > 0) else safe_float(klines_df["Close"].iloc[-1], 0.0)
+        if price_out > 0:
+            klines_df.iloc[-1, klines_df.columns.get_loc("Close")] = price_out
+            klines_df.iloc[-1, klines_df.columns.get_loc("High")] = max(klines_df.iloc[-1]["High"], price_out)
+            klines_df.iloc[-1, klines_df.columns.get_loc("Low")] = min(klines_df.iloc[-1]["Low"], price_out)
+        return klines_df, price_out
+
+    return None, (live_price or 0.0)
+
+
+def get_higher_tf_bias(bx_symbol: str, timeframe: str) -> str:
+    htf = "1h" if timeframe != "1h" else "4h"
+    df_htf = fetch_bingx_klines(bx_symbol, "1h" if htf == "4h" else htf, limit=60)
+    if df_htf is None or len(df_htf) < 30:
+        return "NEUTRAL"
+    c = df_htf["Close"]
+    ema20 = safe_float(c.ewm(span=20, adjust=False).mean().iloc[-1], 0.0)
+    ema50 = safe_float(c.ewm(span=50, adjust=False).mean().iloc[-1], 0.0)
+    last_c = safe_float(c.iloc[-1], 0.0)
+    if ema20 > ema50 and last_c >= ema20 * 0.998:
+        return "BULLISH"
+    if ema20 < ema50 and last_c <= ema20 * 1.002:
+        return "BEARISH"
+    return "NEUTRAL"
+
+
+def _required_factors_for_score(min_score: float, default_factors: int) -> int:
+    if min_score < 65.0:
+        return 2
+    if min_score < 75.0:
+        return 3
+    if min_score < 85.0:
+        return min(4, default_factors)
+    return default_factors
+
+
+def build_pro_profile_config(profile: str, timeframe: str, min_score: float, min_rrr_input: float):
+    p = (profile or "pro_sniper").lower()
+    clean_min_score = min(98.0, max(20.0, safe_float(min_score, 70.0)))
+    clean_rrr = min(10.0, max(0.5, safe_float(min_rrr_input, 1.5)))
+    if p == "pro_sniper":
+        return {
+            "profile": "pro_sniper",
+            "profile_label": "PRO SNIPER (SCORE DINAMICO)",
+            "timeframe": timeframe,
+            "min_score": clean_min_score,
+            "required_factors": _required_factors_for_score(clean_min_score, 5),
+            "min_rrr": clean_rrr,
+            "max_risk_pct": 1.0,
+            "sl_atr": 1.25,
+            "tp1_atr": 2.60,
+            "tp2_atr": 4.00,
+            "tp3_atr": 5.80,
+            "min_vol_ratio": 0.90,
+        }
+    if p == "institutional_swing":
+        return {
+            "profile": "institutional_swing",
+            "profile_label": "STRUTTURA & LIQUIDITÀ",
+            "timeframe": timeframe,
+            "min_score": clean_min_score,
+            "required_factors": _required_factors_for_score(clean_min_score, 5),
+            "min_rrr": clean_rrr,
+            "max_risk_pct": 1.5,
+            "sl_atr": 1.40,
+            "tp1_atr": 2.80,
+            "tp2_atr": 4.40,
+            "tp3_atr": 6.40,
+            "min_vol_ratio": 0.85,
+        }
+    return {
+        "profile": "momentum_desk",
+        "profile_label": "MOMENTUM DESK",
+        "timeframe": timeframe,
+        "min_score": clean_min_score,
+        "required_factors": _required_factors_for_score(clean_min_score, 4),
+        "min_rrr": clean_rrr,
+        "max_risk_pct": 2.0,
+        "sl_atr": 1.15,
+        "tp1_atr": 2.20,
+        "tp2_atr": 3.50,
+        "tp3_atr": 5.20,
+        "min_vol_ratio": 0.80,
+    }
+
+
+def evaluate_pro_setup(df, current_price, symbol, category, is_open, balance, risk_pct, cfg):
+    close = df["Close"]
+    high = df["High"]
+    low = df["Low"]
+    volume = df["Volume"]
+
+    bx_symbol, bx_precision = resolve_bingx_symbol(symbol)
+    spec = get_bingx_contract_spec(bx_symbol, bx_precision if bx_precision is not None else (4 if current_price < 5 else 2))
+    decimals = int(spec.get("price_dec", bx_precision if bx_precision is not None else (4 if current_price < 5 else 2)))
+    tick = 10 ** (-decimals)
+
+    ema20_s = close.ewm(span=20, adjust=False).mean()
+    ema50_s = close.ewm(span=50, adjust=False).mean()
+    ema200_s = close.ewm(span=min(100, len(close)), adjust=False).mean()
+
+    ema20 = safe_float(ema20_s.iloc[-1], current_price)
+    ema50 = safe_float(ema50_s.iloc[-1], current_price)
+    ema200 = safe_float(ema200_s.iloc[-1], current_price)
+
+    delta = close.diff()
+    gain = delta.where(delta > 0, 0.0).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0.0)).rolling(window=14).mean()
+    rs = gain / loss.replace(0.0, np.nan)
+    rsi = safe_float((100.0 - (100.0 / (1.0 + rs))).iloc[-1], 50.0)
+
+    macd_line = close.ewm(span=12, adjust=False).mean() - close.ewm(span=26, adjust=False).mean()
+    signal_line = macd_line.ewm(span=9, adjust=False).mean()
+    hist = macd_line - signal_line
+    macd_curr = safe_float(hist.iloc[-1], 0.0)
+    macd_prev = safe_float(hist.iloc[-2], 0.0)
+
+    tr = pd.concat([high - low, np.abs(high - close.shift()), np.abs(low - close.shift())], axis=1).max(axis=1)
+    atr = safe_float(tr.rolling(14).mean().iloc[-1], current_price * 0.004)
+    if atr <= 0:
+        atr = current_price * 0.004
+
+    vol_curr = safe_float(volume.iloc[-1], 0.0)
+    vol_avg20 = safe_float(volume.rolling(20).mean().iloc[-1], 0.0)
+    vol_ratio = round(vol_curr / vol_avg20, 2) if vol_avg20 > 0 else 1.0
+
+    swing_high_20 = safe_float(high.iloc[-21:-1].max(), current_price) if len(df) >= 22 else safe_float(high.max(), current_price)
+    swing_low_20 = safe_float(low.iloc[-21:-1].min(), current_price) if len(df) >= 22 else safe_float(low.min(), current_price)
+
+    last_open = safe_float(df["Open"].iloc[-1], current_price)
+    last_high = safe_float(high.iloc[-1], current_price)
+    last_low = safe_float(low.iloc[-1], current_price)
+    body = abs(current_price - last_open)
+    upper_wick = max(0.0, last_high - max(current_price, last_open))
+    lower_wick = max(0.0, min(current_price, last_open) - last_low)
+
+    sweep_high = (last_high > swing_high_20) and (current_price < swing_high_20)
+    sweep_low = (last_low < swing_low_20) and (current_price > swing_low_20)
+    fakeout = sweep_high or sweep_low or (upper_wick > body * 2.5 and upper_wick > atr * 0.5) or (lower_wick > body * 2.5 and lower_wick > atr * 0.5)
+
+    htf_bias = get_higher_tf_bias(bx_symbol, cfg["timeframe"])
+
+    bull_checks = [
+        ema20 > ema50,
+        current_price >= ema20 * 0.995,
+        current_price >= ema200 * 0.985,
+        macd_curr > 0 or macd_curr >= macd_prev,
+        45.0 <= rsi <= 72.0,
+        vol_ratio >= cfg["min_vol_ratio"],
+        htf_bias != "BEARISH",
+    ]
+    bear_checks = [
+        ema20 < ema50,
+        current_price <= ema20 * 1.005,
+        current_price <= ema200 * 1.015,
+        macd_curr < 0 or macd_curr <= macd_prev,
+        28.0 <= rsi <= 55.0,
+        vol_ratio >= cfg["min_vol_ratio"],
+        htf_bias != "BULLISH",
+    ]
+
+    bull_hits = sum(1 for x in bull_checks if x)
+    bear_hits = sum(1 for x in bear_checks if x)
+
+    trend_strength = min(30.0, (abs(ema20 - ema50) / max(ema50, 1e-9)) * 2600.0)
+    mom_strength = min(22.0, abs(rsi - 50.0) * 1.15)
+    vol_strength = min(18.0, (vol_ratio / max(cfg["min_vol_ratio"], 0.5)) * 13.0)
+    factor_strength = (max(bull_hits, bear_hits) / 7.0) * 30.0
+    raw_score = trend_strength + mom_strength + vol_strength + factor_strength
+    if fakeout:
+        raw_score *= 0.80
+    score = round(max(10.0, min(99.0, raw_score)), 1)
+
+    side_bias = "LONG" if bull_hits >= bear_hits else "SHORT"
+    entry = quantize_to_tick(current_price, decimals)
+    sl_dist = max(atr * cfg["sl_atr"], entry * 0.0025)
+    tp1_dist = max(atr * cfg["tp1_atr"], sl_dist * cfg["min_rrr"])
+    tp2_dist = max(atr * cfg["tp2_atr"], tp1_dist * 1.5)
+    tp3_dist = max(atr * cfg["tp3_atr"], tp2_dist * 1.35)
+
+    if side_bias == "LONG":
+        sl = quantize_to_tick(max(entry - sl_dist, swing_low_20 - tick * 2) if swing_low_20 < entry and (entry - swing_low_20) <= sl_dist * 1.35 else entry - sl_dist, decimals)
+        sl_dist = max(abs(entry - sl), tick * 2)
+        tp1 = quantize_to_tick(entry + max(tp1_dist, sl_dist * cfg["min_rrr"]), decimals)
+        tp2 = quantize_to_tick(entry + max(tp2_dist, sl_dist * (cfg["min_rrr"] * 1.5)), decimals)
+        tp3 = quantize_to_tick(entry + max(tp3_dist, sl_dist * (cfg["min_rrr"] * 2.2)), decimals)
+    else:
+        sl = quantize_to_tick(min(entry + sl_dist, swing_high_20 + tick * 2) if swing_high_20 > entry and (swing_high_20 - entry) <= sl_dist * 1.35 else entry + sl_dist, decimals)
+        sl_dist = max(abs(sl - entry), tick * 2)
+        tp1 = quantize_to_tick(entry - max(tp1_dist, sl_dist * cfg["min_rrr"]), decimals)
+        tp2 = quantize_to_tick(entry - max(tp2_dist, sl_dist * (cfg["min_rrr"] * 1.5)), decimals)
+        tp3 = quantize_to_tick(entry - max(tp3_dist, sl_dist * (cfg["min_rrr"] * 2.2)), decimals)
+
+    tp1_dist = abs(tp1 - entry)
+    rrr = round(tp1_dist / sl_dist, 2) if sl_dist > 0 else 0.0
+
+    eff_balance = max(MIN_BINGX_CAPITAL_USD, safe_float(balance, MIN_BINGX_CAPITAL_USD))
+    lev = compute_dynamic_leverage(symbol, category, eff_balance, entry, cfg["profile"])
+
+    eff_risk_pct = min(risk_pct, cfg["max_risk_pct"])
+    risk_usd = max(eff_balance * (eff_risk_pct / 100.0), eff_balance * 0.10)
+    qty = compute_order_quantity(bx_symbol, entry, risk_usd / sl_dist, eff_balance, lev)
+    margin_usd = round(max(MIN_BINGX_CAPITAL_USD, (qty * entry) / max(lev, 1)), 2)
+    fee_usd = round((qty * entry) * 0.001, 4)
+
+    certainty_pct = round(min(96.0, max(35.0, (max(bull_hits, bear_hits) / 7.0) * 100.0)), 1)
+    win_prob = min(0.76, max(0.38, (score / 100.0) * 0.72))
+    loss_prob = 1.0 - win_prob
+    net_win = round((qty * tp1_dist) - fee_usd, 4)
+    net_loss = round((qty * sl_dist) + fee_usd, 4)
+    ev_usd = round((win_prob * net_win) - (loss_prob * net_loss), 4)
+    kelly_pct = round(max(0.0, min(15.0, ((win_prob * max(rrr, 0.5)) - loss_prob) / max(rrr, 0.5) * 100.0)), 1)
+
+    tf_min = 5 if cfg["timeframe"] == "5m" else (60 if cfg["timeframe"] == "1h" else 15)
+    candle_move = max(abs(close.diff().tail(6)).mean(), atr * 0.2, entry * 0.0002)
+    candles_est = max(1, int(math.ceil(tp1_dist / candle_move)))
+    eta_min = candles_est * tf_min
+    eta_utc = datetime.fromtimestamp(time.time() + eta_min * 60, tz=timezone.utc).strftime("%H:%M UTC")
+
+    clean_sym = canonicalize_symbol_key(symbol)
+    now_ts = time.time()
+    prev_dir = _LAST_CONFIRMED_DIRECTION.get(clean_sym)
+
+    raw_action = "NEUTRAL"
+    if bull_hits >= cfg["required_factors"] and bull_hits > bear_hits and score >= cfg["min_score"] and rrr >= cfg["min_rrr"] and is_open:
+        raw_action = "BUY"
+    elif bear_hits >= cfg["required_factors"] and bear_hits > bull_hits and score >= cfg["min_score"] and rrr >= cfg["min_rrr"] and is_open:
+        raw_action = "SELL"
+
+    action = raw_action
+    reason = f"Setup {action} validato (Score {score}% >= {cfg['min_score']}%) • Leva {lev}x • R:R 1:{rrr}"
+    grade = "A+" if (score >= max(85.0, cfg["min_score"]) and rrr >= 2.0 and not fakeout) else ("CERTO" if (action in ("BUY", "SELL") and certainty_pct >= 70.0) else ("VALIDATO" if action in ("BUY", "SELL") else "NO-TRADE"))
+
+    if action in ("BUY", "SELL") and prev_dir:
+        if prev_dir.get("action") != action and (now_ts - safe_float(prev_dir.get("ts"), 0.0)) < DIRECTION_COOLDOWN_SEC:
+            rem = int(DIRECTION_COOLDOWN_SEC - (now_ts - safe_float(prev_dir.get("ts"), 0.0)))
+            action = "NEUTRAL"
+            reason = f"Anti-flip-flop attivo ({rem} secondi residui dopo {prev_dir.get('action')})"
+    elif action == "NEUTRAL":
+        if not is_open:
+            reason = f"Mercato {category} chiuso"
+        elif rrr < cfg["min_rrr"]:
+            reason = f"R:R 1:{rrr} inferiore al minimo 1:{cfg['min_rrr']}"
+        elif score < cfg["min_score"]:
+            reason = f"Score {score}% sotto soglia {cfg['min_score']}% ({max(bull_hits, bear_hits)}/7 fattori)"
+        else:
+            reason = f"In attesa di confluenza direzionale netta ({bull_hits}L / {bear_hits}S)"
+
+    if action in ("BUY", "SELL"):
+        _LAST_CONFIRMED_DIRECTION[clean_sym] = {"action": action, "ts": now_ts}
+
+    candle_timing = get_timeframe_candle_timing(cfg["timeframe"], now_ts)
+
+    return {
+        "category": category,
+        "symbol": clean_sym,
+        "bingx_symbol": bx_symbol,
+        "name": ASSET_LOOKUP.get(clean_sym, {}).get("name", f"{clean_sym} ({bx_symbol})"),
+        "is_open": is_open,
+        "price": entry,
         "entry": entry,
         "sl": sl,
         "tp1": tp1,
         "tp2": tp2,
         "tp3": tp3,
         "rrr": rrr,
-        "size": size,
-        "leverage": f"{leverage}x",
-        "leverage_num": leverage,
-        "margin": margin,
-        "ev_net_usd": ev_net_usd,
+        "score": score,
+        "certainty_pct": certainty_pct,
         "kelly_pct": kelly_pct,
-        "tp_eta_text": f"~{max(1, timing['candle_remaining_sec'] // 60)}-{max(2, (timing['candle_remaining_sec'] // 60) + 2)} candele {timing['timeframe']}",
+        "grade": grade,
+        "action": action,
+        "taken": action in ("BUY", "SELL"),
+        "side_bias": side_bias,
+        "htf_bias": htf_bias,
+        "rsi": round(rsi, 1),
+        "vol_ratio": vol_ratio,
+        "confluence": f"{max(bull_hits, bear_hits)}/7",
+        "fakeout": fakeout,
+        "fakeout_label": "FAKEOUT / SWEEP" if fakeout else "STRUTTURA PULITA",
+        "size": qty,
+        "leverage": f"{lev}x",
+        "leverage_num": lev,
+        "margin": margin_usd,
+        "ev_net_usd": ev_usd,
+        "win_prob_pct": round(win_prob * 100, 1),
+        "tp_eta_text": f"circa {eta_min} minuti ({candles_est} candele da {cfg['timeframe']}, arrivo stimato {eta_utc})",
         "reason": reason,
-        "timeframe": timing["timeframe"],
-        "candle_duration_label": timing["candle_duration_label"],
-        "candle_open_utc": timing["candle_open_utc"],
-        "candle_close_utc": timing["candle_close_utc"],
-        "candle_close_ts": timing["candle_close_ts"],
-        "candle_remaining_sec": timing["candle_remaining_sec"],
-        "candle_window_text": timing["candle_window_text"],
+        "swing_high": quantize_to_tick(swing_high_20, decimals),
+        "swing_low": quantize_to_tick(swing_low_20, decimals),
+        "ema20": quantize_to_tick(ema20, decimals),
+        "ema50": quantize_to_tick(ema50, decimals),
+        **candle_timing,
     }
 
 
-def _sync_bingx_income_history() -> None:
-    """Sincronizza PnL realizzato, commissioni e funding da BingX incomeHistory."""
-    now_s = int(time.time())
-    with STATE_LOCK:
-        if now_s - int(TERMINAL_STATE.get("last_income_sync_ts", 0)) < 15:
-            return
-        TERMINAL_STATE["last_income_sync_ts"] = now_s
-
-    start_ms = (now_s - 86400 * 30) * 1000
-    ok, payload, _ = _bingx_signed_request("GET", "/openApi/swap/v2/user/income", {
-        "startTime": start_ms,
-        "limit": 100,
-    })
-    if not ok or not isinstance(payload, dict):
-        return
-
-    items = payload.get("data")
-    if not isinstance(items, list):
-        return
-
-    today_start = int(datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
-    today_trades: List[Dict[str, Any]] = []
-    month_trades: List[Dict[str, Any]] = []
-
-    for row in items:
-        inc_type = str(row.get("incomeType", "")).upper()
-        if inc_type not in ("REALIZED_PNL", "TRADING_FEE", "COMMISSION", "FUNDING_FEE"):
-            continue
-        amt = float(row.get("income", 0) or 0)
-        ts_sec = int(float(row.get("time", 0) or 0)) // 1000
-        sym = str(row.get("symbol", "BINGX"))
-        is_fee = inc_type in ("TRADING_FEE", "COMMISSION", "FUNDING_FEE")
-        rec = {
-            "symbol": sym,
-            "pnl": 0.0 if is_fee else amt,
-            "fee": abs(amt) if is_fee else 0.0,
-            "type": inc_type,
-            "ts": ts_sec,
-        }
-        month_trades.append(rec)
-        if ts_sec >= today_start:
-            today_trades.append(rec)
+def build_performance_payload():
+    sync_bingx_real_closed_trades()
+    bal_info, bal_err = fetch_bingx_real_balance()
+    api_key, api_secret = get_bingx_credentials()
+    now_utc = datetime.now(timezone.utc)
+    today_key = now_utc.strftime("%Y-%m-%d")
+    month_key = now_utc.strftime("%Y-%m")
 
     with STATE_LOCK:
-        if month_trades:
-            TERMINAL_STATE["closed_trades_month"] = month_trades
-            TERMINAL_STATE["closed_trades_today"] = today_trades
+        closed = list(STATE.get("closed_trades", []))
 
-
-def _fetch_bingx_positions() -> Tuple[List[Dict[str, Any]], float, float, str]:
-    ok, payload, err = _bingx_signed_request("GET", "/openApi/swap/v2/user/positions", {})
-    if not ok:
-        return [], 0.0, 0.0, err
-
-    raw_positions = payload.get("data") if isinstance(payload, dict) else []
-    if not isinstance(raw_positions, list):
-        raw_positions = []
-
-    positions: List[Dict[str, Any]] = []
-    total_upnl = 0.0
-    used_margin = 0.0
-
-    with STATE_LOCK:
-        tracked_map = dict(TERMINAL_STATE["tracked_positions"])
-
-    for p in raw_positions:
-        amt = abs(float(p.get("positionAmt", 0) or 0))
-        if amt <= 0:
-            continue
-        bx_sym = str(p.get("symbol", "")).upper()
-        asset = _find_asset(bx_sym)
-        side_raw = str(p.get("positionSide", "")).upper()
-        if side_raw in ("LONG", "BUY"):
-            action = "BUY"
-        elif side_raw in ("SHORT", "SELL"):
-            action = "SELL"
-        else:
-            action = "BUY" if float(p.get("positionAmt", 0) or 0) > 0 else "SELL"
-
-        entry = float(p.get("avgPrice", 0) or p.get("entryPrice", 0) or 0)
-        mark = float(p.get("markPrice", 0) or entry)
-        upnl = float(p.get("unrealizedProfit", 0) or 0)
-        lev = int(float(p.get("leverage", 20) or 20))
-        margin = float(p.get("initialMargin", 0) or ((amt * mark) / max(lev, 1)))
-
-        total_upnl += upnl
-        used_margin += margin
-
-        meta = tracked_map.get(asset["symbol"], {})
-        tp1 = float(meta.get("tp1", meta.get("tp", 0)) or 0)
-        tp2 = float(meta.get("tp2", 0) or 0)
-        tp3 = float(meta.get("tp3", 0) or 0)
-        sl = float(meta.get("sl", 0) or 0)
-        tf = str(meta.get("timeframe", "15m"))
-        close_ts = int(meta.get("candle_close_ts", 0) or 0)
-        close_utc = str(meta.get("candle_close_utc", "")) or (
-            datetime.fromtimestamp(close_ts, tz=timezone.utc).strftime("%H:%M:%S UTC") if close_ts else "--"
-        )
-
-        progress_pct = 0.0
-        dist_to_tp = 0.0
-        dist_to_sl = 0.0
-        if tp1 > 0 and entry > 0 and abs(tp1 - entry) > 1e-9:
-            if action == "BUY":
-                progress_pct = round(max(0.0, min(100.0, ((mark - entry) / (tp1 - entry)) * 100.0)), 1)
-                dist_to_tp = _round_price(max(0.0, tp1 - mark), mark or entry)
-            else:
-                progress_pct = round(max(0.0, min(100.0, ((entry - mark) / (entry - tp1)) * 100.0)), 1)
-                dist_to_tp = _round_price(max(0.0, mark - tp1), mark or entry)
-        if sl > 0 and mark > 0:
-            dist_to_sl = _round_price(abs(mark - sl), mark or entry)
-
-        positions.append({
-            "symbol": asset["symbol"],
-            "bx_symbol": bx_sym or asset["bx_symbol"],
-            "action": action,
-            "size": amt,
-            "entry": _round_price(entry, entry or mark),
-            "mark_price": _round_price(mark, mark or entry),
-            "unrealized_pnl": round(upnl, 4),
-            "leverage": f"{lev}x",
-            "margin": round(margin, 2),
-            "tp": tp1,
-            "tp1": tp1,
-            "tp2": tp2,
-            "tp3": tp3,
-            "sl": sl,
-            "progress_pct": progress_pct,
-            "dist_to_tp": dist_to_tp,
-            "dist_to_sl": dist_to_sl,
-            "timeframe": tf,
-            "candle_close_ts": close_ts,
-            "candle_close_utc": close_utc,
-        })
-
-    return positions, round(total_upnl, 4), round(used_margin, 2), ""
-
-
-def _fetch_bingx_balance(used_margin: float = 0.0) -> Tuple[Dict[str, float], str]:
-    ok, payload, err = _bingx_signed_request("GET", "/openApi/swap/v2/user/balance", {})
-    if not ok:
-        return {"balance": 0.0, "available_margin": 0.0, "unrealized_pnl": 0.0}, err
-
-    data = payload.get("data") if isinstance(payload, dict) else {}
-    if isinstance(data, dict) and "balance" in data and isinstance(data["balance"], dict):
-        b_obj = data["balance"]
-    elif isinstance(data, list) and data:
-        b_obj = next((x for x in data if str(x.get("asset", "")).upper() == "USDT"), data[0])
-    else:
-        b_obj = data if isinstance(data, dict) else {}
-
-    wallet = float(b_obj.get("balance", b_obj.get("equity", 0)) or 0)
-    avail = float(b_obj.get("availableMargin", b_obj.get("availableBalance", max(0.0, wallet - used_margin))) or 0)
-    upnl = float(b_obj.get("unrealizedProfit", 0) or 0)
-    return {
-        "balance": round(wallet, 2),
-        "available_margin": round(avail, 2),
-        "unrealized_pnl": round(upnl, 4),
-    }, ""
-
-
-def _place_bingx_multi_tpsl_order(
-    symbol: str,
-    action: str,
-    qty: float,
-    leverage: int = 20,
-    sl: Optional[float] = None,
-    tp1: Optional[float] = None,
-    tp2: Optional[float] = None,
-    tp3: Optional[float] = None,
-    reduce_only: bool = False,
-) -> Tuple[bool, Dict[str, Any]]:
-    asset = _find_asset(symbol)
-    bx_sym = asset["bx_symbol"]
-    side = "BUY" if action.upper() == "BUY" else "SELL"
-    pos_side = "LONG" if action.upper() == "BUY" else "SHORT"
-    exit_side = "SELL" if action.upper() == "BUY" else "BUY"
-    if reduce_only:
-        side = exit_side
-
-    if not reduce_only and leverage > 0:
-        _bingx_signed_request("POST", "/openApi/swap/v2/trade/leverage", {
-            "symbol": bx_sym,
-            "side": pos_side,
-            "leverage": int(leverage),
-        })
-
-    order_params: Dict[str, Any] = {
-        "symbol": bx_sym,
-        "side": side,
-        "positionSide": pos_side,
-        "type": "MARKET",
-        "quantity": qty,
-    }
-    if reduce_only:
-        order_params["reduceOnly"] = "true"
-
-    ok, res_data, err = _bingx_signed_request("POST", "/openApi/swap/v2/trade/order", order_params)
-    if not ok:
-        return False, {"error": err}
-
-    if reduce_only:
-        return True, {"bingx": res_data, "sl_error": "", "tp_error": ""}
-
-    sl_error = ""
-    tp_errors: List[str] = []
-
-    if sl and float(sl) > 0:
-        ok_sl, _, err_sl = _bingx_signed_request("POST", "/openApi/swap/v2/trade/order", {
-            "symbol": bx_sym,
-            "side": exit_side,
-            "positionSide": pos_side,
-            "type": "STOP_MARKET",
-            "stopPrice": float(sl),
-            "quantity": qty,
-            "workingType": "MARK_PRICE",
-        })
-        if not ok_sl:
-            sl_error = err_sl
-
-    with STATE_LOCK:
-        splits = list(TERMINAL_STATE["risk_config"].get("tp_split_pct") or [50.0, 30.0, 20.0])
-
-    tp_targets = [
-        (float(tp1 or 0), float(splits[0] if len(splits) > 0 else 50.0) / 100.0, "TP1"),
-        (float(tp2 or 0), float(splits[1] if len(splits) > 1 else 30.0) / 100.0, "TP2"),
-        (float(tp3 or 0), float(splits[2] if len(splits) > 2 else 20.0) / 100.0, "TP3"),
-    ]
-    active_tps = [(price_lv, frac, label) for (price_lv, frac, label) in tp_targets if price_lv > 0]
-    if active_tps:
-        total_frac = sum(f for _, f, _ in active_tps) or 1.0
-        rem_qty = float(qty)
-        for idx, (price_lv, frac, label) in enumerate(active_tps):
-            if idx == len(active_tps) - 1:
-                leg_qty = round(rem_qty, 6)
-            else:
-                leg_qty = round(float(qty) * (frac / total_frac), 6)
-                rem_qty = max(0.0, round(rem_qty - leg_qty, 6))
-            if leg_qty <= 0:
-                continue
-            ok_tp, _, err_tp = _bingx_signed_request("POST", "/openApi/swap/v2/trade/order", {
-                "symbol": bx_sym,
-                "side": exit_side,
-                "positionSide": pos_side,
-                "type": "TAKE_PROFIT_MARKET",
-                "stopPrice": price_lv,
-                "quantity": leg_qty,
-                "workingType": "MARK_PRICE",
-            })
-            if not ok_tp:
-                tp_errors.append(f"{label}: {err_tp}")
-
-    return True, {
-        "bingx": res_data,
-        "sl_error": sl_error,
-        "tp_error": "; ".join(tp_errors),
-    }
-
-
-def _check_candle_end_closures(positions: List[Dict[str, Any]]) -> None:
-    with STATE_LOCK:
-        cfg = dict(TERMINAL_STATE["risk_config"])
-    if not cfg.get("close_at_candle_end", True):
-        return
-
-    now_s = int(time.time())
-    for p in positions:
-        close_ts = int(p.get("candle_close_ts", 0) or 0)
-        if close_ts > 0 and now_s >= close_ts:
-            ok, _ = _place_bingx_multi_tpsl_order(
-                symbol=p["symbol"],
-                action=p["action"],
-                qty=float(p["size"]),
-                reduce_only=True,
-            )
-            if ok:
-                with STATE_LOCK:
-                    TERMINAL_STATE["tracked_positions"].pop(p["symbol"], None)
-                    trade_rec = {
-                        "symbol": p["symbol"],
-                        "pnl": float(p.get("unrealized_pnl", 0.0)),
-                        "fee": 0.0,
-                        "reason": "Chiusura automatica a fine candela TF",
-                        "ts": now_s,
-                    }
-                    TERMINAL_STATE["closed_trades_today"].append(trade_rec)
-                    TERMINAL_STATE["closed_trades_month"].append(trade_rec)
-                    TERMINAL_STATE["telemetry_logs"].insert(0, {
-                        "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S"),
-                        "status": f"AUTO-CLOSE TF {p['symbol']} ({p['timeframe']})",
-                        "signals_found": 0,
-                        "scanned": len(positions),
-                    })
-                    TERMINAL_STATE["telemetry_logs"] = TERMINAL_STATE["telemetry_logs"][:50]
-
-
-def _maybe_run_autotrade(signals: List[Dict[str, Any]], positions: List[Dict[str, Any]], balance: float) -> None:
-    with STATE_LOCK:
-        auto_on = bool(TERMINAL_STATE["auto_trade"])
-        cfg = dict(TERMINAL_STATE["risk_config"])
-        daily_pnl = sum(float(t.get("pnl", 0.0)) - float(t.get("fee", 0.0)) for t in TERMINAL_STATE["closed_trades_today"])
-
-    if not auto_on or not signals:
-        return
-    if len(positions) >= int(cfg.get("max_open_positions", 1)):
-        return
-    loss_cap = float(cfg.get("daily_loss_cap_usd", 0.50))
-    if daily_pnl <= -abs(loss_cap):
-        return
-
-    open_syms = {p["symbol"] for p in positions}
-    for sig in signals:
-        if sig["symbol"] in open_syms:
-            continue
-        if cfg.get("only_a_plus") and sig.get("grade") != "A+":
-            continue
-        lev = _compute_leverage(balance)
-        ok, _ = _place_bingx_multi_tpsl_order(
-            symbol=sig["symbol"],
-            action=sig["action"],
-            qty=float(sig["size"]),
-            leverage=lev,
-            sl=float(sig["sl"]),
-            tp1=float(sig["tp1"]),
-            tp2=float(sig["tp2"]),
-            tp3=float(sig["tp3"]),
-        )
-        if ok:
-            with STATE_LOCK:
-                TERMINAL_STATE["tracked_positions"][sig["symbol"]] = {
-                    "tp": float(sig["tp1"]),
-                    "tp1": float(sig["tp1"]),
-                    "tp2": float(sig["tp2"]),
-                    "tp3": float(sig["tp3"]),
-                    "sl": float(sig["sl"]),
-                    "timeframe": sig["timeframe"],
-                    "candle_close_ts": int(sig["candle_close_ts"]),
-                    "candle_close_utc": f"{sig['candle_close_utc']} UTC",
-                }
-                TERMINAL_STATE["telemetry_logs"].insert(0, {
-                    "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S"),
-                    "status": f"AUTO-EXEC {sig['action']} {sig['symbol']} ({lev}x • TP1/TP2/TP3+SL)",
-                    "signals_found": len(signals),
-                    "scanned": len(_all_assets()),
-                })
-                TERMINAL_STATE["telemetry_logs"] = TERMINAL_STATE["telemetry_logs"][:50]
-            break
-
-
-def _performance_payload(acc_info: Dict[str, float]) -> Dict[str, Any]:
-    with STATE_LOCK:
-        today_list = list(TERMINAL_STATE["closed_trades_today"])
-        month_list = list(TERMINAL_STATE["closed_trades_month"])
-
-    gross_today = round(sum(float(t.get("pnl", 0.0)) for t in today_list), 4)
-    fees_today = round(sum(float(t.get("fee", 0.0)) for t in today_list), 4)
-    net_today = round(gross_today - fees_today, 4)
-    wins_today = sum(1 for t in today_list if float(t.get("pnl", 0.0)) > 0)
-    win_pct = round((wins_today / len(today_list)) * 100.0, 1) if today_list else 0.0
-
-    gross_month = round(sum(float(t.get("pnl", 0.0)) for t in month_list), 4)
-    fees_month = round(sum(float(t.get("fee", 0.0)) for t in month_list), 4)
-    net_month = round(gross_month - fees_month, 4)
-
-    return {
-        "account": acc_info,
-        "daily": {
-            "gross_pnl": gross_today,
-            "fees_pnl": fees_today,
-            "net_pnl": net_today,
-            "total_trades": len(today_list),
+    def agg(predicate):
+        items = [t for t in closed if predicate(t)]
+        trade_items = [t for t in items if not t.get("is_fee")]
+        wins = [t for t in trade_items if safe_float(t.get("realized_pnl")) > 0]
+        losses = [t for t in trade_items if safe_float(t.get("realized_pnl")) < 0]
+        total = len(trade_items)
+        w_cnt = len(wins)
+        l_cnt = len(losses)
+        win_pct = round((w_cnt / total) * 100.0, 0) if total > 0 else 0.0
+        loss_pct = round((l_cnt / total) * 100.0, 0) if total > 0 else 0.0
+        won_amt = round(sum(safe_float(t.get("realized_pnl")) for t in wins), 4)
+        lost_amt = round(sum(abs(safe_float(t.get("realized_pnl"))) for t in losses), 4)
+        fees_amt = round(sum(safe_float(t.get("realized_pnl")) for t in items if t.get("is_fee")), 4)
+        gross_pnl = round(sum(safe_float(t.get("realized_pnl")) for t in trade_items), 4)
+        net_pnl = round(sum(safe_float(t.get("realized_pnl")) for t in items), 4)
+        return {
+            "total_trades": total,
+            "wins": w_cnt,
+            "losses": l_cnt,
             "win_pct": win_pct,
-        },
-        "monthly": {
-            "gross_pnl": gross_month,
-            "fees_pnl": fees_month,
-            "net_pnl": net_month,
-            "total_trades": len(month_list),
-        },
-    }
+            "loss_pct": loss_pct,
+            "won_amount": won_amt,
+            "lost_amount": lost_amt,
+            "fees_pnl": fees_amt,
+            "gross_pnl": gross_pnl,
+            "net_pnl": net_pnl,
+        }
 
-
-def _sessions_payload() -> Dict[str, Any]:
-    hour_utc = datetime.now(timezone.utc).hour
-    ny_open = 13 <= hour_utc < 21
-    lon_open = 7 <= hour_utc < 16
+    daily = agg(lambda t: str(t.get("closed_date", "")) == today_key)
+    monthly = agg(lambda t: str(t.get("closed_month", "")) == month_key)
+    daily["date"] = today_key
+    monthly["month"] = month_key
     return {
-        "Crypto 24/7": {
-            "status": "APERTO",
-            "hours": "00:00 - 24:00 UTC",
-            "badge_color": "#00ff66",
-        },
-        "Londra / Forex": {
-            "status": "APERTO" if lon_open else "CHIUSO",
-            "hours": "07:00 - 16:00 UTC",
-            "badge_color": "#00ff66" if lon_open else "#ff2a4b",
-        },
-        "New York / Indici": {
-            "status": "APERTO" if ny_open else "CHIUSO",
-            "hours": "13:00 - 21:00 UTC",
-            "badge_color": "#00ff66" if ny_open else "#ff2a4b",
-        },
+        "daily": daily,
+        "monthly": monthly,
+        "account": bal_info,
+        "account_error": bal_err,
+        "api_configured": bool(api_key and api_secret),
     }
+
+
+def maybe_execute_pro_autotrade(signals_out, live_positions, daily_net_pnl):
+    with STATE_LOCK:
+        enabled = bool(STATE.get("auto_trade"))
+        only_a_plus = bool(STATE.get("only_a_plus"))
+        max_pos = int(STATE.get("max_open_positions", 1))
+        daily_cap = -abs(safe_float(STATE.get("daily_loss_cap_usd"), 0.50))
+        rl_until = safe_float(STATE.get("bingx_rate_limit_until"), 0.0)
+        avail_bal = safe_float(STATE.get("last_bingx_available") or STATE.get("last_bingx_balance"), 0.0)
+
+    if not enabled or not signals_out or time.time() < rl_until:
+        return []
+    if daily_net_pnl <= daily_cap:
+        return []
+    if len(live_positions) >= max_pos:
+        return []
+
+    active_syms = {canonicalize_symbol_key(p.get("symbol")) for p in live_positions}
+    now_ts = time.time()
+    executed = []
+
+    for sig in signals_out:
+        if sig.get("action") not in ("BUY", "SELL"):
+            continue
+        if only_a_plus and sig.get("grade") not in ("A+", "CERTO"):
+            continue
+        sym = sig["symbol"]
+        if sym in active_syms:
+            continue
+        if (now_ts - _AUTOTRADE_LAST_EXEC.get(sym, 0.0)) < 120.0:
+            continue
+
+        entry_p = safe_float(sig.get("price") or sig.get("entry"), 0.0)
+        lev_num = int(safe_float(sig.get("leverage_num"), 20))
+        eff_cap = max(MIN_BINGX_CAPITAL_USD, avail_bal if avail_bal >= MIN_BINGX_CAPITAL_USD else safe_float(sig.get("margin"), MIN_BINGX_CAPITAL_USD) * max(1, lev_num))
+        qty = compute_order_quantity(
+            sig.get("bingx_symbol") or resolve_bingx_symbol(sym)[0],
+            entry_p,
+            safe_float(sig.get("size"), 0.0),
+            eff_cap,
+            lev_num,
+        )
+        if qty <= 0:
+            continue
+
+        exec_res, err = place_bingx_order_with_tpsl(
+            symbol=sym,
+            action=sig["action"],
+            qty=qty,
+            sl_price=safe_float(sig.get("sl"), 0.0),
+            tp_price=safe_float(sig.get("tp1"), 0.0),
+            leverage=lev_num,
+            timeframe=sig.get("timeframe") or "15m",
+            candle_close_ts=int(safe_float(sig.get("candle_close_ts"), 0)),
+        )
+        _AUTOTRADE_LAST_EXEC[sym] = now_ts
+        if not err:
+            executed.append({
+                "symbol": sig["bingx_symbol"],
+                "action": sig["action"],
+                "qty": qty,
+                "leverage": f"{lev_num}x",
+                "sl": (exec_res or {}).get("sl_price") or sig.get("sl"),
+                "tp1": (exec_res or {}).get("tp_price") or sig.get("tp1"),
+                "sl_error": (exec_res or {}).get("sl_error"),
+                "tp_error": (exec_res or {}).get("tp_error"),
+                "candle_duration_sec": sig.get("candle_duration_sec"),
+                "candle_open_utc": sig.get("candle_open_utc"),
+                "candle_close_utc": sig.get("candle_close_utc"),
+                "order": exec_res,
+            })
+            break
+        with STATE_LOCK:
+            STATE["last_bingx_balance_error"] = err
+    return executed
 
 
 @app.route("/")
-def index() -> str:
+def index():
     return render_template("index.html", market_catalog=MARKET_CATALOG)
 
 
-@app.route("/api/signals")
-def api_signals():
-    profile = request.args.get("profile", "pro_sniper")
-    timeframe = request.args.get("timeframe", "15m")
-    if timeframe not in TF_SECONDS:
-        timeframe = "15m"
-    balance = max(2.0, float(request.args.get("balance", 2.0) or 2.0))
-    risk_pct = min(10.0, max(0.25, float(request.args.get("risk", 1.0) or 1.0)))
-    min_score = min(98.0, max(20.0, float(request.args.get("min_score", 70.0) or 70.0)))
-    min_rrr = min(10.0, max(0.5, float(request.args.get("min_rrr", 1.5) or 1.5)))
-    market_filter = request.args.get("market", "ALL")
-    symbol_filter = request.args.get("symbol", "ALL")
-
-    candidates = _all_assets()
-    if market_filter and market_filter != "ALL":
-        candidates = [a for a in candidates if a["category"] == market_filter]
-    if symbol_filter and symbol_filter != "ALL":
-        candidates = [a for a in candidates if a["symbol"].upper() == symbol_filter.upper()]
-
-    rows = [
-        _evaluate_asset(a, profile, timeframe, balance, risk_pct, min_score, min_rrr)
-        for a in candidates
-    ]
-    valid_signals = [r for r in rows if r["action"] in ("BUY", "SELL")]
-
-    market_diagnostics: Dict[str, Any] = {}
-    for cat_name in MARKET_CATALOG.keys():
-        cat_rows = [r for r in rows if r["category"] == cat_name]
-        cat_sigs = [r for r in cat_rows if r["action"] in ("BUY", "SELL")]
-        avg_score = round(sum(r["score"] for r in cat_rows) / len(cat_rows), 1) if cat_rows else 0.0
-        certain_cnt = sum(1 for r in cat_rows if r["grade"] in ("A+", "A") and not r["fakeout"])
-        market_diagnostics[cat_name] = {
-            "is_open": True,
-            "status": "ATTIVO",
-            "signals_count": len(cat_sigs),
-            "scanned": len(cat_rows),
-            "market_score": avg_score,
-            "certain_count": certain_cnt,
-            "reason": (
-                f"{len(cat_sigs)} segnali validi su {len(cat_rows)} asset (Score medio {avg_score}%)"
-                if cat_rows
-                else "Nessun asset in questo filtro"
-            ),
-        }
-
-    _sync_bingx_income_history()
-    positions, total_upnl, used_margin, _ = _fetch_bingx_positions()
-    _check_candle_end_closures(positions)
-    acc_info, _ = _fetch_bingx_balance(used_margin)
-    if acc_info["unrealized_pnl"] == 0.0 and total_upnl != 0.0:
-        acc_info["unrealized_pnl"] = total_upnl
-
-    _maybe_run_autotrade(valid_signals, positions, acc_info["balance"] or balance)
-
-    with STATE_LOCK:
-        TERMINAL_STATE["scans_count"] += 1
-        scans_now = TERMINAL_STATE["scans_count"]
-        auto_on = TERMINAL_STATE["auto_trade"]
-        logs = list(TERMINAL_STATE["telemetry_logs"])
-        TERMINAL_STATE["last_params"] = {
-            "profile": profile,
-            "timeframe": timeframe,
-            "balance": balance,
-            "risk": risk_pct,
-            "min_score": min_score,
-            "min_rrr": min_rrr,
-        }
-        TERMINAL_STATE["telemetry_logs"].insert(0, {
-            "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S"),
-            "status": f"SCAN #{scans_now} ({timeframe}, {profile})",
-            "signals_found": len(valid_signals),
-            "scanned": len(rows),
-        })
-        TERMINAL_STATE["telemetry_logs"] = TERMINAL_STATE["telemetry_logs"][:50]
-
-    return jsonify({
-        "auto_trade": auto_on,
-        "active_params": {
-            "profile": profile,
-            "timeframe": timeframe,
-            "balance": balance,
-            "risk": risk_pct,
-            "min_score": min_score,
-            "min_rrr": min_rrr,
-        },
-        "candle_timing": _candle_timing(timeframe),
-        "signals": valid_signals,
-        "market_monitoring_table": rows,
-        "market_diagnostics": market_diagnostics,
-        "sessions": _sessions_payload(),
-        "performance": _performance_payload(acc_info),
-        "telemetry": {
-            "scans_count": scans_now,
-            "active_orders_count": len(positions),
-            "telemetry_logs": logs,
-        },
-    })
-
-
-@app.route("/api/bingx/live-account")
+@app.route("/api/bingx/live-account", methods=["GET"])
 def api_bingx_live_account():
-    _sync_bingx_income_history()
-    positions, total_upnl, used_margin, pos_err = _fetch_bingx_positions()
-    _check_candle_end_closures(positions)
-    acc_info, bal_err = _fetch_bingx_balance(used_margin)
-    if acc_info["unrealized_pnl"] == 0.0 and total_upnl != 0.0:
-        acc_info["unrealized_pnl"] = total_upnl
-
+    api_key, api_secret = get_bingx_credentials()
+    positions, pos_err = fetch_bingx_real_positions()
+    auto_closed = monitor_and_enforce_tpsl_and_timeframe_close(positions)
+    if auto_closed:
+        positions, pos_err = fetch_bingx_real_positions()
+    bal_info, bal_err = fetch_bingx_real_balance()
+    sync_bingx_real_closed_trades()
     with STATE_LOCK:
-        auto_on = TERMINAL_STATE["auto_trade"]
-        risk_cfg = dict(TERMINAL_STATE["risk_config"])
-
-    status_err = pos_err or bal_err
+        session_pnl = STATE["session_pnl"]
+        auto_trade = bool(STATE["auto_trade"])
+        risk_cfg = {
+            "only_a_plus": bool(STATE["only_a_plus"]),
+            "max_open_positions": int(STATE["max_open_positions"]),
+            "daily_loss_cap_usd": float(STATE["daily_loss_cap_usd"]),
+            "close_at_candle_end": bool(STATE.get("close_at_candle_end", True)),
+        }
     return jsonify({
-        "auto_trade": auto_on,
+        "success": bool(api_key and api_secret) and not (bal_err and pos_err),
+        "mode": "BINGX PRO DESK",
+        "api_configured": bool(api_key and api_secret),
+        "auto_trade": auto_trade,
         "risk_config": risk_cfg,
-        "account": acc_info,
+        "account": bal_info,
+        "balance_error": bal_err,
         "positions": positions,
-        "positions_error": status_err,
-    })
-
-
-@app.route("/api/live-ticker")
-def api_live_ticker():
-    sym_param = request.args.get("symbol", "BTC/USDT")
-    asset = _find_asset(sym_param)
-    bx_sym = asset["bx_symbol"]
-    url = f"{BINGX_BASE_URL}/openApi/swap/v2/quote/ticker?symbol={bx_sym}"
-    ok, data, _ = _http_get_json(url, timeout=5)
-    price = 0.0
-    if ok and isinstance(data, dict) and isinstance(data.get("data"), dict):
-        price = float(data["data"].get("lastPrice", 0) or 0)
-    if price <= 0:
-        with STATE_LOCK:
-            tf = TERMINAL_STATE["last_params"].get("timeframe", "15m")
-        candles, _ = _fetch_candles(asset, tf, limit=5)
-        price = candles[-1]["close"]
-
-    return jsonify({
-        "symbol": asset["symbol"],
-        "bingx_symbol": bx_sym,
-        "price": price,
+        "positions_error": pos_err,
+        "auto_closed": auto_closed,
+        "session_pnl": session_pnl,
         "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
     })
 
 
-@app.route("/api/candles")
-def api_candles():
-    sym_param = request.args.get("symbol", "BTC/USDT")
-    tf = request.args.get("tf", "15m")
-    if tf not in TF_SECONDS:
-        tf = "15m"
-    asset = _find_asset(sym_param)
-    candles, is_live = _fetch_candles(asset, tf, limit=60)
+@app.route("/api/bingx/close-position", methods=["POST"])
+def api_bingx_close_position():
+    body = request.get_json(silent=True) or {}
+    sym = body.get("symbol", "")
+    act = body.get("action", "")
+    sz = safe_float(body.get("size"), 0.0)
+    res, err = close_bingx_position(sym, act, sz, reason="MANUAL")
+    if err:
+        return jsonify({"success": False, "error": err}), 400
+    return jsonify({"success": True, "closed": res})
+
+
+@app.route("/api/bingx/close-all", methods=["POST"])
+def api_bingx_close_all():
+    positions, pos_err = fetch_bingx_real_positions()
+    if pos_err:
+        return jsonify({"success": False, "error": pos_err}), 400
+    closed_all = []
+    for p in positions:
+        res, err = close_bingx_position(p.get("symbol"), p.get("action"), p.get("size"), reason="PANIC_CLOSE_ALL")
+        if err:
+            return jsonify({"success": False, "error": err, "closed": closed_all}), 400
+        if res:
+            closed_all.extend(res)
+    return jsonify({"success": True, "closed_count": len(closed_all), "closed": closed_all})
+
+
+@app.route("/api/live-ticker", methods=["GET"])
+def api_live_ticker():
+    sym = canonicalize_symbol_key(request.args.get("symbol", "BTCUSDT"))
+    meta = ASSET_LOOKUP.get(sym, {"symbol": sym, "bx": resolve_bingx_symbol(sym)[0]})
+    live_p = fetch_bingx_ticker(meta["bx"])
+    if not live_p or live_p <= 0:
+        return jsonify({"error": f"Prezzo live non disponibile per {meta['bx']}"}), 503
     return jsonify({
-        "symbol": asset["symbol"],
-        "bingx_symbol": asset["bx_symbol"],
-        "timeframe": tf,
-        "is_live": is_live,
-        "candles": candles,
+        "symbol": sym,
+        "bingx_symbol": meta["bx"],
+        "price": live_p,
+        "live": True,
+        "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
     })
 
 
-@app.route("/api/autotrade/toggle", methods=["POST"])
-def api_autotrade_toggle():
+@app.route("/api/candles", methods=["GET"])
+def api_candles():
+    sym = canonicalize_symbol_key(request.args.get("symbol", "BTCUSDT"))
+    tf = (request.args.get("tf") or request.args.get("timeframe") or "15m").strip()
+    if tf not in ("5m", "15m", "1h"):
+        tf = "15m"
+    meta = ASSET_LOOKUP.get(sym, {"symbol": sym, "bx": resolve_bingx_symbol(sym)[0], "precision": 2})
+    df, curr_price = get_real_market_dataframe(meta, tf)
+    timing = get_timeframe_candle_timing(tf, time.time())
+    if df is None or df.empty:
+        return jsonify({
+            "symbol": sym,
+            "bingx_symbol": meta["bx"],
+            "timeframe": tf,
+            "price": curr_price or 0.0,
+            "candles": [],
+            **timing,
+        }), 200
+
+    ema20_s = df["Close"].ewm(span=20, adjust=False).mean()
+    ema50_s = df["Close"].ewm(span=50, adjust=False).mean()
+    tail_df = df.tail(45).copy()
+    tail_ema20 = ema20_s.tail(45)
+    tail_ema50 = ema50_s.tail(45)
+
+    candles = [
+        {
+            "open": safe_float(row.get("Open")),
+            "high": safe_float(row.get("High")),
+            "low": safe_float(row.get("Low")),
+            "close": safe_float(row.get("Close")),
+            "volume": safe_float(row.get("Volume")),
+            "ema20": safe_float(tail_ema20.loc[idx]),
+            "ema50": safe_float(tail_ema50.loc[idx]),
+        }
+        for idx, row in tail_df.iterrows()
+    ]
+    return jsonify({
+        "symbol": sym,
+        "bingx_symbol": meta["bx"],
+        "timeframe": tf,
+        "price": curr_price,
+        "candles": candles,
+        **timing,
+    }), 200
+
+
+@app.route("/api/signals", methods=["GET"])
+def get_signals():
+    profile = request.args.get("profile", "pro_sniper")
+    timeframe = request.args.get("timeframe", "15m")
+    if timeframe not in ("5m", "15m", "1h"):
+        timeframe = "15m"
+    balance = max(MIN_BINGX_CAPITAL_USD, safe_float(request.args.get("balance"), MIN_BINGX_CAPITAL_USD))
+    risk_pct = min(10.0, max(0.25, safe_float(request.args.get("risk"), 1.0)))
+    min_score = min(98.0, max(20.0, safe_float(request.args.get("min_score"), 70.0)))
+    min_rrr = min(10.0, max(0.5, safe_float(request.args.get("min_rrr"), 1.5)))
+    market_filter = request.args.get("market", "ALL")
+    symbol_filter = request.args.get("symbol", "ALL")
+
     with STATE_LOCK:
-        TERMINAL_STATE["auto_trade"] = not bool(TERMINAL_STATE["auto_trade"])
-        new_state = TERMINAL_STATE["auto_trade"]
-    return jsonify({"success": True, "auto_trade": new_state})
+        STATE["active_timeframe"] = timeframe
+
+    cfg = build_pro_profile_config(profile, timeframe, min_score, min_rrr)
+    sessions = get_session_statuses()
+    candle_timing = get_timeframe_candle_timing(timeframe, time.time())
+
+    tasks = []
+    for category, assets in MARKET_CATALOG.items():
+        sess = sessions.get(category, {"status": "APERTO (Live)", "is_open": True, "hours": "24/7"})
+        is_open = bool(sess.get("is_open", True))
+        for meta in assets:
+            if market_filter != "ALL" and category != market_filter:
+                continue
+            if symbol_filter != "ALL" and meta["symbol"] != symbol_filter:
+                continue
+            tasks.append((category, is_open, meta))
+
+    monitoring_rows = []
+    signals_out = []
+
+    def _worker(cat, open_flag, m_item):
+        df_m, p_m = get_real_market_dataframe(m_item, timeframe)
+        if df_m is None or p_m <= 0:
+            return None
+        return evaluate_pro_setup(df_m, p_m, m_item["symbol"], cat, open_flag, balance, risk_pct, cfg)
+
+    with ThreadPoolExecutor(max_workers=12) as pool:
+        futs = [pool.submit(_worker, c, o, m) for (c, o, m) in tasks]
+        for fut in as_completed(futs, timeout=12.0):
+            try:
+                ev = fut.result(timeout=2.0)
+                if ev:
+                    monitoring_rows.append(ev)
+                    if ev["taken"]:
+                        signals_out.append(ev)
+            except Exception:
+                pass
+
+    monitoring_rows.sort(key=lambda r: (1 if r.get("taken") else 0, safe_float(r.get("score"))), reverse=True)
+    signals_out.sort(key=lambda s: safe_float(s.get("score")), reverse=True)
+
+    live_positions, _ = fetch_bingx_real_positions()
+    auto_closed = monitor_and_enforce_tpsl_and_timeframe_close(live_positions)
+    if auto_closed:
+        live_positions, _ = fetch_bingx_real_positions()
+
+    perf_payload = build_performance_payload()
+    daily_net = safe_float((perf_payload.get("daily") or {}).get("net_pnl"), 0.0)
+    autotrade_executed = maybe_execute_pro_autotrade(signals_out, live_positions, daily_net)
+
+    market_diagnostics = {}
+    for category in MARKET_CATALOG.keys():
+        sess = sessions.get(category, {"status": "APERTO (Live)", "is_open": True, "hours": "24/7"})
+        cat_rows = [r for r in monitoring_rows if r.get("category") == category]
+        cat_sigs = [r for r in cat_rows if r.get("taken")]
+        certain_cnt = sum(1 for r in cat_rows if r.get("grade") in ("CERTO", "A+"))
+        avg_sc = round(sum(safe_float(r.get("score")) for r in cat_rows) / len(cat_rows), 1) if cat_rows else 0.0
+        top_r = cat_rows[0] if cat_rows else None
+        top_txt = f" • Top: {top_r['symbol']} ({top_r['score']}% {top_r['grade']})" if top_r else ""
+        if not sess.get("is_open", True):
+            reason = f"Mercato chiuso ({sess.get('hours')})."
+        elif cat_sigs:
+            reason = f"{len(cat_sigs)} setup validati (score >= {cfg['min_score']}%) su {category}{top_txt}."
+        else:
+            reason = f"Nessun setup con score >= {cfg['min_score']}% e R:R 1:{cfg['min_rrr']}{top_txt}."
+        market_diagnostics[category] = {
+            "is_open": bool(sess.get("is_open", True)),
+            "status": sess.get("status", "APERTO"),
+            "scanned": len(cat_rows),
+            "signals_count": len(cat_sigs),
+            "certain_count": certain_cnt,
+            "market_score": avg_sc,
+            "reason": reason,
+        }
+
+    with STATE_LOCK:
+        STATE["scans_count"] += 1
+        scans_val = STATE["scans_count"]
+        auto_trade_val = bool(STATE["auto_trade"])
+        STATE["telemetry_logs"] = ([{
+            "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
+            "status": f"PRO DESK {timeframe} ({cfg['profile_label']})",
+            "signals_found": len(signals_out),
+            "scanned": len(monitoring_rows),
+        }] + STATE["telemetry_logs"])[:40]
+        logs_copy = list(STATE["telemetry_logs"])
+
+    return jsonify({
+        "sessions": sessions,
+        "signals": signals_out,
+        "active_params": cfg,
+        "candle_timing": candle_timing,
+        "auto_trade": auto_trade_val,
+        "autotrade_executed": autotrade_executed,
+        "auto_closed": auto_closed,
+        "market_diagnostics": market_diagnostics,
+        "market_monitoring_table": monitoring_rows,
+        "performance": perf_payload,
+        "telemetry": {
+            "scans_count": scans_val,
+            "active_orders_count": len(live_positions),
+            "session_pnl": STATE["session_pnl"],
+            "performance": perf_payload,
+            "telemetry_logs": logs_copy,
+        },
+    })
+
+
+@app.route("/api/analytics/performance", methods=["GET"])
+def api_analytics_performance():
+    return jsonify(build_performance_payload())
+
+
+@app.route("/api/autotrade/toggle", methods=["GET", "POST"])
+def api_autotrade_toggle():
+    body = request.get_json(silent=True) or {}
+    with STATE_LOCK:
+        if "enabled" in body:
+            STATE["auto_trade"] = bool(body["enabled"])
+        elif request.args.get("enabled") is not None:
+            STATE["auto_trade"] = str(request.args.get("enabled")).lower() in ("1", "true", "on", "yes")
+        else:
+            STATE["auto_trade"] = not bool(STATE.get("auto_trade"))
+        curr = bool(STATE["auto_trade"])
+    return jsonify({"success": True, "auto_trade": curr})
 
 
 @app.route("/api/autotrade/config", methods=["POST"])
 def api_autotrade_config():
     body = request.get_json(silent=True) or {}
     with STATE_LOCK:
-        cfg = TERMINAL_STATE["risk_config"]
-        if "max_open_positions" in body:
-            cfg["max_open_positions"] = max(1, min(10, int(body["max_open_positions"])))
-        if "daily_loss_cap_usd" in body:
-            cfg["daily_loss_cap_usd"] = max(0.05, float(body["daily_loss_cap_usd"]))
         if "only_a_plus" in body:
-            cfg["only_a_plus"] = bool(body["only_a_plus"])
+            STATE["only_a_plus"] = bool(body["only_a_plus"])
+        if "max_open_positions" in body:
+            STATE["max_open_positions"] = max(1, min(10, int(safe_float(body["max_open_positions"], 1))))
+        if "daily_loss_cap_usd" in body:
+            STATE["daily_loss_cap_usd"] = max(0.05, min(500.0, safe_float(body["daily_loss_cap_usd"], 0.50)))
         if "close_at_candle_end" in body:
-            cfg["close_at_candle_end"] = bool(body["close_at_candle_end"])
-        if "tp_split_pct" in body and isinstance(body["tp_split_pct"], list) and len(body["tp_split_pct"]) == 3:
-            cfg["tp_split_pct"] = [max(0.0, float(x)) for x in body["tp_split_pct"]]
-        saved = dict(cfg)
-    return jsonify({"success": True, "risk_config": saved})
+            STATE["close_at_candle_end"] = bool(body["close_at_candle_end"])
+        cfg_out = {
+            "only_a_plus": bool(STATE["only_a_plus"]),
+            "max_open_positions": int(STATE["max_open_positions"]),
+            "daily_loss_cap_usd": float(STATE["daily_loss_cap_usd"]),
+            "close_at_candle_end": bool(STATE.get("close_at_candle_end", True)),
+        }
+    return jsonify({"success": True, "risk_config": cfg_out})
 
 
 @app.route("/api/autotrade/execute-manual", methods=["POST"])
 def api_execute_manual():
+    api_key, api_secret = get_bingx_credentials()
+    if not (api_key and api_secret):
+        return jsonify({
+            "success": False,
+            "error": "Imposta BINGX_API_KEY e BINGX_SECRET_KEY nelle variabili d'ambiente su Render.",
+        }), 400
+
     body = request.get_json(silent=True) or {}
-    symbol = str(body.get("symbol", "BTC/USDT"))
-    action = str(body.get("action", "BUY")).upper()
+    sym = canonicalize_symbol_key(body.get("symbol", "BTCUSDT"))
+    bx_symbol, _ = resolve_bingx_symbol(sym)
+    action = (body.get("action") or "BUY").upper()
     if action not in ("BUY", "SELL"):
-        return jsonify({"success": False, "error": "Azione non valida (usa BUY o SELL)"}), 400
+        action = "BUY"
 
-    qty = float(body.get("size", 0) or 0)
+    curr_p = fetch_bingx_ticker(bx_symbol) or safe_float(body.get("entry"), 0.0)
+    with STATE_LOCK:
+        avail_bal = safe_float(STATE.get("last_bingx_available") or STATE.get("last_bingx_balance"), MIN_BINGX_CAPITAL_USD)
+    req_bal = max(MIN_BINGX_CAPITAL_USD, safe_float(body.get("balance"), avail_bal))
+    lev_num = int(safe_float(body.get("leverage"), compute_dynamic_leverage(sym, "Criptovalute Globali", req_bal, curr_p)))
+
+    raw_size = safe_float(body.get("size"), 0.0)
+    qty = compute_order_quantity(bx_symbol, curr_p, raw_size, req_bal, lev_num)
     if qty <= 0:
-        return jsonify({"success": False, "error": "Quantità ordine non valida"}), 400
+        return jsonify({"success": False, "error": "Quantità ordine non valida per il saldo/prezzo corrente."}), 400
 
-    sl = float(body.get("sl", 0) or 0)
-    tp1 = float(body.get("tp1", 0) or 0)
-    tp2 = float(body.get("tp2", 0) or 0)
-    tp3 = float(body.get("tp3", 0) or 0)
-    balance = max(2.0, float(body.get("balance", 2.0) or 2.0))
-    leverage = int(body.get("leverage") or _compute_leverage(balance))
-    tf = str(body.get("timeframe", "15m"))
-    if tf not in TF_SECONDS:
-        tf = "15m"
-    timing = _candle_timing(tf)
-    c_close_ts = int(body.get("candle_close_ts") or timing["candle_close_ts"])
+    sl_p = safe_float(body.get("sl"), 0.0)
+    tp_p = safe_float(body.get("tp1"), 0.0)
+    tf = (body.get("timeframe") or "15m").strip()
+    timing = get_timeframe_candle_timing(tf, time.time())
+    close_ts = int(safe_float(body.get("candle_close_ts"), timing["candle_close_ts"]))
 
-    ok, info = _place_bingx_multi_tpsl_order(
-        symbol=symbol,
+    exec_res, err = place_bingx_order_with_tpsl(
+        symbol=sym,
         action=action,
         qty=qty,
-        leverage=leverage,
-        sl=sl if sl > 0 else None,
-        tp1=tp1 if tp1 > 0 else None,
-        tp2=tp2 if tp2 > 0 else None,
-        tp3=tp3 if tp3 > 0 else None,
+        sl_price=sl_p,
+        tp_price=tp_p,
+        leverage=lev_num,
+        timeframe=tf,
+        candle_close_ts=close_ts,
     )
-    if not ok:
-        return jsonify({"success": False, "error": info.get("error", "Errore invio ordine BingX")}), 400
-
-    asset = _find_asset(symbol)
-    with STATE_LOCK:
-        TERMINAL_STATE["tracked_positions"][asset["symbol"]] = {
-            "tp": tp1,
-            "tp1": tp1,
-            "tp2": tp2,
-            "tp3": tp3,
-            "sl": sl,
-            "timeframe": tf,
-            "candle_close_ts": c_close_ts,
-            "candle_close_utc": f"{timing['candle_close_utc']} UTC",
-        }
+    if err:
+        return jsonify({"success": False, "error": f"Errore BingX ordine reale: {err}"}), 400
 
     return jsonify({
         "success": True,
-        "symbol": asset["bx_symbol"],
-        "action": action,
+        "mode": "BINGX PRO DESK",
+        "symbol": bx_symbol,
         "qty": qty,
-        "leverage": f"{leverage}x",
-        "sl": sl if sl > 0 else None,
-        "tp1": tp1 if tp1 > 0 else None,
-        "tp2": tp2 if tp2 > 0 else None,
-        "tp3": tp3 if tp3 > 0 else None,
-        "sl_error": info.get("sl_error", ""),
-        "tp_error": info.get("tp_error", ""),
+        "leverage": f"{lev_num}x",
+        "sl": (exec_res or {}).get("sl_price"),
+        "tp1": (exec_res or {}).get("tp_price"),
+        "sl_error": (exec_res or {}).get("sl_error"),
+        "tp_error": (exec_res or {}).get("tp_error"),
         "candle_timing": timing,
+        "order": exec_res,
     })
 
 
-@app.route("/api/bingx/close-position", methods=["POST"])
-def api_close_position():
-    body = request.get_json(silent=True) or {}
-    symbol = str(body.get("symbol", ""))
-    action = str(body.get("action", "BUY")).upper()
-    qty = float(body.get("size", 0) or 0)
-    if not symbol or qty <= 0:
-        return jsonify({"success": False, "error": "Parametri posizione non validi"}), 400
-
-    ok, info = _place_bingx_multi_tpsl_order(symbol=symbol, action=action, qty=qty, reduce_only=True)
-    if not ok:
-        return jsonify({"success": False, "error": info.get("error", "Errore chiusura posizione")}), 400
-
-    asset = _find_asset(symbol)
+@app.route("/api/autotrade/status", methods=["GET"])
+def api_autotrade_status():
+    api_key, api_secret = get_bingx_credentials()
+    positions, pos_err = fetch_bingx_real_positions()
+    perf = build_performance_payload()
     with STATE_LOCK:
-        TERMINAL_STATE["tracked_positions"].pop(asset["symbol"], None)
-    return jsonify({"success": True, "symbol": asset["bx_symbol"]})
-
-
-@app.route("/api/bingx/close-all", methods=["POST"])
-def api_close_all():
-    positions, _, _, err = _fetch_bingx_positions()
-    if err and not positions:
-        return jsonify({"success": False, "error": err}), 400
-
-    closed = 0
-    errors: List[str] = []
-    for p in positions:
-        ok, info = _place_bingx_multi_tpsl_order(
-            symbol=p["symbol"],
-            action=p["action"],
-            qty=float(p["size"]),
-            reduce_only=True,
-        )
-        if ok:
-            closed += 1
-            with STATE_LOCK:
-                TERMINAL_STATE["tracked_positions"].pop(p["symbol"], None)
-        else:
-            errors.append(f"{p['bx_symbol']}: {info.get('error', 'errore')}")
-
+        closed_copy = list(STATE["closed_trades"])
+        auto_trade_val = bool(STATE["auto_trade"])
     return jsonify({
-        "success": len(errors) == 0,
-        "closed_count": closed,
-        "error": "; ".join(errors),
+        "auto_trade": auto_trade_val,
+        "mode": "BINGX PRO DESK",
+        "api_configured": bool(api_key and api_secret),
+        "positions": positions,
+        "positions_error": pos_err,
+        "history": closed_copy,
+        "performance": perf,
     })
+
+
+@app.route("/api/telemetry", methods=["GET"])
+def api_telemetry():
+    sync_bingx_real_closed_trades()
+    positions, _ = fetch_bingx_real_positions()
+    bal_info, _ = fetch_bingx_real_balance()
+    perf = build_performance_payload()
+    with STATE_LOCK:
+        return jsonify({
+            "scans_count": STATE["scans_count"],
+            "active_orders_count": len(positions),
+            "session_pnl": STATE["session_pnl"],
+            "auto_trade": bool(STATE["auto_trade"]),
+            "account": bal_info,
+            "performance": perf,
+            "telemetry_logs": list(STATE["telemetry_logs"]),
+        })
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "5000")), debug=False)
