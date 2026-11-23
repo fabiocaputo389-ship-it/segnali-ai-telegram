@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ApexScan Pro - Segnali, Posizioni BingX, Telemetria &amp; Tutti i Mercati</title>
+  <title>ApexScan Pro Live - Segnali Reali, Posizioni BingX &amp; Tutti i Mercati</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -51,7 +51,7 @@
         <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-[#FFD700] via-[#FFA500] to-[#CC8400] text-black flex items-center justify-center font-extrabold text-lg border border-[#FFD700]">📊</div>
         <div>
           <div class="flex items-center gap-2">
-            <h1 class="text-sm sm:text-base font-extrabold tracking-tight text-white">APEXSCAN <span class="text-[#FFD700]">Telemetria, BingX &amp; Tutti i Mercati</span></h1>
+            <h1 class="text-sm sm:text-base font-extrabold tracking-tight text-white">APEXSCAN <span class="text-[#FFD700]">Live BingX &amp; Tutti i Mercati</span></h1>
             <span id="modeStatusBadge" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-white/10 text-white/80 border border-white/20">
               <span id="modeDot" class="w-1.5 h-1.5 rounded-full bg-[#FFD700]"></span> <span id="modeText">MANUALE</span>
             </span>
@@ -59,7 +59,7 @@
           <div class="flex items-center gap-2 text-[11px] font-mono text-white/70 mt-0.5">
             <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
-            <span class="text-[#FFD700]">Materie Prime • Forex • Azioni • Cripto</span>
+            <span class="text-[#00FF66]">FEED REALE BINGX</span>
           </div>
         </div>
       </div>
@@ -92,7 +92,7 @@
       </span>
       <div class="overflow-hidden w-full relative">
         <div id="liveTickerMarquee" class="ticker-wrapper font-mono text-xs text-white flex items-center gap-6">
-          <span class="text-white/50">Caricamento ticker in tempo reale...</span>
+          <span class="text-white/50">Caricamento ticker reale...</span>
         </div>
       </div>
     </div>
@@ -146,13 +146,13 @@
         <div class="priority-signal-box rounded-2xl p-4">
           <div class="flex items-center justify-between pb-2.5 mb-3 border-b border-[#FFD700]/30">
             <div>
-              <h2 class="text-sm font-extrabold uppercase tracking-wider text-white">⚡ SEGNALI OPERATIVI CON TELEMETRIA REALE</h2>
-              <p class="text-[11px] text-[#FFD700]" id="signalsSubtitle">R:R, Expected Value (EV), Kelly, Certezza, Target ETA e Finestra Candela 15m</p>
+              <h2 class="text-sm font-extrabold uppercase tracking-wider text-white">⚡ SEGNALI OPERATIVI IN TEMPO REALE</h2>
+              <p class="text-[11px] text-[#FFD700]" id="signalsSubtitle">R:R, Expected Value (EV), Kelly, Certezza Multi-TF, Target ETA e Finestra Candela</p>
             </div>
-            <span class="px-2.5 py-1 rounded-md text-[11px] font-mono font-extrabold bg-[#FFD700] text-black">ANTI-FALSI ON</span>
+            <span class="px-2.5 py-1 rounded-md text-[11px] font-mono font-extrabold bg-[#FFD700] text-black">LIVE</span>
           </div>
           <div id="signalsCardsContainer" class="space-y-4">
-            <div class="text-xs font-mono text-white/70 py-4 text-center">Scansione mercati in corso...</div>
+            <div class="text-xs font-mono text-white/70 py-4 text-center">Scansione candele in corso...</div>
           </div>
         </div>
       </section>
@@ -160,11 +160,11 @@
       <aside class="xl:col-span-3 terminal-card rounded-2xl overflow-hidden">
         <div class="px-4 py-3 border-b border-white/15 bg-[#08080A]">
           <h2 class="text-sm font-bold text-white flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full bg-[#FFD700] animate-ping"></span> Feed Notifiche &amp; Ordini
+            <span class="w-2 h-2 rounded-full bg-[#FFD700] animate-ping"></span> Feed Esecuzioni &amp; Chiusure
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2 max-h-[720px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">[System] Telemetria e esecuzione BingX pronte.</div>
+          <div class="p-2 rounded bg-white/5 text-white/70">[System] Motore live attivo.</div>
         </div>
       </aside>
     </div>
@@ -182,7 +182,6 @@
         </div>
       </div>
 
-      <!-- 7 BOX METRICHE PNL -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div class="bg-[#000000] border border-white/15 rounded-xl p-3.5">
           <span class="text-[10px] text-white/60 uppercase block">WALLET BALANCE</span>
@@ -214,13 +213,11 @@
         </div>
       </div>
 
-      <!-- POSIZIONI APERTE SU BINGX -->
       <div class="bg-[#000000] border border-white/15 rounded-xl p-4 space-y-3">
         <h3 class="text-xs font-extrabold uppercase text-white">POSIZIONI APERTE SU BINGX (AVANZAMENTO TP / SL / FINE CANDELA)</h3>
         <div id="bingxOpenPositionsBox" class="text-white/70">Nessuna posizione aperta su BingX.</div>
       </div>
 
-      <!-- PARAMETRI AUTO-TRADE, TP/SL & CHIUSURA FINE TIMEFRAME -->
       <div class="bg-[#000000] border border-white/15 rounded-xl p-4 space-y-4">
         <h3 class="text-xs font-extrabold uppercase text-[#FFD700]">PARAMETRI AUTO-TRADE, TP/SL &amp; CHIUSURA FINE TIMEFRAME</h3>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -235,7 +232,7 @@
           <div>
             <label class="text-[10px] text-white/60 uppercase block mb-1">CHIUSURA A FINE CANDELA TF</label>
             <select id="autoCloseOnCandleEnd" onchange="saveAutoTradeSettings()" class="w-full bg-[#08080A] border border-white/25 rounded-lg px-3 py-2 text-white font-bold outline-none focus:border-[#FFD700]">
-              <option value="ON">Attiva (Fine Candela)</option>
+              <option value="ON">Attiva (Fine Candela Reale)</option>
               <option value="OFF">Disattiva</option>
             </select>
           </div>
@@ -243,7 +240,7 @@
             <label class="text-[10px] text-white/60 uppercase block mb-1">FILTRO AUTO-TRADE</label>
             <select id="autoTradeFilter" onchange="saveAutoTradeSettings()" class="w-full bg-[#08080A] border border-white/25 rounded-lg px-3 py-2 text-white font-bold outline-none focus:border-[#FFD700]">
               <option value="ALL_VALID">Tutti i Setup Validati</option>
-              <option value="HIGH_CERTAINTY">Solo Certezza &ge; 85%</option>
+              <option value="HIGH_CERTAINTY">Solo Certezza &ge; 80%</option>
             </select>
           </div>
         </div>
@@ -252,11 +249,9 @@
 
     <!-- VISTA 3: TELEMETRIA LIVE & CONFIGURAZIONE RISCHIO -->
     <section id="viewTelemetry" class="hidden terminal-card rounded-2xl p-4 sm:p-5 space-y-4 font-mono text-xs">
-      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-white/15 pb-3">
-        <div>
-          <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-cyan-300">⚡ TELEMETRIA QUANTISTICA &amp; LEVA / MARGINE</h2>
-          <p class="text-[11px] text-white/70">Parametri applicati al calcolo di Size, R:R, EV e Kelly su tutti i mercati</p>
-        </div>
+      <div class="border-b border-white/15 pb-3">
+        <h2 class="text-sm sm:text-base font-extrabold uppercase tracking-wider text-cyan-300">⚡ TELEMETRIA QUANTISTICA &amp; LEVA / MARGINE</h2>
+        <p class="text-[11px] text-white/70">Parametri reali applicati al calcolo di Size, R:R, EV e Kelly</p>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -269,7 +264,7 @@
             <button onclick="setMarginUsdt(25)" id="marBtn25" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">25 $</button>
             <button onclick="setMarginUsdt(100)" id="marBtn100" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">100 $</button>
           </div>
-          <input type="number" id="customMarginInput" oninput="onCustomMarginChange(this.value)" placeholder="Margine USDT personalizzato (es. 1.5 o 50)..." class="w-full bg-[#08080A] border border-white/25 rounded-lg px-3 py-2 text-white outline-none focus:border-[#FFD700]" />
+          <input type="number" id="customMarginInput" oninput="onCustomMarginChange(this.value)" placeholder="Margine USDT personalizzato..." class="w-full bg-[#08080A] border border-white/25 rounded-lg px-3 py-2 text-white outline-none focus:border-[#FFD700]" />
           <p class="text-[11px] text-cyan-300" id="marginUsdtLabel">10 USDT • Leva effettiva: 10x</p>
         </div>
 
@@ -282,13 +277,13 @@
             <button onclick="setLeverage(20)" id="levBtn20" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">20x</button>
             <button onclick="setLeverage(50)" id="levBtn50" class="py-1.5 rounded-lg border border-white/20 bg-white/5 text-white font-bold">50x</button>
           </div>
-          <input type="number" id="customLeverageInput" oninput="onCustomLeverageChange(this.value)" placeholder="Leva personalizzata (es. 25, 75, 100)..." class="w-full bg-[#08080A] border border-white/25 rounded-lg px-3 py-2 text-white outline-none focus:border-[#FFD700]" />
-          <p class="text-[11px] text-white/70">Nota: per capitale &le; $2.00 con leva predefinita 10x, il sistema applica automaticamente leva dinamica 20x.</p>
+          <input type="number" id="customLeverageInput" oninput="onCustomLeverageChange(this.value)" placeholder="Leva personalizzata..." class="w-full bg-[#08080A] border border-white/25 rounded-lg px-3 py-2 text-white outline-none focus:border-[#FFD700]" />
+          <p class="text-[11px] text-white/70">Capitale &le; $2.00 con leva default 10x passa automaticamente a 20x.</p>
         </div>
       </div>
 
       <div id="telemetryLiveMetricsBox" class="bg-[#000000] border border-white/15 rounded-xl p-4 text-white/80">
-        Seleziona un asset o apri "Analizza grafico" per ispezionare indicatori EMA/RSI/ATR e finestra candela.
+        Caricamento telemetria live...
       </div>
     </section>
 
@@ -327,7 +322,7 @@
 
   </main>
 
-  <!-- BOTTOM NAVIGATION BAR (Segnali, Posizioni, Telemetria, Grafici) -->
+  <!-- BOTTOM NAVIGATION BAR -->
   <nav class="sticky bottom-0 z-30 bg-[#08080A]/95 backdrop-blur-md border-t border-white/15 px-2 py-1.5 font-mono text-xs">
     <div class="max-w-3xl mx-auto grid grid-cols-4 gap-1.5">
       <button id="navSignals" onclick="setBottomTab('signals')" class="py-2 rounded-xl font-extrabold bg-[#FFD700] text-black flex items-center justify-center gap-1.5">
@@ -351,7 +346,7 @@
       <div class="px-5 py-3.5 border-b border-white/15 flex items-center justify-between bg-[#000000]">
         <div>
           <h2 class="text-base font-extrabold font-mono text-[#FFD700]">🔑 Configurazione API Key BingX</h2>
-          <p class="text-xs text-white/70">Salvataggio locale per esecuzione ordini e telemetria conto</p>
+          <p class="text-xs text-white/70">Esecuzione ordini reali e lettura conto BingX</p>
         </div>
         <button onclick="toggleApiModal()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
       </div>
@@ -386,6 +381,8 @@
       marketData: {},
       signalsCache: [],
       selectedAssetDetail: null,
+      livePositions: [],
+      closedOnCandleSlots: new Set(),
       autoSettings: {
         maxPositions: 1,
         dailyLossLimit: 0.5,
@@ -722,10 +719,10 @@
 
             <div class="bg-[#0B0F17] border border-cyan-500/25 rounded-xl p-3 space-y-1.5 text-xs">
               <div class="text-white/85">
-                🕒 Candela 15 minuti (${d.candle15m.tfSeconds} secondi) • Apertura ${d.candle15m.openUtc} &rarr; Chiusura ${d.candle15m.closeUtc} UTC
+                🕒 Candela ${d.candle15m.timeframe} (${d.candle15m.tfSeconds} secondi) • Apertura ${d.candle15m.openUtc} &rarr; Chiusura ${d.candle15m.closeUtc} UTC
               </div>
               <div class="text-cyan-300 font-semibold tabular-nums">
-                ⏳ Residuo candela: <span data-candle-rem="${d.symbol}">${d.candle15m.remainingSec}s</span> • R:R 1:${d.rr} • EV: <span class="${d.evUsd >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'} font-extrabold">${evSign}</span> • Kelly: ${d.kellyPct}% • Certezza: ${d.certaintyPct}%
+                ⏳ Residuo candela: <span data-candle-rem="${d.symbol}" data-tf-sec="${d.candle15m.tfSeconds}">${d.candle15m.remainingSec}s</span> • R:R 1:${d.rr} • EV: <span class="${d.evUsd >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'} font-extrabold">${evSign}</span> • Kelly: ${d.kellyPct}% • Certezza: ${d.certaintyPct}%
               </div>
               <div class="text-white/80">
                 🎯 Target ETA: circa ${d.etaMinutes} minuti (${d.etaCandles} candele da 15m, arrivo stimato ${d.etaUtc})
@@ -749,7 +746,12 @@
       const keys = getStoredApiKeys();
       const effLev = getEffectiveLeverage();
 
-      logFeed(`[ORDINE] Invio ${overrideSide} su ${asset.symbol} (Size: ${asset.size}, Leva: ${effLev}x)...`);
+      if (state.livePositions.length >= state.autoSettings.maxPositions && state.tradingMode === 'AUTO') {
+        logFeed(`[AUTO-TRADE] Limite max posizioni (${state.autoSettings.maxPositions}) raggiunto.`);
+        return;
+      }
+
+      logFeed(`[ORDINE REALE] Invio ${overrideSide} su ${asset.symbol} (Size: ${asset.size}, Leva: ${effLev}x, SL: ${asset.sl}, TP2: ${asset.tp2})...`);
 
       try {
         const res = await fetch('/api/esegui-segnale', {
@@ -774,7 +776,7 @@
         const data = await res.json();
         if (data.code === 0) {
           logFeed(`[OK] Ordine ${overrideSide} eseguito su ${asset.symbol} (Leva ${data.appliedLeverage || effLev}x).`);
-          alert(`Ordine ${overrideSide} inviato su BingX per ${asset.symbol}!`);
+          alert(`Ordine ${overrideSide} eseguito su BingX per ${asset.symbol}!`);
           refreshBingxTelemetry();
         } else {
           logFeed(`[ERRORE] ${data.msg || 'Esito negativo ordine'}`);
@@ -782,6 +784,51 @@
         }
       } catch (e) {
         logFeed(`[ERRORE RETE] ${e.message}`);
+      }
+    }
+
+    async function closeBingxPositionReal(symbol, side, size) {
+      const keys = getStoredApiKeys();
+      logFeed(`[CHIUSURA REALE] Chiusura posizione ${symbol} (${side}, Size: ${size}) su BingX...`);
+      try {
+        const res = await fetch('/api/close-position', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            symbol,
+            side,
+            size,
+            marketType: state.marketType,
+            apiKey: keys.apiKey,
+            secretKey: keys.secretKey
+          })
+        });
+        const data = await res.json();
+        if (data.code === 0) {
+          logFeed(`[CHIUSO] Posizione ${symbol} chiusa su BingX.`);
+          refreshBingxTelemetry();
+        } else {
+          logFeed(`[ERRORE CHIUSURA] ${symbol}: ${data.msg || 'Errore'}`);
+        }
+      } catch (e) {
+        logFeed(`[ERRORE RETE CHIUSURA] ${e.message}`);
+      }
+    }
+
+    async function handleCandleBoundaryCloseReal() {
+      if (state.autoSettings.closeOnCandleEnd !== 'ON') return;
+      if (!state.livePositions || state.livePositions.length === 0) return;
+
+      const tfSec = { Scalping: 300, 'Day Trading': 900, 'Swing Trading': 3600, 'Long Term': 14400 }[state.tradingStyle] || 900;
+      const nowSec = Math.floor(Date.now() / 1000);
+      const rem = tfSec - (nowSec % tfSec);
+      const slotKey = `${Math.floor(nowSec / tfSec)}_${tfSec}`;
+
+      if (rem <= 2 && !state.closedOnCandleSlots.has(slotKey)) {
+        state.closedOnCandleSlots.add(slotKey);
+        for (const p of state.livePositions) {
+          await closeBingxPositionReal(p.symbol, p.side, p.size);
+        }
       }
     }
 
@@ -839,7 +886,7 @@
           <div><span class="text-white/50 text-[10px] block">ASSET</span><strong>${d.displayLabel || d.symbol}</strong></div>
           <div><span class="text-white/50 text-[10px] block">R:R / EV / KELLY</span><strong class="text-[#00FF66]">1:${d.rr} / $${d.evUsd} / ${d.kellyPct}%</strong></div>
           <div><span class="text-white/50 text-[10px] block">ATR (14)</span><strong class="text-cyan-300">${formatPrice(d.atr14)}</strong></div>
-          <div><span class="text-white/50 text-[10px] block">FINESTRA 15M UTC</span><strong>${d.candle15m.openUtc} &rarr; ${d.candle15m.closeUtc}</strong></div>
+          <div><span class="text-white/50 text-[10px] block">FINESTRA ${d.candle15m.timeframe.toUpperCase()} UTC</span><strong>${d.candle15m.openUtc} &rarr; ${d.candle15m.closeUtc}</strong></div>
         </div>
       `;
     }
@@ -860,6 +907,8 @@
         const json = await res.json();
         if (json.code === 0 && json.data) {
           const t = json.data;
+          state.livePositions = t.positions || [];
+
           document.getElementById('bingxConnectionStatus').textContent = t.connected
             ? "🟢 Conto Reale BingX Sincronizzato"
             : (t.msg || "Modalità non connessa");
@@ -896,7 +945,10 @@
                   <span class="ml-2 px-2 py-0.5 rounded text-[10px] font-bold ${p.side === 'LONG' ? 'bg-[#00FF66]/20 text-[#00FF66]' : 'bg-[#FF334B]/20 text-[#FF334B]'}">${p.side} ${p.leverage}x</span>
                   <div class="text-[11px] text-white/70 mt-1">Size: ${p.size} • Entry: ${formatPrice(p.entryPrice)} • Mark: ${formatPrice(p.markPrice)}</div>
                 </div>
-                <strong class="text-sm tabular-nums ${p.unrealizedPnl >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'}">${fmtSignedUsd(p.unrealizedPnl)}</strong>
+                <div class="flex items-center gap-3">
+                  <strong class="text-sm tabular-nums ${p.unrealizedPnl >= 0 ? 'text-[#00FF66]' : 'text-[#FF334B]'}">${fmtSignedUsd(p.unrealizedPnl)}</strong>
+                  <button onclick="closeBingxPositionReal('${p.symbol}', '${p.side}', ${p.size})" class="px-2.5 py-1 rounded-lg bg-[#FF334B]/20 text-[#FF334B] border border-[#FF334B]/50 text-[11px] font-bold">Chiudi Ora</button>
+                </div>
               </div>
             `).join('');
           }
@@ -906,10 +958,12 @@
 
     function tickCandleCountdowns() {
       const nowSec = Math.floor(Date.now() / 1000);
-      const rem = Math.max(1, 900 - (nowSec % 900));
       document.querySelectorAll('[data-candle-rem]').forEach(el => {
+        const tfSec = parseInt(el.getAttribute('data-tf-sec'), 10) || 900;
+        const rem = Math.max(1, tfSec - (nowSec % tfSec));
         el.textContent = `${rem}s`;
       });
+      handleCandleBoundaryCloseReal();
     }
 
     function logFeed(text) {
