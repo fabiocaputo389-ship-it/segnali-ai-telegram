@@ -1,6 +1,5 @@
 import hashlib
 import hmac
-import json
 import math
 import os
 import threading
@@ -17,8 +16,6 @@ from flask import Flask, jsonify, render_template, request
 app = Flask(__name__)
 
 MIN_BINGX_CAPITAL_USD = 2.0
-BINANCE_FAPI_BASE = "https://fapi.binance.com"
-BINANCE_SPOT_BASE = "https://api.binance.com"
 
 
 def _clean_env_secret(val: str) -> str:
@@ -58,7 +55,6 @@ _LAST_CONFIRMED_DIRECTION = {}
 _LIVE_PRICE_CACHE = {}
 _KLINES_CACHE = {}
 _AUTOTRADE_LAST_EXEC = {}
-_CONTRACT_SPECS_CACHE = {"specs": {}, "ts": 0.0}
 
 STATE_LOCK = threading.Lock()
 STATE = {
@@ -182,59 +178,11 @@ def resolve_bingx_symbol(symbol: str):
     return f"{base}-USDT", 2
 
 
-def _decimals_from_step(step_val: float, fallback: int = 2) -> int:
-    s = safe_float(step_val, 0.0)
-    if s <= 0:
-        return max(0, int(fallback))
-    if s >= 1.0:
-        return 0
-    txt = f"{s:.10f}".rstrip("0").rstrip(".")
-    if "." in txt:
-        return len(txt.split(".")[1])
-    return max(0, int(fallback))
-
-
-def get_bingx_contract_spec(bx_symbol: str, default_price_dec: int = 2):
-    now_ts = time.time()
-    if (now_ts - _CONTRACT_SPECS_CACHE["ts"]) > 300.0:
-        try:
-            resp = requests.get(f"{get_bingx_base_url()}/openApi/swap/v2/quote/contracts", timeout=2.5)
-            if resp.status_code == 200:
-                rows = (resp.json() or {}).get("data") or []
-                parsed = {}
-                for item in rows:
-                    if isinstance(item, dict) and item.get("symbol"):
-                        sym_key = str(item["symbol"]).upper().strip()
-                        p_step = safe_float(item.get("pricePrecision") or item.get("tickSize"), 0.0)
-                        q_step = safe_float(item.get("quantityPrecision") or item.get("stepSize"), 0.0)
-                        min_q = safe_float(item.get("minQty") or item.get("tradeMinQuantity"), 0.0)
-                        parsed[sym_key] = {
-                            "price_dec": int(p_step) if 0 < p_step <= 8 else _decimals_from_step(p_step, default_price_dec),
-                            "qty_step": q_step if q_step > 0 else None,
-                            "min_qty": min_q if min_q > 0 else None,
-                        }
-                if parsed:
-                    _CONTRACT_SPECS_CACHE["specs"] = parsed
-                    _CONTRACT_SPECS_CACHE["ts"] = now_ts
-        except Exception:
-            pass
-
-    spec = _CONTRACT_SPECS_CACHE["specs"].get(str(bx_symbol or "").upper().strip())
-    if spec:
-        return spec
-    return {"price_dec": max(0, int(default_price_dec)), "qty_step": None, "min_qty": None}
-
-
 def quantize_to_tick(value: float, decimals: int) -> float:
     return round(float(value), max(0, int(decimals)))
 
 
 def get_lot_step(bx_symbol: str, price: float) -> float:
-    spec = get_bingx_contract_spec(bx_symbol, 2)
-    if spec.get("qty_step"):
-        q_val = safe_float(spec["qty_step"])
-        if 0 < q_val <= 100:
-            return q_val if q_val < 1 else float(int(q_val))
     if "BTC" in bx_symbol:
         return 0.0001
     if "ETH" in bx_symbol or "PAXG" in bx_symbol:
@@ -414,102 +362,66 @@ def place_bingx_order_with_tpsl(
     leverage: int = 20,
 ):
     bx_symbol, bx_prec = resolve_bingx_symbol(symbol)
-    spec = get_bingx_contract_spec(bx_symbol, bx_prec if bx_prec is not None else 2)
-    dec = int(spec.get("price_dec", bx_prec if bx_prec is not None else 2))
-
     is_buy = str(action or "BUY").upper() == "BUY"
     side = "BUY" if is_buy else "SELL"
     close_side = "SELL" if is_buy else "BUY"
     pos_side = "LONG" if is_buy else "SHORT"
+    dec = bx_prec if bx_prec is not None else 2
 
     lev_data, lev_err = set_bingx_leverage(bx_symbol, pos_side, leverage)
 
-    sl_q = quantize_to_tick(safe_float(sl_price, 0.0), dec) if safe_float(sl_price, 0.0) > 0 else 0.0
-    tp_q = quantize_to_tick(safe_float(tp_price, 0.0), dec) if safe_float(tp_price, 0.0) > 0 else 0.0
-
-    entry_params = {
-        "symbol": bx_symbol,
-        "side": side,
-        "positionSide": pos_side,
-        "type": "MARKET",
-        "quantity": qty,
-    }
-    if sl_q > 0:
-        entry_params["stopLoss"] = json.dumps({
-            "type": "STOP_MARKET",
-            "stopPrice": sl_q,
-            "workingType": "MARK_PRICE",
-        })
-    if tp_q > 0:
-        entry_params["takeProfit"] = json.dumps({
-            "type": "TAKE_PROFIT_MARKET",
-            "stopPrice": tp_q,
-            "workingType": "MARK_PRICE",
-        })
-
-    entry_data, entry_err = bingx_signed_request("POST", "/openApi/swap/v2/trade/order", entry_params)
-
-    if entry_err and ("stopLoss" in entry_params or "takeProfit" in entry_params):
-        entry_data, entry_err = bingx_signed_request(
-            "POST",
-            "/openApi/swap/v2/trade/order",
-            {
-                "symbol": bx_symbol,
-                "side": side,
-                "positionSide": pos_side,
-                "type": "MARKET",
-                "quantity": qty,
-            },
-        )
+    entry_data, entry_err = bingx_signed_request(
+        "POST",
+        "/openApi/swap/v2/trade/order",
+        {
+            "symbol": bx_symbol,
+            "side": side,
+            "positionSide": pos_side,
+            "type": "MARKET",
+            "quantity": qty,
+        },
+    )
     if entry_err:
         return None, entry_err
 
     sl_data, sl_err = None, None
-    if sl_q > 0:
-        for sl_type in ("STOP_MARKET", "STOP"):
-            sl_data, sl_err = bingx_signed_request(
-                "POST",
-                "/openApi/swap/v2/trade/order",
-                {
-                    "symbol": bx_symbol,
-                    "side": close_side,
-                    "positionSide": pos_side,
-                    "type": sl_type,
-                    "stopPrice": sl_q,
-                    "workingType": "MARK_PRICE",
-                    "quantity": qty,
-                },
-            )
-            if not sl_err:
-                break
+    if safe_float(sl_price, 0.0) > 0:
+        sl_q = quantize_to_tick(safe_float(sl_price), dec)
+        sl_data, sl_err = bingx_signed_request(
+            "POST",
+            "/openApi/swap/v2/trade/order",
+            {
+                "symbol": bx_symbol,
+                "side": close_side,
+                "positionSide": pos_side,
+                "type": "STOP_MARKET",
+                "stopPrice": sl_q,
+                "quantity": qty,
+            },
+        )
 
     tp_data, tp_err = None, None
-    if tp_q > 0:
-        for tp_type in ("TAKE_PROFIT_MARKET", "TAKE_PROFIT"):
-            tp_data, tp_err = bingx_signed_request(
-                "POST",
-                "/openApi/swap/v2/trade/order",
-                {
-                    "symbol": bx_symbol,
-                    "side": close_side,
-                    "positionSide": pos_side,
-                    "type": tp_type,
-                    "stopPrice": tp_q,
-                    "workingType": "MARK_PRICE",
-                    "quantity": qty,
-                },
-            )
-            if not tp_err:
-                break
+    if safe_float(tp_price, 0.0) > 0:
+        tp_q = quantize_to_tick(safe_float(tp_price), dec)
+        tp_data, tp_err = bingx_signed_request(
+            "POST",
+            "/openApi/swap/v2/trade/order",
+            {
+                "symbol": bx_symbol,
+                "side": close_side,
+                "positionSide": pos_side,
+                "type": "TAKE_PROFIT_MARKET",
+                "stopPrice": tp_q,
+                "quantity": qty,
+            },
+        )
 
     return {
         "leverage_set": lev_data,
         "leverage_error": lev_err,
         "entry_order": entry_data,
-        "sl_price": sl_q,
         "sl_order": sl_data,
         "sl_error": sl_err,
-        "tp_price": tp_q,
         "tp_order": tp_data,
         "tp_error": tp_err,
     }, None
@@ -679,53 +591,6 @@ def fetch_bingx_real_positions():
     return active, None
 
 
-def _fetch_binance_ticker_fallback(symbol_key: str):
-    clean = canonicalize_symbol_key(symbol_key)
-    for base in (BINANCE_FAPI_BASE, BINANCE_SPOT_BASE):
-        path = "/fapi/v1/ticker/price" if "fapi" in base else "/api/v3/ticker/price"
-        try:
-            resp = requests.get(f"{base}{path}", params={"symbol": clean}, timeout=1.2)
-            if resp.status_code == 200:
-                p = safe_float((resp.json() or {}).get("price"), 0.0)
-                if p > 0:
-                    return p
-        except Exception:
-            continue
-    return None
-
-
-def _fetch_binance_klines_fallback(symbol_key: str, interval: str, limit: int = 100):
-    clean = canonicalize_symbol_key(symbol_key)
-    tf_map = {"5m": "5m", "15m": "15m", "1h": "1h"}
-    b_int = tf_map.get(interval, "15m")
-    for base in (BINANCE_FAPI_BASE, BINANCE_SPOT_BASE):
-        path = "/fapi/v1/klines" if "fapi" in base else "/api/v3/klines"
-        try:
-            resp = requests.get(
-                f"{base}{path}",
-                params={"symbol": clean, "interval": b_int, "limit": limit},
-                timeout=1.4,
-            )
-            if resp.status_code == 200:
-                rows = resp.json() or []
-                if isinstance(rows, list) and len(rows) >= 40:
-                    parsed = []
-                    for r in rows[-limit:]:
-                        if isinstance(r, (list, tuple)) and len(r) >= 6:
-                            o = safe_float(r[1])
-                            h = safe_float(r[2])
-                            l = safe_float(r[3])
-                            c = safe_float(r[4])
-                            v = safe_float(r[5], 0.0)
-                            if c > 0 and h >= l > 0:
-                                parsed.append({"Open": o or c, "High": h, "Low": l, "Close": c, "Volume": max(v, 0.0)})
-                    if len(parsed) >= 40:
-                        return pd.DataFrame(parsed)
-        except Exception:
-            continue
-    return None
-
-
 def fetch_bingx_ticker(bx_symbol: str):
     cached = _LIVE_PRICE_CACHE.get(bx_symbol)
     if cached and (time.time() - cached["ts"]) < 2.2:
@@ -733,7 +598,7 @@ def fetch_bingx_ticker(bx_symbol: str):
     base_url = get_bingx_base_url()
     try:
         url = f"{base_url}/openApi/swap/v2/quote/ticker"
-        resp = requests.get(url, params={"symbol": bx_symbol}, timeout=1.2)
+        resp = requests.get(url, params={"symbol": bx_symbol}, timeout=2.2)
         if resp.status_code == 200:
             payload = resp.json()
             data = payload.get("data")
@@ -746,11 +611,6 @@ def fetch_bingx_ticker(bx_symbol: str):
                     return price
     except Exception:
         pass
-
-    fb_price = _fetch_binance_ticker_fallback(bx_symbol)
-    if fb_price and fb_price > 0:
-        _LIVE_PRICE_CACHE[bx_symbol] = {"price": fb_price, "ts": time.time()}
-        return fb_price
     return cached["price"] if cached else None
 
 
@@ -765,7 +625,7 @@ def fetch_bingx_klines(bx_symbol: str, interval: str, limit: int = 100):
     bx_int = tf_map.get(interval, "15m")
     try:
         url = f"{base_url}/openApi/swap/v2/quote/klines"
-        resp = requests.get(url, params={"symbol": bx_symbol, "interval": bx_int, "limit": limit}, timeout=1.4)
+        resp = requests.get(url, params={"symbol": bx_symbol, "interval": bx_int, "limit": limit}, timeout=2.5)
         if resp.status_code == 200:
             rows = resp.json().get("data") or []
             if isinstance(rows, list) and len(rows) >= 40:
@@ -793,11 +653,6 @@ def fetch_bingx_klines(bx_symbol: str, interval: str, limit: int = 100):
                     return df_out
     except Exception:
         pass
-
-    fb_df = _fetch_binance_klines_fallback(bx_symbol, interval, limit=limit)
-    if fb_df is not None and len(fb_df) >= 40:
-        _KLINES_CACHE[cache_key] = {"df": fb_df.copy(), "ts": time.time()}
-        return fb_df
     return cached["df"].copy() if cached else None
 
 
@@ -897,8 +752,7 @@ def evaluate_pro_setup(df, current_price, symbol, category, is_open, balance, ri
     volume = df["Volume"]
 
     bx_symbol, bx_precision = resolve_bingx_symbol(symbol)
-    spec = get_bingx_contract_spec(bx_symbol, bx_precision if bx_precision is not None else (4 if current_price < 5 else 2))
-    decimals = int(spec.get("price_dec", bx_precision if bx_precision is not None else (4 if current_price < 5 else 2)))
+    decimals = bx_precision if bx_precision is not None else (4 if current_price < 5 else 2)
     tick = 10 ** (-decimals)
 
     ema20_s = close.ewm(span=20, adjust=False).mean()
@@ -1197,10 +1051,8 @@ def maybe_execute_pro_autotrade(signals_out, live_positions, daily_net_pnl):
                 "action": sig["action"],
                 "qty": qty,
                 "leverage": f"{lev_num}x",
-                "sl": (exec_res or {}).get("sl_price") or sig.get("sl"),
-                "tp1": (exec_res or {}).get("tp_price") or sig.get("tp1"),
-                "sl_error": (exec_res or {}).get("sl_error"),
-                "tp_error": (exec_res or {}).get("tp_error"),
+                "sl": sig.get("sl"),
+                "tp1": sig.get("tp1"),
                 "candle_duration_sec": sig.get("candle_duration_sec"),
                 "candle_open_utc": sig.get("candle_open_utc"),
                 "candle_close_utc": sig.get("candle_close_utc"),
@@ -1332,11 +1184,11 @@ def get_signals():
             return None
         return evaluate_pro_setup(df_m, p_m, m_item["symbol"], cat, open_flag, balance, risk_pct, cfg)
 
-    with ThreadPoolExecutor(max_workers=12) as pool:
+    with ThreadPoolExecutor(max_workers=8) as pool:
         futs = [pool.submit(_worker, c, o, m) for (c, o, m) in tasks]
-        for fut in as_completed(futs, timeout=12.0):
+        for fut in as_completed(futs, timeout=9.0):
             try:
-                ev = fut.result(timeout=2.0)
+                ev = fut.result(timeout=1.5)
                 if ev:
                     monitoring_rows.append(ev)
                     if ev["taken"]:
@@ -1473,10 +1325,6 @@ def api_execute_manual():
         "symbol": bx_symbol,
         "qty": qty,
         "leverage": f"{lev_num}x",
-        "sl": (exec_res or {}).get("sl_price"),
-        "tp1": (exec_res or {}).get("tp_price"),
-        "sl_error": (exec_res or {}).get("sl_error"),
-        "tp_error": (exec_res or {}).get("tp_error"),
         "candle_timing": timing,
         "order": exec_res,
     })
