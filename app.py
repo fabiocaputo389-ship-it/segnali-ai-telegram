@@ -70,39 +70,6 @@ MARKET_ORDER: List[str] = [
     "Azioni & Indici Globali",
 ]
 
-BASE_MARKET_CATALOG: Dict[str, List[Dict[str, str]]] = {
-    "Criptovalute Globali": [
-        {"symbol": "BTC/USDT", "bx_symbol": "BTC-USDT", "name": "Bitcoin (BTC-USDT)"},
-        {"symbol": "ETH/USDT", "bx_symbol": "ETH-USDT", "name": "Ethereum (ETH-USDT)"},
-        {"symbol": "SOL/USDT", "bx_symbol": "SOL-USDT", "name": "Solana (SOL-USDT)"},
-        {"symbol": "XRP/USDT", "bx_symbol": "XRP-USDT", "name": "Ripple (XRP-USDT)"},
-    ],
-    "Materie Prime & Forex": [
-        {"symbol": "XAU/USDT", "bx_symbol": "XAU-USDT", "name": "Gold Spot (XAU-USDT)"},
-        {"symbol": "EUR/USDT", "bx_symbol": "EUR-USDT", "name": "Euro / USDT (EUR-USDT)"},
-        {"symbol": "OILWTI/USDT", "bx_symbol": "OILWTI-USDT", "name": "Oil WTI 24/7"},
-        {"symbol": "OILBRENT/USDT", "bx_symbol": "OILBRENT-USDT", "name": "Oil Brent 24/7"},
-        {"symbol": "XAG/USDT", "bx_symbol": "XAG-USDT", "name": "Silver (XAG)"},
-        {"symbol": "NATGAS/USDT", "bx_symbol": "NATGAS-USDT", "name": "Natural Gas (NG)"},
-        {"symbol": "COPPER/USDT", "bx_symbol": "COPPER-USDT", "name": "Copper 24/7"},
-        {"symbol": "XPT/USDT", "bx_symbol": "XPT-USDT", "name": "Platinum (XPT) 24/7"},
-    ],
-    "Azioni & Indici Globali": [
-        {"symbol": "NVDA/USDT", "bx_symbol": "NVDA-USDT", "name": "NVIDIA (NVDA-USDT)"},
-        {"symbol": "NAS100/USDT", "bx_symbol": "NAS100-USDT", "name": "Nasdaq 100 (NAS100-USDT)"},
-    ],
-}
-
-SYMBOL_ALIASES: Dict[str, List[str]] = {
-    "NATGAS-USDT": ["NATGAS-USDT", "NG-USDT", "NATURALGAS-USDT"],
-    "OILWTI-USDT": ["OILWTI-USDT", "WTI-USDT", "USOIL-USDT"],
-    "OILBRENT-USDT": ["OILBRENT-USDT", "BRENT-USDT", "UKOIL-USDT"],
-    "HEATINGOIL-USDT": ["HEATINGOIL-USDT", "HO-USDT"],
-    "NAS100-USDT": ["NAS100-USDT", "NASDAQ100-USDT", "NDX-USDT", "USTEC-USDT"],
-    "XAU-USDT": ["XAU-USDT", "GOLD-USDT"],
-    "XAG-USDT": ["XAG-USDT", "SILVER-USDT"],
-}
-
 COMMODITY_FX_BASES = {
     "XAU", "XAG", "XPT", "XPD", "XAL", "XZN", "XPB", "XNI",
     "OILWTI", "OILBRENT", "WTI", "BRENT", "NATGAS", "NG", "COPPER", "HEATINGOIL",
@@ -147,6 +114,7 @@ TERMINAL_STATE: Dict[str, Any] = {
     "last_income_sync_ts": 0,
     "last_contracts_sync_ts": 0,
     "bingx_contracts": {},
+    "bingx_spot_symbols": {},
     "last_params": {
         "profile": "pro_sniper",
         "timeframe": "15m",
@@ -162,7 +130,7 @@ def _credentials_configured() -> bool:
     return bool(BINGX_API_KEY and BINGX_API_SECRET)
 
 
-def _http_get_json(url: str, headers: Optional[Dict[str, str]] = None, timeout: int = 8) -> Tuple[bool, Any, str]:
+def _http_get_json(url: str, headers: Optional[Dict[str, str]] = None, timeout: int = 10) -> Tuple[bool, Any, str]:
     req = Request(url, headers=headers or {"User-Agent": "Mozilla/5.0"})
     try:
         with urlopen(req, timeout=timeout) as resp:
@@ -188,17 +156,19 @@ def _classify_bx_symbol(bx_sym: str) -> str:
 def _sync_bingx_contracts(force: bool = False) -> Dict[str, Dict[str, Any]]:
     now_s = int(time.time())
     with STATE_LOCK:
-        cached = dict(TERMINAL_STATE.get("bingx_contracts") or {})
+        cached_swap = dict(TERMINAL_STATE.get("bingx_contracts") or {})
+        cached_spot = dict(TERMINAL_STATE.get("bingx_spot_symbols") or {})
         last_ts = int(TERMINAL_STATE.get("last_contracts_sync_ts") or 0)
-        if not force and cached and (now_s - last_ts) < 300:
-            return cached
+        if not force and cached_swap and (now_s - last_ts) < 300:
+            return cached_swap
 
-    url = f"{BINGX_BASE_URL}/openApi/swap/v2/quote/contracts"
-    ok, data, _ = _http_get_json(url, timeout=12)
-    raw_list = data.get("data") if (ok and isinstance(data, dict)) else None
+    swap_url = f"{BINGX_BASE_URL}/openApi/swap/v2/quote/contracts"
+    ok_swap, data_swap, _ = _http_get_json(swap_url, timeout=12)
+    raw_swap = data_swap.get("data") if (ok_swap and isinstance(data_swap, dict)) else None
+
     contracts: Dict[str, Dict[str, Any]] = {}
-    if isinstance(raw_list, list):
-        for item in raw_list:
+    if isinstance(raw_swap, list):
+        for item in raw_swap:
             if not isinstance(item, dict):
                 continue
             sym = str(item.get("symbol") or "").strip().upper()
@@ -215,6 +185,7 @@ def _sync_bingx_contracts(force: bool = False) -> Dict[str, Dict[str, Any]]:
             market_cat = _classify_bx_symbol(sym)
             contracts[sym] = {
                 "symbol": sym,
+                "venue": "SWAP_V2",
                 "market": market_cat,
                 "step_size": max(1e-8, step_size),
                 "min_qty": max(1e-8, min_qty),
@@ -223,77 +194,92 @@ def _sync_bingx_contracts(force: bool = False) -> Dict[str, Dict[str, Any]]:
                 "price_precision": max(0, min(8, price_prec)),
             }
 
-    if contracts:
-        with STATE_LOCK:
+    spot_url = f"{BINGX_BASE_URL}/openApi/spot/v1/common/symbols"
+    ok_spot, data_spot, _ = _http_get_json(spot_url, timeout=12)
+    raw_spot_container = data_spot.get("data") if (ok_spot and isinstance(data_spot, dict)) else None
+    raw_spot = raw_spot_container.get("symbols") if isinstance(raw_spot_container, dict) else raw_spot_container
+
+    spot_symbols: Dict[str, Dict[str, Any]] = {}
+    if isinstance(raw_spot, list):
+        for item in raw_spot:
+            if not isinstance(item, dict):
+                continue
+            sym = str(item.get("symbol") or "").strip().upper()
+            if not sym:
+                continue
+            api_open = item.get("apiStateOpen")
+            if api_open is False:
+                continue
+            step_size = float(item.get("stepSize") or 0.0001)
+            min_qty = float(item.get("minQty") or step_size or 0.0001)
+            min_notional = float(item.get("minNotional") or MIN_ORDER_CAPITAL_USD)
+            spot_symbols[sym] = {
+                "symbol": sym,
+                "venue": "SPOT_V1",
+                "market": _classify_bx_symbol(sym),
+                "step_size": max(1e-8, step_size),
+                "min_qty": max(1e-8, min_qty),
+                "min_notional": max(MIN_ORDER_CAPITAL_USD, min_notional),
+                "qty_precision": 6,
+                "price_precision": 6,
+            }
+
+    with STATE_LOCK:
+        if contracts:
             TERMINAL_STATE["bingx_contracts"] = contracts
+        if spot_symbols:
+            TERMINAL_STATE["bingx_spot_symbols"] = spot_symbols
+        if contracts or spot_symbols:
             TERMINAL_STATE["last_contracts_sync_ts"] = now_s
-        return contracts
-    return cached
+
+    return contracts or cached_swap
 
 
 def _build_dynamic_catalog() -> Dict[str, List[Dict[str, str]]]:
     contracts = _sync_bingx_contracts()
-    catalog: Dict[str, List[Dict[str, str]]] = {
-        cat: [dict(it) for it in items]
-        for cat, items in BASE_MARKET_CATALOG.items()
-    }
+    catalog: Dict[str, List[Dict[str, str]]] = {cat: [] for cat in MARKET_ORDER}
     if not contracts:
-        return catalog
+        return {
+            "Criptovalute Globali": [
+                {"symbol": "BTC/USDT", "bx_symbol": "BTC-USDT", "name": "Bitcoin (BTC-USDT)"},
+                {"symbol": "ETH/USDT", "bx_symbol": "ETH-USDT", "name": "Ethereum (ETH-USDT)"},
+                {"symbol": "SOL/USDT", "bx_symbol": "SOL-USDT", "name": "Solana (SOL-USDT)"},
+                {"symbol": "XRP/USDT", "bx_symbol": "XRP-USDT", "name": "Ripple (XRP-USDT)"},
+            ],
+            "Materie Prime & Forex": [],
+            "Azioni & Indici Globali": [],
+        }
 
     priority_order = ["BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT"]
     seen_bx: set[str] = set()
-    crypto_items: List[Dict[str, str]] = []
 
     for p_sym in priority_order:
         if p_sym in contracts:
             base = p_sym.split("-")[0]
-            crypto_items.append({
+            catalog["Criptovalute Globali"].append({
                 "symbol": f"{base}/USDT",
                 "bx_symbol": p_sym,
                 "name": f"{base} ({p_sym})",
             })
             seen_bx.add(p_sym)
 
-    for it in catalog["Criptovalute Globali"]:
-        bx = str(it.get("bx_symbol", "")).upper()
-        if bx in contracts and bx not in seen_bx:
-            crypto_items.append(it)
-            seen_bx.add(bx)
-
-    extra_by_cat: Dict[str, List[Dict[str, str]]] = {
-        "Criptovalute Globali": [],
-        "Materie Prime & Forex": [],
-        "Azioni & Indici Globali": [],
-    }
-
-    for it in catalog["Materie Prime & Forex"]:
-        bx = str(it.get("bx_symbol", "")).upper()
-        if bx not in seen_bx:
-            extra_by_cat["Materie Prime & Forex"].append(it)
-            seen_bx.add(bx)
-
-    for it in catalog["Azioni & Indici Globali"]:
-        bx = str(it.get("bx_symbol", "")).upper()
-        if bx not in seen_bx:
-            extra_by_cat["Azioni & Indici Globali"].append(it)
-            seen_bx.add(bx)
-
     for bx_sym in sorted(contracts.keys()):
         if bx_sym in seen_bx:
             continue
         cat = _classify_bx_symbol(bx_sym)
-        base_code = bx_sym.split("-")[0] if "-" in bx_sym else bx_sym
-        quote_code = bx_sym.split("-")[1] if "-" in bx_sym else "USDT"
-        extra_by_cat[cat].append({
-            "symbol": f"{base_code}/{quote_code}",
+        if "-" in bx_sym:
+            base_code, quote_code = bx_sym.split("-", 1)
+            disp_sym = f"{base_code}/{quote_code}"
+        else:
+            base_code = bx_sym
+            disp_sym = bx_sym
+        catalog[cat].append({
+            "symbol": disp_sym,
             "bx_symbol": bx_sym,
             "name": f"{base_code} ({bx_sym})",
         })
         seen_bx.add(bx_sym)
 
-    catalog["Criptovalute Globali"] = crypto_items + extra_by_cat["Criptovalute Globali"]
-    catalog["Materie Prime & Forex"] = extra_by_cat["Materie Prime & Forex"]
-    catalog["Azioni & Indici Globali"] = extra_by_cat["Azioni & Indici Globali"]
     return catalog
 
 
@@ -313,7 +299,7 @@ def _resolve_bingx_contract(symbol: str) -> Tuple[str, Optional[Dict[str, Any]]]
     if "-" not in default_bx:
         default_bx = f"{default_bx}-USDT"
 
-    candidates = [default_bx] + list(SYMBOL_ALIASES.get(default_bx, []))
+    candidates = [default_bx]
     if default_bx.endswith("-USDT"):
         base_code = default_bx[:-5]
         candidates.append(f"{base_code}USDT")
@@ -472,12 +458,6 @@ def _fallback_candles(asset: Dict[str, str], timeframe: str, count: int = 60) ->
         "EUR/USDT": 1.0842,
         "NVDA/USDT": 142.8,
         "NAS100/USDT": 20890.0,
-        "OILWTI/USDT": 82.07,
-        "OILBRENT/USDT": 88.3,
-        "XAG/USDT": 44.01,
-        "NATGAS/USDT": 3.54,
-        "COPPER/USDT": 5.853,
-        "XPT/USDT": 1354.6,
     }
     base = bases.get(asset["symbol"], 100.0)
     step_s = TF_SECONDS.get(timeframe, 900)
@@ -510,32 +490,34 @@ def _fallback_candles(asset: Dict[str, str], timeframe: str, count: int = 60) ->
 def _fetch_candles(asset: Dict[str, str], timeframe: str, limit: int = 60) -> Tuple[List[Dict[str, Any]], bool]:
     tf = timeframe if timeframe in TF_BINGX_INTERVAL else "15m"
     interval = TF_BINGX_INTERVAL[tf]
-    bx_sym, _ = _resolve_bingx_contract(asset["bx_symbol"])
-    url = f"{BINGX_BASE_URL}/openApi/swap/v2/quote/klines?symbol={bx_sym}&interval={interval}&limit={limit}"
-    ok, data, _ = _http_get_json(url, timeout=6)
-    raw_list = data.get("data") if (ok and isinstance(data, dict)) else None
+    bx_sym, contract = _resolve_bingx_contract(asset["bx_symbol"])
     candles: List[Dict[str, Any]] = []
-    if isinstance(raw_list, list) and len(raw_list) >= 10:
-        for item in raw_list[-limit:]:
-            if isinstance(item, dict):
-                op = float(item.get("open", 0))
-                hi = float(item.get("high", 0))
-                lo = float(item.get("low", 0))
-                cl = float(item.get("close", 0))
-                vol = float(item.get("volume", 0))
-                ts = int(item.get("time", 0)) // 1000
-            elif isinstance(item, list) and len(item) >= 6:
-                ts = int(item[0]) // 1000
-                op = float(item[1])
-                hi = float(item[2])
-                lo = float(item[3])
-                cl = float(item[4])
-                vol = float(item[5])
-            else:
-                continue
-            if cl > 0:
-                candles.append({"ts": ts, "open": op, "high": hi, "low": lo, "close": cl, "volume": vol})
-        candles.sort(key=lambda x: x["ts"])
+
+    if contract is not None:
+        url = f"{BINGX_BASE_URL}/openApi/swap/v2/quote/klines?symbol={bx_sym}&interval={interval}&limit={limit}"
+        ok, data, _ = _http_get_json(url, timeout=6)
+        raw_list = data.get("data") if (ok and isinstance(data, dict)) else None
+        if isinstance(raw_list, list) and len(raw_list) >= 10:
+            for item in raw_list[-limit:]:
+                if isinstance(item, dict):
+                    op = float(item.get("open", 0))
+                    hi = float(item.get("high", 0))
+                    lo = float(item.get("low", 0))
+                    cl = float(item.get("close", 0))
+                    vol = float(item.get("volume", 0))
+                    ts = int(item.get("time", 0)) // 1000
+                elif isinstance(item, list) and len(item) >= 6:
+                    ts = int(item[0]) // 1000
+                    op = float(item[1])
+                    hi = float(item[2])
+                    lo = float(item[3])
+                    cl = float(item[4])
+                    vol = float(item[5])
+                else:
+                    continue
+                if cl > 0:
+                    candles.append({"ts": ts, "open": op, "high": hi, "low": lo, "close": cl, "volume": vol})
+            candles.sort(key=lambda x: x["ts"])
 
     is_live = len(candles) >= 10
     if not is_live:
@@ -1210,6 +1192,8 @@ def index() -> str:
 def api_bingx_contracts():
     force = request.args.get("force", "1") == "1"
     contracts = _sync_bingx_contracts(force=force)
+    with STATE_LOCK:
+        spot_symbols = dict(TERMINAL_STATE.get("bingx_spot_symbols") or {})
     catalog = _build_dynamic_catalog()
     by_market = {
         cat: [it["bx_symbol"] for it in catalog.get(cat, [])]
@@ -1217,11 +1201,13 @@ def api_bingx_contracts():
     }
     return jsonify({
         "success": True,
-        "total_contracts": len(contracts),
+        "total_swap_contracts": len(contracts),
+        "total_spot_symbols": len(spot_symbols),
         "crypto_count": len(by_market["Criptovalute Globali"]),
         "crypto_symbols": by_market["Criptovalute Globali"],
         "by_market": by_market,
         "contracts": contracts,
+        "spot_symbols": spot_symbols,
     })
 
 
