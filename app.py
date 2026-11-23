@@ -66,6 +66,9 @@ STATE = {
     "only_a_plus": False,
     "max_open_positions": 1,
     "daily_loss_cap_usd": 0.50,
+    "close_at_candle_end": True,
+    "active_timeframe": "15m",
+    "position_targets": {},
     "scans_count": 0,
     "session_pnl": 0.0,
     "telemetry_logs": [],
@@ -251,7 +254,7 @@ def compute_dynamic_leverage(symbol: str, category: str, balance: float, price: 
     cap = max(MIN_BINGX_CAPITAL_USD, safe_float(balance, MIN_BINGX_CAPITAL_USD))
     bx_symbol, _ = resolve_bingx_symbol(symbol)
     step = get_lot_step(bx_symbol, price) if price > 0 else 0.01
-    min_notional = max(2.0, step * max(price, 0.0)) if price > 0 else 2.0
+    min_notional = max(MIN_BINGX_CAPITAL_USD, step * max(price, 0.0)) if price > 0 else MIN_BINGX_CAPITAL_USD
 
     if cap <= 2.50 or (min_notional > cap * 10.0):
         base_lev = 20
@@ -273,8 +276,10 @@ def compute_order_quantity(bx_symbol: str, price: float, raw_qty: float, balance
     eff_lev = max(1, int(leverage or 1))
     step = get_lot_step(bx_symbol, price)
 
-    max_notional = eff_balance * eff_lev * 0.92
-    desired_notional = max(raw_qty * price, min(eff_balance * eff_lev * 0.50, max_notional))
+    # Consente ordini anche con capitale/nozionnale minimo da $2.00 su BingX
+    min_order_notional = MIN_BINGX_CAPITAL_USD
+    max_notional = max(min_order_notional, eff_balance * eff_lev * 0.95)
+    desired_notional = max(min_order_notional, raw_qty * price, min(eff_balance * eff_lev * 0.50, max_notional))
     capped_notional = min(desired_notional, max_notional)
     capped_qty = max(step, capped_notional / price)
 
@@ -406,6 +411,22 @@ def set_bingx_leverage(bx_symbol: str, pos_side: str, leverage: int):
     )
 
 
+def _register_position_target(symbol: str, action: str, sl_price: float, tp_price: float, timeframe: str, candle_close_ts: int):
+    clean_sym = canonicalize_symbol_key(symbol)
+    act = (action or "BUY").upper()
+    key = f"{clean_sym}_{act}"
+    with STATE_LOCK:
+        STATE["position_targets"][key] = {
+            "symbol": clean_sym,
+            "action": act,
+            "sl": safe_float(sl_price, 0.0),
+            "tp": safe_float(tp_price, 0.0),
+            "timeframe": timeframe or "15m",
+            "candle_close_ts": int(safe_float(candle_close_ts, 0)),
+            "opened_ts": time.time(),
+        }
+
+
 def place_bingx_order_with_tpsl(
     symbol: str,
     action: str,
@@ -413,6 +434,8 @@ def place_bingx_order_with_tpsl(
     sl_price: float = 0.0,
     tp_price: float = 0.0,
     leverage: int = 20,
+    timeframe: str = "15m",
+    candle_close_ts: int = 0,
 ):
     bx_symbol, bx_prec = resolve_bingx_symbol(symbol)
     spec = get_bingx_contract_spec(bx_symbol, bx_prec if bx_prec is not None else 2)
@@ -503,6 +526,16 @@ def place_bingx_order_with_tpsl(
             if not tp_err:
                 break
 
+    timing = get_timeframe_candle_timing(timeframe, time.time())
+    _register_position_target(
+        symbol=symbol,
+        action=action,
+        sl_price=sl_q,
+        tp_price=tp_q,
+        timeframe=timeframe,
+        candle_close_ts=int(safe_float(candle_close_ts, timing["candle_close_ts"])),
+    )
+
     return {
         "leverage_set": lev_data,
         "leverage_error": lev_err,
@@ -513,10 +546,12 @@ def place_bingx_order_with_tpsl(
         "tp_price": tp_q,
         "tp_order": tp_data,
         "tp_error": tp_err,
+        "timeframe": timeframe,
+        "candle_close_ts": int(safe_float(candle_close_ts, timing["candle_close_ts"])),
     }, None
 
 
-def close_bingx_position(symbol: str, action: str = "", size: float = 0.0):
+def close_bingx_position(symbol: str, action: str = "", size: float = 0.0, reason: str = "MANUAL"):
     positions, pos_err = fetch_bingx_real_positions()
     if pos_err:
         return None, pos_err
@@ -556,12 +591,80 @@ def close_bingx_position(symbol: str, action: str = "", size: float = 0.0):
         )
         if order_err:
             return None, order_err
-        results.append({"symbol": pos.get("bx_symbol"), "side": close_side, "qty": qty_to_close, "order": order_data})
+        with STATE_LOCK:
+            STATE["position_targets"].pop(f"{target_sym}_{pos.get('action')}", None)
+            STATE["telemetry_logs"] = ([{
+                "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
+                "status": f"CHIUSURA [{reason}] {target_sym} {pos.get('action')} ({qty_to_close})",
+                "signals_found": 0,
+                "scanned": 1,
+            }] + STATE["telemetry_logs"])[:40]
+        results.append({
+            "symbol": pos.get("bx_symbol"),
+            "side": close_side,
+            "qty": qty_to_close,
+            "reason": reason,
+            "order": order_data,
+        })
 
     with STATE_LOCK:
         STATE["last_bingx_sync"] = 0.0
     sync_bingx_real_closed_trades()
     return results, None
+
+
+def monitor_and_enforce_tpsl_and_timeframe_close(live_positions):
+    if not live_positions:
+        return []
+
+    with STATE_LOCK:
+        targets = dict(STATE.get("position_targets") or {})
+        close_at_end = bool(STATE.get("close_at_candle_end", True))
+        active_tf = STATE.get("active_timeframe") or "15m"
+
+    now_ts = time.time()
+    auto_closed = []
+
+    for pos in live_positions:
+        sym = canonicalize_symbol_key(pos.get("symbol"))
+        act = (pos.get("action") or "BUY").upper()
+        bx_sym = pos.get("bx_symbol") or resolve_bingx_symbol(sym)[0]
+        curr_p = fetch_bingx_ticker(bx_sym) or safe_float(pos.get("mark_price") or pos.get("entry"), 0.0)
+        if curr_p <= 0:
+            continue
+
+        t_meta = targets.get(f"{sym}_{act}") or {}
+        sl_p = safe_float(t_meta.get("sl"), 0.0)
+        tp_p = safe_float(t_meta.get("tp"), 0.0)
+        tf_val = t_meta.get("timeframe") or active_tf
+        close_ts = int(safe_float(t_meta.get("candle_close_ts"), 0))
+        opened_ts = safe_float(t_meta.get("opened_ts"), 0.0)
+
+        reason = None
+        if act == "BUY":
+            if tp_p > 0 and curr_p >= tp_p:
+                reason = f"TP RAGGIUNTO ({curr_p} >= {tp_p})"
+            elif sl_p > 0 and curr_p <= sl_p:
+                reason = f"SL RAGGIUNTO ({curr_p} <= {sl_p})"
+        else:
+            if tp_p > 0 and curr_p <= tp_p:
+                reason = f"TP RAGGIUNTO ({curr_p} <= {tp_p})"
+            elif sl_p > 0 and curr_p >= sl_p:
+                reason = f"SL RAGGIUNTO ({curr_p} >= {sl_p})"
+
+        if not reason and close_at_end:
+            timing = get_timeframe_candle_timing(tf_val, now_ts)
+            if close_ts > 0 and now_ts >= close_ts:
+                reason = f"FINE CANDELA {tf_val} ({timing['candle_open_utc']} → {timing['candle_close_utc']})"
+            elif opened_ts > 0 and (now_ts - opened_ts) >= timing["candle_duration_sec"]:
+                reason = f"SCADENZA TIMEFRAME {tf_val} ({timing['candle_duration_sec']}s)"
+
+        if reason:
+            res, err = close_bingx_position(sym, act, safe_float(pos.get("size"), 0.0), reason=reason)
+            if not err and res:
+                auto_closed.extend(res)
+
+    return auto_closed
 
 
 def fetch_bingx_real_balance():
@@ -646,50 +749,71 @@ def sync_bingx_real_closed_trades():
             return
         STATE["last_bingx_sync"] = time.time()
 
-    now_ms = int(time.time() * 1000)
-    start_ms = now_ms - (31 * 86400 * 1000)
-    payload, err = bingx_signed_request(
-        "GET",
-        "/openApi/swap/v2/user/income",
-        {"startTime": start_ms, "endTime": now_ms, "limit": 500},
-    )
-    if err or not isinstance(payload, dict):
-        return
+    now_utc = datetime.now(timezone.utc)
+    now_ms = int(now_utc.timestamp() * 1000)
+    month_start_utc = datetime(now_utc.year, now_utc.month, 1, 0, 0, 0, tzinfo=timezone.utc)
+    start_ms = int(month_start_utc.timestamp() * 1000)
+    current_month_key = now_utc.strftime("%Y-%m")
+    today_key = now_utc.strftime("%Y-%m-%d")
 
-    rows = payload.get("data") or []
-    if not isinstance(rows, list):
-        return
-
+    allowed_types = ("REALIZED_PNL", "PROFIT", "TRADE_PNL", "COMMISSION", "FUNDING_FEE")
     parsed_map = {}
-    for idx, item in enumerate(rows):
-        if not isinstance(item, dict):
-            continue
-        inc_type = str(item.get("incomeType") or "").upper()
-        if inc_type not in ("REALIZED_PNL", "PROFIT", "TRADE_PNL", "COMMISSION", "FUNDING_FEE"):
-            continue
-        amt_val = safe_float(item.get("income"), 0.0)
-        if amt_val == 0.0:
-            continue
-        t_ms = int(safe_float(item.get("time"), now_ms))
-        dt_utc = datetime.fromtimestamp(t_ms / 1000.0, tz=timezone.utc)
-        raw_id = item.get("tranId") or item.get("orderId")
-        trade_id = f"{raw_id}_{inc_type}" if raw_id else f"bx_{inc_type}_{t_ms}_{idx}_{round(amt_val, 6)}"
-        is_fee = inc_type in ("COMMISSION", "FUNDING_FEE")
-        parsed_map[trade_id] = {
-            "id": trade_id,
-            "symbol": canonicalize_symbol_key(item.get("symbol") or "BTCUSDT"),
-            "income_type": inc_type,
-            "is_fee": is_fee,
-            "realized_pnl": round(amt_val, 4),
-            "closed_date": dt_utc.strftime("%Y-%m-%d"),
-            "closed_month": dt_utc.strftime("%Y-%m"),
-            "closed_at": dt_utc.strftime("%Y-%m-%d %H:%M:%S UTC"),
-            "ts_ms": t_ms,
-        }
+    cursor_end = now_ms
+
+    for _ in range(6):
+        payload, err = bingx_signed_request(
+            "GET",
+            "/openApi/swap/v2/user/income",
+            {"startTime": start_ms, "endTime": cursor_end, "limit": 500},
+        )
+        if err or not isinstance(payload, dict):
+            break
+        rows = payload.get("data") or []
+        if not isinstance(rows, list) or not rows:
+            break
+
+        oldest_ts = None
+        for idx, item in enumerate(rows):
+            if not isinstance(item, dict):
+                continue
+            inc_type = str(item.get("incomeType") or "").upper()
+            if inc_type not in allowed_types:
+                continue
+            amt_val = safe_float(item.get("income"), 0.0)
+            if amt_val == 0.0:
+                continue
+            t_ms = int(safe_float(item.get("time"), now_ms))
+            if oldest_ts is None or t_ms < oldest_ts:
+                oldest_ts = t_ms
+
+            dt_utc = datetime.fromtimestamp(t_ms / 1000.0, tz=timezone.utc)
+            m_key = dt_utc.strftime("%Y-%m")
+            if m_key != current_month_key:
+                continue
+
+            raw_id = str(item.get("tranId") or item.get("orderId") or "").strip()
+            trade_id = f"{raw_id}_{inc_type}" if raw_id else f"bx_{inc_type}_{t_ms}_{idx}_{round(amt_val, 6)}"
+            parsed_map[trade_id] = {
+                "id": trade_id,
+                "symbol": canonicalize_symbol_key(item.get("symbol") or "BTCUSDT"),
+                "income_type": inc_type,
+                "is_fee": inc_type in ("COMMISSION", "FUNDING_FEE"),
+                "realized_pnl": round(amt_val, 4),
+                "closed_date": dt_utc.strftime("%Y-%m-%d"),
+                "closed_month": m_key,
+                "closed_at": dt_utc.strftime("%Y-%m-%d %H:%M:%S UTC"),
+                "ts_ms": t_ms,
+            }
+
+        if len(rows) < 500 or oldest_ts is None or oldest_ts <= start_ms:
+            break
+        cursor_end = oldest_ts - 1
 
     ordered_trades = sorted(parsed_map.values(), key=lambda x: x["ts_ms"], reverse=True)
-    today_key = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    today_net = round(sum(safe_float(t.get("realized_pnl")) for t in ordered_trades if t["closed_date"] == today_key), 4)
+    today_net = round(
+        sum(safe_float(t.get("realized_pnl")) for t in ordered_trades if t["closed_date"] == today_key),
+        4,
+    )
 
     with STATE_LOCK:
         STATE["closed_trades"] = ordered_trades
@@ -722,8 +846,12 @@ def fetch_bingx_real_positions():
         else:
             action = "BUY" if safe_float(p.get("positionAmt"), 0.0) > 0 else "SELL"
 
+        sym_key = canonicalize_symbol_key(p.get("symbol") or "")
+        with STATE_LOCK:
+            t_cfg = STATE["position_targets"].get(f"{sym_key}_{action}") or {}
+
         active.append({
-            "symbol": canonicalize_symbol_key(p.get("symbol") or ""),
+            "symbol": sym_key,
             "bx_symbol": p.get("symbol") or "",
             "action": action,
             "entry": safe_float(p.get("avgPrice"), 0.0),
@@ -731,6 +859,10 @@ def fetch_bingx_real_positions():
             "size": amt,
             "leverage": f"{int(safe_float(p.get('leverage'), 1))}x",
             "unrealized_pnl": round(safe_float(p.get("unrealizedProfit"), 0.0), 4),
+            "sl": safe_float(t_cfg.get("sl"), 0.0),
+            "tp": safe_float(t_cfg.get("tp"), 0.0),
+            "timeframe": t_cfg.get("timeframe") or STATE.get("active_timeframe") or "15m",
+            "candle_close_utc": datetime.fromtimestamp(safe_float(t_cfg.get("candle_close_ts"), 0), tz=timezone.utc).strftime("%H:%M:%S UTC") if safe_float(t_cfg.get("candle_close_ts"), 0) > 0 else "--",
         })
     return active, None
 
@@ -1065,7 +1197,7 @@ def evaluate_pro_setup(df, current_price, symbol, category, is_open, balance, ri
     eff_risk_pct = min(risk_pct, cfg["max_risk_pct"])
     risk_usd = max(eff_balance * (eff_risk_pct / 100.0), eff_balance * 0.10)
     qty = compute_order_quantity(bx_symbol, entry, risk_usd / sl_dist, eff_balance, lev)
-    margin_usd = round((qty * entry) / max(lev, 1), 2)
+    margin_usd = round(max(MIN_BINGX_CAPITAL_USD, (qty * entry) / max(lev, 1)), 2)
     fee_usd = round((qty * entry) * 0.001, 4)
 
     certainty_pct = round(min(96.0, max(35.0, (max(bull_hits, bear_hits) / 7.0) * 100.0)), 1)
@@ -1261,6 +1393,8 @@ def maybe_execute_pro_autotrade(signals_out, live_positions, daily_net_pnl):
             sl_price=safe_float(sig.get("sl"), 0.0),
             tp_price=safe_float(sig.get("tp1"), 0.0),
             leverage=lev_num,
+            timeframe=sig.get("timeframe") or "15m",
+            candle_close_ts=int(safe_float(sig.get("candle_close_ts"), 0)),
         )
         _AUTOTRADE_LAST_EXEC[sym] = now_ts
         if not err:
@@ -1292,8 +1426,11 @@ def index():
 @app.route("/api/bingx/live-account", methods=["GET"])
 def api_bingx_live_account():
     api_key, api_secret = get_bingx_credentials()
-    bal_info, bal_err = fetch_bingx_real_balance()
     positions, pos_err = fetch_bingx_real_positions()
+    auto_closed = monitor_and_enforce_tpsl_and_timeframe_close(positions)
+    if auto_closed:
+        positions, pos_err = fetch_bingx_real_positions()
+    bal_info, bal_err = fetch_bingx_real_balance()
     sync_bingx_real_closed_trades()
     with STATE_LOCK:
         session_pnl = STATE["session_pnl"]
@@ -1302,6 +1439,7 @@ def api_bingx_live_account():
             "only_a_plus": bool(STATE["only_a_plus"]),
             "max_open_positions": int(STATE["max_open_positions"]),
             "daily_loss_cap_usd": float(STATE["daily_loss_cap_usd"]),
+            "close_at_candle_end": bool(STATE.get("close_at_candle_end", True)),
         }
     return jsonify({
         "success": bool(api_key and api_secret) and not (bal_err and pos_err),
@@ -1313,6 +1451,7 @@ def api_bingx_live_account():
         "balance_error": bal_err,
         "positions": positions,
         "positions_error": pos_err,
+        "auto_closed": auto_closed,
         "session_pnl": session_pnl,
         "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
     })
@@ -1324,7 +1463,7 @@ def api_bingx_close_position():
     sym = body.get("symbol", "")
     act = body.get("action", "")
     sz = safe_float(body.get("size"), 0.0)
-    res, err = close_bingx_position(sym, act, sz)
+    res, err = close_bingx_position(sym, act, sz, reason="MANUAL")
     if err:
         return jsonify({"success": False, "error": err}), 400
     return jsonify({"success": True, "closed": res})
@@ -1337,7 +1476,7 @@ def api_bingx_close_all():
         return jsonify({"success": False, "error": pos_err}), 400
     closed_all = []
     for p in positions:
-        res, err = close_bingx_position(p.get("symbol"), p.get("action"), p.get("size"))
+        res, err = close_bingx_position(p.get("symbol"), p.get("action"), p.get("size"), reason="PANIC_CLOSE_ALL")
         if err:
             return jsonify({"success": False, "error": err, "closed": closed_all}), 400
         if res:
@@ -1421,6 +1560,9 @@ def get_signals():
     market_filter = request.args.get("market", "ALL")
     symbol_filter = request.args.get("symbol", "ALL")
 
+    with STATE_LOCK:
+        STATE["active_timeframe"] = timeframe
+
     cfg = build_pro_profile_config(profile, timeframe, min_score, min_rrr)
     sessions = get_session_statuses()
     candle_timing = get_timeframe_candle_timing(timeframe, time.time())
@@ -1461,6 +1603,10 @@ def get_signals():
     signals_out.sort(key=lambda s: safe_float(s.get("score")), reverse=True)
 
     live_positions, _ = fetch_bingx_real_positions()
+    auto_closed = monitor_and_enforce_tpsl_and_timeframe_close(live_positions)
+    if auto_closed:
+        live_positions, _ = fetch_bingx_real_positions()
+
     perf_payload = build_performance_payload()
     daily_net = safe_float((perf_payload.get("daily") or {}).get("net_pnl"), 0.0)
     autotrade_executed = maybe_execute_pro_autotrade(signals_out, live_positions, daily_net)
@@ -1509,6 +1655,7 @@ def get_signals():
         "candle_timing": candle_timing,
         "auto_trade": auto_trade_val,
         "autotrade_executed": autotrade_executed,
+        "auto_closed": auto_closed,
         "market_diagnostics": market_diagnostics,
         "market_monitoring_table": monitoring_rows,
         "performance": perf_payload,
@@ -1551,10 +1698,13 @@ def api_autotrade_config():
             STATE["max_open_positions"] = max(1, min(10, int(safe_float(body["max_open_positions"], 1))))
         if "daily_loss_cap_usd" in body:
             STATE["daily_loss_cap_usd"] = max(0.05, min(500.0, safe_float(body["daily_loss_cap_usd"], 0.50)))
+        if "close_at_candle_end" in body:
+            STATE["close_at_candle_end"] = bool(body["close_at_candle_end"])
         cfg_out = {
             "only_a_plus": bool(STATE["only_a_plus"]),
             "max_open_positions": int(STATE["max_open_positions"]),
             "daily_loss_cap_usd": float(STATE["daily_loss_cap_usd"]),
+            "close_at_candle_end": bool(STATE.get("close_at_candle_end", True)),
         }
     return jsonify({"success": True, "risk_config": cfg_out})
 
@@ -1590,6 +1740,7 @@ def api_execute_manual():
     tp_p = safe_float(body.get("tp1"), 0.0)
     tf = (body.get("timeframe") or "15m").strip()
     timing = get_timeframe_candle_timing(tf, time.time())
+    close_ts = int(safe_float(body.get("candle_close_ts"), timing["candle_close_ts"]))
 
     exec_res, err = place_bingx_order_with_tpsl(
         symbol=sym,
@@ -1598,6 +1749,8 @@ def api_execute_manual():
         sl_price=sl_p,
         tp_price=tp_p,
         leverage=lev_num,
+        timeframe=tf,
+        candle_close_ts=close_ts,
     )
     if err:
         return jsonify({"success": False, "error": f"Errore BingX ordine reale: {err}"}), 400
