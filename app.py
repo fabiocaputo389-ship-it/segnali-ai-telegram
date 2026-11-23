@@ -220,7 +220,6 @@ def compute_order_quantity(bx_symbol: str, price: float, raw_qty: float, balance
     eff_lev = max(1, int(leverage or 1))
     step = get_lot_step(bx_symbol, price)
 
-    # Consente di operare anche con capitale minimo da $2.00 usando fino al 92% del potere d'acquisto a leva
     max_notional = eff_balance * eff_lev * 0.92
     desired_notional = max(raw_qty * price, min(eff_balance * eff_lev * 0.50, max_notional))
     capped_notional = min(desired_notional, max_notional)
@@ -363,9 +362,10 @@ def place_bingx_order_with_tpsl(
     leverage: int = 20,
 ):
     bx_symbol, bx_prec = resolve_bingx_symbol(symbol)
-    side = "BID" if action == "BUY" else "ASK"
-    close_side = "ASK" if action == "BUY" else "BID"
-    pos_side = "LONG" if action == "BUY" else "SHORT"
+    is_buy = str(action or "BUY").upper() == "BUY"
+    side = "BUY" if is_buy else "SELL"
+    close_side = "SELL" if is_buy else "BUY"
+    pos_side = "LONG" if is_buy else "SHORT"
     dec = bx_prec if bx_prec is not None else 2
 
     lev_data, lev_err = set_bingx_leverage(bx_symbol, pos_side, leverage)
