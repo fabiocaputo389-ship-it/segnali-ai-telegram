@@ -63,7 +63,7 @@ _CONTRACT_SPECS_CACHE = {"specs": {}, "ts": 0.0}
 STATE_LOCK = threading.Lock()
 STATE = {
     "auto_trade": False,
-    "only_a_plus": True,
+    "only_a_plus": False,
     "max_open_positions": 1,
     "daily_loss_cap_usd": 0.50,
     "scans_count": 0,
@@ -516,6 +516,54 @@ def place_bingx_order_with_tpsl(
     }, None
 
 
+def close_bingx_position(symbol: str, action: str = "", size: float = 0.0):
+    positions, pos_err = fetch_bingx_real_positions()
+    if pos_err:
+        return None, pos_err
+
+    target_sym = canonicalize_symbol_key(symbol)
+    target_act = (action or "").upper().strip()
+    matches = []
+    for p in positions:
+        if canonicalize_symbol_key(p.get("symbol")) != target_sym:
+            continue
+        if target_act in ("BUY", "SELL") and p.get("action") != target_act:
+            continue
+        matches.append(p)
+
+    if not matches:
+        return None, f"Nessuna posizione aperta trovata per {target_sym}"
+
+    results = []
+    for pos in matches:
+        qty_to_close = safe_float(size, 0.0) if safe_float(size, 0.0) > 0 else safe_float(pos.get("size"), 0.0)
+        if qty_to_close <= 0:
+            continue
+        is_long = pos.get("action") == "BUY"
+        close_side = "SELL" if is_long else "BUY"
+        pos_side = "LONG" if is_long else "SHORT"
+        order_data, order_err = bingx_signed_request(
+            "POST",
+            "/openApi/swap/v2/trade/order",
+            {
+                "symbol": pos.get("bx_symbol") or resolve_bingx_symbol(target_sym)[0],
+                "side": close_side,
+                "positionSide": pos_side,
+                "type": "MARKET",
+                "quantity": qty_to_close,
+                "reduceOnly": "true",
+            },
+        )
+        if order_err:
+            return None, order_err
+        results.append({"symbol": pos.get("bx_symbol"), "side": close_side, "qty": qty_to_close, "order": order_data})
+
+    with STATE_LOCK:
+        STATE["last_bingx_sync"] = 0.0
+    sync_bingx_real_closed_trades()
+    return results, None
+
+
 def fetch_bingx_real_balance():
     api_key, api_secret = get_bingx_credentials()
     if not (api_key and api_secret):
@@ -679,6 +727,7 @@ def fetch_bingx_real_positions():
             "bx_symbol": p.get("symbol") or "",
             "action": action,
             "entry": safe_float(p.get("avgPrice"), 0.0),
+            "mark_price": safe_float(p.get("markPrice"), 0.0),
             "size": amt,
             "leverage": f"{int(safe_float(p.get('leverage'), 1))}x",
             "unrealized_pnl": round(safe_float(p.get("unrealizedProfit"), 0.0), 4),
@@ -866,6 +915,7 @@ def build_pro_profile_config(profile: str, timeframe: str, min_score: float, min
             "sl_atr": 1.25,
             "tp1_atr": 2.60,
             "tp2_atr": 4.00,
+            "tp3_atr": 5.80,
             "min_vol_ratio": 0.90,
         }
     if p == "institutional_swing":
@@ -880,6 +930,7 @@ def build_pro_profile_config(profile: str, timeframe: str, min_score: float, min
             "sl_atr": 1.40,
             "tp1_atr": 2.80,
             "tp2_atr": 4.40,
+            "tp3_atr": 6.40,
             "min_vol_ratio": 0.85,
         }
     return {
@@ -893,6 +944,7 @@ def build_pro_profile_config(profile: str, timeframe: str, min_score: float, min
         "sl_atr": 1.15,
         "tp1_atr": 2.20,
         "tp2_atr": 3.50,
+        "tp3_atr": 5.20,
         "min_vol_ratio": 0.80,
     }
 
@@ -989,17 +1041,20 @@ def evaluate_pro_setup(df, current_price, symbol, category, is_open, balance, ri
     sl_dist = max(atr * cfg["sl_atr"], entry * 0.0025)
     tp1_dist = max(atr * cfg["tp1_atr"], sl_dist * cfg["min_rrr"])
     tp2_dist = max(atr * cfg["tp2_atr"], tp1_dist * 1.5)
+    tp3_dist = max(atr * cfg["tp3_atr"], tp2_dist * 1.35)
 
     if side_bias == "LONG":
         sl = quantize_to_tick(max(entry - sl_dist, swing_low_20 - tick * 2) if swing_low_20 < entry and (entry - swing_low_20) <= sl_dist * 1.35 else entry - sl_dist, decimals)
         sl_dist = max(abs(entry - sl), tick * 2)
         tp1 = quantize_to_tick(entry + max(tp1_dist, sl_dist * cfg["min_rrr"]), decimals)
         tp2 = quantize_to_tick(entry + max(tp2_dist, sl_dist * (cfg["min_rrr"] * 1.5)), decimals)
+        tp3 = quantize_to_tick(entry + max(tp3_dist, sl_dist * (cfg["min_rrr"] * 2.2)), decimals)
     else:
         sl = quantize_to_tick(min(entry + sl_dist, swing_high_20 + tick * 2) if swing_high_20 > entry and (swing_high_20 - entry) <= sl_dist * 1.35 else entry + sl_dist, decimals)
         sl_dist = max(abs(sl - entry), tick * 2)
         tp1 = quantize_to_tick(entry - max(tp1_dist, sl_dist * cfg["min_rrr"]), decimals)
         tp2 = quantize_to_tick(entry - max(tp2_dist, sl_dist * (cfg["min_rrr"] * 1.5)), decimals)
+        tp3 = quantize_to_tick(entry - max(tp3_dist, sl_dist * (cfg["min_rrr"] * 2.2)), decimals)
 
     tp1_dist = abs(tp1 - entry)
     rrr = round(tp1_dist / sl_dist, 2) if sl_dist > 0 else 0.0
@@ -1013,11 +1068,13 @@ def evaluate_pro_setup(df, current_price, symbol, category, is_open, balance, ri
     margin_usd = round((qty * entry) / max(lev, 1), 2)
     fee_usd = round((qty * entry) * 0.001, 4)
 
+    certainty_pct = round(min(96.0, max(35.0, (max(bull_hits, bear_hits) / 7.0) * 100.0)), 1)
     win_prob = min(0.76, max(0.38, (score / 100.0) * 0.72))
     loss_prob = 1.0 - win_prob
     net_win = round((qty * tp1_dist) - fee_usd, 4)
     net_loss = round((qty * sl_dist) + fee_usd, 4)
     ev_usd = round((win_prob * net_win) - (loss_prob * net_loss), 4)
+    kelly_pct = round(max(0.0, min(15.0, ((win_prob * max(rrr, 0.5)) - loss_prob) / max(rrr, 0.5) * 100.0)), 1)
 
     tf_min = 5 if cfg["timeframe"] == "5m" else (60 if cfg["timeframe"] == "1h" else 15)
     candle_move = max(abs(close.diff().tail(6)).mean(), atr * 0.2, entry * 0.0002)
@@ -1037,7 +1094,7 @@ def evaluate_pro_setup(df, current_price, symbol, category, is_open, balance, ri
 
     action = raw_action
     reason = f"Setup {action} validato (Score {score}% >= {cfg['min_score']}%) • Leva {lev}x • R:R 1:{rrr}"
-    grade = "A+" if (score >= max(85.0, cfg["min_score"]) and rrr >= 2.0 and not fakeout) else ("VALIDATO" if action in ("BUY", "SELL") else "NO-TRADE")
+    grade = "A+" if (score >= max(85.0, cfg["min_score"]) and rrr >= 2.0 and not fakeout) else ("CERTO" if (action in ("BUY", "SELL") and certainty_pct >= 70.0) else ("VALIDATO" if action in ("BUY", "SELL") else "NO-TRADE"))
 
     if action in ("BUY", "SELL") and prev_dir:
         if prev_dir.get("action") != action and (now_ts - safe_float(prev_dir.get("ts"), 0.0)) < DIRECTION_COOLDOWN_SEC:
@@ -1070,8 +1127,11 @@ def evaluate_pro_setup(df, current_price, symbol, category, is_open, balance, ri
         "sl": sl,
         "tp1": tp1,
         "tp2": tp2,
+        "tp3": tp3,
         "rrr": rrr,
         "score": score,
+        "certainty_pct": certainty_pct,
+        "kelly_pct": kelly_pct,
         "grade": grade,
         "action": action,
         "taken": action in ("BUY", "SELL"),
@@ -1122,6 +1182,7 @@ def build_performance_payload():
         won_amt = round(sum(safe_float(t.get("realized_pnl")) for t in wins), 4)
         lost_amt = round(sum(abs(safe_float(t.get("realized_pnl"))) for t in losses), 4)
         fees_amt = round(sum(safe_float(t.get("realized_pnl")) for t in items if t.get("is_fee")), 4)
+        gross_pnl = round(sum(safe_float(t.get("realized_pnl")) for t in trade_items), 4)
         net_pnl = round(sum(safe_float(t.get("realized_pnl")) for t in items), 4)
         return {
             "total_trades": total,
@@ -1132,6 +1193,7 @@ def build_performance_payload():
             "won_amount": won_amt,
             "lost_amount": lost_amt,
             "fees_pnl": fees_amt,
+            "gross_pnl": gross_pnl,
             "net_pnl": net_pnl,
         }
 
@@ -1171,7 +1233,7 @@ def maybe_execute_pro_autotrade(signals_out, live_positions, daily_net_pnl):
     for sig in signals_out:
         if sig.get("action") not in ("BUY", "SELL"):
             continue
-        if only_a_plus and sig.get("grade") not in ("A+", "VALIDATO"):
+        if only_a_plus and sig.get("grade") not in ("A+", "CERTO"):
             continue
         sym = sig["symbol"]
         if sym in active_syms:
@@ -1224,7 +1286,7 @@ def maybe_execute_pro_autotrade(signals_out, live_positions, daily_net_pnl):
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", market_catalog=MARKET_CATALOG)
 
 
 @app.route("/api/bingx/live-account", methods=["GET"])
@@ -1236,11 +1298,17 @@ def api_bingx_live_account():
     with STATE_LOCK:
         session_pnl = STATE["session_pnl"]
         auto_trade = bool(STATE["auto_trade"])
+        risk_cfg = {
+            "only_a_plus": bool(STATE["only_a_plus"]),
+            "max_open_positions": int(STATE["max_open_positions"]),
+            "daily_loss_cap_usd": float(STATE["daily_loss_cap_usd"]),
+        }
     return jsonify({
         "success": bool(api_key and api_secret) and not (bal_err and pos_err),
         "mode": "BINGX PRO DESK",
         "api_configured": bool(api_key and api_secret),
         "auto_trade": auto_trade,
+        "risk_config": risk_cfg,
         "account": bal_info,
         "balance_error": bal_err,
         "positions": positions,
@@ -1248,6 +1316,33 @@ def api_bingx_live_account():
         "session_pnl": session_pnl,
         "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
     })
+
+
+@app.route("/api/bingx/close-position", methods=["POST"])
+def api_bingx_close_position():
+    body = request.get_json(silent=True) or {}
+    sym = body.get("symbol", "")
+    act = body.get("action", "")
+    sz = safe_float(body.get("size"), 0.0)
+    res, err = close_bingx_position(sym, act, sz)
+    if err:
+        return jsonify({"success": False, "error": err}), 400
+    return jsonify({"success": True, "closed": res})
+
+
+@app.route("/api/bingx/close-all", methods=["POST"])
+def api_bingx_close_all():
+    positions, pos_err = fetch_bingx_real_positions()
+    if pos_err:
+        return jsonify({"success": False, "error": pos_err}), 400
+    closed_all = []
+    for p in positions:
+        res, err = close_bingx_position(p.get("symbol"), p.get("action"), p.get("size"))
+        if err:
+            return jsonify({"success": False, "error": err, "closed": closed_all}), 400
+        if res:
+            closed_all.extend(res)
+    return jsonify({"success": True, "closed_count": len(closed_all), "closed": closed_all})
 
 
 @app.route("/api/live-ticker", methods=["GET"])
@@ -1285,6 +1380,12 @@ def api_candles():
             **timing,
         }), 200
 
+    ema20_s = df["Close"].ewm(span=20, adjust=False).mean()
+    ema50_s = df["Close"].ewm(span=50, adjust=False).mean()
+    tail_df = df.tail(45).copy()
+    tail_ema20 = ema20_s.tail(45)
+    tail_ema50 = ema50_s.tail(45)
+
     candles = [
         {
             "open": safe_float(row.get("Open")),
@@ -1292,8 +1393,10 @@ def api_candles():
             "low": safe_float(row.get("Low")),
             "close": safe_float(row.get("Close")),
             "volume": safe_float(row.get("Volume")),
+            "ema20": safe_float(tail_ema20.loc[idx]),
+            "ema50": safe_float(tail_ema50.loc[idx]),
         }
-        for _, row in df.tail(50).iterrows()
+        for idx, row in tail_df.iterrows()
     ]
     return jsonify({
         "symbol": sym,
@@ -1367,6 +1470,7 @@ def get_signals():
         sess = sessions.get(category, {"status": "APERTO (Live)", "is_open": True, "hours": "24/7"})
         cat_rows = [r for r in monitoring_rows if r.get("category") == category]
         cat_sigs = [r for r in cat_rows if r.get("taken")]
+        certain_cnt = sum(1 for r in cat_rows if r.get("grade") in ("CERTO", "A+"))
         avg_sc = round(sum(safe_float(r.get("score")) for r in cat_rows) / len(cat_rows), 1) if cat_rows else 0.0
         top_r = cat_rows[0] if cat_rows else None
         top_txt = f" • Top: {top_r['symbol']} ({top_r['score']}% {top_r['grade']})" if top_r else ""
@@ -1377,8 +1481,11 @@ def get_signals():
         else:
             reason = f"Nessun setup con score >= {cfg['min_score']}% e R:R 1:{cfg['min_rrr']}{top_txt}."
         market_diagnostics[category] = {
+            "is_open": bool(sess.get("is_open", True)),
+            "status": sess.get("status", "APERTO"),
             "scanned": len(cat_rows),
             "signals_count": len(cat_sigs),
+            "certain_count": certain_cnt,
             "market_score": avg_sc,
             "reason": reason,
         }
@@ -1432,6 +1539,24 @@ def api_autotrade_toggle():
             STATE["auto_trade"] = not bool(STATE.get("auto_trade"))
         curr = bool(STATE["auto_trade"])
     return jsonify({"success": True, "auto_trade": curr})
+
+
+@app.route("/api/autotrade/config", methods=["POST"])
+def api_autotrade_config():
+    body = request.get_json(silent=True) or {}
+    with STATE_LOCK:
+        if "only_a_plus" in body:
+            STATE["only_a_plus"] = bool(body["only_a_plus"])
+        if "max_open_positions" in body:
+            STATE["max_open_positions"] = max(1, min(10, int(safe_float(body["max_open_positions"], 1))))
+        if "daily_loss_cap_usd" in body:
+            STATE["daily_loss_cap_usd"] = max(0.05, min(500.0, safe_float(body["daily_loss_cap_usd"], 0.50)))
+        cfg_out = {
+            "only_a_plus": bool(STATE["only_a_plus"]),
+            "max_open_positions": int(STATE["max_open_positions"]),
+            "daily_loss_cap_usd": float(STATE["daily_loss_cap_usd"]),
+        }
+    return jsonify({"success": True, "risk_config": cfg_out})
 
 
 @app.route("/api/autotrade/execute-manual", methods=["POST"])
