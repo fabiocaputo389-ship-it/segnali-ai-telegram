@@ -59,6 +59,8 @@
           <div class="flex items-center gap-2 text-[11px] font-mono text-white/70 mt-0.5">
             <span id="liveCetClock" class="text-white font-semibold tabular-nums">--:--:-- CET</span>
             <span>|</span>
+            <span id="liveUtcClock" class="text-cyan-300 font-semibold tabular-nums">--:--:-- UTC</span>
+            <span>|</span>
             <span class="text-[#00FF66]">FEED REALE BINGX</span>
           </div>
         </div>
@@ -346,24 +348,27 @@
       <div class="px-5 py-3.5 border-b border-white/15 flex items-center justify-between bg-[#000000]">
         <div>
           <h2 class="text-base font-extrabold font-mono text-[#FFD700]">🔑 Configurazione API Key BingX</h2>
-          <p class="text-xs text-white/70">Esecuzione ordini reali e lettura conto BingX</p>
+          <p class="text-xs text-white/70">Variabili Render lette automaticamente; opzionalmente puoi sovrascriverle qui</p>
         </div>
         <button onclick="toggleApiModal()" class="p-2 rounded-xl bg-white/10 text-white hover:bg-[#FF334B] transition-colors">&#10005;</button>
       </div>
       <div class="p-5 space-y-4 text-xs font-mono">
-        <div class="space-y-1.5">
-          <label class="block text-white/80 font-bold">BingX API Key:</label>
-          <input type="text" id="userApiKeyInput" placeholder="Inserisci la tua API Key..." class="w-full bg-[#000000] border border-white/30 rounded-lg px-3 py-2 text-white font-mono text-xs focus:border-[#FFD700] outline-none" />
+        <div id="renderEnvNotice" class="p-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-[#00FF66] text-[11px]">
+          Verifica variabili d'ambiente Render in corso...
         </div>
         <div class="space-y-1.5">
-          <label class="block text-white/80 font-bold">BingX Secret Key:</label>
-          <input type="password" id="userSecretKeyInput" placeholder="Inserisci la tua Secret Key..." class="w-full bg-[#000000] border border-white/30 rounded-lg px-3 py-2 text-white font-mono text-xs focus:border-[#FFD700] outline-none" />
+          <label class="block text-white/80 font-bold">BingX API Key (Override opzionale):</label>
+          <input type="text" id="userApiKeyInput" placeholder="Lascia vuoto per usare BINGX_API_KEY da Render..." class="w-full bg-[#000000] border border-white/30 rounded-lg px-3 py-2 text-white font-mono text-xs focus:border-[#FFD700] outline-none" />
+        </div>
+        <div class="space-y-1.5">
+          <label class="block text-white/80 font-bold">BingX Secret Key (Override opzionale):</label>
+          <input type="password" id="userSecretKeyInput" placeholder="Lascia vuoto per usare BINGX_SECRET_KEY da Render..." class="w-full bg-[#000000] border border-white/30 rounded-lg px-3 py-2 text-white font-mono text-xs focus:border-[#FFD700] outline-none" />
         </div>
         <button onclick="saveUserApiKeys()" class="w-full py-2.5 rounded-xl text-xs font-bold bg-[#FFD700] text-black shadow-lg hover:bg-amber-400 transition-all">
           Salva e Sincronizza Conto
         </button>
         <button onclick="clearUserApiKeys()" class="w-full py-1.5 rounded-xl text-xs font-bold bg-red-500/20 text-[#FF334B] border border-red-500/40 hover:bg-red-500/30 transition-all">
-          Disconnetti API
+          Usa Solo Variabili Render
         </button>
       </div>
     </div>
@@ -378,6 +383,8 @@
       tradingMode: 'MANUAL',
       selectedLeverage: 10,
       selectedMarginUsdt: 10,
+      envKeysConfigured: false,
+      keySource: 'none',
       marketData: {},
       signalsCache: [],
       selectedAssetDetail: null,
@@ -477,7 +484,30 @@
     function updateApiStatusUI() {
       const keys = getStoredApiKeys();
       const btn = document.getElementById('apiStatusText');
-      if (btn) btn.textContent = (keys.apiKey && keys.secretKey) ? "API Connesse 🟢" : "Collega API";
+      const notice = document.getElementById('renderEnvNotice');
+
+      if (keys.apiKey && keys.secretKey) {
+        if (btn) btn.textContent = "API Custom 🟢";
+        if (notice) notice.textContent = "🟢 Stai usando credenziali personalizzate salvate nel browser.";
+      } else if (state.envKeysConfigured) {
+        if (btn) btn.textContent = "API Render 🟢";
+        if (notice) notice.textContent = "🟢 Variabili d'ambiente Render rilevate e attive sul server.";
+      } else {
+        if (btn) btn.textContent = "Collega API";
+        if (notice) notice.textContent = "🟡 Nessuna chiave rilevata su Render: imposta BINGX_API_KEY e BINGX_SECRET_KEY oppure inseriscile qui.";
+      }
+    }
+
+    async function syncServerModeAndEnvKeys() {
+      try {
+        const res = await fetch('/api/get-mode');
+        const json = await res.json();
+        if (json.code === 0) {
+          state.envKeysConfigured = Boolean(json.envKeysConfigured);
+          state.keySource = json.keySource || 'none';
+          updateApiStatusUI();
+        }
+      } catch (e) {}
     }
 
     function toggleApiModal() {
@@ -485,6 +515,7 @@
       const keys = getStoredApiKeys();
       document.getElementById('userApiKeyInput').value = keys.apiKey;
       document.getElementById('userSecretKeyInput').value = keys.secretKey;
+      updateApiStatusUI();
       modal.classList.toggle('hidden');
       modal.classList.toggle('flex');
     }
@@ -492,7 +523,7 @@
     function saveUserApiKeys() {
       const apiKey = document.getElementById('userApiKeyInput').value.trim();
       const secretKey = document.getElementById('userSecretKeyInput').value.trim();
-      if (!apiKey || !secretKey) return alert("Inserisci API Key e Secret Key.");
+      if (!apiKey || !secretKey) return alert("Inserisci API Key e Secret Key oppure lascia vuoto per usare Render.");
       localStorage.setItem('bingx_user_api_key', apiKey);
       localStorage.setItem('bingx_user_secret_key', secretKey);
       updateApiStatusUI();
@@ -908,10 +939,14 @@
         if (json.code === 0 && json.data) {
           const t = json.data;
           state.livePositions = t.positions || [];
+          state.keySource = t.keySource || state.keySource;
+          updateApiStatusUI();
 
-          document.getElementById('bingxConnectionStatus').textContent = t.connected
-            ? "🟢 Conto Reale BingX Sincronizzato"
-            : (t.msg || "Modalità non connessa");
+          const srcLabel = t.keySource === 'render_env'
+            ? "🟢 Conto Reale BingX Sincronizzato (Variabili Render)"
+            : (t.keySource === 'custom' ? "🟢 Conto Reale BingX Sincronizzato (API Custom)" : (t.msg || "Modalità non connessa"));
+
+          document.getElementById('bingxConnectionStatus').textContent = srcLabel;
 
           document.getElementById('pnlWalletBalance').textContent = `$${Number(t.walletBalance || 0).toFixed(2)}`;
           document.getElementById('pnlAvailableMargin').textContent = `$${Number(t.availableMargin || 0).toFixed(2)}`;
@@ -978,13 +1013,18 @@
     window.addEventListener('DOMContentLoaded', async () => {
       updateApiStatusUI();
       updateRiskLabels();
+      await syncServerModeAndEnvKeys();
       await pollMarketData();
       await refreshBingxTelemetry();
 
       setInterval(pollMarketData, 4000);
       setInterval(refreshBingxTelemetry, 10000);
       setInterval(() => {
-        document.getElementById('liveCetClock').textContent = new Date().toTimeString().slice(0, 8) + ' CET';
+        const now = new Date();
+        document.getElementById('liveCetClock').textContent =
+          now.toLocaleTimeString('it-IT', { timeZone: 'Europe/Rome', hour12: false }) + ' CET';
+        document.getElementById('liveUtcClock').textContent =
+          now.toLocaleTimeString('en-GB', { timeZone: 'UTC', hour12: false }) + ' UTC';
         tickCandleCountdowns();
       }, 1000);
     });
