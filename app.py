@@ -96,33 +96,33 @@ MARKET_CATALOG = {
         {"symbol": "SUIUSDT", "bx": "SUI-USDT", "name": "Sui (SUI-USDT)", "precision": 4},
     ],
     "Materie Prime & Forex": [
-        {"symbol": "PAXGUSDT", "bx": "PAXG-USDT", "name": "Oro / Gold (PAXG-USDT)", "precision": 2},
-        {"symbol": "XAGUSDT", "bx": "XAG-USDT", "name": "Argento / Silver (XAG-USDT)", "precision": 3},
-        {"symbol": "XPTUSDT", "bx": "XPT-USDT", "name": "Platino / Platinum (XPT-USDT)", "precision": 2},
-        {"symbol": "XPDUSDT", "bx": "XPD-USDT", "name": "Palladio / Palladium (XPD-USDT)", "precision": 2},
-        {"symbol": "COPPERUSDT", "bx": "COPPER-USDT", "name": "Rame / Copper (COPPER-USDT)", "precision": 4},
-        {"symbol": "ALUMINIUMUSDT", "bx": "ALUMINIUM-USDT", "name": "Alluminio / Aluminium (ALUMINIUM-USDT)", "precision": 2},
-        {"symbol": "WTIUSDT", "bx": "WTI-USDT", "name": "Petrolio WTI Crude (WTI-USDT)", "precision": 2},
-        {"symbol": "BRENTUSDT", "bx": "BRENT-USDT", "name": "Petrolio Brent Crude (BRENT-USDT)", "precision": 2},
-        {"symbol": "NATGASUSDT", "bx": "NATGAS-USDT", "name": "Gas Naturale (NATGAS-USDT)", "precision": 3},
-        {"symbol": "WHEATUSDT", "bx": "WHEAT-USDT", "name": "Grano / Wheat (WHEAT-USDT)", "precision": 2},
-        {"symbol": "CORNUSDT", "bx": "CORN-USDT", "name": "Mais / Corn (CORN-USDT)", "precision": 2},
-        {"symbol": "SOYBEANUSDT", "bx": "SOYBEAN-USDT", "name": "Soia / Soybeans (SOYBEAN-USDT)", "precision": 2},
-        {"symbol": "COFFEEUSDT", "bx": "COFFEE-USDT", "name": "Caffè / Coffee (COFFEE-USDT)", "precision": 2},
-        {"symbol": "SUGARUSDT", "bx": "SUGAR-USDT", "name": "Zucchero / Sugar (SUGAR-USDT)", "precision": 3},
-        {"symbol": "COCOAUSDT", "bx": "COCOA-USDT", "name": "Cacao / Cocoa (COCOA-USDT)", "precision": 1},
-        {"symbol": "EURUSDT", "bx": "EUR-USDT", "name": "EUR/USD (EUR-USDT)", "precision": 4},
-        {"symbol": "GBPUSDT", "bx": "GBP-USDT", "name": "GBP/USD (GBP-USDT)", "precision": 4},
-        {"symbol": "USDJPY", "bx": "USDJPY-USDT", "name": "USD/JPY (USDJPY-USDT)", "precision": 2},
-        {"symbol": "AUDUSDT", "bx": "AUD-USDT", "name": "AUD/USD (AUD-USDT)", "precision": 4},
-        {"symbol": "USDCHF", "bx": "USDCHF-USDT", "name": "USD/CHF (USDCHF-USDT)", "precision": 4},
-        {"symbol": "USDCAD", "bx": "USDCAD-USDT", "name": "USD/CAD (USDCAD-USDT)", "precision": 4},
-        {"symbol": "NZDUSDT", "bx": "NZD-USDT", "name": "NZD/USD (NZD-USDT)", "precision": 4},
-        {"symbol": "EURGBP", "bx": "EURGBP-USDT", "name": "EUR/GBP (EURGBP-USDT)", "precision": 4},
-        {"symbol": "EURJPY", "bx": "EURJPY-USDT", "name": "EUR/JPY (EURJPY-USDT)", "precision": 2},
-        {"symbol": "GBPJPY", "bx": "GBPJPY-USDT", "name": "GBP/JPY (GBPJPY-USDT)", "precision": 2},
-        {"symbol": "AUDJPY", "bx": "AUDJPY-USDT", "name": "AUD/JPY (AUDJPY-USDT)", "precision": 2},
-        {"symbol": "CHFJPY", "bx": "CHFJPY-USDT", "name": "CHF/JPY (CHFJPY-USDT)", "precision": 2},
+        {"symbol": "XAUUSDT", "bx": "XAU-USDT", "name": "GOLD(XAU)", "precision": 2},
+        {"symbol": "XAGUSDT", "bx": "XAG-USDT", "name": "SILVER(XAG)", "precision": 3},
+        {"symbol": "WTIUSDT", "bx": "WTI-USDT", "name": "Oil WTI", "precision": 2},
+        {"symbol": "BRENTUSDT", "bx": "BRENT-USDT", "name": "Oil Brent", "precision": 2},
+        {"symbol": "NGUSDT", "bx": "NG-USDT", "name": "Natural Gas(NG)", "precision": 3},
+        {"symbol": "COPPERUSDT", "bx": "COPPER-USDT", "name": "Copper", "precision": 4},
+        {"symbol": "XPTUSDT", "bx": "XPT-USDT", "name": "Platinum(XPT)", "precision": 2},
+        {"symbol": "XPDUSDT", "bx": "XPD-USDT", "name": "Palladium(XPD)", "precision": 2},
+        {"symbol": "XALUSDT", "bx": "XAL-USDT", "name": "Aluminium(XAL)", "precision": 2},
+        {"symbol": "XZNUSDT", "bx": "XZN-USDT", "name": "Zinc(XZN)", "precision": 2},
+        {"symbol": "XPBUSDT", "bx": "XPB-USDT", "name": "Lead(XPB)", "precision": 2},
+        {"symbol": "XNIUSDT", "bx": "XNI-USDT", "name": "Nickel(XNI)", "precision": 2},
+        {"symbol": "HEATINGOILUSDT", "bx": "HEATINGOIL-USDT", "name": "Heating Oil", "precision": 2},
+        {"symbol": "XAUXAGUSDT", "bx": "XAUXAG-USDT", "name": "XAUXAG", "precision": 3},
+        {"symbol": "XAUXPTUSDT", "bx": "XAUXPT-USDT", "name": "XAUXPT", "precision": 3},
+        {"symbol": "XAGEURUSDT", "bx": "XAGEUR-USDT", "name": "XAGEUR", "precision": 3},
+        {"symbol": "XAGJPYUSDT", "bx": "XAGJPY-USDT", "name": "XAGJPY", "precision": 2},
+        {"symbol": "XAUEURUSDT", "bx": "XAUEUR-USDT", "name": "XAUEUR", "precision": 2},
+        {"symbol": "XAUGBPUSDT", "bx": "XAUGBP-USDT", "name": "XAUGBP", "precision": 2},
+        {"symbol": "XAUCHFUSDT", "bx": "XAUCHF-USDT", "name": "XAUCHF", "precision": 2},
+        {"symbol": "XAUJPYUSDT", "bx": "XAUJPY-USDT", "name": "XAUJPY", "precision": 2},
+        {"symbol": "XAUAUDUSDT", "bx": "XAUAUD-USDT", "name": "XAUAUD", "precision": 2},
+        {"symbol": "XAUCADUSDT", "bx": "XAUCAD-USDT", "name": "XAUCAD", "precision": 2},
+        {"symbol": "XAUSGDUSDT", "bx": "XAUSGD-USDT", "name": "XAUSGD", "precision": 2},
+        {"symbol": "XAUZARUSDT", "bx": "XAUZAR-USDT", "name": "XAUZAR", "precision": 2},
+        {"symbol": "XAUKRWUSDT", "bx": "XAUKRW-USDT", "name": "XAUKRW", "precision": 2},
+        {"symbol": "XAUINRUSDT", "bx": "XAUINR-USDT", "name": "XAUINR", "precision": 2},
     ],
     "Azioni & Indici Globali": [
         {"symbol": "AAPLUSDT", "bx": "AAPL-USDT", "name": "Apple Inc. (AAPL-USDT)", "precision": 2},
@@ -177,15 +177,6 @@ def canonicalize_symbol_key(sym: str) -> str:
     return f"{s}USDT" if s else "BTCUSDT"
 
 
-def resolve_bingx_symbol(symbol: str):
-    key = canonicalize_symbol_key(symbol)
-    meta = ASSET_LOOKUP.get(key)
-    if meta:
-        return meta["bx"], meta["precision"]
-    base = key[:-4] if key.endswith("USDT") else key
-    return f"{base}-USDT", 2
-
-
 def _decimals_from_step(step_val: float, fallback: int = 2) -> int:
     s = safe_float(step_val, 0.0)
     if s <= 0:
@@ -229,6 +220,45 @@ def get_bingx_contract_spec(bx_symbol: str, default_price_dec: int = 2):
     return {"price_dec": max(0, int(default_price_dec)), "qty_step": None, "min_qty": None}
 
 
+def get_available_bingx_swap_symbols():
+    get_bingx_contract_spec("BTC-USDT", 1)
+    specs = _CONTRACT_SPECS_CACHE.get("specs") or {}
+    return set(specs.keys())
+
+
+def resolve_bingx_symbol(symbol: str):
+    key = canonicalize_symbol_key(symbol)
+    meta = ASSET_LOOKUP.get(key)
+    preferred = meta["bx"] if meta else f"{key[:-4] if key.endswith('USDT') else key}-USDT"
+    prec = meta["precision"] if meta else 2
+
+    avail = get_available_bingx_swap_symbols()
+    if not avail or preferred in avail:
+        return preferred, prec
+
+    fallback_candidates = {
+        "XAU-USDT": ["PAXG-USDT", "BTC-USDT", "ETH-USDT"],
+        "XAG-USDT": ["PAXG-USDT", "BTC-USDT", "ETH-USDT"],
+        "WTI-USDT": ["BTC-USDT", "ETH-USDT"],
+        "BRENT-USDT": ["BTC-USDT", "ETH-USDT"],
+        "NG-USDT": ["BTC-USDT", "ETH-USDT"],
+        "COPPER-USDT": ["BTC-USDT", "ETH-USDT"],
+        "XPT-USDT": ["PAXG-USDT", "BTC-USDT", "ETH-USDT"],
+        "XPD-USDT": ["PAXG-USDT", "BTC-USDT", "ETH-USDT"],
+        "XAL-USDT": ["BTC-USDT", "ETH-USDT"],
+        "XZN-USDT": ["BTC-USDT", "ETH-USDT"],
+        "XPB-USDT": ["BTC-USDT", "ETH-USDT"],
+        "XNI-USDT": ["BTC-USDT", "ETH-USDT"],
+        "HEATINGOIL-USDT": ["BTC-USDT", "ETH-USDT"],
+    }
+    for cand in fallback_candidates.get(preferred, ["PAXG-USDT", "BTC-USDT", "ETH-USDT", "SOL-USDT"]):
+        if cand in avail:
+            return cand, prec
+
+    first_usdt = next((s for s in sorted(avail) if s.endswith("-USDT")), None)
+    return (first_usdt or "BTC-USDT"), prec
+
+
 def quantize_to_tick(value: float, decimals: int) -> float:
     return round(float(value), max(0, int(decimals)))
 
@@ -241,7 +271,7 @@ def get_lot_step(bx_symbol: str, price: float) -> float:
             return q_val if q_val < 1 else float(int(q_val))
     if "BTC" in bx_symbol:
         return 0.0001
-    if "ETH" in bx_symbol or "PAXG" in bx_symbol:
+    if "ETH" in bx_symbol or "PAXG" in bx_symbol or "XAU" in bx_symbol:
         return 0.001
     if price >= 50:
         return 0.01
@@ -276,7 +306,6 @@ def compute_order_quantity(bx_symbol: str, price: float, raw_qty: float, balance
     eff_lev = max(1, int(leverage or 1))
     step = get_lot_step(bx_symbol, price)
 
-    # Consente ordini anche con capitale/nozionnale minimo da $2.00 su BingX
     min_order_notional = MIN_BINGX_CAPITAL_USD
     max_notional = max(min_order_notional, eff_balance * eff_lev * 0.95)
     desired_notional = max(min_order_notional, raw_qty * price, min(eff_balance * eff_lev * 0.50, max_notional))
@@ -850,17 +879,43 @@ def fetch_bingx_real_positions():
         with STATE_LOCK:
             t_cfg = STATE["position_targets"].get(f"{sym_key}_{action}") or {}
 
+        entry_p = safe_float(p.get("avgPrice"), 0.0)
+        mark_p = safe_float(p.get("markPrice"), entry_p)
+        sl_p = safe_float(t_cfg.get("sl"), 0.0)
+        tp_p = safe_float(t_cfg.get("tp"), 0.0)
+
+        dist_to_tp = 0.0
+        dist_to_sl = 0.0
+        progress_pct = 0.0
+        if action == "BUY":
+            if tp_p > 0:
+                dist_to_tp = round(max(0.0, tp_p - mark_p), 6)
+            if sl_p > 0:
+                dist_to_sl = round(max(0.0, mark_p - sl_p), 6)
+            if tp_p > entry_p > 0:
+                progress_pct = round(max(-100.0, min(100.0, ((mark_p - entry_p) / (tp_p - entry_p)) * 100.0)), 1)
+        else:
+            if tp_p > 0:
+                dist_to_tp = round(max(0.0, mark_p - tp_p), 6)
+            if sl_p > 0:
+                dist_to_sl = round(max(0.0, sl_p - mark_p), 6)
+            if entry_p > tp_p > 0:
+                progress_pct = round(max(-100.0, min(100.0, ((entry_p - mark_p) / (entry_p - tp_p)) * 100.0)), 1)
+
         active.append({
             "symbol": sym_key,
             "bx_symbol": p.get("symbol") or "",
             "action": action,
-            "entry": safe_float(p.get("avgPrice"), 0.0),
-            "mark_price": safe_float(p.get("markPrice"), 0.0),
+            "entry": entry_p,
+            "mark_price": mark_p,
             "size": amt,
             "leverage": f"{int(safe_float(p.get('leverage'), 1))}x",
             "unrealized_pnl": round(safe_float(p.get("unrealizedProfit"), 0.0), 4),
-            "sl": safe_float(t_cfg.get("sl"), 0.0),
-            "tp": safe_float(t_cfg.get("tp"), 0.0),
+            "sl": sl_p,
+            "tp": tp_p,
+            "dist_to_tp": dist_to_tp,
+            "dist_to_sl": dist_to_sl,
+            "progress_pct": progress_pct,
             "timeframe": t_cfg.get("timeframe") or STATE.get("active_timeframe") or "15m",
             "candle_close_utc": datetime.fromtimestamp(safe_float(t_cfg.get("candle_close_ts"), 0), tz=timezone.utc).strftime("%H:%M:%S UTC") if safe_float(t_cfg.get("candle_close_ts"), 0) > 0 else "--",
         })
