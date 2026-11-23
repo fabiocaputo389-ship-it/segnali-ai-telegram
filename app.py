@@ -86,21 +86,25 @@ MARKET_CATALOG = {
         {"symbol": "SUIUSDT", "bx": "SUI-USDT", "name": "Sui (SUI-USDT)", "precision": 4},
     ],
     "Materie Prime & Forex": [
+        # Materie Prime - Metalli
         {"symbol": "PAXGUSDT", "bx": "PAXG-USDT", "name": "Oro / Gold (PAXG-USDT)", "precision": 2},
         {"symbol": "XAGUSDT", "bx": "XAG-USDT", "name": "Argento / Silver (XAG-USDT)", "precision": 3},
         {"symbol": "XPTUSDT", "bx": "XPT-USDT", "name": "Platino / Platinum (XPT-USDT)", "precision": 2},
         {"symbol": "XPDUSDT", "bx": "XPD-USDT", "name": "Palladio / Palladium (XPD-USDT)", "precision": 2},
         {"symbol": "COPPERUSDT", "bx": "COPPER-USDT", "name": "Rame / Copper (COPPER-USDT)", "precision": 4},
         {"symbol": "ALUMINIUMUSDT", "bx": "ALUMINIUM-USDT", "name": "Alluminio / Aluminium (ALUMINIUM-USDT)", "precision": 2},
+        # Materie Prime - Energia
         {"symbol": "WTIUSDT", "bx": "WTI-USDT", "name": "Petrolio WTI Crude (WTI-USDT)", "precision": 2},
         {"symbol": "BRENTUSDT", "bx": "BRENT-USDT", "name": "Petrolio Brent Crude (BRENT-USDT)", "precision": 2},
         {"symbol": "NATGASUSDT", "bx": "NATGAS-USDT", "name": "Gas Naturale (NATGAS-USDT)", "precision": 3},
+        # Materie Prime - Agricole / Soft
         {"symbol": "WHEATUSDT", "bx": "WHEAT-USDT", "name": "Grano / Wheat (WHEAT-USDT)", "precision": 2},
         {"symbol": "CORNUSDT", "bx": "CORN-USDT", "name": "Mais / Corn (CORN-USDT)", "precision": 2},
         {"symbol": "SOYBEANUSDT", "bx": "SOYBEAN-USDT", "name": "Soia / Soybeans (SOYBEAN-USDT)", "precision": 2},
         {"symbol": "COFFEEUSDT", "bx": "COFFEE-USDT", "name": "Caffè / Coffee (COFFEE-USDT)", "precision": 2},
         {"symbol": "SUGARUSDT", "bx": "SUGAR-USDT", "name": "Zucchero / Sugar (SUGAR-USDT)", "precision": 3},
         {"symbol": "COCOAUSDT", "bx": "COCOA-USDT", "name": "Cacao / Cocoa (COCOA-USDT)", "precision": 1},
+        # Forex - Major & Cross
         {"symbol": "EURUSDT", "bx": "EUR-USDT", "name": "EUR/USD (EUR-USDT)", "precision": 4},
         {"symbol": "GBPUSDT", "bx": "GBP-USDT", "name": "GBP/USD (GBP-USDT)", "precision": 4},
         {"symbol": "USDJPY", "bx": "USDJPY-USDT", "name": "USD/JPY (USDJPY-USDT)", "precision": 2},
@@ -115,6 +119,7 @@ MARKET_CATALOG = {
         {"symbol": "CHFJPY", "bx": "CHFJPY-USDT", "name": "CHF/JPY (CHFJPY-USDT)", "precision": 2},
     ],
     "Azioni & Indici Globali": [
+        # Azioni USA Big Tech & AI
         {"symbol": "AAPLUSDT", "bx": "AAPL-USDT", "name": "Apple Inc. (AAPL-USDT)", "precision": 2},
         {"symbol": "TSLAUSDT", "bx": "TSLA-USDT", "name": "Tesla Inc. (TSLA-USDT)", "precision": 2},
         {"symbol": "NVDAUSDT", "bx": "NVDA-USDT", "name": "Nvidia Corp. (NVDA-USDT)", "precision": 2},
@@ -123,14 +128,17 @@ MARKET_CATALOG = {
         {"symbol": "GOOGLUSDT", "bx": "GOOGL-USDT", "name": "Alphabet Inc. (GOOGL-USDT)", "precision": 2},
         {"symbol": "METAUSDT", "bx": "META-USDT", "name": "Meta Platforms (META-USDT)", "precision": 2},
         {"symbol": "NFLXUSDT", "bx": "NFLX-USDT", "name": "Netflix Inc. (NFLX-USDT)", "precision": 2},
+        # Semiconduttori & Crypto Equities
         {"symbol": "AMDUSDT", "bx": "AMD-USDT", "name": "AMD (AMD-USDT)", "precision": 2},
         {"symbol": "INTCUSDT", "bx": "INTC-USDT", "name": "Intel Corp. (INTC-USDT)", "precision": 2},
         {"symbol": "AVGOUSDT", "bx": "AVGO-USDT", "name": "Broadcom Inc. (AVGO-USDT)", "precision": 2},
         {"symbol": "COINUSDT", "bx": "COIN-USDT", "name": "Coinbase Global (COIN-USDT)", "precision": 2},
         {"symbol": "MSTRUSDT", "bx": "MSTR-USDT", "name": "Strategy / MSTR (MSTR-USDT)", "precision": 2},
+        # Finanziari
         {"symbol": "JPMUSDT", "bx": "JPM-USDT", "name": "JPMorgan Chase (JPM-USDT)", "precision": 2},
         {"symbol": "VUSDT", "bx": "V-USDT", "name": "Visa Inc. (V-USDT)", "precision": 2},
         {"symbol": "MAUSDT", "bx": "MA-USDT", "name": "Mastercard Inc. (MA-USDT)", "precision": 2},
+        # Indici & ETF
         {"symbol": "SP500USDT", "bx": "SP500-USDT", "name": "S&P 500 Index (SP500-USDT)", "precision": 2},
         {"symbol": "NASDAQ100USDT", "bx": "NASDAQ100-USDT", "name": "NASDAQ 100 Index (NASDAQ100-USDT)", "precision": 2},
         {"symbol": "DOWJONESUSDT", "bx": "DOWJONES-USDT", "name": "Dow Jones Index (DOWJONES-USDT)", "precision": 2},
@@ -152,8 +160,6 @@ def safe_float(val, default=0.0):
     try:
         if val is None or (isinstance(val, float) and (math.isnan(val) or math.isinf(val))):
             return float(default)
-        if isinstance(val, str):
-            val = val.replace(",", ".").strip()
         out = float(val)
         return float(default) if (math.isnan(out) or math.isinf(out)) else out
     except Exception:
@@ -635,13 +641,12 @@ def get_higher_tf_bias(bx_symbol: str, timeframe: str) -> str:
 
 def build_pro_profile_config(profile: str, timeframe: str, min_score: float, min_rrr_input: float):
     p = (profile or "pro_sniper").lower()
-    clean_min_score = min(98.0, max(50.0, safe_float(min_score, 85.0)))
     if p == "pro_sniper":
         return {
             "profile": "pro_sniper",
             "profile_label": "PRO SNIPER (A+ ONLY)",
             "timeframe": timeframe,
-            "min_score": clean_min_score,
+            "min_score": max(min_score, 85.0),
             "required_factors": 5,
             "min_rrr": max(min_rrr_input, 2.0),
             "max_risk_pct": 1.0,
@@ -655,7 +660,7 @@ def build_pro_profile_config(profile: str, timeframe: str, min_score: float, min
             "profile": "institutional_swing",
             "profile_label": "STRUTTURA & LIQUIDITÀ",
             "timeframe": timeframe,
-            "min_score": clean_min_score,
+            "min_score": max(min_score, 80.0),
             "required_factors": 5,
             "min_rrr": max(min_rrr_input, 1.8),
             "max_risk_pct": 1.5,
@@ -668,7 +673,7 @@ def build_pro_profile_config(profile: str, timeframe: str, min_score: float, min
         "profile": "momentum_desk",
         "profile_label": "MOMENTUM DESK",
         "timeframe": timeframe,
-        "min_score": clean_min_score,
+        "min_score": max(min_score, 76.0),
         "required_factors": 4,
         "min_rrr": max(min_rrr_input, 1.6),
         "max_risk_pct": 2.0,
@@ -824,7 +829,7 @@ def evaluate_pro_setup(df, current_price, symbol, category, is_open, balance, ri
 
     action = raw_action
     reason = f"Setup {action} A+ confermato • HTF {htf_bias} • EV +${ev_usd:.4f} • R:R 1:{rrr}"
-    grade = "A+" if (score >= cfg["min_score"] and rrr >= cfg["min_rrr"] and ev_usd > 0 and not fakeout) else ("A" if score >= 80 and not fakeout else "B / NO-TRADE")
+    grade = "A+" if (score >= 88 and rrr >= 2.0 and ev_usd > 0 and not fakeout) else ("A" if score >= 80 and not fakeout else "B / NO-TRADE")
 
     if action in ("BUY", "SELL") and prev_dir:
         if prev_dir.get("action") != action and (now_ts - safe_float(prev_dir.get("ts"), 0.0)) < DIRECTION_COOLDOWN_SEC:
