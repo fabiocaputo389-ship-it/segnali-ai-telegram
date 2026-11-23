@@ -3,22 +3,23 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>PRO TRADING DESK • BingX Institutional</title>
+  <title>BINGX TERMINAL • Cripto, Forex, Materie Prime & Azioni/Indici</title>
   <style>
     :root {
-      --bg: #070b12;
-      --panel: #0e1522;
-      --panel-2: #131c2d;
-      --border: #1e2c45;
-      --text: #e7eef8;
-      --muted: #8ca0bd;
-      --accent: #00d084;
-      --accent-soft: rgba(0, 208, 132, 0.14);
-      --danger: #ff385c;
-      --danger-soft: rgba(255, 56, 92, 0.14);
-      --warn: #ffb020;
-      --warn-soft: rgba(255, 176, 32, 0.14);
-      --info: #38bdf8;
+      --bg-main: #090b10;
+      --bg-card: #121622;
+      --bg-card-2: #181e2e;
+      --border: #252d42;
+      --text-main: #f4f7fb;
+      --text-muted: #9aa6bf;
+      --gold: #f5b700;
+      --gold-dim: rgba(245, 183, 0, 0.14);
+      --green: #00e676;
+      --green-dim: rgba(0, 230, 118, 0.14);
+      --red: #ff3b5c;
+      --red-dim: rgba(255, 59, 92, 0.16);
+      --amber: #ffaa00;
+      --blue: #38bdf8;
     }
 
     * {
@@ -29,816 +30,1205 @@
 
     body {
       margin: 0;
-      padding: 14px 14px 86px 14px;
-      background: var(--bg);
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding: 0 0 82px 0;
+      background: var(--bg-main);
+      color: var(--text-main);
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       font-size: 14px;
+      line-height: 1.45;
     }
 
     .container {
-      max-width: 980px;
+      max-width: 1120px;
       margin: 0 auto;
+      padding: 14px;
     }
 
-    .topbar {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
-      background: var(--panel);
+    .card {
+      background: var(--bg-card);
       border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 12px 14px;
-      margin-bottom: 12px;
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 14px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
     }
 
-    .brand-title {
-      font-size: 16px;
+    .header-card {
+      border-color: rgba(245, 183, 0, 0.45);
+      background: linear-gradient(160deg, #161b29 0%, #0f131d 100%);
+    }
+
+    .title {
+      margin: 0;
+      font-size: 18px;
       font-weight: 800;
       letter-spacing: 0.4px;
+      color: var(--gold);
     }
 
-    .brand-sub {
-      font-size: 12px;
-      color: var(--muted);
-      margin-top: 2px;
+    .subtitle {
+      margin-top: 4px;
+      color: var(--text-muted);
+      font-size: 12.5px;
     }
 
-    .top-actions {
+    .btn-row {
       display: flex;
-      gap: 8px;
-      align-items: center;
       flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
     }
 
     button, select, input {
       font-family: inherit;
-      font-size: 14px;
-      color: var(--text);
-      background: var(--panel-2);
+      font-size: 13.5px;
+      border-radius: 10px;
       border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 9px 11px;
-      outline: none;
-    }
-
-    input:focus, select:focus {
-      border-color: var(--info);
+      background: var(--bg-card-2);
+      color: var(--text-main);
     }
 
     button {
-      cursor: pointer;
+      padding: 10px 14px;
       font-weight: 700;
-      transition: opacity 0.15s ease, transform 0.1s ease;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: transform 0.08s ease, opacity 0.15s ease, background 0.15s ease;
     }
 
     button:active {
       transform: scale(0.98);
     }
 
-    .btn-primary {
-      background: var(--accent);
-      color: #04110b;
-      border: none;
+    .btn-gold {
+      background: var(--gold);
+      color: #0b0e14;
+      border-color: var(--gold);
     }
 
-    .btn-autotrade-on {
-      background: var(--accent-soft);
-      color: var(--accent);
-      border: 1px solid var(--accent);
+    .btn-red {
+      background: var(--red-dim);
+      color: #ff758d;
+      border-color: rgba(255, 59, 92, 0.45);
     }
 
-    .btn-autotrade-off {
-      background: var(--panel-2);
-      color: var(--muted);
-      border: 1px solid var(--border);
+    .btn-green {
+      background: var(--green-dim);
+      color: var(--green);
+      border-color: rgba(0, 230, 118, 0.45);
     }
 
-    .card {
-      background: var(--panel);
-      border: 1px solid var(--border);
+    .btn-ghost {
+      background: var(--bg-card-2);
+      color: var(--text-main);
+    }
+
+    .alert-err {
+      background: var(--red-dim);
+      border: 1px solid rgba(255, 59, 92, 0.55);
+      color: #ffd6de;
       border-radius: 12px;
-      padding: 14px;
-      margin-bottom: 12px;
-    }
-
-    .grid-2 {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      padding: 12px 14px;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
       gap: 10px;
     }
 
-    .grid-4 {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+    .alert-ok {
+      background: var(--green-dim);
+      border: 1px solid rgba(0, 230, 118, 0.45);
+      color: #c8ffe4;
+      border-radius: 12px;
+      padding: 10px 14px;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
       gap: 10px;
     }
 
-    @media (max-width: 720px) {
-      .grid-4 {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
+    .grid-filters {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+      gap: 10px;
     }
 
     .field label {
       display: block;
-      font-size: 11px;
+      font-size: 11.5px;
       font-weight: 700;
+      text-transform: uppercase;
       letter-spacing: 0.5px;
-      color: var(--muted);
+      color: var(--text-muted);
       margin-bottom: 5px;
-      text-transform: uppercase;
     }
 
-    .field input, .field select {
+    .field select, .field input {
       width: 100%;
+      padding: 9px 11px;
     }
 
-    .status-banner {
-      background: var(--warn-soft);
-      border: 1px solid rgba(255, 176, 32, 0.45);
-      border-radius: 10px;
-      padding: 12px;
-      margin-top: 12px;
-    }
-
-    .status-banner.has-signal {
-      background: var(--accent-soft);
-      border-color: rgba(0, 208, 132, 0.5);
-    }
-
-    .status-headline {
-      font-weight: 800;
-      font-size: 13px;
-      color: var(--warn);
-      letter-spacing: 0.3px;
-    }
-
-    .status-banner.has-signal .status-headline {
-      color: var(--accent);
-    }
-
-    .status-sub {
-      font-size: 12px;
-      color: var(--muted);
-      margin-top: 4px;
-    }
-
-    .diag-list {
-      margin-top: 8px;
-      font-size: 12px;
-      color: var(--text);
-      line-height: 1.45;
-    }
-
-    .section-title {
-      font-size: 13px;
-      font-weight: 800;
-      letter-spacing: 0.4px;
-      margin-bottom: 10px;
-      text-transform: uppercase;
+    .market-tabs {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
+      flex-wrap: wrap;
       gap: 8px;
+      margin-bottom: 12px;
     }
 
-    .table-wrap {
-      width: 100%;
-      overflow-x: auto;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 12px;
-    }
-
-    th {
-      text-align: left;
-      color: var(--muted);
-      font-size: 11px;
-      text-transform: uppercase;
-      padding: 8px 6px;
-      border-bottom: 1px solid var(--border);
-      white-space: nowrap;
-    }
-
-    td {
-      padding: 9px 6px;
-      border-bottom: 1px solid rgba(30, 44, 69, 0.55);
-      vertical-align: top;
-    }
-
-    .badge-buy {
-      display: inline-block;
-      background: var(--accent-soft);
-      color: var(--accent);
-      border: 1px solid var(--accent);
-      border-radius: 6px;
-      padding: 2px 7px;
-      font-weight: 800;
-      font-size: 11px;
-    }
-
-    .badge-sell {
-      display: inline-block;
-      background: var(--danger-soft);
-      color: var(--danger);
-      border: 1px solid var(--danger);
-      border-radius: 6px;
-      padding: 2px 7px;
-      font-weight: 800;
-      font-size: 11px;
-    }
-
-    .badge-neutral {
-      display: inline-block;
-      background: rgba(140, 160, 189, 0.12);
-      color: var(--muted);
-      border-radius: 6px;
-      padding: 2px 7px;
+    .market-pill {
+      padding: 7px 12px;
+      border-radius: 999px;
+      font-size: 12.5px;
       font-weight: 700;
-      font-size: 11px;
+      background: var(--bg-card-2);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+
+    .market-pill.active {
+      background: var(--gold-dim);
+      border-color: var(--gold);
+      color: var(--gold);
+    }
+
+    .kpi-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
     }
 
     .kpi-box {
-      background: var(--panel-2);
+      background: var(--bg-card-2);
       border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px;
+      border-radius: 11px;
+      padding: 10px 12px;
     }
 
     .kpi-label {
       font-size: 11px;
-      color: var(--muted);
+      color: var(--text-muted);
       text-transform: uppercase;
     }
 
     .kpi-val {
       font-size: 16px;
       font-weight: 800;
-      margin-top: 4px;
+      margin-top: 3px;
     }
 
-    .tab-pane {
-      display: none;
+    .signal-card {
+      background: var(--bg-card-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 10px;
     }
 
-    .tab-pane.active {
+    .signal-top {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .badge {
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 11.5px;
+      font-weight: 800;
+    }
+
+    .badge-buy {
+      background: var(--green-dim);
+      color: var(--green);
+      border: 1px solid rgba(0, 230, 118, 0.4);
+    }
+
+    .badge-sell {
+      background: var(--red-dim);
+      color: #ff758d;
+      border: 1px solid rgba(255, 59, 92, 0.4);
+    }
+
+    .badge-neutral {
+      background: rgba(154, 166, 191, 0.14);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+
+    .badge-mkt {
+      background: rgba(56, 189, 248, 0.14);
+      color: var(--blue);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+    }
+
+    .levels-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(105px, 1fr));
+      gap: 8px;
+      margin: 10px 0;
+      font-size: 12.5px;
+    }
+
+    .lvl {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 7px 9px;
+    }
+
+    .lvl span {
       display: block;
+      font-size: 10.5px;
+      color: var(--text-muted);
     }
+
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+    }
+
+    th, td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    th {
+      color: var(--text-muted);
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+
+    .pos-up { color: var(--green); }
+    .pos-dn { color: #ff758d; }
 
     .bottom-nav {
       position: fixed;
-      bottom: 0;
       left: 0;
       right: 0;
-      background: rgba(14, 21, 34, 0.96);
-      backdrop-filter: blur(8px);
+      bottom: 0;
+      background: rgba(13, 17, 27, 0.96);
+      backdrop-filter: blur(10px);
       border-top: 1px solid var(--border);
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      z-index: 40;
+      z-index: 50;
     }
 
     .nav-btn {
-      background: transparent;
       border: none;
       border-radius: 0;
-      padding: 10px 6px;
-      color: var(--muted);
+      background: transparent;
+      color: var(--text-muted);
+      padding: 11px 6px;
       font-size: 12px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 3px;
+      font-weight: 700;
     }
 
     .nav-btn.active {
-      color: var(--accent);
-      background: rgba(0, 208, 132, 0.08);
+      color: var(--gold);
+      border-top: 2px solid var(--gold);
+      background: rgba(245, 183, 0, 0.06);
     }
 
-    .small-btn {
-      padding: 5px 8px;
-      font-size: 11px;
-      border-radius: 6px;
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    canvas {
+      width: 100%;
+      height: 300px;
+      background: #0c1018;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      display: block;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="topbar">
-      <div>
-        <div class="brand-title">PRO TRADING DESK • BingX Institutional</div>
-        <div class="brand-sub" id="liveMetaLine">Sincronizzazione mercati e candele...</div>
+    <div class="card header-card">
+      <div class="signal-top">
+        <div>
+          <h1 class="title">BINGX TERMINAL • MULTI-MERCATO LIVE</h1>
+          <div class="subtitle" id="headerMeta">
+            Scansioni: 0 • Posizioni: 0 • PnL Netto Oggi: $0.00 • Contratti: --
+          </div>
+        </div>
+        <div class="kpi-box" style="min-width: 190px;">
+          <div class="kpi-label" id="tickerLabel">Ticker Live (BTC/USDT)</div>
+          <div class="kpi-val pos-up" id="tickerPrice">--</div>
+          <div class="subtitle" id="tickerTime" style="margin-top:2px;font-size:11px;">--</div>
+        </div>
       </div>
-      <div class="top-actions">
-        <button id="autoTradeBtn" class="btn-autotrade-off" type="button">AUTO-TRADE: OFF</button>
-        <button id="refreshBtn" class="btn-primary" type="button">↻ AGGIORNA</button>
+
+      <div class="btn-row">
+        <button class="btn-ghost" id="btnVoice" onclick="toggleVoice()">VOCE: OFF</button>
+        <button class="btn-gold" onclick="speakLiveSummary()">LEGGI LIVE</button>
+        <button class="btn-ghost" id="btnAutoTrade" onclick="toggleAutoTrade()">AUTO-TRADE: OFF</button>
+        <button class="btn-red" onclick="closeAllPositions()">✕ CHIUDI TUTTE</button>
+        <button class="btn-gold" onclick="refreshAll(true)">↻ AGGIORNA</button>
       </div>
     </div>
 
-    <div id="tab-segnali" class="tab-pane active">
-      <div class="card">
-        <div class="grid-2">
-          <div class="field">
-            <label for="profileSelect">Strategia Desk</label>
-            <select id="profileSelect">
-              <option value="pro_sniper" selected>Pro Sniper (Score Dinamico)</option>
-              <option value="institutional_swing">Struttura &amp; Liquidità</option>
-              <option value="momentum_desk">Momentum Desk</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="timeframeSelect">Timeframe Candela</label>
-            <select id="timeframeSelect">
-              <option value="5m">5 minuti (Durata 5m)</option>
-              <option value="15m" selected>15 minuti (Durata 15m)</option>
-              <option value="1h">1 ora (Durata 1h)</option>
-            </select>
-          </div>
-        </div>
+    <div id="bannerArea"></div>
 
-        <div class="grid-2" style="margin-top: 10px;">
-          <div class="field">
-            <label for="balanceInput">Capitale ($ • Min $2.00)</label>
-            <input id="balanceInput" type="text" inputmode="decimal" value="2,00" />
-          </div>
-          <div class="field">
-            <label for="riskInput">Rischio (%)</label>
-            <input id="riskInput" type="text" inputmode="decimal" value="1,0" />
-          </div>
-        </div>
-
-        <div class="grid-2" style="margin-top: 10px;">
-          <div class="field">
-            <label for="minScoreInput">Score Min (%)</label>
-            <input id="minScoreInput" type="number" inputmode="decimal" min="20" max="98" step="0.5" value="70" />
-          </div>
-          <div class="field">
-            <label for="minRrrInput">R:R Minimo</label>
-            <input id="minRrrInput" type="text" inputmode="decimal" value="1,5" />
-          </div>
-        </div>
-
-        <div id="scannerBanner" class="status-banner">
-          <div id="scannerHeadline" class="status-headline">IN ATTESA DI SCANSIONE...</div>
-          <div id="scannerTiming" class="status-sub">Candela --:--:-- → --:--:-- UTC</div>
-          <div id="scannerDiagnostics" class="diag-list"></div>
-        </div>
+    <div class="card">
+      <div class="market-tabs" id="marketPills">
+        <button class="market-pill active" data-market="ALL" onclick="selectMarket('ALL')">Tutti i Mercati</button>
+        <button class="market-pill" data-market="Cripto" onclick="selectMarket('Cripto')">Cripto</button>
+        <button class="market-pill" data-market="Forex" onclick="selectMarket('Forex')">Forex</button>
+        <button class="market-pill" data-market="Materie Prime" onclick="selectMarket('Materie Prime')">Materie Prime</button>
+        <button class="market-pill" data-market="Azioni & Indici" onclick="selectMarket('Azioni & Indici')">Azioni & Indici</button>
       </div>
 
-      <div class="card">
-        <div class="section-title">
-          <span>Watchlist Scanner (Struttura, R:R, EV &amp; Anti-Fakeout)</span>
-          <select id="marketFilterSelect" style="font-size: 12px; padding: 6px 8px;">
-            <option value="ALL" selected>Tutti gli Asset</option>
-            <option value="Criptovalute Globali">Criptovalute Globali</option>
-            <option value="Materie Prime & Forex">Materie Prime &amp; Forex</option>
-            <option value="Azioni & Indici Globali">Azioni &amp; Indici Globali</option>
+      <div class="grid-filters">
+        <div class="field">
+          <label for="selMarket">Mercato</label>
+          <select id="selMarket" onchange="onMarketSelectChange()">
+            <option value="ALL">Tutti i Mercati</option>
+            <option value="Cripto">Cripto</option>
+            <option value="Forex">Forex</option>
+            <option value="Materie Prime">Materie Prime</option>
+            <option value="Azioni & Indici">Azioni & Indici</option>
           </select>
         </div>
 
+        <div class="field">
+          <label for="selAsset">Asset</label>
+          <select id="selAsset" onchange="onAssetSelectChange()">
+            <option value="ALL">Tutti gli Asset</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="selProfile">Profilo Strategia</label>
+          <select id="selProfile" onchange="refreshAll(false)">
+            <option value="pro_sniper">Pro Sniper (Score Dinamico)</option>
+            <option value="institutional_swing">Institutional Swing</option>
+            <option value="scalp_momentum">Scalp Momentum</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="selTf">Timeframe Candela</label>
+          <select id="selTf" onchange="refreshAll(false)">
+            <option value="5m">5m (Chiusura Auto a Fine Candela)</option>
+            <option value="15m" selected>15m (Chiusura Auto a Fine Candela)</option>
+            <option value="1h">1h (Chiusura Auto a Fine Candela)</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="inpBalance">Capitale / Margine ($)</label>
+          <input id="inpBalance" type="number" min="2" step="0.5" value="2.0" onchange="refreshAll(false)" />
+        </div>
+
+        <div class="field">
+          <label for="inpMinScore">Score Minimo (%)</label>
+          <input id="inpMinScore" type="number" min="20" max="98" step="1" value="70" onchange="refreshAll(false)" />
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 1: SEGNALI -->
+    <section id="tab-signals" class="tab-panel active">
+      <div class="kpi-strip" id="marketKpiStrip"></div>
+
+      <div class="card">
+        <div class="signal-top" style="margin-bottom:10px;">
+          <strong>Segnali Operativi Validati (BUY / SELL)</strong>
+          <span class="subtitle" id="candleWindowInfo">Candela --</span>
+        </div>
+        <div id="signalsList"><div class="subtitle">Caricamento segnali live da BingX...</div></div>
+      </div>
+
+      <div class="card">
+        <strong style="display:block;margin-bottom:10px;">Tabella Monitoraggio Contratti BingX Swap v2</strong>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
                 <th>Asset</th>
-                <th>Prezzo / HTF</th>
-                <th>Score &amp; Grade</th>
-                <th>Entry / SL / TP1 / TP2</th>
-                <th>Timeframe Candela</th>
+                <th>Mercato</th>
+                <th>Prezzo</th>
                 <th>Azione</th>
+                <th>Score</th>
+                <th>R:R</th>
+                <th>Size</th>
+                <th>Leva</th>
+                <th>Azione Rapida</th>
               </tr>
             </thead>
-            <tbody id="scannerTableBody">
-              <tr><td colspan="6" style="color: var(--muted);">Caricamento segnali...</td></tr>
+            <tbody id="monitoringTableBody">
+              <tr><td colspan="9" class="subtitle">In attesa di scansione...</td></tr>
             </tbody>
           </table>
         </div>
       </div>
-    </div>
+    </section>
 
-    <div id="tab-posizioni" class="tab-pane">
-      <div class="card">
-        <div class="section-title">Conto Reale BingX &amp; Posizioni Aperte</div>
-        <div class="grid-4" style="margin-bottom: 12px;">
-          <div class="kpi-box">
-            <div class="kpi-label">Wallet Balance</div>
-            <div class="kpi-val" id="kpiBalance">$0.00</div>
-          </div>
-          <div class="kpi-box">
-            <div class="kpi-label">Equity</div>
-            <div class="kpi-val" id="kpiEquity">$0.00</div>
-          </div>
-          <div class="kpi-box">
-            <div class="kpi-label">Margine Libero</div>
-            <div class="kpi-val" id="kpiAvail">$0.00</div>
-          </div>
-          <div class="kpi-box">
-            <div class="kpi-label">PnL Realizzato</div>
-            <div class="kpi-val" id="kpiSessionPnl">$0.00</div>
-          </div>
-        </div>
-        <div id="positionsContainer" style="color: var(--muted); font-size: 13px;">Nessuna posizione aperta.</div>
-      </div>
-    </div>
+    <!-- TAB 2: POSIZIONI -->
+    <section id="tab-positions" class="tab-panel">
+      <div class="kpi-strip" id="accountKpiStrip"></div>
 
-    <div id="tab-telemetria" class="tab-pane">
       <div class="card">
-        <div class="section-title">Telemetria &amp; Sessioni Mercato</div>
-        <div class="grid-4" style="margin-bottom: 12px;">
-          <div class="kpi-box">
-            <div class="kpi-label">Scansioni</div>
-            <div class="kpi-val" id="kpiScans">0</div>
-          </div>
-          <div class="kpi-box">
-            <div class="kpi-label">Soglia Score Attiva</div>
-            <div class="kpi-val" id="kpiActiveScore">70.0%</div>
-          </div>
-          <div class="kpi-box">
-            <div class="kpi-label">Trade Oggi</div>
-            <div class="kpi-val" id="kpiDailyTrades">0</div>
-          </div>
-          <div class="kpi-box">
-            <div class="kpi-label">Netto Oggi</div>
-            <div class="kpi-val" id="kpiDailyNet">$0.00</div>
-          </div>
-        </div>
-        <div id="sessionsBox" class="diag-list" style="margin-bottom: 10px;"></div>
-        <div id="telemetryLogsBox" class="diag-list"></div>
-      </div>
-    </div>
-
-    <div id="tab-grafico" class="tab-pane">
-      <div class="card">
-        <div class="section-title">
-          <span>Monitor Prezzo Live &amp; Ultime Candele</span>
-          <select id="chartSymbolSelect" style="font-size: 12px; padding: 6px 8px;">
-            <option value="BTCUSDT" selected>Bitcoin (BTC-USDT)</option>
-            <option value="ETHUSDT">Ethereum (ETH-USDT)</option>
-            <option value="SOLUSDT">Solana (SOL-USDT)</option>
-            <option value="PAXGUSDT">Oro / Gold (PAXG-USDT)</option>
-            <option value="EURUSDT">EUR/USD (EUR-USDT)</option>
-          </select>
-        </div>
-        <div class="kpi-box" style="margin-bottom: 10px;">
-          <div class="kpi-label">Prezzo Live Ticker</div>
-          <div class="kpi-val" id="liveTickerPrice">--</div>
-          <div class="status-sub" id="liveTickerMeta">--</div>
-        </div>
+        <strong style="display:block;margin-bottom:10px;">Posizioni Aperte su BingX</strong>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>#</th>
-                <th>Open</th>
-                <th>High</th>
-                <th>Low</th>
-                <th>Close</th>
-                <th>Volume</th>
+                <th>Simbolo</th>
+                <th>Lato</th>
+                <th>Size</th>
+                <th>Entry</th>
+                <th>Mark</th>
+                <th>Leva</th>
+                <th>uPnL</th>
+                <th>Chiusura</th>
               </tr>
             </thead>
-            <tbody id="candlesTableBody">
-              <tr><td colspan="6" style="color: var(--muted);">Seleziona un asset per vedere le candele.</td></tr>
+            <tbody id="positionsTableBody">
+              <tr><td colspan="8" class="subtitle">Nessuna posizione aperta</td></tr>
             </tbody>
           </table>
         </div>
       </div>
-    </div>
+
+      <div class="card">
+        <strong style="display:block;margin-bottom:10px;">Configurazione Auto-Trade & Rischio</strong>
+        <div class="grid-filters">
+          <div class="field">
+            <label for="cfgMaxPos">Max Posizioni Aperte</label>
+            <input id="cfgMaxPos" type="number" min="1" max="10" value="1" />
+          </div>
+          <div class="field">
+            <label for="cfgLossCap">Daily Loss Cap ($)</label>
+            <input id="cfgLossCap" type="number" min="0.05" step="0.05" value="0.50" />
+          </div>
+          <div class="field">
+            <label for="cfgOnlyAPlus">Solo Grade A+</label>
+            <select id="cfgOnlyAPlus">
+              <option value="false">No (Tutti i validi)</option>
+              <option value="true">Sì (Solo A+)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="cfgCloseCandle">Chiusura Fine Candela</label>
+            <select id="cfgCloseCandle">
+              <option value="true" selected>Attiva</option>
+              <option value="false">Disattiva</option>
+            </select>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn-gold" onclick="saveRiskConfig()">Salva Configurazione</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: TELEMETRIA -->
+    <section id="tab-telemetry" class="tab-panel">
+      <div class="card">
+        <strong style="display:block;margin-bottom:10px;">Stato Sessioni & Contratti BingX</strong>
+        <div id="sessionsBox" class="kpi-strip"></div>
+      </div>
+
+      <div class="card">
+        <strong style="display:block;margin-bottom:10px;">Log Telemetria Scansioni</strong>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Ora UTC</th>
+                <th>Evento / Stato</th>
+                <th>Segnali</th>
+                <th>Scansionati</th>
+              </tr>
+            </thead>
+            <tbody id="telemetryBody">
+              <tr><td colspan="4" class="subtitle">Nessun log disponibile</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: GRAFICI -->
+    <section id="tab-charts" class="tab-panel">
+      <div class="card">
+        <div class="signal-top" style="margin-bottom:10px;">
+          <strong id="chartTitle">Grafico Candele BingX Swap v2</strong>
+          <span class="subtitle" id="chartMeta">EMA20 / EMA50</span>
+        </div>
+        <canvas id="priceCanvas" width="900" height="300"></canvas>
+      </div>
+    </section>
   </div>
 
   <nav class="bottom-nav">
-    <button class="nav-btn active" data-tab="tab-segnali" type="button">◎ Segnali</button>
-    <button class="nav-btn" data-tab="tab-posizioni" type="button">💼 Posizioni</button>
-    <button class="nav-btn" data-tab="tab-telemetria" type="button">⚡ Telemetria</button>
-    <button class="nav-btn" data-tab="tab-grafico" type="button">📈 Grafico</button>
+    <button class="nav-btn active" data-tab="tab-signals" onclick="switchTab('tab-signals', this)">• Segnali</button>
+    <button class="nav-btn" data-tab="tab-positions" onclick="switchTab('tab-positions', this)">Posizioni</button>
+    <button class="nav-btn" data-tab="tab-telemetry" onclick="switchTab('tab-telemetry', this)">⚡ Telemetria</button>
+    <button class="nav-btn" data-tab="tab-charts" onclick="switchTab('tab-charts', this)">Grafici</button>
   </nav>
 
   <script>
-    let latestCandleTiming = null;
-    let isFetchingSignals = false;
-    let scoreDebounceTimer = null;
+    const INITIAL_CATALOG = {{ market_catalog | tojson | safe }};
+    let MARKET_BY_GROUP = {
+      "Cripto": [],
+      "Forex": [],
+      "Materie Prime": [],
+      "Azioni & Indici": []
+    };
+    let ALL_CONTRACTS = {};
+    let CURRENT_MARKET = "ALL";
+    let CURRENT_SYMBOL = "ALL";
+    let ACTIVE_CHART_SYMBOL = "BTC/USDT";
+    let VOICE_ENABLED = false;
+    let LAST_SIGNALS = [];
 
-    function parseLocaleNumber(raw, fallback) {
-      if (raw === null || raw === undefined) return fallback;
-      const cleaned = String(raw).replace(/\s+/g, "").replace(",", ".");
-      const num = parseFloat(cleaned);
-      return Number.isFinite(num) ? num : fallback;
+    function initCatalogFromServer() {
+      const groups = Object.keys(MARKET_BY_GROUP);
+      groups.forEach(g => { MARKET_BY_GROUP[g] = []; });
+      if (INITIAL_CATALOG && typeof INITIAL_CATALOG === "object") {
+        Object.entries(INITIAL_CATALOG).forEach(([grp, items]) => {
+          if (Array.isArray(items)) {
+            if (!MARKET_BY_GROUP[grp]) MARKET_BY_GROUP[grp] = [];
+            MARKET_BY_GROUP[grp] = items;
+          }
+        });
+      }
+      populateAssetDropdown();
     }
 
-    function normalizeSpeechText(text) {
-      if (!text) return "";
-      return String(text)
-        .replace(/\b(\d+)\s*h\b/gi, (_, n) => `${n} ${Number(n) === 1 ? "ora" : "ore"}`)
-        .replace(/~?\b(\d+)\s*m\b/gi, (_, n) => `${n} ${Number(n) === 1 ? "minuto" : "minuti"}`)
-        .replace(/\b(\d+)\s*min\b/gi, (_, n) => `${n} ${Number(n) === 1 ? "minuto" : "minuti"}`)
-        .replace(/\b(\d+)\s*s\b/gi, (_, n) => `${n} ${Number(n) === 1 ? "secondo" : "secondi"}`);
+    function showBanner(msg, isError = true) {
+      const area = document.getElementById("bannerArea");
+      if (!msg) {
+        area.innerHTML = "";
+        return;
+      }
+      const cls = isError ? "alert-err" : "alert-ok";
+      area.innerHTML = `
+        <div class="${cls}">
+          <div style="word-break:break-word;">${escapeHtml(msg)}</div>
+          <button class="btn-ghost" style="padding:4px 9px;font-size:12px;" onclick="showBanner('')">✕</button>
+        </div>
+      `;
     }
 
-    function getCurrentMinScore() {
-      const el = document.getElementById("minScoreInput");
-      const val = parseLocaleNumber(el ? el.value : 70, 70);
-      return Math.min(98, Math.max(20, val));
+    function escapeHtml(str) {
+      return String(str || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
     }
 
-    function getCurrentBalance() {
-      const el = document.getElementById("balanceInput");
-      return Math.max(2.0, parseLocaleNumber(el ? el.value : 2.0, 2.0));
+    function switchTab(tabId, btnEl) {
+      document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+      document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+      const panel = document.getElementById(tabId);
+      if (panel) panel.classList.add("active");
+      if (btnEl) btnEl.classList.add("active");
+      if (tabId === "tab-charts") {
+        loadChartCandles();
+      } else if (tabId === "tab-positions") {
+        refreshLiveAccount();
+      }
     }
 
-    function getFilterParams() {
-      const profile = document.getElementById("profileSelect").value;
-      const timeframe = document.getElementById("timeframeSelect").value;
-      const balance = getCurrentBalance();
-      const risk = Math.min(10, Math.max(0.25, parseLocaleNumber(document.getElementById("riskInput").value, 1.0)));
-      const minScore = getCurrentMinScore();
-      const minRrr = Math.min(10, Math.max(0.5, parseLocaleNumber(document.getElementById("minRrrInput").value, 1.5)));
-      const market = document.getElementById("marketFilterSelect").value;
-      return new URLSearchParams({
+    function selectMarket(marketName) {
+      CURRENT_MARKET = marketName;
+      document.getElementById("selMarket").value = marketName;
+      document.querySelectorAll(".market-pill").forEach(p => {
+        p.classList.toggle("active", p.dataset.market === marketName);
+      });
+      CURRENT_SYMBOL = "ALL";
+      populateAssetDropdown();
+      refreshAll(false);
+    }
+
+    function onMarketSelectChange() {
+      const val = document.getElementById("selMarket").value;
+      selectMarket(val);
+    }
+
+    function onAssetSelectChange() {
+      CURRENT_SYMBOL = document.getElementById("selAsset").value;
+      if (CURRENT_SYMBOL && CURRENT_SYMBOL !== "ALL") {
+        ACTIVE_CHART_SYMBOL = CURRENT_SYMBOL;
+        pollLiveTicker();
+        if (document.getElementById("tab-charts").classList.contains("active")) {
+          loadChartCandles();
+        }
+      }
+      refreshAll(false);
+    }
+
+    function populateAssetDropdown() {
+      const sel = document.getElementById("selAsset");
+      const prev = CURRENT_SYMBOL || "ALL";
+      let pool = [];
+      if (CURRENT_MARKET === "ALL") {
+        Object.values(MARKET_BY_GROUP).forEach(arr => {
+          if (Array.isArray(arr)) pool = pool.concat(arr);
+        });
+      } else {
+        pool = MARKET_BY_GROUP[CURRENT_MARKET] || [];
+      }
+
+      const seen = new Set();
+      const opts = [`<option value="ALL">Tutti gli Asset (${pool.length})</option>`];
+      pool.forEach(it => {
+        const sym = it.symbol || it.bx_symbol;
+        const bx = it.bx_symbol || sym;
+        if (!sym || seen.has(sym)) return;
+        seen.add(sym);
+        const cMeta = ALL_CONTRACTS[bx];
+        const extra = cMeta ? ` • step ${cMeta.step_size}` : "";
+        opts.push(`<option value="${escapeHtml(sym)}">${escapeHtml(sym)} (${escapeHtml(bx)}${escapeHtml(extra)})</option>`);
+      });
+
+      sel.innerHTML = opts.join("");
+      if ([...sel.options].some(o => o.value === prev)) {
+        sel.value = prev;
+      } else {
+        sel.value = "ALL";
+        CURRENT_SYMBOL = "ALL";
+      }
+      if (pool.length > 0 && (CURRENT_SYMBOL === "ALL" || !CURRENT_SYMBOL)) {
+        ACTIVE_CHART_SYMBOL = pool[0].symbol || pool[0].bx_symbol;
+      }
+    }
+
+    async function syncBingxContracts(force = false) {
+      try {
+        const res = await fetch(`/api/bingx/contracts?force=${force ? "1" : "0"}`);
+        const data = await res.json();
+        if (!data || !data.success) return;
+        ALL_CONTRACTS = data.contracts || {};
+        const byMkt = data.by_market || {};
+        Object.keys(MARKET_BY_GROUP).forEach(grp => {
+          const syms = Array.isArray(byMkt[grp]) ? byMkt[grp] : [];
+          MARKET_BY_GROUP[grp] = syms.map(bx => {
+            const parts = bx.split("-");
+            const disp = parts.length === 2 ? `${parts[0]}/${parts[1]}` : bx;
+            return { symbol: disp, bx_symbol: bx, name: `${parts[0] || bx} (${bx})` };
+          });
+        });
+        populateAssetDropdown();
+      } catch (e) {
+        console.error("Errore sync contratti:", e);
+      }
+    }
+
+    function getQueryParams() {
+      const profile = document.getElementById("selProfile").value || "pro_sniper";
+      const timeframe = document.getElementById("selTf").value || "15m";
+      const balance = parseFloat(document.getElementById("inpBalance").value || "2.0") || 2.0;
+      const minScore = parseFloat(document.getElementById("inpMinScore").value || "70") || 70;
+      const params = new URLSearchParams({
         profile,
         timeframe,
         balance: String(balance),
-        risk: String(risk),
         min_score: String(minScore),
-        min_rrr: String(minRrr),
-        market,
-        symbol: "ALL",
+        market: CURRENT_MARKET || "ALL",
+        symbol: CURRENT_SYMBOL || "ALL"
+      });
+      return params.toString();
+    }
+
+    async function refreshSignals() {
+      try {
+        const res = await fetch(`/api/signals?${getQueryParams()}`);
+        const data = await res.json();
+        LAST_SIGNALS = Array.isArray(data.signals) ? data.signals : [];
+
+        const perf = data.performance || {};
+        const daily = perf.daily || {};
+        const telem = data.telemetry || {};
+        const totalContracts = Object.keys(ALL_CONTRACTS).length;
+
+        document.getElementById("headerMeta").textContent =
+          `Scansioni: ${telem.scans_count || 0} • Ordini Attivi: ${telem.active_orders_count || 0} • PnL Netto Oggi: $${Number(daily.net_pnl || 0).toFixed(4)} • Contratti: ${totalContracts || "--"}`;
+
+        const btnAuto = document.getElementById("btnAutoTrade");
+        btnAuto.textContent = data.auto_trade ? "AUTO-TRADE: ON" : "AUTO-TRADE: OFF";
+        btnAuto.className = data.auto_trade ? "btn-green" : "btn-ghost";
+
+        if (data.candle_timing && data.candle_timing.candle_window_text) {
+          document.getElementById("candleWindowInfo").textContent =
+            `${data.candle_timing.candle_window_text} • Scadenza in ${data.candle_timing.candle_remaining_sec}s`;
+        }
+
+        renderMarketKpis(data.market_diagnostics || {});
+        renderSignalsCards(LAST_SIGNALS);
+        renderMonitoringTable(Array.isArray(data.market_monitoring_table) ? data.market_monitoring_table : []);
+        renderSessions(data.sessions || {});
+        renderTelemetryLogs(telem.telemetry_logs || []);
+      } catch (e) {
+        showBanner(`Errore aggiornamento segnali: ${e.message || e}`, true);
+      }
+    }
+
+    function renderMarketKpis(diag) {
+      const strip = document.getElementById("marketKpiStrip");
+      const groups = ["Cripto", "Forex", "Materie Prime", "Azioni & Indici"];
+      strip.innerHTML = groups.map(g => {
+        const info = diag[g] || { signals_count: 0, scanned: 0, market_score: 0, status: "LIVE" };
+        return `
+          <div class="kpi-box" style="cursor:pointer;" onclick="selectMarket('${escapeHtml(g)}')">
+            <div class="kpi-label">${escapeHtml(g)}</div>
+            <div class="kpi-val">${info.signals_count || 0} <span style="font-size:12px;color:var(--text-muted);font-weight:600;">/ ${info.scanned || 0} live</span></div>
+            <div class="subtitle" style="font-size:11px;margin-top:2px;">Score medio: ${info.market_score || 0}%</div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function renderSignalsCards(signals) {
+      const box = document.getElementById("signalsList");
+      if (!signals.length) {
+        box.innerHTML = `<div class="subtitle">Nessun segnale BUY/SELL attivo per i filtri e la soglia Score impostati.</div>`;
+        return;
+      }
+      box.innerHTML = signals.map(s => {
+        const isBuy = s.action === "BUY";
+        const badgeCls = isBuy ? "badge-buy" : "badge-sell";
+        return `
+          <div class="signal-card">
+            <div class="signal-top">
+              <div>
+                <strong>${escapeHtml(s.symbol)}</strong>
+                <span class="subtitle">(${escapeHtml(s.bx_symbol)})</span>
+                <span class="badge badge-mkt">${escapeHtml(s.market || s.category || "BingX")}</span>
+                <span class="badge ${badgeCls}">${escapeHtml(s.action)} • ${escapeHtml(s.grade || "")}</span>
+              </div>
+              <div class="subtitle">Score: <strong>${s.score}%</strong> • R:R <strong>1:${s.rrr}</strong> • Leva <strong>${escapeHtml(s.leverage)}</strong></div>
+            </div>
+
+            <div class="levels-grid">
+              <div class="lvl"><span>Entry</span><strong>${s.entry}</strong></div>
+              <div class="lvl"><span>Stop Loss</span><strong class="pos-dn">${s.sl}</strong></div>
+              <div class="lvl"><span>TP1 / TP2</span><strong class="pos-up">${s.tp1} / ${s.tp2}</strong></div>
+              <div class="lvl"><span>TP3 / Size</span><strong>${s.tp3} • ${s.size}</strong></div>
+            </div>
+
+            <div class="signal-top">
+              <span class="subtitle">${escapeHtml(s.reason || "")}</span>
+              <div class="btn-row" style="margin-top:0;">
+                <button class="btn-ghost" style="padding:7px 11px;font-size:12px;" onclick="openSymbolChart('${escapeHtml(s.symbol)}')">Grafico</button>
+                <button class="${isBuy ? "btn-green" : "btn-red"}" style="padding:7px 12px;font-size:12px;"
+                  onclick='executeSignalOrder(${JSON.stringify(s)})'>
+                  Esegui ${escapeHtml(s.action)}
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function renderMonitoringTable(rows) {
+      const tbody = document.getElementById("monitoringTableBody");
+      if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="9" class="subtitle">Nessun contratto trovato per il filtro corrente</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = rows.map(r => {
+        const bCls = r.action === "BUY" ? "badge-buy" : (r.action === "SELL" ? "badge-sell" : "badge-neutral");
+        const sideToSend = r.action === "SELL" ? "SELL" : "BUY";
+        return `
+          <tr>
+            <td><strong>${escapeHtml(r.symbol)}</strong><div class="subtitle" style="font-size:10.5px;">${escapeHtml(r.bx_symbol)}</div></td>
+            <td><span class="badge badge-mkt">${escapeHtml(r.market || r.category || "")}</span></td>
+            <td>${r.price}</td>
+            <td><span class="badge ${bCls}">${escapeHtml(r.action)}</span></td>
+            <td>${r.score}%</td>
+            <td>1:${r.rrr}</td>
+            <td>${r.size}</td>
+            <td>${escapeHtml(r.leverage)}</td>
+            <td>
+              <button class="btn-ghost" style="padding:5px 8px;font-size:11.5px;" onclick="openSymbolChart('${escapeHtml(r.symbol)}')">Chart</button>
+              <button class="btn-gold" style="padding:5px 9px;font-size:11.5px;"
+                onclick='executeQuickRow(${JSON.stringify(r)}, "${sideToSend}")'>${sideToSend}</button>
+            </td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    async function executeSignalOrder(sig) {
+      const balance = parseFloat(document.getElementById("inpBalance").value || "2.0") || 2.0;
+      const timeframe = document.getElementById("selTf").value || "15m";
+      await sendManualOrder({
+        symbol: sig.bx_symbol || sig.symbol,
+        action: sig.action,
+        size: sig.size,
+        sl: sig.sl,
+        tp1: sig.tp1,
+        tp2: sig.tp2,
+        tp3: sig.tp3,
+        balance,
+        leverage: sig.leverage_num || 20,
+        timeframe,
+        candle_close_ts: sig.candle_close_ts
       });
     }
 
-    function renderActionBadge(action) {
-      if (action === "BUY") return `<span class="badge-buy">BUY / LONG</span>`;
-      if (action === "SELL") return `<span class="badge-sell">SELL / SHORT</span>`;
-      return `<span class="badge-neutral">NEUTRAL</span>`;
+    async function executeQuickRow(row, side) {
+      const balance = parseFloat(document.getElementById("inpBalance").value || "2.0") || 2.0;
+      const timeframe = document.getElementById("selTf").value || "15m";
+      await sendManualOrder({
+        symbol: row.bx_symbol || row.symbol,
+        action: side,
+        size: row.size,
+        sl: row.sl,
+        tp1: row.tp1,
+        tp2: row.tp2,
+        tp3: row.tp3,
+        balance,
+        leverage: row.leverage_num || 20,
+        timeframe,
+        candle_close_ts: row.candle_close_ts
+      });
     }
 
-    async function fetchSignals(force = false) {
-      if (isFetchingSignals && !force) return;
-      isFetchingSignals = true;
-      const requestedScore = getCurrentMinScore();
-      try {
-        const qs = getFilterParams().toString();
-        const res = await fetch(`/api/signals?${qs}`, { cache: "no-store" });
-        const data = await res.json();
-        if (!res.ok) return;
-
-        const activeParams = data.active_params || {};
-        const effectiveScore = typeof activeParams.min_score === "number" ? activeParams.min_score : requestedScore;
-        latestCandleTiming = data.candle_timing || null;
-
-        document.getElementById("kpiActiveScore").textContent = `${Number(effectiveScore).toFixed(1)}%`;
-        updateAutoTradeButton(Boolean(data.auto_trade));
-
-        const signals = Array.isArray(data.signals) ? data.signals : [];
-        const banner = document.getElementById("scannerBanner");
-        const headline = document.getElementById("scannerHeadline");
-        const timingEl = document.getElementById("scannerTiming");
-        const diagEl = document.getElementById("scannerDiagnostics");
-
-        if (signals.length > 0) {
-          banner.classList.add("has-signal");
-          headline.textContent = `${signals.length} SETUP VALIDATI CON SCORE >= ${Number(effectiveScore).toFixed(1)}%`;
-        } else {
-          banner.classList.remove("has-signal");
-          headline.textContent = `NESSUN SETUP VALIDATO AL MOMENTO (SOGLIA SCORE >= ${Number(effectiveScore).toFixed(1)}%)`;
-        }
-
-        if (latestCandleTiming) {
-          timingEl.textContent = `${latestCandleTiming.candle_window_text} • Residuo: ${latestCandleTiming.candle_remaining_sec} secondi`;
-        }
-
-        const diags = data.market_diagnostics || {};
-        diagEl.innerHTML = Object.entries(diags)
-          .map(([cat, info]) => `<div>• <strong>${cat}</strong>: ${info.reason}</div>`)
-          .join("");
-
-        const rows = Array.isArray(data.market_monitoring_table) ? data.market_monitoring_table : [];
-        const tbody = document.getElementById("scannerTableBody");
-        if (!rows.length) {
-          tbody.innerHTML = `<tr><td colspan="6" style="color: var(--muted);">Nessun dato disponibile.</td></tr>`;
-        } else {
-          tbody.innerHTML = rows.map((r) => {
-            const levNum = Number(r.leverage_num || String(r.leverage || "20x").replace("x", "") || 20);
-            const actionCell = (r.action === "BUY" || r.action === "SELL")
-              ? `${renderActionBadge(r.action)}<div style="color: var(--muted); font-size: 11px; margin-top: 3px;">Qty: ${r.size} • ${r.leverage}</div><div style="margin-top:6px;"><button class="small-btn btn-primary" type="button" onclick="executeManualOrder('${r.symbol}', '${r.action}', ${r.size}, ${r.sl}, ${r.tp1}, ${levNum})">Esegui</button></div>`
-              : `${renderActionBadge(r.action)}<div style="color: var(--muted); font-size: 11px; margin-top: 4px;">${r.reason || ""}</div>`;
-
-            return `
-              <tr>
-                <td>
-                  <strong>${r.name || r.symbol}</strong>
-                  <div style="color: var(--muted); font-size: 11px;">${r.symbol} • ${r.category}</div>
-                </td>
-                <td>
-                  <strong>${r.price}</strong>
-                  <div style="color: var(--info); font-size: 11px;">HTF: ${r.htf_bias} • ${r.leverage}</div>
-                </td>
-                <td>
-                  <strong>${r.score}%</strong>
-                  <div style="color: var(--muted); font-size: 11px;">(${r.grade}) • ${r.confluence}</div>
-                  <div style="color: var(--accent); font-size: 11px;">${r.fakeout_label || ""}</div>
-                </td>
-                <td style="font-size: 11px; line-height: 1.4;">
-                  <div>E: <strong>${r.entry}</strong></div>
-                  <div>SL: ${r.sl}</div>
-                  <div>TP1: ${r.tp1} (1:${r.rrr})</div>
-                  <div>TP2: ${r.tp2}</div>
-                </td>
-                <td style="font-size: 11px; line-height: 1.35;">
-                  <div><strong>${r.candle_duration_label || r.timeframe}</strong></div>
-                  <div>${r.candle_open_utc} → ${r.candle_close_utc}</div>
-                  <div style="color: var(--muted);">Margine: $${r.margin}</div>
-                </td>
-                <td>${actionCell}</td>
-              </tr>
-            `;
-          }).join("");
-        }
-
-        const perf = data.performance || {};
-        const acc = perf.account || {};
-        const daily = perf.daily || {};
-        document.getElementById("kpiBalance").textContent = `$${Number(acc.balance || 0).toFixed(2)}`;
-        document.getElementById("kpiEquity").textContent = `$${Number(acc.equity || 0).toFixed(2)}`;
-        document.getElementById("kpiAvail").textContent = `$${Number(acc.available_margin || 0).toFixed(2)}`;
-        document.getElementById("kpiSessionPnl").textContent = `$${Number((data.telemetry || {}).session_pnl || 0).toFixed(2)}`;
-        document.getElementById("kpiScans").textContent = String((data.telemetry || {}).scans_count || 0);
-        document.getElementById("kpiDailyTrades").textContent = String(daily.total_trades || 0);
-        document.getElementById("kpiDailyNet").textContent = `$${Number(daily.net_pnl || 0).toFixed(2)}`;
-
-        const sessMap = data.sessions || {};
-        document.getElementById("sessionsBox").innerHTML = Object.entries(sessMap)
-          .map(([k, v]) => `<div>• <strong>${k}</strong>: <span style="color:${v.badge_color || '#e7eef8'}">${v.status}</span> (${v.hours})</div>`)
-          .join("");
-
-        const logs = (data.telemetry || {}).telemetry_logs || [];
-        document.getElementById("telemetryLogsBox").innerHTML = logs.slice(0, 8)
-          .map((l) => `<div>[${l.timestamp}] ${l.status} • Segnali: ${l.signals_found} / Scansionati: ${l.scanned}</div>`)
-          .join("");
-      } catch (err) {
-        console.error("Errore fetchSignals:", err);
-      } finally {
-        isFetchingSignals = false;
-      }
-    }
-
-    async function fetchAccountAndPositions() {
-      try {
-        const res = await fetch("/api/bingx/live-account", { cache: "no-store" });
-        const data = await res.json();
-        const acc = data.account || {};
-        document.getElementById("kpiBalance").textContent = `$${Number(acc.balance || 0).toFixed(2)}`;
-        document.getElementById("kpiEquity").textContent = `$${Number(acc.equity || 0).toFixed(2)}`;
-        document.getElementById("kpiAvail").textContent = `$${Number(acc.available_margin || 0).toFixed(2)}`;
-        document.getElementById("kpiSessionPnl").textContent = `$${Number(data.session_pnl || 0).toFixed(2)}`;
-        updateAutoTradeButton(Boolean(data.auto_trade));
-
-        const posList = Array.isArray(data.positions) ? data.positions : [];
-        const box = document.getElementById("positionsContainer");
-        if (!posList.length) {
-          box.textContent = data.positions_error ? `Stato: ${data.positions_error}` : "Nessuna posizione aperta su BingX.";
-        } else {
-          box.innerHTML = posList.map((p) => `
-            <div class="kpi-box" style="margin-bottom: 8px;">
-              <strong>${p.symbol}</strong> (${p.action} • ${p.leverage}) • Size: ${p.size} • Entry: ${p.entry} • uPnL: $${p.unrealized_pnl}
-            </div>
-          `).join("");
-        }
-      } catch (err) {
-        console.error("Errore posizioni:", err);
-      }
-    }
-
-    async function fetchChartData() {
-      const sym = document.getElementById("chartSymbolSelect").value;
-      const tf = document.getElementById("timeframeSelect").value;
-      try {
-        const [tRes, cRes] = await Promise.all([
-          fetch(`/api/live-ticker?symbol=${encodeURIComponent(sym)}`, { cache: "no-store" }),
-          fetch(`/api/candles?symbol=${encodeURIComponent(sym)}&tf=${encodeURIComponent(tf)}`, { cache: "no-store" }),
-        ]);
-        if (tRes.ok) {
-          const tData = await tRes.json();
-          document.getElementById("liveTickerPrice").textContent = `${tData.price} USDT`;
-          document.getElementById("liveTickerMeta").textContent = `${tData.bingx_symbol} • Aggiornato ${tData.timestamp}`;
-        }
-        if (cRes.ok) {
-          const cData = await cRes.json();
-          const candles = Array.isArray(cData.candles) ? cData.candles.slice(-15).reverse() : [];
-          const cBody = document.getElementById("candlesTableBody");
-          if (!candles.length) {
-            cBody.innerHTML = `<tr><td colspan="6" style="color: var(--muted);">Nessuna candela disponibile.</td></tr>`;
-          } else {
-            cBody.innerHTML = candles.map((c, idx) => `
-              <tr>
-                <td>-${idx + 1}</td>
-                <td>${c.open}</td>
-                <td>${c.high}</td>
-                <td>${c.low}</td>
-                <td><strong>${c.close}</strong></td>
-                <td>${c.volume}</td>
-              </tr>
-            `).join("");
-          }
-        }
-      } catch (err) {
-        console.error("Errore grafico:", err);
-      }
-    }
-
-    function updateAutoTradeButton(enabled) {
-      const btn = document.getElementById("autoTradeBtn");
-      if (enabled) {
-        btn.textContent = "AUTO-TRADE: ON";
-        btn.className = "btn-autotrade-on";
-      } else {
-        btn.textContent = "AUTO-TRADE: OFF";
-        btn.className = "btn-autotrade-off";
-      }
-    }
-
-    async function executeManualOrder(symbol, action, size, sl, tp1, leverage = 20) {
-      const tf = document.getElementById("timeframeSelect").value;
-      const balance = getCurrentBalance();
+    async function sendManualOrder(payload) {
+      showBanner("");
       try {
         const res = await fetch("/api/autotrade/execute-manual", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ symbol, action, size, sl, tp1, leverage, balance, timeframe: tf }),
+          body: JSON.stringify(payload)
         });
         const data = await res.json();
-        alert(data.success ? `Ordine inviato su ${data.symbol} (${action} • ${data.leverage} • Qty ${data.qty})` : `Errore: ${data.error}`);
-        fetchAccountAndPositions();
-      } catch (err) {
-        alert(`Errore invio ordine: ${err.message}`);
+        if (!res.ok || !data.success) {
+          showBanner(`Errore invio ordine: ${data.error || "Richiesta rifiutata"}`, true);
+          return;
+        }
+        showBanner(`Ordine eseguito su BingX: ${data.action} ${data.symbol} qty=${data.qty} (${data.leverage})`, false);
+        refreshLiveAccount();
+      } catch (e) {
+        showBanner(`Errore rete invio ordine: ${e.message || e}`, true);
       }
     }
 
-    document.getElementById("autoTradeBtn").addEventListener("click", async () => {
-      const res = await fetch("/api/autotrade/toggle", { method: "POST" });
-      const data = await res.json();
-      updateAutoTradeButton(Boolean(data.auto_trade));
-    });
+    async function refreshLiveAccount() {
+      try {
+        const res = await fetch("/api/bingx/live-account");
+        const data = await res.json();
+        const acc = data.account || {};
+        const positions = Array.isArray(data.positions) ? data.positions : [];
 
-    document.getElementById("refreshBtn").addEventListener("click", () => {
-      fetchSignals(true);
-      fetchAccountAndPositions();
-      fetchChartData();
-    });
+        if (data.positions_error) {
+          showBanner(`Avviso Conto BingX: ${data.positions_error}`, true);
+        }
 
-    const minScoreEl = document.getElementById("minScoreInput");
-    minScoreEl.addEventListener("input", () => {
-      const previewScore = getCurrentMinScore();
-      document.getElementById("kpiActiveScore").textContent = `${previewScore.toFixed(1)}%`;
-      clearTimeout(scoreDebounceTimer);
-      scoreDebounceTimer = setTimeout(() => fetchSignals(true), 250);
-    });
-    minScoreEl.addEventListener("change", () => {
-      clearTimeout(scoreDebounceTimer);
-      fetchSignals(true);
-    });
+        document.getElementById("accountKpiStrip").innerHTML = `
+          <div class="kpi-box"><div class="kpi-label">Balance USDT</div><div class="kpi-val">$${Number(acc.balance || 0).toFixed(2)}</div></div>
+          <div class="kpi-box"><div class="kpi-label">Margine Disponibile</div><div class="kpi-val">$${Number(acc.available_margin || 0).toFixed(2)}</div></div>
+          <div class="kpi-box"><div class="kpi-label">uPnL Aperto</div><div class="kpi-val ${Number(acc.unrealized_pnl || 0) >= 0 ? "pos-up" : "pos-dn"}">$${Number(acc.unrealized_pnl || 0).toFixed(4)}</div></div>
+          <div class="kpi-box"><div class="kpi-label">Posizioni Attive</div><div class="kpi-val">${positions.length}</div></div>
+        `;
 
-    ["profileSelect", "timeframeSelect", "balanceInput", "riskInput", "minRrrInput", "marketFilterSelect"].forEach((id) => {
-      const el = document.getElementById(id);
-      el.addEventListener("change", () => fetchSignals(true));
-    });
+        const tbody = document.getElementById("positionsTableBody");
+        if (!positions.length) {
+          tbody.innerHTML = `<tr><td colspan="8" class="subtitle">Nessuna posizione aperta sul conto BingX</td></tr>`;
+          return;
+        }
+        tbody.innerHTML = positions.map(p => {
+          const pnlCls = Number(p.unrealized_pnl || 0) >= 0 ? "pos-up" : "pos-dn";
+          return `
+            <tr>
+              <td><strong>${escapeHtml(p.symbol)}</strong><div class="subtitle" style="font-size:10.5px;">${escapeHtml(p.bx_symbol)}</div></td>
+              <td><span class="badge ${p.action === "BUY" ? "badge-buy" : "badge-sell"}">${escapeHtml(p.action)}</span></td>
+              <td>${p.size}</td>
+              <td>${p.entry}</td>
+              <td>${p.mark_price}</td>
+              <td>${escapeHtml(p.leverage)}</td>
+              <td class="${pnlCls}"><strong>$${Number(p.unrealized_pnl || 0).toFixed(4)}</strong></td>
+              <td>
+                <button class="btn-red" style="padding:5px 9px;font-size:11.5px;"
+                  onclick="closeSinglePosition('${escapeHtml(p.bx_symbol)}', '${escapeHtml(p.action)}', ${p.size})">Chiudi</button>
+              </td>
+            </tr>
+          `;
+        }).join("");
+      } catch (e) {
+        console.error("Errore live-account:", e);
+      }
+    }
 
-    document.getElementById("chartSymbolSelect").addEventListener("change", fetchChartData);
+    async function closeSinglePosition(bxSymbol, action, size) {
+      try {
+        const res = await fetch("/api/bingx/close-position", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ symbol: bxSymbol, action, size })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          showBanner(`Errore chiusura ${bxSymbol}: ${data.error || "Errore"}`, true);
+          return;
+        }
+        showBanner(`Posizione chiusa: ${bxSymbol}`, false);
+        refreshLiveAccount();
+      } catch (e) {
+        showBanner(`Errore rete chiusura: ${e.message || e}`, true);
+      }
+    }
 
-    document.querySelectorAll(".nav-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        document.querySelectorAll(".nav-btn").forEach((b) => b.classList.remove("active"));
-        document.querySelectorAll(".tab-pane").forEach((p) => p.classList.remove("active"));
-        btn.classList.add("active");
-        const targetId = btn.getAttribute("data-tab");
-        document.getElementById(targetId).classList.add("active");
-        if (targetId === "tab-posizioni") fetchAccountAndPositions();
-        if (targetId === "tab-grafico") fetchChartData();
+    async function closeAllPositions() {
+      try {
+        const res = await fetch("/api/bingx/close-all", { method: "POST" });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          showBanner(`Errore chiusura posizioni: ${data.error || "Errore"}`, true);
+          return;
+        }
+        showBanner(`Chiusura completata (${data.closed_count || 0} posizioni chiuse)`, false);
+        refreshLiveAccount();
+      } catch (e) {
+        showBanner(`Errore rete chiusura globale: ${e.message || e}`, true);
+      }
+    }
+
+    async function toggleAutoTrade() {
+      try {
+        const res = await fetch("/api/autotrade/toggle", { method: "POST" });
+        const data = await res.json();
+        if (data.success) {
+          const btn = document.getElementById("btnAutoTrade");
+          btn.textContent = data.auto_trade ? "AUTO-TRADE: ON" : "AUTO-TRADE: OFF";
+          btn.className = data.auto_trade ? "btn-green" : "btn-ghost";
+          if (!data.credentials_configured) {
+            showBanner("Auto-Trade aggiornato, ma BINGX_API_KEY / BINGX_SECRET_KEY non sono configurate sul server.", true);
+          }
+        }
+      } catch (e) {
+        showBanner(`Errore toggle auto-trade: ${e.message || e}`, true);
+      }
+    }
+
+    async function saveRiskConfig() {
+      const payload = {
+        max_open_positions: parseInt(document.getElementById("cfgMaxPos").value || "1", 10),
+        daily_loss_cap_usd: parseFloat(document.getElementById("cfgLossCap").value || "0.50"),
+        only_a_plus: document.getElementById("cfgOnlyAPlus").value === "true",
+        close_at_candle_end: document.getElementById("cfgCloseCandle").value === "true"
+      };
+      try {
+        const res = await fetch("/api/autotrade/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+          showBanner("Configurazione rischio salvata.", false);
+        }
+      } catch (e) {
+        showBanner(`Errore salvataggio configurazione: ${e.message || e}`, true);
+      }
+    }
+
+    function renderSessions(sessions) {
+      const box = document.getElementById("sessionsBox");
+      const entries = Object.entries(sessions || {});
+      if (!entries.length) {
+        box.innerHTML = `<div class="subtitle">Nessuna informazione sessione</div>`;
+        return;
+      }
+      box.innerHTML = entries.map(([name, info]) => `
+        <div class="kpi-box">
+          <div class="kpi-label">${escapeHtml(name)}</div>
+          <div class="kpi-val" style="color:${escapeHtml(info.badge_color || "#f4f7fb")};">${escapeHtml(info.status || "")}</div>
+          <div class="subtitle" style="font-size:11px;margin-top:2px;">${escapeHtml(info.hours || "")}</div>
+        </div>
+      `).join("");
+    }
+
+    function renderTelemetryLogs(logs) {
+      const tbody = document.getElementById("telemetryBody");
+      if (!logs || !logs.length) {
+        tbody.innerHTML = `<tr><td colspan="4" class="subtitle">Nessun log disponibile</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = logs.slice(0, 25).map(l => `
+        <tr>
+          <td>${escapeHtml(l.timestamp || "")}</td>
+          <td>${escapeHtml(l.status || "")}</td>
+          <td>${l.signals_found ?? 0}</td>
+          <td>${l.scanned ?? 0}</td>
+        </tr>
+      `).join("");
+    }
+
+    async function pollLiveTicker() {
+      const sym = (CURRENT_SYMBOL && CURRENT_SYMBOL !== "ALL") ? CURRENT_SYMBOL : ACTIVE_CHART_SYMBOL;
+      try {
+        const res = await fetch(`/api/live-ticker?symbol=${encodeURIComponent(sym)}`);
+        const data = await res.json();
+        if (data && typeof data.price === "number") {
+          document.getElementById("tickerLabel").textContent = `Ticker Live (${data.symbol || sym})`;
+          document.getElementById("tickerPrice").textContent = data.price > 0 ? String(data.price) : "--";
+          document.getElementById("tickerTime").textContent = `${data.bingx_symbol || ""} • ${data.timestamp || ""}`;
+        }
+      } catch (e) {
+        // silenzioso su polling rapido
+      }
+    }
+
+    function openSymbolChart(sym) {
+      ACTIVE_CHART_SYMBOL = sym;
+      const chartBtn = document.querySelector('.nav-btn[data-tab="tab-charts"]');
+      switchTab("tab-charts", chartBtn);
+    }
+
+    async function loadChartCandles() {
+      const sym = (CURRENT_SYMBOL && CURRENT_SYMBOL !== "ALL") ? CURRENT_SYMBOL : ACTIVE_CHART_SYMBOL;
+      const tf = document.getElementById("selTf").value || "15m";
+      try {
+        const res = await fetch(`/api/candles?symbol=${encodeURIComponent(sym)}&tf=${encodeURIComponent(tf)}`);
+        const data = await res.json();
+        const candles = Array.isArray(data.candles) ? data.candles : [];
+        document.getElementById("chartTitle").textContent =
+          `Grafico ${data.symbol || sym} (${data.bingx_symbol || ""}) • ${data.timeframe || tf}`;
+        document.getElementById("chartMeta").textContent =
+          data.is_live ? "Dati Live BingX Swap v2 • EMA20 / EMA50" : "Dati parziali";
+        drawCandles(candles);
+      } catch (e) {
+        console.error("Errore caricamento candele:", e);
+      }
+    }
+
+    function drawCandles(candles) {
+      const canvas = document.getElementById("priceCanvas");
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = "#0c1018";
+      ctx.fillRect(0, 0, w, h);
+
+      if (!candles.length) {
+        ctx.fillStyle = "#9aa6bf";
+        ctx.font = "14px sans-serif";
+        ctx.fillText("Nessuna candela disponibile per il simbolo selezionato", 24, 40);
+        return;
+      }
+
+      const slice = candles.slice(-50);
+      let minP = Infinity, maxP = -Infinity;
+      slice.forEach(c => {
+        if (c.low < minP) minP = c.low;
+        if (c.high > maxP) maxP = c.high;
       });
+      if (!isFinite(minP) || !isFinite(maxP) || maxP <= minP) return;
+
+      const padX = 16;
+      const padY = 20;
+      const plotW = w - padX * 2;
+      const plotH = h - padY * 2;
+      const stepW = plotW / slice.length;
+      const bodyW = Math.max(3, Math.min(12, stepW * 0.62));
+
+      const yForPrice = p => padY + (1 - (p - minP) / (maxP - minP)) * plotH;
+
+      slice.forEach((c, idx) => {
+        const cx = padX + idx * stepW + stepW / 2;
+        const yHigh = yForPrice(c.high);
+        const yLow = yForPrice(c.low);
+        const yOpen = yForPrice(c.open);
+        const yClose = yForPrice(c.close);
+        const bull = c.close >= c.open;
+        const color = bull ? "#00e676" : "#ff3b5c";
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(cx, yHigh);
+        ctx.lineTo(cx, yLow);
+        ctx.stroke();
+
+        const top = Math.min(yOpen, yClose);
+        const bh = Math.max(2, Math.abs(yClose - yOpen));
+        ctx.fillStyle = color;
+        ctx.fillRect(cx - bodyW / 2, top, bodyW, bh);
+      });
+
+      const drawEma = (key, strokeColor) => {
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        slice.forEach((c, idx) => {
+          const val = c[key];
+          if (typeof val !== "number") return;
+          const cx = padX + idx * stepW + stepW / 2;
+          const cy = yForPrice(val);
+          if (idx === 0) ctx.moveTo(cx, cy);
+          else ctx.lineTo(cx, cy);
+        });
+        ctx.stroke();
+      };
+
+      drawEma("ema20", "#f5b700");
+      drawEma("ema50", "#38bdf8");
+    }
+
+    function toggleVoice() {
+      VOICE_ENABLED = !VOICE_ENABLED;
+      document.getElementById("btnVoice").textContent = VOICE_ENABLED ? "VOCE: ON" : "VOCE: OFF";
+      if (VOICE_ENABLED) speakLiveSummary();
+    }
+
+    function speakLiveSummary() {
+      if (!("speechSynthesis" in window)) return;
+      const top = LAST_SIGNALS[0];
+      const text = top
+        ? `Segnale attivo ${top.symbol}, ${top.action}, score ${top.score} percento, entry ${top.entry}, stop loss ${top.sl}, target uno ${top.tp1}.`
+        : "Nessun segnale operativo attivo al momento.";
+      window.speechSynthesis.cancel();
+      const utt = new SpeechSynthesisUtterance(text);
+      utt.lang = "it-IT";
+      window.speechSynthesis.speak(utt);
+    }
+
+    async function refreshAll(forceContracts = false) {
+      if (forceContracts) {
+        await syncBingxContracts(true);
+      }
+      await Promise.all([refreshSignals(), refreshLiveAccount(), pollLiveTicker()]);
+      if (document.getElementById("tab-charts").classList.contains("active")) {
+        loadChartCandles();
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      initCatalogFromServer();
+      await syncBingxContracts(false);
+      await refreshAll(false);
+      setInterval(pollLiveTicker, 4000);
+      setInterval(() => refreshSignals(), 15000);
+      setInterval(() => refreshLiveAccount(), 12000);
     });
-
-    setInterval(() => {
-      if (!latestCandleTiming) return;
-      const nowSec = Math.floor(Date.now() / 1000);
-      const rem = Math.max(0, Number(latestCandleTiming.candle_close_ts || nowSec) - nowSec);
-      latestCandleTiming.candle_remaining_sec = rem;
-      document.getElementById("scannerTiming").textContent =
-        `${latestCandleTiming.candle_window_text} • Residuo: ${rem} secondi`;
-      document.getElementById("liveMetaLine").textContent =
-        `Candela ${latestCandleTiming.candle_duration_label || latestCandleTiming.timeframe} • Chiusura ${latestCandleTiming.candle_close_utc} (${rem} secondi) • Score Min: ${getCurrentMinScore().toFixed(1)}%`;
-    }, 1000);
-
-    setInterval(() => fetchSignals(false), 12000);
-    setInterval(fetchChartData, 3000);
-
-    fetchSignals(true);
-    fetchAccountAndPositions();
-    fetchChartData();
   </script>
 </body>
 </html>
