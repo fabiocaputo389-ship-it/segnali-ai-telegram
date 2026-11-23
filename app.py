@@ -105,6 +105,16 @@ MARKET_CATALOG: Dict[str, List[Dict[str, str]]] = {
     ],
 }
 
+SYMBOL_ALIASES: Dict[str, List[str]] = {
+    "NATGAS-USDT": ["NATGAS-USDT", "NG-USDT", "NATURALGAS-USDT"],
+    "OILWTI-USDT": ["OILWTI-USDT", "WTI-USDT", "USOIL-USDT"],
+    "OILBRENT-USDT": ["OILBRENT-USDT", "BRENT-USDT", "UKOIL-USDT"],
+    "HEATINGOIL-USDT": ["HEATINGOIL-USDT", "HO-USDT"],
+    "NAS100-USDT": ["NAS100-USDT", "NDX-USDT", "USTEC-USDT"],
+    "XAU-USDT": ["XAU-USDT", "GOLD-USDT"],
+    "XAG-USDT": ["XAG-USDT", "SILVER-USDT"],
+}
+
 TF_SECONDS: Dict[str, int] = {
     "5m": 300,
     "15m": 900,
@@ -133,6 +143,8 @@ TERMINAL_STATE: Dict[str, Any] = {
     "closed_trades_today": [],
     "closed_trades_month": [],
     "last_income_sync_ts": 0,
+    "last_contracts_sync_ts": 0,
+    "bingx_contracts": {},
     "last_params": {
         "profile": "pro_sniper",
         "timeframe": "15m",
@@ -156,15 +168,88 @@ def _all_assets() -> List[Dict[str, str]]:
     return out
 
 
+def _http_get_json(url: str, headers: Optional[Dict[str, str]] = None, timeout: int = 8) -> Tuple[bool, Any, str]:
+    req = Request(url, headers=headers or {"User-Agent": "Mozilla/5.0"})
+    try:
+        with urlopen(req, timeout=timeout) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+            return True, json.loads(raw), ""
+    except HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace") if e.fp else ""
+        return False, None, f"HTTP {e.code}: {body[:200] or e.reason}"
+    except (URLError, TimeoutError, json.JSONDecodeError) as e:
+        return False, None, str(e)
+
+
+def _sync_bingx_contracts(force: bool = False) -> Dict[str, Dict[str, Any]]:
+    now_s = int(time.time())
+    with STATE_LOCK:
+        cached = dict(TERMINAL_STATE.get("bingx_contracts") or {})
+        last_ts = int(TERMINAL_STATE.get("last_contracts_sync_ts") or 0)
+        if not force and cached and (now_s - last_ts) < 300:
+            return cached
+
+    url = f"{BINGX_BASE_URL}/openApi/swap/v2/quote/contracts"
+    ok, data, _ = _http_get_json(url, timeout=8)
+    raw_list = data.get("data") if (ok and isinstance(data, dict)) else None
+    contracts: Dict[str, Dict[str, Any]] = {}
+    if isinstance(raw_list, list):
+        for item in raw_list:
+            if not isinstance(item, dict):
+                continue
+            sym = str(item.get("symbol") or "").strip().upper()
+            if not sym:
+                continue
+            step_size = float(item.get("stepSize") or item.get("tradeMinQuantity") or 0.001 or 0.001)
+            min_qty = float(item.get("minQty") or item.get("tradeMinQuantity") or step_size or 0.001)
+            min_notional = float(item.get("minNotional") or item.get("notional") or 5.0)
+            qty_prec = int(item.get("quantityPrecision") if item.get("quantityPrecision") is not None else 4)
+            price_prec = int(item.get("pricePrecision") if item.get("pricePrecision") is not None else 4)
+            contracts[sym] = {
+                "symbol": sym,
+                "step_size": max(1e-8, step_size),
+                "min_qty": max(1e-8, min_qty),
+                "min_notional": max(0.1, min_notional),
+                "qty_precision": max(0, min(8, qty_prec)),
+                "price_precision": max(0, min(8, price_prec)),
+            }
+
+    if contracts:
+        with STATE_LOCK:
+            TERMINAL_STATE["bingx_contracts"] = contracts
+            TERMINAL_STATE["last_contracts_sync_ts"] = now_s
+        return contracts
+    return cached
+
+
+def _resolve_bingx_contract(symbol: str) -> Tuple[str, Optional[Dict[str, Any]]]:
+    contracts = _sync_bingx_contracts()
+    clean = (symbol or "BTC/USDT").strip().upper()
+    default_bx = clean.replace("/", "-")
+    if "-" not in default_bx:
+        default_bx = f"{default_bx}-USDT"
+
+    candidates = [default_bx] + list(SYMBOL_ALIASES.get(default_bx, []))
+    if default_bx.endswith("-USDT"):
+        base_code = default_bx[:-5]
+        candidates.append(f"{base_code}USDT")
+    for cand in candidates:
+        c_up = cand.upper()
+        if c_up in contracts:
+            return c_up, contracts[c_up]
+    return default_bx, None
+
+
 def _find_asset(symbol: str) -> Dict[str, str]:
     clean = (symbol or "BTC/USDT").strip().upper()
     for it in _all_assets():
         if it["symbol"].upper() == clean or it["bx_symbol"].upper() == clean:
-            return it
-    bx = clean.replace("/", "-")
+            matched_bx, _ = _resolve_bingx_contract(it["bx_symbol"])
+            return {**it, "bx_symbol": matched_bx}
+    bx, _ = _resolve_bingx_contract(clean)
     return {
-        "symbol": clean if "/" in clean else f"{clean}-USDT",
-        "bx_symbol": bx if "-" in bx else f"{clean}-USDT",
+        "symbol": clean if "/" in clean else bx.replace("-", "/"),
+        "bx_symbol": bx,
         "name": clean,
         "category": "Criptovalute Globali",
     }
@@ -178,6 +263,45 @@ def _compute_leverage(balance: float) -> int:
     if balance <= 50.0:
         return 10
     return 5
+
+
+def _round_to_step(val: float, step: float, precision: int) -> float:
+    if step <= 0:
+        return round(max(0.0, val), precision)
+    steps = math.ceil((max(0.0, val) - 1e-12) / step)
+    return round(steps * step, precision)
+
+
+def _normalize_order_qty(
+    raw_qty: float,
+    price: float,
+    leverage: int,
+    balance: float,
+    contract: Optional[Dict[str, Any]],
+) -> Tuple[bool, float, str]:
+    step = float(contract["step_size"]) if contract else 0.001
+    min_qty = float(contract["min_qty"]) if contract else max(0.001, step)
+    min_notional = float(contract["min_notional"]) if contract else 5.0
+    prec = int(contract["qty_precision"]) if contract else 4
+
+    safe_price = max(float(price or 0.0), 1e-8)
+    qty = max(float(raw_qty or 0.0), min_qty)
+    if (qty * safe_price) < min_notional:
+        qty = max(qty, min_notional / safe_price)
+
+    qty = _round_to_step(qty, step, prec)
+    if qty < min_qty:
+        qty = _round_to_step(min_qty, step, prec)
+
+    req_margin = (qty * safe_price) / max(int(leverage or 1), 1)
+    max_affordable_margin = max(float(balance or 0.0) * 0.98, 0.0)
+    if max_affordable_margin > 0 and req_margin > max_affordable_margin:
+        return (
+            False,
+            0.0,
+            f"Margine richiesto ${req_margin:.2f} (minimo contratto ~${max_affordable_margin:.2f} disponibile con leva {leverage}x)",
+        )
+    return True, qty, ""
 
 
 def _candle_timing(timeframe: str, now_ts: Optional[int] = None) -> Dict[str, Any]:
@@ -200,19 +324,6 @@ def _candle_timing(timeframe: str, now_ts: Optional[int] = None) -> Dict[str, An
         "candle_close_utc": close_dt,
         "candle_window_text": f"Candela {tf}: {open_dt} → {close_dt} UTC",
     }
-
-
-def _http_get_json(url: str, headers: Optional[Dict[str, str]] = None, timeout: int = 8) -> Tuple[bool, Any, str]:
-    req = Request(url, headers=headers or {"User-Agent": "Mozilla/5.0"})
-    try:
-        with urlopen(req, timeout=timeout) as resp:
-            raw = resp.read().decode("utf-8", errors="replace")
-            return True, json.loads(raw), ""
-    except HTTPError as e:
-        body = e.read().decode("utf-8", errors="replace") if e.fp else ""
-        return False, None, f"HTTP {e.code}: {body[:200] or e.reason}"
-    except (URLError, TimeoutError, json.JSONDecodeError) as e:
-        return False, None, str(e)
 
 
 def _bingx_signed_request(method: str, path: str, params: Optional[Dict[str, Any]] = None) -> Tuple[bool, Any, str]:
@@ -242,12 +353,17 @@ def _bingx_signed_request(method: str, path: str, params: Optional[Dict[str, Any
             raw = resp.read().decode("utf-8", errors="replace")
             payload = json.loads(raw)
             if isinstance(payload, dict) and payload.get("code") not in (0, "0", None):
-                return False, payload, payload.get("msg") or f"BingX code {payload.get('code')}"
+                err_msg = payload.get("msg") or f"BingX code {payload.get('code')}"
+                print(f"[BINGX ERR] {method.upper()} {path} -> {err_msg} | payload={raw[:240]}", flush=True)
+                return False, payload, err_msg
             return True, payload, ""
     except HTTPError as e:
         body = e.read().decode("utf-8", errors="replace") if e.fp else ""
-        return False, None, f"HTTP {e.code}: {body[:200] or e.reason}"
+        err_msg = f"HTTP {e.code}: {body[:200] or e.reason}"
+        print(f"[BINGX HTTP] {method.upper()} {path} -> {err_msg}", flush=True)
+        return False, None, err_msg
     except (URLError, TimeoutError, json.JSONDecodeError) as e:
+        print(f"[BINGX NET] {method.upper()} {path} -> {e}", flush=True)
         return False, None, str(e)
 
 
@@ -329,7 +445,7 @@ def _fallback_candles(asset: Dict[str, str], timeframe: str, count: int = 60) ->
 def _fetch_candles(asset: Dict[str, str], timeframe: str, limit: int = 60) -> Tuple[List[Dict[str, Any]], bool]:
     tf = timeframe if timeframe in TF_BINGX_INTERVAL else "15m"
     interval = TF_BINGX_INTERVAL[tf]
-    bx_sym = asset["bx_symbol"]
+    bx_sym, _ = _resolve_bingx_contract(asset["bx_symbol"])
     url = f"{BINGX_BASE_URL}/openApi/swap/v2/quote/klines?symbol={bx_sym}&interval={interval}&limit={limit}"
     ok, data, _ = _http_get_json(url, timeout=6)
     raw_list = data.get("data") if (ok and isinstance(data, dict)) else None
@@ -505,9 +621,11 @@ def _evaluate_asset(
         else ("Rischio fakeout / coda lunga" if fakeout else f"Filtro Score/Trend non allineato ({score}% < {min_score}%)")
     )
 
+    resolved_bx, _ = _resolve_bingx_contract(asset["bx_symbol"])
+
     return {
         "symbol": asset["symbol"],
-        "bx_symbol": asset["bx_symbol"],
+        "bx_symbol": resolved_bx,
         "name": asset["name"],
         "category": asset["category"],
         "price": _round_price(price, price),
@@ -704,38 +822,74 @@ def _fetch_bingx_balance(used_margin: float = 0.0) -> Tuple[Dict[str, float], st
     }, ""
 
 
+def _get_live_mark_or_last_price(bx_sym: str) -> float:
+    url = f"{BINGX_BASE_URL}/openApi/swap/v2/quote/ticker?symbol={bx_sym}"
+    ok, data, _ = _http_get_json(url, timeout=5)
+    if ok and isinstance(data, dict) and isinstance(data.get("data"), dict):
+        p = float(data["data"].get("lastPrice") or data["data"].get("markPrice") or 0)
+        if p > 0:
+            return p
+    return 0.0
+
+
 def _place_bingx_multi_tpsl_order(
     symbol: str,
     action: str,
     qty: float,
     leverage: int = 20,
+    balance: float = 2.0,
     sl: Optional[float] = None,
     tp1: Optional[float] = None,
     tp2: Optional[float] = None,
     tp3: Optional[float] = None,
     reduce_only: bool = False,
 ) -> Tuple[bool, Dict[str, Any]]:
-    asset = _find_asset(symbol)
-    bx_sym = asset["bx_symbol"]
+    bx_sym, contract = _resolve_bingx_contract(symbol)
+    if not contract:
+        _sync_bingx_contracts(force=True)
+        bx_sym, contract = _resolve_bingx_contract(symbol)
+
+    step = float(contract["step_size"]) if contract else 0.001
+    prec = int(contract["qty_precision"]) if contract else 4
     side = "BUY" if action.upper() == "BUY" else "SELL"
     pos_side = "LONG" if action.upper() == "BUY" else "SHORT"
     exit_side = "SELL" if action.upper() == "BUY" else "BUY"
     if reduce_only:
         side = exit_side
 
-    if not reduce_only and leverage > 0:
-        _bingx_signed_request("POST", "/openApi/swap/v2/trade/leverage", {
-            "symbol": bx_sym,
-            "side": pos_side,
-            "leverage": int(leverage),
-        })
+    if not reduce_only:
+        ref_price = _get_live_mark_or_last_price(bx_sym)
+        if ref_price <= 0:
+            asset_obj = _find_asset(symbol)
+            c_list, _ = _fetch_candles(asset_obj, "15m", limit=2)
+            ref_price = float(c_list[-1]["close"]) if c_list else 1.0
+
+        ok_qty, norm_qty, qty_err = _normalize_order_qty(
+            raw_qty=float(qty),
+            price=ref_price,
+            leverage=int(leverage or 20),
+            balance=float(balance or 2.0),
+            contract=contract,
+        )
+        if not ok_qty:
+            return False, {"error": qty_err}
+        exec_qty = norm_qty
+
+        if leverage > 0:
+            _bingx_signed_request("POST", "/openApi/swap/v2/trade/leverage", {
+                "symbol": bx_sym,
+                "side": pos_side,
+                "leverage": int(leverage),
+            })
+    else:
+        exec_qty = _round_to_step(float(qty), step, prec)
 
     order_params: Dict[str, Any] = {
         "symbol": bx_sym,
         "side": side,
         "positionSide": pos_side,
         "type": "MARKET",
-        "quantity": qty,
+        "quantity": exec_qty,
     }
     if reduce_only:
         order_params["reduceOnly"] = "true"
@@ -745,7 +899,7 @@ def _place_bingx_multi_tpsl_order(
         return False, {"error": err}
 
     if reduce_only:
-        return True, {"bingx": res_data, "sl_error": "", "tp_error": ""}
+        return True, {"bingx": res_data, "exec_qty": exec_qty, "sl_error": "", "tp_error": ""}
 
     sl_error = ""
     tp_errors: List[str] = []
@@ -757,7 +911,7 @@ def _place_bingx_multi_tpsl_order(
             "positionSide": pos_side,
             "type": "STOP_MARKET",
             "stopPrice": float(sl),
-            "quantity": qty,
+            "quantity": exec_qty,
             "workingType": "MARK_PRICE",
         })
         if not ok_sl:
@@ -774,13 +928,13 @@ def _place_bingx_multi_tpsl_order(
     active_tps = [(price_lv, frac, label) for (price_lv, frac, label) in tp_targets if price_lv > 0]
     if active_tps:
         total_frac = sum(f for _, f, _ in active_tps) or 1.0
-        rem_qty = float(qty)
+        rem_qty = float(exec_qty)
         for idx, (price_lv, frac, label) in enumerate(active_tps):
             if idx == len(active_tps) - 1:
-                leg_qty = round(rem_qty, 6)
+                leg_qty = _round_to_step(rem_qty, step, prec)
             else:
-                leg_qty = round(float(qty) * (frac / total_frac), 6)
-                rem_qty = max(0.0, round(rem_qty - leg_qty, 6))
+                leg_qty = _round_to_step(float(exec_qty) * (frac / total_frac), step, prec)
+                rem_qty = max(0.0, round(rem_qty - leg_qty, prec))
             if leg_qty <= 0:
                 continue
             ok_tp, _, err_tp = _bingx_signed_request("POST", "/openApi/swap/v2/trade/order", {
@@ -797,6 +951,7 @@ def _place_bingx_multi_tpsl_order(
 
     return True, {
         "bingx": res_data,
+        "exec_qty": exec_qty,
         "sl_error": sl_error,
         "tp_error": "; ".join(tp_errors),
     }
@@ -867,6 +1022,7 @@ def _maybe_run_autotrade(signals: List[Dict[str, Any]], positions: List[Dict[str
             action=sig["action"],
             qty=float(sig["size"]),
             leverage=lev,
+            balance=balance,
             sl=float(sig["sl"]),
             tp1=float(sig["tp1"]),
             tp2=float(sig["tp2"]),
@@ -967,6 +1123,8 @@ def api_signals():
     min_rrr = min(10.0, max(0.5, float(request.args.get("min_rrr", 1.5) or 1.5)))
     market_filter = request.args.get("market", "ALL")
     symbol_filter = request.args.get("symbol", "ALL")
+
+    _sync_bingx_contracts()
 
     candidates = _all_assets()
     if market_filter and market_filter != "ALL":
@@ -1181,6 +1339,7 @@ def api_execute_manual():
         action=action,
         qty=qty,
         leverage=leverage,
+        balance=balance,
         sl=sl if sl > 0 else None,
         tp1=tp1 if tp1 > 0 else None,
         tp2=tp2 if tp2 > 0 else None,
@@ -1190,6 +1349,7 @@ def api_execute_manual():
         return jsonify({"success": False, "error": info.get("error", "Errore invio ordine BingX")}), 400
 
     asset = _find_asset(symbol)
+    exec_qty = float(info.get("exec_qty") or qty)
     with STATE_LOCK:
         TERMINAL_STATE["tracked_positions"][asset["symbol"]] = {
             "tp": tp1,
@@ -1206,7 +1366,7 @@ def api_execute_manual():
         "success": True,
         "symbol": asset["bx_symbol"],
         "action": action,
-        "qty": qty,
+        "qty": exec_qty,
         "leverage": f"{leverage}x",
         "sl": sl if sl > 0 else None,
         "tp1": tp1 if tp1 > 0 else None,
