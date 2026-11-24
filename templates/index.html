@@ -132,12 +132,12 @@
             <td class="py-2 px-2 font-bold text-[#00FF66] whitespace-nowrap">Score Minimo Segnali (%)</td>
             <td class="py-2 px-2">
               <div class="flex items-center gap-2">
-                <input type="range" id="topTableScoreRange" min="50" max="95" step="1" value="70" oninput="onTopTableScoreChange(this.value)" class="w-28 accent-[#00FF66] cursor-pointer" />
-                <input type="number" id="topTableScoreInput" min="50" max="95" step="1" value="70" oninput="onTopTableScoreChange(this.value)" class="w-16 bg-black border border-[#00FF66]/50 rounded-lg px-2 py-1 text-xs font-extrabold text-white text-right tabular-nums outline-none focus:border-[#00FF66]" />
+                <input type="range" id="topTableScoreRange" min="50" max="95" step="1" value="80" oninput="onTopTableScoreChange(this.value)" class="w-28 accent-[#00FF66] cursor-pointer" />
+                <input type="number" id="topTableScoreInput" min="50" max="95" step="1" value="80" oninput="onTopTableScoreChange(this.value)" class="w-16 bg-black border border-[#00FF66]/50 rounded-lg px-2 py-1 text-xs font-extrabold text-white text-right tabular-nums outline-none focus:border-[#00FF66]" />
               </div>
             </td>
-            <td class="py-2 px-2 font-extrabold text-[#00FF66] tabular-nums whitespace-nowrap" id="tableActiveScore">70%</td>
-            <td class="py-2 px-2 text-white/75">Filtra o evidenzia i segnali sotto soglia e blocca l'esecuzione automatica in modalità `AUTO`.</td>
+            <td class="py-2 px-2 font-extrabold text-[#00FF66] tabular-nums whitespace-nowrap" id="tableActiveScore">80%</td>
+            <td class="py-2 px-2 text-white/75">Filtra o evidenzia i segnali sotto soglia e blocca l'esecuzione automatica in modalità `AUTO` se il segnale è `NEUTRO` o sotto soglia.</td>
           </tr>
         </tbody>
       </table>
@@ -186,7 +186,7 @@
           <span class="text-white/40 mx-1">•</span>
           Leva: <strong class="text-cyan-300" id="topLeverageSummary">20x</strong>
           <span class="text-white/40 mx-1">•</span>
-          Score Min: <strong class="text-[#00FF66]" id="topMinScoreSummary">70%</strong>
+          Score Min: <strong class="text-[#00FF66]" id="topMinScoreSummary">80%</strong>
         </div>
       </div>
     </div>
@@ -198,7 +198,7 @@
           <div class="flex items-center justify-between pb-2.5 mb-3 border-b border-[#FFD700]/30">
             <div>
               <h2 class="text-sm font-extrabold uppercase tracking-wider text-white">⚡ SEGNALI OPERATIVI IN TEMPO REALE</h2>
-              <p class="text-[11px] text-[#FFD700]" id="signalsSubtitle">Ordini da minimo 2.00 USDT su BingX, R:R, Expected Value (EV), Kelly, Score Multi-TF, Target ETA e Finestra Candela</p>
+              <p class="text-[11px] text-[#FFD700]" id="signalsSubtitle">Filtro 1h/4h attivo • Ordini da minimo 2.00 USDT su BingX • SL 1.8x ATR • R:R, EV, Kelly &amp; Score</p>
             </div>
             <span class="px-2.5 py-1 rounded-md text-[11px] font-mono font-extrabold bg-[#FFD700] text-black">LIVE</span>
           </div>
@@ -215,7 +215,7 @@
           </h2>
         </div>
         <div id="alertsFeedContainer" class="p-3 space-y-2 max-h-[720px] overflow-y-auto font-mono text-[11px]">
-          <div class="p-2 rounded bg-white/5 text-white/70">[System] Motore live attivo (minimo 2.00 USDT su BingX).</div>
+          <div class="p-2 rounded bg-white/5 text-white/70">[System] Motore live attivo (minimo 2.00 USDT su BingX, filtro 1h/4h).</div>
         </div>
       </aside>
     </div>
@@ -290,22 +290,22 @@
           <div>
             <label class="text-[10px] text-white/60 uppercase block mb-1">FILTRO AUTO-TRADE</label>
             <select id="autoTradeFilter" onchange="saveAutoTradeSettings()" class="w-full bg-[#08080A] border border-white/25 rounded-lg px-3 py-2 text-white font-bold outline-none focus:border-[#FFD700]">
-              <option value="ALL_VALID">Tutti i Setup Validati</option>
+              <option value="ALL_VALID">Tutti i Setup Validati (No NEUTRO)</option>
               <option value="HIGH_CERTAINTY">Solo Certezza &ge; 80%</option>
             </select>
           </div>
           <div>
             <label class="text-[10px] text-white/60 uppercase block mb-1">SOGLIA MINIMA SCORE SEGNALI (%)</label>
             <div class="flex items-center gap-2">
-              <input type="range" id="minScoreRange" min="50" max="95" step="1" value="70" oninput="onMinScoreInput(this.value)" class="w-full accent-[#FFD700] cursor-pointer" />
-              <input type="number" id="minScoreInput" min="50" max="95" step="1" value="70" oninput="onMinScoreInput(this.value)" class="w-20 bg-[#08080A] border border-white/25 rounded-lg px-2 py-1.5 text-white font-bold text-right tabular-nums outline-none focus:border-[#FFD700]" />
+              <input type="range" id="minScoreRange" min="50" max="95" step="1" value="80" oninput="onMinScoreInput(this.value)" class="w-full accent-[#FFD700] cursor-pointer" />
+              <input type="number" id="minScoreInput" min="50" max="95" step="1" value="80" oninput="onMinScoreInput(this.value)" class="w-20 bg-[#08080A] border border-white/25 rounded-lg px-2 py-1.5 text-white font-bold text-right tabular-nums outline-none focus:border-[#FFD700]" />
             </div>
           </div>
           <div>
             <label class="text-[10px] text-white/60 uppercase block mb-1">VISUALIZZAZIONE SOTTO SOGLIA</label>
             <select id="hideBelowScoreSelect" onchange="saveScoreSettings()" class="w-full bg-[#08080A] border border-white/25 rounded-lg px-3 py-2 text-white font-bold outline-none focus:border-[#FFD700]">
-              <option value="SHOW_TAGGED">Mostra tutti (evidenzia sotto soglia)</option>
               <option value="HIDE_BELOW">Nascondi segnali sotto soglia</option>
+              <option value="SHOW_TAGGED">Mostra tutti (evidenzia sotto soglia)</option>
             </select>
           </div>
         </div>
@@ -450,8 +450,8 @@
       tradingMode: 'MANUAL',
       selectedLeverage: 10,
       selectedMarginUsdt: initialMargin,
-      minSignalScore: Number(localStorage.getItem('bingx_min_signal_score') || 70),
-      hideBelowScore: localStorage.getItem('bingx_hide_below_score') || 'SHOW_TAGGED',
+      minSignalScore: Number(localStorage.getItem('bingx_min_signal_score') || 80),
+      hideBelowScore: localStorage.getItem('bingx_hide_below_score') || 'HIDE_BELOW',
       envKeysConfigured: false,
       keySource: 'none',
       marketData: {},
@@ -840,26 +840,30 @@
       const cards = state.signalsCache;
       if (!cards || cards.length === 0) return;
 
-      const minScore = Number(state.minSignalScore || 70);
+      const minScore = Number(state.minSignalScore || 80);
       const visibleItems = cards
         .map((d, idx) => ({ d, idx }))
-        .filter(({ d }) => state.hideBelowScore !== 'HIDE_BELOW' || Number(d.certaintyPct || 0) >= minScore);
+        .filter(({ d }) => state.hideBelowScore !== 'HIDE_BELOW' || (d.side !== 'NEUTRO' && Number(d.certaintyPct || 0) >= minScore));
 
       if (visibleItems.length === 0) {
-        container.innerHTML = `<div class="text-xs font-mono text-amber-300 py-4 text-center">Nessun segnale sopra la soglia score ${minScore}% al momento (abbassa la soglia o imposta "Mostra tutti").</div>`;
+        container.innerHTML = `<div class="text-xs font-mono text-amber-300 py-4 text-center">Nessun segnale direzionale (1h/4h concordi) con score &ge; ${minScore}% al momento. Il filtro sta evitando ingressi deboli o neutri.</div>`;
         return;
       }
 
       container.innerHTML = visibleItems.map(({ d, idx }) => {
         const isBuy = d.side === 'BUY';
-        const meetsScore = Number(d.certaintyPct || 0) >= minScore;
-        const borderClass = isBuy ? 'border-l-4 border-l-[#00FF66]' : 'border-l-4 border-l-[#FF334B]';
+        const isNeutral = d.side === 'NEUTRO';
+        const meetsScore = !isNeutral && Number(d.certaintyPct || 0) >= minScore;
+        const borderClass = isBuy ? 'border-l-4 border-l-[#00FF66]' : (isNeutral ? 'border-l-4 border-l-amber-400' : 'border-l-4 border-l-[#FF334B]');
         const dirBadge = isBuy
           ? '<span class="px-2 py-0.5 rounded bg-[#00FF66]/20 text-[#00FF66] font-extrabold text-[10px]">BUY / LONG</span>'
-          : '<span class="px-2 py-0.5 rounded bg-[#FF334B]/20 text-[#FF334B] font-extrabold text-[10px]">SELL / SHORT</span>';
+          : (isNeutral
+            ? '<span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-extrabold text-[10px]">NEUTRO (NO TRADE)</span>'
+            : '<span class="px-2 py-0.5 rounded bg-[#FF334B]/20 text-[#FF334B] font-extrabold text-[10px]">SELL / SHORT</span>');
         const scoreBadge = meetsScore
           ? `<span class="px-2 py-0.5 rounded bg-[#00FF66] text-black font-extrabold text-[10px] tabular-nums">SCORE ${d.certaintyPct}% (OK &ge; ${minScore}%)</span>`
           : `<span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-400/40 font-extrabold text-[10px] tabular-nums">SCORE ${d.certaintyPct}% (&lt; ${minScore}%)</span>`;
+        const defaultSide = isBuy ? 'BUY' : 'SELL';
         const execLabel = isBuy ? 'ESEGUI BUY + SL/TP' : 'ESEGUI SELL + SL/TP';
         const execBtnClass = isBuy
           ? 'bg-[#00FF66] text-black hover:brightness-110'
@@ -874,7 +878,7 @@
                 ${dirBadge}
                 ${scoreBadge}
               </div>
-              <span class="text-[11px] text-white/60">${d.category}</span>
+              <span class="text-[11px] text-white/60">${d.category} • ${d.sentiment || ''}</span>
             </div>
 
             <div class="text-xs text-white/80">
@@ -884,7 +888,7 @@
             <div class="bg-black/70 border border-white/10 rounded-lg px-3 py-2 text-xs tabular-nums">
               Entry: <strong class="text-white">${formatPrice(d.price)}</strong>
               <span class="text-white/40 mx-1">|</span>
-              SL: <strong class="text-[#FF334B]">${formatPrice(d.sl)}</strong>
+              SL (1.8x ATR): <strong class="text-[#FF334B]">${formatPrice(d.sl)}</strong>
               <span class="text-white/40 mx-1">|</span>
               TP1: <strong class="text-[#00FF66]">${formatPrice(d.tp1)}</strong>
               <span class="text-white/40 mx-1">|</span>
@@ -906,7 +910,7 @@
             </div>
 
             <div class="flex items-center gap-2 flex-wrap pt-1">
-              <button onclick="executeSignalFromCard(${idx}, '${d.side}')" class="px-4 py-2 rounded-lg text-xs font-extrabold ${execBtnClass} transition-all">${execLabel}</button>
+              <button onclick="executeSignalFromCard(${idx}, '${defaultSide}')" class="px-4 py-2 rounded-lg text-xs font-extrabold ${execBtnClass} transition-all">${execLabel}</button>
               <button onclick="executeSignalFromCard(${idx}, 'BUY')" class="px-3 py-2 rounded-lg text-xs font-extrabold bg-[#00FF66] text-black hover:brightness-110 transition-all">BUY</button>
               <button onclick="executeSignalFromCard(${idx}, 'SELL')" class="px-3 py-2 rounded-lg text-xs font-extrabold bg-[#FF334B] text-white hover:brightness-110 transition-all">SELL</button>
               <button onclick="openChartForSymbol('${d.symbol}')" class="px-3.5 py-2 rounded-lg text-xs font-extrabold bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 hover:bg-cyan-500/30 transition-all">GRAFICO</button>
@@ -954,14 +958,19 @@
       const effLev = getEffectiveLeverage();
       const isAuto = state.tradingMode === 'AUTO';
 
-      if (isAuto && Number(asset.certaintyPct || 0) < Number(state.minSignalScore || 70)) {
-        logFeed(`[AUTO-TRADE SKIP] ${asset.symbol}: score ${asset.certaintyPct}% sotto soglia ${state.minSignalScore}%.`);
-        return;
-      }
-
-      if (state.livePositions.length >= state.autoSettings.maxPositions && isAuto) {
-        logFeed(`[AUTO-TRADE] Limite max posizioni (${state.autoSettings.maxPositions}) raggiunto.`);
-        return;
+      if (isAuto) {
+        if (asset.side === 'NEUTRO') {
+          logFeed(`[AUTO-TRADE BLoccato] ${asset.symbol}: segnale NEUTRO (1h/4h non allineati).`);
+          return;
+        }
+        if (Number(asset.certaintyPct || 0) < Number(state.minSignalScore || 80)) {
+          logFeed(`[AUTO-TRADE SKIP] ${asset.symbol}: score ${asset.certaintyPct}% sotto soglia ${state.minSignalScore}%.`);
+          return;
+        }
+        if (state.livePositions.length >= state.autoSettings.maxPositions) {
+          logFeed(`[AUTO-TRADE] Limite max posizioni (${state.autoSettings.maxPositions}) raggiunto.`);
+          return;
+        }
       }
 
       logFeed(`[ORDINE BINGX] Invio ${overrideSide} su ${asset.symbol} (Min Importo: $${effMargin.toFixed(2)}, Size: ${asset.size}, Leva: ${effLev}x, SL: ${asset.sl}, TP2: ${asset.tp2})...`);
@@ -992,7 +1001,8 @@
           alert(`Ordine ${overrideSide} eseguito su BingX per ${asset.symbol} (Importo $${data.appliedMarginUsdt || effMargin}, Qty: ${data.appliedQuantity || asset.size})!`);
           refreshBingxTelemetry();
         } else {
-          logFeed(`[ERRORE BINGX] ${data.msg || 'Esito negativo ordine'}`);
+          const rawInfo = data.bingxRaw ? ` | Dettaglio: ${JSON.stringify(data.bingxRaw)}` : '';
+          logFeed(`[ERRORE BINGX] ${data.msg || 'Esito negativo ordine'}${rawInfo}`);
           alert(data.msg || "Impossibile completare l'ordine su BingX.");
         }
       } catch (e) {
